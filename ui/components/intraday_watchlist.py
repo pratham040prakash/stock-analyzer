@@ -81,7 +81,6 @@ def render_intraday_watchlist_section(report, *, max_concurrent_trades: int = 2)
             if st.button(f"Open {p.nse_symbol} intraday chart", key=f"wl_intra_{p.nse_symbol}"):
                 st.session_state["intraday_ticker"] = p.nse_symbol
                 st.session_state["intraday_focus_chart"] = True
-                st.session_state["nav_tab"] = "Intraday"
                 st.rerun()
 
     st.caption(

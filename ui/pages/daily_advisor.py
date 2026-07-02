@@ -21,6 +21,7 @@ from analyzer.zerodha import (
     zerodha_setup_help,
 )
 from ui.components.kite_auth import handle_kite_redirect
+from ui.navigation import request_nav_tab
 
 
 def run_and_show_briefing(import_result, period: str) -> None:
@@ -169,8 +170,7 @@ def render_daily_advisor(period: str) -> None:
 
     with c3:
         if st.button("Open My Portfolio", key="daily_go_portfolio"):
-            st.session_state["nav_tab"] = "My Portfolio"
-            st.rerun()
+            request_nav_tab("My Portfolio")
         st.caption("Or add holdings in **My Portfolio** (manual entry — no broker needed)")
 
     import_result = st.session_state.get("zd_import")

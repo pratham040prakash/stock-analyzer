@@ -12,6 +12,7 @@ from analyzer.penny_stocks import (
     format_penny_tips,
     scan_penny_stocks,
 )
+from ui.navigation import request_nav_tab
 
 
 def render_penny_picks(market: str, period: str) -> None:
@@ -111,9 +112,7 @@ def render_penny_picks(market: str, period: str) -> None:
             else:
                 st.caption("Still high risk by definition — penny band.")
             if st.button(f"Analyze {p.nse_symbol}", key=f"penny_open_{p.nse_symbol}"):
-                st.session_state["single_ticker"] = p.nse_symbol
-                st.session_state["nav_tab"] = "Single Stock"
-                st.rerun()
+                request_nav_tab("Single Stock", single_ticker=p.nse_symbol)
 
     if report.avoid:
         with st.expander("Filtered out (liquidity / churn)"):

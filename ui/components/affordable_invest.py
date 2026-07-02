@@ -15,6 +15,7 @@ from analyzer.affordable_invest import (
 )
 from analyzer.markets import format_price
 from analyzer.nse_options import get_fno_lot_size
+from ui.navigation import request_nav_tab
 from ui.theme import INTRADAY_SETUP_COLORS, OPTIONS_COLORS, REC_COLORS
 
 
@@ -73,9 +74,7 @@ def _render_index_affordable(
             if idx.chain_note:
                 st.caption(idx.chain_note)
             if st.button(f"Open {idx.fno_symbol} in NSE Options", key=f"aff_idx_{idx.fno_symbol}"):
-                st.session_state["nse_opt_symbol"] = idx.fno_symbol
-                st.session_state["nav_tab"] = "NSE Options"
-                st.rerun()
+                request_nav_tab("NSE Options", nse_opt_symbol=idx.fno_symbol)
 
     st.divider()
 
@@ -200,19 +199,13 @@ def render_affordable_invest_section(report, period: str = "1y") -> None:
             c1, c2, c3 = st.columns(3)
             with c1:
                 if st.button(f"Single Stock", key=f"aff_open_{p.nse_symbol}"):
-                    st.session_state["single_ticker"] = p.nse_symbol
-                    st.session_state["nav_tab"] = "Single Stock"
-                    st.rerun()
+                    request_nav_tab("Single Stock", single_ticker=p.nse_symbol)
             with c2:
                 if st.button(f"Intraday chart", key=f"aff_intra_{p.nse_symbol}"):
-                    st.session_state["intraday_ticker"] = p.nse_symbol
-                    st.session_state["nav_tab"] = "Intraday"
-                    st.rerun()
+                    request_nav_tab("Intraday", intraday_ticker=p.nse_symbol)
             with c3:
                 if st.button(f"NSE Options", key=f"aff_opt_{p.nse_symbol}"):
-                    st.session_state["nse_opt_symbol"] = p.nse_symbol
-                    st.session_state["nav_tab"] = "NSE Options"
-                    st.rerun()
+                    request_nav_tab("NSE Options", nse_opt_symbol=p.nse_symbol)
 
     st.caption(
         "Not financial advice. Options can expire worthless. "

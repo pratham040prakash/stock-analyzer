@@ -7,6 +7,7 @@ import streamlit as st
 
 from analyzer.markets import PRESET_WATCHLISTS, format_price, is_india_market, parse_tickers
 from analyzer.screener import PRESET_SCREENS, ScreenerCriteria, criteria_summary, run_screener
+from ui.navigation import request_nav_tab
 
 
 def _universe_options(market: str) -> dict[str, str]:
@@ -184,9 +185,7 @@ def render_screener(market: str, period: str) -> None:
     for i, row in enumerate(results[:10]):
         with cols[i % len(cols)]:
             if st.button(row.nse_symbol, key=f"scr_open_{row.nse_symbol}_{i}"):
-                st.session_state["single_ticker"] = row.nse_symbol
-                st.session_state["nav_tab"] = "Single Stock"
-                st.rerun()
+                request_nav_tab("Single Stock", single_ticker=row.nse_symbol)
 
     top = results[0]
     st.success(

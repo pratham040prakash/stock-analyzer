@@ -280,8 +280,9 @@ def render_intraday(market: str) -> None:
         "then refresh **Market Pulse** tonight for tomorrow's watchlist."
     )
     if st.button("Open Track Record", key="intra_track_record"):
-        st.session_state["nav_tab"] = "Track Record"
-        st.rerun()
+        from ui.navigation import request_nav_tab
+
+        request_nav_tab("Track Record")
 
     st.divider()
     st.markdown("#### How we pick intraday stocks")

@@ -33,6 +33,7 @@ from ui.pages.track_record import render_track_record
 from ui.pages.varsity import render_varsity_guide
 from ui.pages.watchlist import render_watchlist
 from ui.pages.zerodha import render_zerodha
+from ui.navigation import apply_pending_nav_tab
 from ui.theme import DISCLAIMER, MOBILE_CSS, NAV_TABS
 
 
@@ -95,11 +96,14 @@ def main() -> None:
                     for r in results:
                         sym_short = r["symbol"].replace(".NS", "").replace(".BO", "")
                         if st.button(f"{r['symbol']} — {r['name'][:28]}", key=f"sr_{r['symbol']}"):
-                            st.session_state["single_ticker"] = sym_short
-                            st.session_state["bt_ticker"] = sym_short
-                            st.session_state["intraday_ticker"] = sym_short
-                            st.session_state["nav_tab"] = "Single Stock"
-                            st.rerun()
+                            from ui.navigation import request_nav_tab
+
+                            request_nav_tab(
+                                "Single Stock",
+                                single_ticker=sym_short,
+                                bt_ticker=sym_short,
+                                intraday_ticker=sym_short,
+                            )
                 else:
                     st.caption("No NSE/BSE results. Try a different name.")
 
@@ -112,8 +116,9 @@ def main() -> None:
                     "Open the **Varsity TA** tab for search and details."
                 )
                 if st.button("Open Varsity TA tab", key="go_varsity"):
-                    st.session_state["nav_tab"] = "Varsity TA"
-                    st.rerun()
+                    from ui.navigation import request_nav_tab
+
+                    request_nav_tab("Varsity TA")
 
         st.divider()
         render_telegram_subscribe_sidebar()
@@ -154,6 +159,8 @@ def main() -> None:
 
     if "nav_tab" not in st.session_state:
         st.session_state["nav_tab"] = NAV_TABS[0]
+
+    apply_pending_nav_tab()
 
     selected = st.radio(
         "Section",

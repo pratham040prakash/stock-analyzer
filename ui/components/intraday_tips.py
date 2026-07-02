@@ -15,6 +15,7 @@ from analyzer.intraday_beginner_tips import (
     tips_summary_markdown,
 )
 from analyzer.market_session import market_session_status
+from ui.navigation import request_nav_tab
 
 
 def _checklist_storage_key() -> str:
@@ -70,10 +71,13 @@ def render_daily_mis_checklist(advice: SessionTimingAdvice | None = None) -> Non
                             key=f"mis_link_{storage}_{item.id}",
                             use_container_width=True,
                         ):
-                            st.session_state["nav_tab"] = item.link_tab
-                            if item.focus_key:
-                                st.session_state[item.focus_key] = True
-                            st.rerun()
+                            extra = {item.focus_key: True} if item.focus_key else {}
+                            if item.link_tab == "Intraday":
+                                for k, v in extra.items():
+                                    st.session_state[k] = v
+                                st.rerun()
+                            else:
+                                request_nav_tab(item.link_tab, **extra)
             st.divider()
 
         st.session_state[storage] = done_map

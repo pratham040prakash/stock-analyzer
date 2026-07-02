@@ -20,6 +20,7 @@ from analyzer.sip_planner import (
 from analyzer.sip_reminders import format_sip_plan_telegram, run_sip_reminders
 from analyzer.sip_storage import delete_goal, list_saved_goals, save_goal, update_reminder
 from analyzer.telegram_notify import send_telegram_broadcast, telegram_configured
+from ui.navigation import request_nav_tab
 
 
 def _currency_label(market: str) -> str:
@@ -380,11 +381,7 @@ def render_sip_goals(market: str, period: str) -> None:
     with c1:
         if st.button("Open Nifty ETF in Single Stock", key="sip_open_nifty"):
             ticker = "NIFTYBEES" if is_india_market(market) else "VOO"
-            st.session_state["single_ticker"] = ticker
-            st.session_state["nav_tab"] = "Single Stock"
-            st.rerun()
+            request_nav_tab("Single Stock", single_ticker=ticker)
     with c2:
         if st.button("Run quality screener", key="sip_open_screen"):
-            st.session_state["nav_tab"] = "Screener"
-            st.session_state["scr_preset"] = "Quality compounders"
-            st.rerun()
+            request_nav_tab("Screener", scr_preset="Quality compounders")

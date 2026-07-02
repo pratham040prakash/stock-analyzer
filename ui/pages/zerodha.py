@@ -32,6 +32,7 @@ from analyzer.zerodha import (
     zerodha_setup_help,
 )
 from ui.components.kite_auth import handle_kite_redirect
+from ui.navigation import request_nav_tab
 
 
 def _persist_import(import_result: ZerodhaImportResult) -> None:
@@ -226,8 +227,7 @@ def render_zerodha(period: str) -> None:
             st.rerun()
     with advisor_col:
         if st.button("Open Daily Advisor", key="zd_daily"):
-            st.session_state["nav_tab"] = "Daily Advisor"
-            st.rerun()
+            request_nav_tab("Daily Advisor")
 
     preview = pd.DataFrame([
         {

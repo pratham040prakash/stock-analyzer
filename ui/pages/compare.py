@@ -7,6 +7,7 @@ import streamlit as st
 
 from analyzer.compare import compare_stocks, pick_winner
 from analyzer.markets import format_price, is_india_market, parse_tickers
+from ui.navigation import request_nav_tab
 
 
 PRESETS: dict[str, list[str]] = {
@@ -91,9 +92,7 @@ def render_compare(market: str, period: str) -> None:
         sym = r.ticker.replace(".NS", "").replace(".BO", "")
         with cols[i % len(cols)]:
             if st.button(sym, key=f"cmp_open_{sym}_{i}"):
-                st.session_state["single_ticker"] = sym
-                st.session_state["nav_tab"] = "Single Stock"
-                st.rerun()
+                request_nav_tab("Single Stock", single_ticker=sym)
 
     if is_india_market(market):
         st.caption("Delivery % from NSE (same day). Compare long-term names on **Long** column, swings on **Swing**.")
