@@ -4,6 +4,8 @@ import unittest
 
 from analyzer.affordable_invest import (
     AffordableInvestPick,
+    _intraday_fields,
+    _options_action_from_stock,
     affordable_from_pulse_report,
     rank_affordable_investments,
 )
@@ -54,6 +56,21 @@ def _stock(
     )
 
 
+def _stock_with_intraday(nse: str, price: float, intra_action: str = "BUY") -> StockPulseEntry:
+    s = _stock(nse, price)
+    s.intraday = HorizonAnalysis(
+        horizon="intraday",
+        action=intra_action,
+        score=28.0,
+        timeframe="Today / MIS",
+        entry_hint="Above VWAP",
+        stop_hint="Below OR low",
+        target_hint="OR high",
+        summary="Bullish session",
+    )
+    return s
+
+
 class TestAffordableInvest(unittest.TestCase):
     def test_filters_above_price_cap(self):
         stocks = [_stock("TCS", 4100), _stock("SBIN", 850)]
@@ -87,6 +104,21 @@ class TestAffordableInvest(unittest.TestCase):
         picks = affordable_from_pulse_report(report, limit=5)
         self.assertEqual(len(picks), 2)
         self.assertIsInstance(picks[0], AffordableInvestPick)
+
+    def test_intraday_fields(self):
+        stock = _stock_with_intraday("SBIN", 850)
+        fields = _intraday_fields(stock)
+        self.assertEqual(fields["intraday_action"], "BUY")
+        self.assertEqual(fields["intraday_score"], 28.0)
+
+    def test_options_action_buy_ce(self):
+        stock = _stock_with_intraday("ITC", 450, "STRONG BUY")
+        self.assertEqual(_options_action_from_stock(stock), "BUY CE")
+
+    def test_pick_includes_intraday(self):
+        picks = rank_affordable_investments([_stock_with_intraday("SBIN", 850)])
+        self.assertEqual(picks[0].intraday_action, "BUY")
+        self.assertEqual(picks[0].options_action, "BUY CE")
 
 
 if __name__ == "__main__":
