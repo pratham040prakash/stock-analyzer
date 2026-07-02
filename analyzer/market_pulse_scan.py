@@ -29,6 +29,13 @@ from analyzer.nse_options import (
     enrich_with_nse_chain,
 )
 from analyzer.kite_stream import get_kite_ltp_cached
+from analyzer.delivery_quality import (
+    delivery_by_nse,
+    delivery_note_for_horizon,
+    enrich_delivery_with_stocks,
+    fetch_delivery_batch,
+    should_downgrade_for_delivery,
+)
 from analyzer.earnings_calendar import (
     earnings_note_for_pick,
     events_by_nse,
@@ -108,6 +115,8 @@ class StockPulseEntry:
     long_chart_df: pd.DataFrame | None = None
     what_to_do: str = ""
     ltp_source: str = "Yahoo"
+    volume_ratio: float | None = None
+    price_change_pct: float | None = None
     error: str | None = None
 
     @property
@@ -133,6 +142,8 @@ class MarketPulseReport:
     strongest_equity: list[str] = field(default_factory=list)
     earnings_events: list = field(default_factory=list)
     earnings_by_nse: dict = field(default_factory=dict)
+    delivery_snapshots: list = field(default_factory=list)
+    delivery_by_nse: dict = field(default_factory=dict)
 
 
 def _index_options_action(pulse: IndexPulse | None, intraday_action: str | None) -> str:
@@ -308,6 +319,18 @@ def scan_stock(
         long_chart_df = df.tail(250) if charts else None
         what = _what_to_do(intraday_h, short, long)
 
+        volume_ratio = None
+        price_change_pct = None
+        if len(df) >= 2:
+            row = df.iloc[-1]
+            prev = df.iloc[-2]
+            vol_sma = row.get("VOL_SMA_20")
+            if vol_sma is not None and not pd.isna(vol_sma) and float(vol_sma) > 0:
+                volume_ratio = round(float(row["Volume"]) / float(vol_sma), 2)
+            p0, p1 = float(prev["Close"]), float(row["Close"])
+            if p0 > 0:
+                price_change_pct = round((p1 / p0 - 1) * 100, 2)
+
         return StockPulseEntry(
             symbol=info["symbol"],
             nse_symbol=nse,
@@ -324,6 +347,8 @@ def scan_stock(
             long_chart_df=long_chart_df,
             what_to_do=what,
             ltp_source=ltp_source,
+            volume_ratio=volume_ratio,
+            price_change_pct=price_change_pct,
         )
     except Exception as exc:
         return StockPulseEntry(
@@ -342,8 +367,10 @@ def _collect_picks(
     stocks: list[StockPulseEntry],
     regime: MarketRegime | None,
     earnings_by_nse: dict | None = None,
+    delivery_by_nse_map: dict | None = None,
     *,
     skip_earnings_week: bool = False,
+    filter_weak_delivery: bool = False,
 ) -> tuple[list[ChartStockPick], list[ChartStockPick], list[ChartStockPick]]:
     intraday_picks: list[ChartStockPick] = []
     short_picks: list[ChartStockPick] = []
@@ -353,18 +380,23 @@ def _collect_picks(
     short_min = gates["short"]
     long_min = gates["long"]
     earn_map = earnings_by_nse or {}
+    del_map = delivery_by_nse_map or {}
 
     for s in stocks:
         if s.error or not s.short_term or not s.long_term:
             continue
         ev = earn_map.get(s.nse_symbol.upper())
+        dv = del_map.get(s.nse_symbol.upper())
+        intra_note = earnings_note_for_pick(ev, "intraday")
+        del_intra = delivery_note_for_horizon(dv, "intraday")
         if (
             s.intraday
             and s.intraday.score >= intraday_min
             and s.intraday.action in BUY_ACTIONS_INTRADAY
             and not should_skip_pick(ev, "intraday", skip_earnings_week=skip_earnings_week)
+            and not should_downgrade_for_delivery(dv, "intraday", filter_weak_delivery=filter_weak_delivery)
         ):
-            note = earnings_note_for_pick(ev, "intraday")
+            note = " · ".join(x for x in (intra_note, del_intra) if x)
             intraday_picks.append(_horizon_to_pick(
                 s.nse_symbol, s.name, s.symbol, s.price, s.intraday, regime,
                 regime_note=note,
@@ -373,14 +405,15 @@ def _collect_picks(
             s.short_term.score >= short_min
             and s.short_term.action in BUY_ACTIONS_SHORT
             and not should_skip_pick(ev, "short", skip_earnings_week=skip_earnings_week)
+            and not should_downgrade_for_delivery(dv, "short", filter_weak_delivery=filter_weak_delivery)
         ):
-            note = earnings_note_for_pick(ev, "short")
+            note = " · ".join(x for x in (earnings_note_for_pick(ev, "short"), delivery_note_for_horizon(dv, "short")) if x)
             short_picks.append(_horizon_to_pick(
                 s.nse_symbol, s.name, s.symbol, s.price, s.short_term, regime,
                 regime_note=note,
             ))
         if s.long_term.score >= long_min and s.long_term.action in BUY_ACTIONS_LONG:
-            note = earnings_note_for_pick(ev, "long")
+            note = " · ".join(x for x in (earnings_note_for_pick(ev, "long"), delivery_note_for_horizon(dv, "long")) if x)
             long_picks.append(_horizon_to_pick(
                 s.nse_symbol, s.name, s.symbol, s.price, s.long_term, regime,
                 regime_note=note,
@@ -452,6 +485,7 @@ def run_market_pulse_scan(
     allow_stale_cache: bool = False,
     include_index_options: bool = False,
     skip_earnings_week: bool = True,
+    filter_weak_delivery: bool = True,
 ) -> MarketPulseReport:
     from analyzer.pulse_cache import load_pulse_cache_with_stale, save_pulse_cache
 
@@ -469,12 +503,15 @@ def run_market_pulse_scan(
         f_indices = pool.submit(india_market_pulse, period)
         f_stocks = pool.submit(_scan_all_stocks, MARKET_PULSE_SCAN_UNIVERSE, period, market)
         f_earnings = pool.submit(fetch_nifty50_earnings, MARKET_PULSE_SCAN_UNIVERSE, market)
+        f_delivery = pool.submit(fetch_delivery_batch, MARKET_PULSE_SCAN_UNIVERSE)
 
         regime = f_regime.result()
         macro = f_macro.result()
         indices = f_indices.result()
         all_stocks = f_stocks.result()
         earnings_events = f_earnings.result()
+        delivery_raw = f_delivery.result()
+        delivery_snapshots = enrich_delivery_with_stocks(delivery_raw, all_stocks)
 
     verdict = overall_market_verdict(indices)
 
@@ -495,7 +532,9 @@ def run_market_pulse_scan(
         all_stocks,
         regime,
         events_by_nse(earnings_events),
+        delivery_by_nse(delivery_snapshots),
         skip_earnings_week=skip_earnings_week,
+        filter_weak_delivery=filter_weak_delivery,
     )
     stock_map = {s.nse_symbol: s for s in all_stocks}
 
@@ -520,6 +559,8 @@ def run_market_pulse_scan(
         strongest_equity=[f"{p.nse_symbol} ({p.action})" for p in long_picks[:5]],
         earnings_events=earnings_events,
         earnings_by_nse=events_by_nse(earnings_events),
+        delivery_snapshots=delivery_snapshots,
+        delivery_by_nse=delivery_by_nse(delivery_snapshots),
     )
     report._index_options_deferred = deferred_options  # type: ignore[attr-defined]
     save_pulse_cache(cache_key, report)

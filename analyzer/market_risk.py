@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 import pandas as pd
 
 from analyzer.earnings_calendar import CorporateEvent
+from analyzer.delivery_quality import DeliverySnapshot
 from analyzer.fundamentals import FundamentalResult
 from analyzer.market_regime import MarketRegime, detect_nifty_regime
 
@@ -163,6 +164,7 @@ def assess_market_risk(
     goal: str = "long_term",
     experience: str = "new",
     earnings_event: CorporateEvent | None = None,
+    delivery_snapshot: DeliverySnapshot | None = None,
 ) -> MarketRiskAssessment:
     """
     Score risk from recent chart trend, volatility, drawdown, fundamentals, and Nifty regime.
@@ -269,6 +271,18 @@ def assess_market_risk(
             elif earnings_event.days_until <= 14:
                 risk_score += 5
                 risks.append(f"Earnings in {earnings_event.days_until} days — on watchlist.")
+
+    if delivery_snapshot and delivery_snapshot.delivery_pct is not None:
+        if delivery_snapshot.quality == "speculative":
+            risk_score += 15
+            risks.append(delivery_snapshot.guidance or "Low delivery — speculative churn.")
+        elif delivery_snapshot.quality == "weak":
+            risk_score += 8
+            risks.append(f"Delivery {delivery_snapshot.delivery_pct:.0f}% — mixed quality.")
+        elif delivery_snapshot.quality == "strong":
+            positives.append(
+                f"Strong delivery {delivery_snapshot.delivery_pct:.0f}% — accumulation signal."
+            )
 
     risk_score = min(100.0, max(0.0, risk_score))
     level = _risk_level(risk_score)

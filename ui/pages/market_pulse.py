@@ -22,6 +22,7 @@ from analyzer.telegram_notify import format_pulse_alert, send_telegram_broadcast
 from ui.charts import price_chart
 from ui.components.india_macro import pulse_buy_color, render_india_macro_strip
 from ui.components.intraday import render_nse_chain_table
+from ui.components.delivery_quality import render_delivery_banner, render_delivery_table
 from ui.components.earnings_calendar import render_earnings_week_strip
 from ui.theme import GLOBAL_BIAS_COLORS, OPTIONS_COLORS, REC_COLORS
 
@@ -162,6 +163,12 @@ def render_market_pulse(market: str, period: str) -> None:
         key="pulse_skip_earnings",
         help="Hides MIS and swing BUYs when results are within 3–5 days.",
     )
+    filter_delivery = st.checkbox(
+        "Skip speculative low-delivery picks (swing/MIS)",
+        value=True,
+        key="pulse_filter_delivery",
+        help="Hides picks with delivery <25% and high volume churn.",
+    )
 
     if st.button("Refresh full market pulse", type="primary", key="pulse_refresh"):
         st.session_state.pop("market_pulse_full", None)
@@ -205,6 +212,7 @@ def render_market_pulse(market: str, period: str) -> None:
             st.session_state["market_pulse_full"] = run_market_pulse_scan(
                 period, market, use_cache=not force,
                 skip_earnings_week=skip_earnings,
+                filter_weak_delivery=filter_delivery,
             )
         st.session_state.pop("pulse_cache_stale", None)
 
@@ -235,6 +243,15 @@ def render_market_pulse(market: str, period: str) -> None:
         earnings_events = fetch_nifty50_earnings()
     if earnings_events:
         render_earnings_week_strip(earnings_events)
+
+    delivery_snapshots = getattr(report, "delivery_snapshots", None) or []
+    if not delivery_snapshots and is_india_market(market):
+        from analyzer.delivery_quality import fetch_delivery_batch
+        delivery_snapshots = fetch_delivery_batch(list(stock_map.keys()))
+    if delivery_snapshots:
+        render_delivery_table(delivery_snapshots)
+
+    if earnings_events or delivery_snapshots:
         st.divider()
 
     st.subheader("🎯 BUY suggestions — all timeframes")

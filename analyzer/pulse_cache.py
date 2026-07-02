@@ -18,6 +18,7 @@ from analyzer.market_pulse_scan import (
     MarketPulseReport,
     StockPulseEntry,
 )
+from analyzer.delivery_quality import snapshot_from_dict, snapshot_to_dict
 from analyzer.earnings_calendar import event_from_dict, event_to_dict
 from analyzer.market_regime import MarketRegime
 
@@ -89,6 +90,8 @@ def _stock_entry(d: dict) -> StockPulseEntry:
         what_to_do=d.get("what_to_do", ""),
         ltp_source=d.get("ltp_source", "Yahoo"),
         error=d.get("error"),
+        volume_ratio=d.get("volume_ratio"),
+        price_change_pct=d.get("price_change_pct"),
     )
 
 
@@ -132,6 +135,7 @@ def serialize_pulse_report(report: MarketPulseReport) -> dict:
         "strongest_equity": list(report.strongest_equity),
         "index_options_deferred": getattr(report, "_index_options_deferred", False),
         "earnings_events": [event_to_dict(e) for e in getattr(report, "earnings_events", [])],
+        "delivery_snapshots": [snapshot_to_dict(s) for s in getattr(report, "delivery_snapshots", [])],
     }
 
 
@@ -149,11 +153,14 @@ def _stock_to_dict(s: StockPulseEntry) -> dict:
         "what_to_do": s.what_to_do,
         "ltp_source": s.ltp_source,
         "error": s.error,
+        "volume_ratio": s.volume_ratio,
+        "price_change_pct": s.price_change_pct,
     }
 
 
 def deserialize_pulse_report(d: dict) -> MarketPulseReport:
     earnings_raw = [event_from_dict(x) for x in d.get("earnings_events", [])]
+    delivery_raw = [snapshot_from_dict(x) for x in d.get("delivery_snapshots", [])]
     report = MarketPulseReport(
         indices=[_index_pulse(x) for x in d.get("indices", [])],
         market_verdict=d.get("market_verdict", ""),
@@ -171,6 +178,8 @@ def deserialize_pulse_report(d: dict) -> MarketPulseReport:
         strongest_equity=list(d.get("strongest_equity", [])),
         earnings_events=earnings_raw,
         earnings_by_nse={e.nse_symbol.upper(): e for e in earnings_raw},
+        delivery_snapshots=delivery_raw,
+        delivery_by_nse={s.nse_symbol.upper(): s for s in delivery_raw},
     )
     report._index_options_deferred = bool(d.get("index_options_deferred", False))  # type: ignore[attr-defined]
     return report

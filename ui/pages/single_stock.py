@@ -9,6 +9,7 @@ from analyzer.candle_narrative import narrate_session
 from analyzer.candlesticks import detect_patterns_at
 from analyzer.combined import analyze_combined
 from analyzer.data import fetch_benchmark, fetch_stock_data
+from analyzer.delivery_quality import build_delivery_snapshot
 from analyzer.earnings_calendar import fetch_corporate_event
 from analyzer.india import indian_ticker_help
 from analyzer.indicators import add_indicators
@@ -20,6 +21,7 @@ from analyzer.relative_strength import compute_relative_strength
 from analyzer.risk import capital_from_kite_margins, suggest_position_size
 from analyzer.zerodha import fetch_kite_margins
 from ui.charts import price_chart
+from ui.components.delivery_quality import render_delivery_banner
 from ui.components.earnings_calendar import render_earnings_banner
 from ui.components.advice import render_advice, render_fundamentals, render_signals
 from ui.components.intraday import render_options_verdict
@@ -114,6 +116,12 @@ def render_single_stock(market: str, period: str) -> None:
         earnings_ev = fetch_corporate_event(info["symbol"], market=market)
     st.markdown("### 📅 Earnings & events")
     render_earnings_banner(earnings_ev)
+
+    if is_india_market(market):
+        with st.spinner("Fetching NSE delivery %…"):
+            delivery_snap = build_delivery_snapshot(info["symbol"], df=df)
+        st.markdown("### 📦 Delivery & volume quality")
+        render_delivery_banner(delivery_snap)
 
     st.divider()
     left, right = st.columns([1.4, 1])
