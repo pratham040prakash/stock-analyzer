@@ -43,6 +43,11 @@ from analyzer.earnings_calendar import (
     should_skip_pick,
 )
 from analyzer.threshold_tuning import get_pulse_thresholds
+from analyzer.intraday_stock_picker import (
+    combined_intraday_rank,
+    investopedia_screen_summary,
+    screen_intraday_stock,
+)
 
 # Re-export top 10 for display table
 MARKET_PULSE_TOP_10 = [
@@ -97,6 +102,8 @@ class ChartStockPick:
     summary: str = ""
     regime_note: str = ""
     trade_type: str = "Delivery"  # Delivery | MIS
+    screen_score: float = 0.0
+    screen_notes: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -118,6 +125,9 @@ class StockPulseEntry:
     ltp_source: str = "Yahoo"
     volume_ratio: float | None = None
     price_change_pct: float | None = None
+    avg_daily_volume: float | None = None
+    daily_range_pct: float | None = None
+    nifty_correlation: float | None = None
     error: str | None = None
 
     @property
@@ -194,6 +204,9 @@ def _what_to_do(
 def _horizon_to_pick(
     nse: str, name: str, sym: str, price: float, h: HorizonAnalysis,
     regime: MarketRegime | None, regime_note: str = "",
+    *,
+    screen_score: float = 0.0,
+    screen_notes: list[str] | None = None,
 ) -> ChartStockPick:
     action, score, note = h.action, h.score, regime_note
     if regime:
@@ -217,6 +230,8 @@ def _horizon_to_pick(
         summary=h.summary,
         regime_note=regime_note,
         trade_type=trade_type,
+        screen_score=screen_score,
+        screen_notes=list(screen_notes or []),
     )
 
 
@@ -261,6 +276,7 @@ def scan_stock(
     *,
     charts: bool = True,
     skip_intraday: bool | None = None,
+    nifty_daily_df: pd.DataFrame | None = None,
 ) -> StockPulseEntry:
     nse = symbol.replace(".NS", "").replace(".BO", "")
     name = nse
@@ -325,6 +341,9 @@ def scan_stock(
 
         volume_ratio = None
         price_change_pct = None
+        avg_daily_volume = None
+        daily_range_pct = None
+        nifty_correlation = None
         if len(df) >= 2:
             row = df.iloc[-1]
             prev = df.iloc[-2]
@@ -334,6 +353,14 @@ def scan_stock(
             p0, p1 = float(prev["Close"]), float(row["Close"])
             if p0 > 0:
                 price_change_pct = round((p1 / p0 - 1) * 100, 2)
+        if len(df) >= 20:
+            tail = df.tail(20)
+            avg_daily_volume = float(tail["Volume"].mean())
+            ranges = (tail["High"] - tail["Low"]) / tail["Close"].replace(0, pd.NA) * 100
+            daily_range_pct = round(float(ranges.mean()), 2)
+            if nifty_daily_df is not None:
+                from analyzer.intraday_stock_picker import rolling_nifty_correlation
+                nifty_correlation = rolling_nifty_correlation(df, nifty_daily_df)
 
         return StockPulseEntry(
             symbol=info["symbol"],
@@ -353,6 +380,9 @@ def scan_stock(
             ltp_source=ltp_source,
             volume_ratio=volume_ratio,
             price_change_pct=price_change_pct,
+            avg_daily_volume=avg_daily_volume,
+            daily_range_pct=daily_range_pct,
+            nifty_correlation=nifty_correlation,
         )
     except Exception as exc:
         return StockPulseEntry(
@@ -375,6 +405,7 @@ def _collect_picks(
     *,
     skip_earnings_week: bool = False,
     filter_weak_delivery: bool = False,
+    nifty_daily_df: pd.DataFrame | None = None,
 ) -> tuple[list[ChartStockPick], list[ChartStockPick], list[ChartStockPick]]:
     intraday_picks: list[ChartStockPick] = []
     short_picks: list[ChartStockPick] = []
@@ -385,6 +416,13 @@ def _collect_picks(
     long_min = gates["long"]
     earn_map = earnings_by_nse or {}
     del_map = delivery_by_nse_map or {}
+    nifty_bias = "NEUTRAL"
+    if regime:
+        reg = regime.regime.upper()
+        if "BULLISH" in reg:
+            nifty_bias = "BULLISH"
+        elif "BEARISH" in reg:
+            nifty_bias = "BEARISH"
 
     for s in stocks:
         if s.error or not s.short_term or not s.long_term:
@@ -400,11 +438,31 @@ def _collect_picks(
             and not should_skip_pick(ev, "intraday", skip_earnings_week=skip_earnings_week)
             and not should_downgrade_for_delivery(dv, "intraday", filter_weak_delivery=filter_weak_delivery)
         ):
-            note = " · ".join(x for x in (intra_note, del_intra) if x)
-            intraday_picks.append(_horizon_to_pick(
+            daily_df = s.short_chart_df if s.short_chart_df is not None else None
+            screen = screen_intraday_stock(
+                nse_symbol=s.nse_symbol,
+                daily_df=daily_df,
+                intraday_df=s.intraday_df,
+                relative_volume=s.volume_ratio,
+                nifty_df=nifty_daily_df,
+                trade_action=s.intraday.action,
+                nifty_bias=nifty_bias,
+                avg_daily_volume=s.avg_daily_volume,
+                daily_range_pct=s.daily_range_pct,
+                nifty_correlation=s.nifty_correlation,
+            )
+            if not screen.passed_liquidity or not screen.passed_volatility:
+                continue
+            note_parts = [x for x in (intra_note, del_intra) if x]
+            note = " · ".join(note_parts)
+            pick = _horizon_to_pick(
                 s.nse_symbol, s.name, s.symbol, s.price, s.intraday, regime,
                 regime_note=note,
-            ))
+                screen_score=screen.composite_score,
+                screen_notes=screen.notes,
+            )
+            pick.score = combined_intraday_rank(pick.score, screen.composite_score)
+            intraday_picks.append(pick)
         if (
             s.short_term.score >= short_min
             and s.short_term.action in BUY_ACTIONS_SHORT
@@ -433,6 +491,7 @@ def _scan_all_stocks(
     universe: list[str],
     period: str,
     market: str,
+    nifty_daily_df: pd.DataFrame | None = None,
 ) -> list[StockPulseEntry]:
     kite_syms = [f"NSE:{s}-EQ" for s in universe]
     kite_ltp = get_kite_ltp_cached(kite_syms)
@@ -453,6 +512,7 @@ def _scan_all_stocks(
                     kite_ltp,
                     charts=full_charts,
                     skip_intraday=not market_open,
+                    nifty_daily_df=nifty_daily_df,
                 )
             )
         for fut in as_completed(futures):
@@ -501,11 +561,21 @@ def run_market_pulse_scan(
             if fresh or allow_stale_cache:
                 return cached
 
+    from analyzer.data import fetch_stock_data
+
+    fetch_period = "2y" if period in ("3mo", "6mo") else period
+    try:
+        nifty_daily_df, _ = fetch_stock_data("NIFTY50", period=fetch_period, market=market)
+    except Exception:
+        nifty_daily_df = None
+
     with ThreadPoolExecutor(max_workers=4) as pool:
         f_regime = pool.submit(detect_nifty_regime, period)
         f_macro = pool.submit(build_india_macro_snapshot)
         f_indices = pool.submit(india_market_pulse, period)
-        f_stocks = pool.submit(_scan_all_stocks, MARKET_PULSE_SCAN_UNIVERSE, period, market)
+        f_stocks = pool.submit(
+            _scan_all_stocks, MARKET_PULSE_SCAN_UNIVERSE, period, market, nifty_daily_df,
+        )
         f_earnings = pool.submit(fetch_nifty50_earnings, MARKET_PULSE_SCAN_UNIVERSE, market)
         f_delivery = pool.submit(fetch_delivery_batch, MARKET_PULSE_SCAN_UNIVERSE)
 
@@ -539,6 +609,7 @@ def run_market_pulse_scan(
         delivery_by_nse(delivery_snapshots),
         skip_earnings_week=skip_earnings_week,
         filter_weak_delivery=filter_weak_delivery,
+        nifty_daily_df=nifty_daily_df,
     )
     stock_map = {s.nse_symbol: s for s in all_stocks}
 

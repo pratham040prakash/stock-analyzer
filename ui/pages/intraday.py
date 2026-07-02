@@ -10,6 +10,7 @@ from analyzer.candle_narrative import analyze_live_chart
 from analyzer.intraday_chart import intraday_chart
 from analyzer.intraday_data import INTERVAL_OPTIONS, fetch_intraday, market_session_status
 from analyzer.intraday_signals import add_intraday_indicators
+from analyzer.intraday_stock_picker import investopedia_screen_summary
 from analyzer.nse_options import enrich_with_nse_chain
 from analyzer.varsity_knowledge import format_signal_context
 from ui.components.intraday import render_candle_stories, render_live_verdict
@@ -142,8 +143,13 @@ def render_intraday(market: str) -> None:
         display_intraday_live(ticker, interval_key, market)
 
     st.divider()
+    st.markdown("#### How we pick intraday stocks")
+    st.caption(investopedia_screen_summary())
     st.markdown(
         "**Intraday tips**\n"
+        "- **Liquidity** — Nifty 50 names with high volume; avoid illiquid strikes\n"
+        "- **Volatility** — target ~2–5% daily range; skip dead or extreme movers\n"
+        "- **Nifty correlation** — trade long when index is bullish and stock tracks Nifty\n"
         "- **VWAP** — price above = bullish bias for the day; below = bearish\n"
         "- **Opening range** (first 15 min on 5m chart) — breakout/breakdown signals\n"
         "- **Square off** MIS positions before 3:20 PM IST to avoid auto square-off\n"

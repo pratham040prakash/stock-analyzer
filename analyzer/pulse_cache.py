@@ -93,6 +93,9 @@ def _stock_entry(d: dict) -> StockPulseEntry:
         error=d.get("error"),
         volume_ratio=d.get("volume_ratio"),
         price_change_pct=d.get("price_change_pct"),
+        avg_daily_volume=d.get("avg_daily_volume"),
+        daily_range_pct=d.get("daily_range_pct"),
+        nifty_correlation=d.get("nifty_correlation"),
     )
 
 

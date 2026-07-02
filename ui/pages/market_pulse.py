@@ -23,6 +23,7 @@ from ui.charts import price_chart
 from ui.components.india_macro import pulse_buy_color, render_india_macro_strip
 from ui.components.intraday import render_nse_chain_table
 from ui.components.affordable_invest import render_affordable_invest_section
+from analyzer.intraday_stock_picker import investopedia_screen_summary
 from ui.components.delivery_quality import render_delivery_banner, render_delivery_table
 from ui.components.earnings_calendar import render_earnings_week_strip
 from ui.components.iv_rank import render_iv_banner, render_iv_market_strip, render_iv_table
@@ -40,6 +41,11 @@ def render_pulse_pick_card(pick, stock_map: dict) -> None:
     st.caption(pick.summary)
     if pick.regime_note:
         st.warning(pick.regime_note)
+    if getattr(pick, "screen_notes", None):
+        for note in pick.screen_notes[:3]:
+            st.caption(f"📋 {note}")
+    if getattr(pick, "screen_score", 0) > 0:
+        st.caption(f"Investopedia screen score: **{pick.screen_score:.0f}/100**")
     st.caption(f"Trade type: **{pick.trade_type}**")
     st.markdown(
         f"**Entry:** {pick.entry_hint} · **Stop:** {pick.stop_hint} · **Target:** {pick.target_hint}"
@@ -282,6 +288,7 @@ def render_market_pulse(market: str, period: str) -> None:
             st.caption("Today / MIS · square off before **3:20 PM IST**")
         else:
             st.caption("Inactive while closed — last session levels only")
+        st.caption(investopedia_screen_summary())
         if report.intraday_picks:
             for pick in report.intraday_picks[:4]:
                 with st.expander(f"{pick.nse_symbol} — {pick.action}", expanded=len(report.intraday_picks) <= 2):
