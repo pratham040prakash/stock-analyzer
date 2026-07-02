@@ -13,6 +13,7 @@ from analyzer.daily_advisor import (
     load_today_briefing,
     save_briefing,
 )
+from analyzer.portfolio_store import load_saved_portfolio, portfolio_profile_key, save_portfolio
 from analyzer.zerodha import (
     fetch_holdings_from_kite,
     load_env_credentials,
@@ -129,9 +130,14 @@ def display_daily_briefing(briefing: DailyBriefing) -> None:
 def render_daily_advisor(period: str) -> None:
     st.subheader("Daily Advisor — What to do today")
     st.markdown(
-        "Reviews **your Zerodha holdings** every day: **today's action**, **short-term** swing view, "
+        "Reviews **your saved portfolio** every day: **today's action**, **short-term** swing view, "
         "**long-term** quality view, plus **new stock ideas** you don't already own."
     )
+
+    if not st.session_state.get("zd_import"):
+        saved = load_saved_portfolio(profile=portfolio_profile_key())
+        if saved:
+            st.session_state["zd_import"] = saved
 
     handle_kite_redirect()
 
@@ -144,6 +150,7 @@ def render_daily_advisor(period: str) -> None:
                 import_result = fetch_holdings_from_kite(creds["api_key"], creds["access_token"])
                 if import_result.holdings:
                     st.session_state["zd_import"] = import_result
+                    save_portfolio(import_result, profile=portfolio_profile_key())
                     st.success(f"Loaded {len(import_result.holdings)} holdings")
                 else:
                     st.error(import_result.errors[0] if import_result.errors else "No holdings")
@@ -155,18 +162,22 @@ def render_daily_advisor(period: str) -> None:
             import_result = parse_holdings_csv(content)
             if import_result.holdings:
                 st.session_state["zd_import"] = import_result
+                save_portfolio(import_result, profile=portfolio_profile_key())
                 st.success(f"Loaded {len(import_result.holdings)} holdings")
             else:
                 st.error(import_result.errors[0] if import_result.errors else "Parse failed")
 
     with c3:
-        st.caption("Holdings also sync from **Zerodha Portfolio** tab")
+        if st.button("Open My Portfolio", key="daily_go_portfolio"):
+            st.session_state["nav_tab"] = "My Portfolio"
+            st.rerun()
+        st.caption("Or add holdings in **My Portfolio** (manual entry — no broker needed)")
 
     import_result = st.session_state.get("zd_import")
     if not import_result or not import_result.holdings:
         st.info(
-            "Import holdings first — **Fetch from Kite**, upload **CSV**, or use the **Zerodha Portfolio** tab. "
-            "Then click **Generate today's briefing**."
+            "Add holdings in **My Portfolio** (manual entry works without Zerodha), "
+            "or import via **Kite** / **CSV** above. Then click **Generate today's briefing**."
         )
         with st.expander("Kite Connect setup"):
             st.markdown(zerodha_setup_help())

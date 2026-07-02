@@ -10,6 +10,7 @@ from analyzer.kite_stream import start_kite_ticker_on_app_start, ws_subscription
 from analyzer.market_session import market_session_status
 from analyzer.markets import MARKETS, is_india_market
 from analyzer.morning_briefing import build_morning_briefing
+from analyzer.portfolio_store import load_saved_portfolio, portfolio_profile_key
 from analyzer.providers import data_source_status
 from analyzer.telegram_notify import format_morning_telegram, send_telegram_broadcast, telegram_configured
 from analyzer.varsity_knowledge import VARSITY_MODULE_URL
@@ -17,6 +18,7 @@ from ui.components.nse import render_nse_error_banner
 from ui.components.telegram_subscribe import render_telegram_subscribe_sidebar
 from ui.pages.beginner_risk import render_beginner_risk
 from ui.pages.backtest import render_backtest
+from ui.pages.compare import render_compare
 from ui.pages.daily_advisor import render_daily_advisor
 from ui.pages.global_markets import render_global_markets
 from ui.pages.intraday import render_intraday
@@ -31,6 +33,14 @@ from ui.pages.varsity import render_varsity_guide
 from ui.pages.watchlist import render_watchlist
 from ui.pages.zerodha import render_zerodha
 from ui.theme import DISCLAIMER, MOBILE_CSS, NAV_TABS
+
+
+def _hydrate_saved_portfolio() -> None:
+    if st.session_state.get("zd_import"):
+        return
+    saved = load_saved_portfolio(profile=portfolio_profile_key())
+    if saved and saved.holdings:
+        st.session_state["zd_import"] = saved
 
 
 def _maybe_validate_suggestions_eod() -> None:
@@ -61,6 +71,7 @@ def main() -> None:
     st.caption("Multi-indicator technical analysis · Watchlist scanner · Backtesting")
 
     start_kite_ticker_on_app_start()
+    _hydrate_saved_portfolio()
     _maybe_validate_suggestions_eod()
 
     with st.sidebar:
@@ -163,6 +174,8 @@ def main() -> None:
         render_global_markets()
     elif selected == "Single Stock":
         render_single_stock(market, period)
+    elif selected == "Compare":
+        render_compare(market, period)
     elif selected == "Intraday":
         render_intraday(market)
     elif selected == "Live Charts":
@@ -173,7 +186,7 @@ def main() -> None:
         render_watchlist(market, period)
     elif selected == "Screener":
         render_screener(market, period)
-    elif selected == "Zerodha Portfolio":
+    elif selected == "My Portfolio":
         render_zerodha(period)
     elif selected == "Backtest":
         render_backtest(market, period)

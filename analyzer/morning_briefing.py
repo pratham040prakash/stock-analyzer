@@ -13,6 +13,7 @@ from analyzer.india_macro import build_india_macro_snapshot
 from analyzer.intraday_data import market_session_status
 from analyzer.market_pulse_scan import run_market_pulse_scan
 from analyzer.market_regime import detect_nifty_regime
+from analyzer.portfolio_store import load_saved_portfolio
 from analyzer.zerodha import (
     ZerodhaImportResult,
     fetch_holdings_from_kite,
@@ -65,6 +66,13 @@ def _load_holdings(holdings_csv: str | None) -> ZerodhaImportResult | None:
                 return imp
         except Exception:
             pass
+
+    try:
+        imp = load_saved_portfolio()
+        if imp and imp.holdings:
+            return imp
+    except Exception:
+        pass
     return None
 
 

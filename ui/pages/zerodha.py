@@ -1,4 +1,4 @@
-"""Zerodha Portfolio tab."""
+"""My Portfolio tab — manual entry, CSV, or Zerodha Kite."""
 
 from __future__ import annotations
 
@@ -11,6 +11,13 @@ from analyzer.kite_stream import start_kite_ticker_for_holdings
 from analyzer.markets import format_price
 from analyzer.portfolio import analyze_portfolio
 from analyzer.portfolio_risk import compute_portfolio_risk
+from analyzer.portfolio_store import (
+    clear_saved_portfolio,
+    load_saved_portfolio,
+    make_manual_holding,
+    portfolio_profile_key,
+    save_portfolio,
+)
 from analyzer.zerodha import (
     ZerodhaHolding,
     ZerodhaImportResult,
@@ -27,19 +34,105 @@ from analyzer.zerodha import (
 from ui.components.kite_auth import handle_kite_redirect
 
 
+def _persist_import(import_result: ZerodhaImportResult) -> None:
+    st.session_state["zd_import"] = import_result
+    if import_result.holdings:
+        save_portfolio(import_result, profile=portfolio_profile_key())
+
+
 def render_zerodha(period: str) -> None:
-    st.subheader("Zerodha Portfolio Analyzer")
-    st.caption("Import holdings from Kite API or CSV — get buy/sell signals on your actual portfolio")
+    st.subheader("My Portfolio")
+    st.caption(
+        "Track holdings with **qty & avg price** — works without Zerodha. "
+        "Saved portfolio powers **Daily Advisor** and morning briefing."
+    )
+
+    profile = st.text_input(
+        "Your profile name (use your initials on shared app)",
+        value=st.session_state.get("portfolio_profile", ""),
+        placeholder="e.g. pratham",
+        key="portfolio_profile_input",
+    )
+    if profile.strip():
+        st.session_state["portfolio_profile"] = profile.strip()
+
+    prof = portfolio_profile_key()
+    saved = load_saved_portfolio(profile=prof)
+    if saved and not st.session_state.get("zd_import"):
+        st.session_state["zd_import"] = saved
 
     handle_kite_redirect()
 
     mode = st.radio(
-        "Import method",
-        ["Paste Kite symbols", "Upload holdings CSV", "Kite Connect API"],
+        "How to add holdings",
+        ["Manual entry", "Upload holdings CSV", "Paste Kite symbols", "Kite Connect API"],
         horizontal=True,
     )
 
-    if mode == "Paste Kite symbols":
+    if mode == "Manual entry":
+        st.markdown(
+            "Enter symbols like **RELIANCE**, **TCS**, or **INFY.NS** with quantity and average buy price. "
+            "Click **Save portfolio** — persists across browser sessions."
+        )
+        existing = st.session_state.get("zd_import")
+        default_rows = [
+            {
+                "Symbol": h.tradingsymbol,
+                "Qty": int(h.quantity),
+                "Avg price": h.average_price or 0.0,
+            }
+            for h in (existing.holdings if existing else [])
+        ]
+        if not default_rows:
+            default_rows = [{"Symbol": "RELIANCE", "Qty": 10, "Avg price": 0.0}]
+
+        edited = st.data_editor(
+            pd.DataFrame(default_rows),
+            num_rows="dynamic",
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Symbol": st.column_config.TextColumn("Symbol", width="medium"),
+                "Qty": st.column_config.NumberColumn("Qty", min_value=0, step=1),
+                "Avg price": st.column_config.NumberColumn("Avg price (₹)", min_value=0.0, format="%.2f"),
+            },
+            key="portfolio_manual_editor",
+        )
+
+        if st.button("Save portfolio", type="primary", key="zd_manual_save"):
+            holdings: list[ZerodhaHolding] = []
+            for _, row in edited.iterrows():
+                sym = str(row.get("Symbol", "")).strip()
+                if not sym:
+                    continue
+                qty = float(row.get("Qty", 0) or 0)
+                avg_raw = row.get("Avg price", 0)
+                avg = float(avg_raw) if avg_raw and float(avg_raw) > 0 else None
+                h = make_manual_holding(sym, qty, avg)
+                if h:
+                    holdings.append(h)
+            if not holdings:
+                st.error("Add at least one symbol with quantity > 0.")
+            else:
+                imp = ZerodhaImportResult(holdings=holdings, source="manual")
+                _persist_import(imp)
+                st.success(f"Saved {len(holdings)} holdings")
+
+    elif mode == "Upload holdings CSV":
+        st.markdown(
+            "Export from **Kite** → Holdings → Download, or **Console** → Reports → Equity holdings"
+        )
+        uploaded = st.file_uploader("Holdings CSV", type=["csv"])
+        if uploaded and st.button("Parse CSV", key="zd_csv"):
+            content = uploaded.read().decode("utf-8", errors="replace")
+            import_result = parse_holdings_csv(content)
+            if import_result.errors and not import_result.holdings:
+                st.error(import_result.errors[0])
+            else:
+                _persist_import(import_result)
+                st.success(f"Parsed {len(import_result.holdings)} holdings from CSV")
+
+    elif mode == "Paste Kite symbols":
         st.markdown(
             "Paste symbols from Kite (comma or newline). Examples: `NSE:RELIANCE-EQ`, `NSE:TCS-EQ`, `SBIN`"
         )
@@ -65,22 +158,8 @@ def render_zerodha(period: str) -> None:
                             yahoo_symbol=y,
                         )
                     )
-                st.session_state["zd_import"] = import_result
+                _persist_import(import_result)
                 st.success(f"Imported {len(yahoo_syms)} symbols")
-
-    elif mode == "Upload holdings CSV":
-        st.markdown(
-            "Export from **Kite** → Holdings → Download, or **Console** → Reports → Equity holdings"
-        )
-        uploaded = st.file_uploader("Holdings CSV", type=["csv"])
-        if uploaded and st.button("Parse CSV", key="zd_csv"):
-            content = uploaded.read().decode("utf-8", errors="replace")
-            import_result = parse_holdings_csv(content)
-            if import_result.errors and not import_result.holdings:
-                st.error(import_result.errors[0])
-            else:
-                st.session_state["zd_import"] = import_result
-                st.success(f"Parsed {len(import_result.holdings)} holdings from CSV")
 
     else:
         with st.expander("How to set up Kite Connect API", expanded=False):
@@ -123,16 +202,32 @@ def render_zerodha(period: str) -> None:
                 if import_result.errors and not import_result.holdings:
                     st.error(import_result.errors[0])
                 else:
-                    st.session_state["zd_import"] = import_result
+                    _persist_import(import_result)
                     st.success(f"Fetched {len(import_result.holdings)} holdings from Kite")
 
     import_result = st.session_state.get("zd_import")
     if not import_result or not import_result.holdings:
-        st.info("Import your Zerodha holdings using one of the methods above.")
+        st.info("Add holdings using **Manual entry** (no broker needed) or import from CSV / Kite.")
         return
 
     st.divider()
     st.write(f"**{len(import_result.holdings)} holdings** ready · source: {import_result.source}")
+
+    save_col, clear_col, advisor_col = st.columns(3)
+    with save_col:
+        if st.button("Re-save portfolio", key="zd_resave"):
+            save_portfolio(import_result, profile=prof)
+            st.success("Saved")
+    with clear_col:
+        if st.button("Clear portfolio", key="zd_clear"):
+            st.session_state.pop("zd_import", None)
+            st.session_state.pop("zd_analysis", None)
+            clear_saved_portfolio(profile=prof)
+            st.rerun()
+    with advisor_col:
+        if st.button("Open Daily Advisor", key="zd_daily"):
+            st.session_state["nav_tab"] = "Daily Advisor"
+            st.rerun()
 
     preview = pd.DataFrame([
         {
@@ -149,7 +244,7 @@ def render_zerodha(period: str) -> None:
         syms = [h.kite_symbol for h in import_result.holdings]
         if start_kite_ticker_for_holdings(syms):
             st.caption("Kite WebSocket live LTP active for your holdings")
-        with st.spinner("Analyzing your Zerodha holdings..."):
+        with st.spinner("Analyzing your holdings..."):
             rows = analyze_portfolio(import_result, period=period)
             st.session_state["zd_analysis"] = rows
 
@@ -188,7 +283,7 @@ def render_zerodha(period: str) -> None:
 
     total_pnl = sum(r.pnl for r in rows if r.pnl is not None)
     if any(r.pnl is not None for r in rows):
-        st.metric("Total unrealized P&L (from Zerodha)", f"₹{total_pnl:,.0f}")
+        st.metric("Total unrealized P&L", f"₹{total_pnl:,.0f}")
 
     buys = [r for r in rows if not r.error and r.recommendation in ("STRONG BUY", "BUY")]
     sells = [r for r in rows if not r.error and r.recommendation in ("STRONG SELL", "SELL")]
