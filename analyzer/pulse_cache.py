@@ -18,6 +18,7 @@ from analyzer.market_pulse_scan import (
     MarketPulseReport,
     StockPulseEntry,
 )
+from analyzer.earnings_calendar import event_from_dict, event_to_dict
 from analyzer.market_regime import MarketRegime
 
 PULSE_CACHE_VER = "pulse_v1"
@@ -130,6 +131,7 @@ def serialize_pulse_report(report: MarketPulseReport) -> dict:
         "strongest_pe": list(report.strongest_pe),
         "strongest_equity": list(report.strongest_equity),
         "index_options_deferred": getattr(report, "_index_options_deferred", False),
+        "earnings_events": [event_to_dict(e) for e in getattr(report, "earnings_events", [])],
     }
 
 
@@ -151,6 +153,7 @@ def _stock_to_dict(s: StockPulseEntry) -> dict:
 
 
 def deserialize_pulse_report(d: dict) -> MarketPulseReport:
+    earnings_raw = [event_from_dict(x) for x in d.get("earnings_events", [])]
     report = MarketPulseReport(
         indices=[_index_pulse(x) for x in d.get("indices", [])],
         market_verdict=d.get("market_verdict", ""),
@@ -166,6 +169,8 @@ def deserialize_pulse_report(d: dict) -> MarketPulseReport:
         strongest_ce=list(d.get("strongest_ce", [])),
         strongest_pe=list(d.get("strongest_pe", [])),
         strongest_equity=list(d.get("strongest_equity", [])),
+        earnings_events=earnings_raw,
+        earnings_by_nse={e.nse_symbol.upper(): e for e in earnings_raw},
     )
     report._index_options_deferred = bool(d.get("index_options_deferred", False))  # type: ignore[attr-defined]
     return report

@@ -6,10 +6,12 @@ import streamlit as st
 
 from analyzer.combined import analyze_combined
 from analyzer.data import fetch_stock_data
+from analyzer.earnings_calendar import fetch_corporate_event
 from analyzer.indicators import add_indicators
 from analyzer.market_risk import assess_market_risk, assess_nifty_market_risk
 from analyzer.markets import format_price, is_india_market
 from analyzer.risk import suggest_position_size
+from ui.components.earnings_calendar import render_earnings_banner
 from ui.theme import ACTION_COLORS
 
 
@@ -148,6 +150,7 @@ def render_beginner_risk(market: str, period: str) -> None:
                 df, info = fetch_stock_data(ticker, period=period, market=market)
                 df = add_indicators(df)
                 combined = analyze_combined(df, info["symbol"], yf_info=info)
+                earnings_ev = fetch_corporate_event(info["symbol"], market=market)
                 assessment = assess_market_risk(
                     df,
                     info["symbol"],
@@ -156,8 +159,10 @@ def render_beginner_risk(market: str, period: str) -> None:
                     fund=combined.fundamental,
                     goal=goal,
                     experience=experience,
+                    earnings_event=earnings_ev,
                 )
                 st.session_state["beginner_stock_risk"] = assessment
+                st.session_state["beginner_stock_earnings"] = earnings_ev
                 st.session_state["beginner_stock_price"] = info.get("nse_last_price") or combined.technical.current_price
                 st.session_state["beginner_stock_stop"] = combined.technical.stop_loss
             except Exception as exc:
@@ -166,6 +171,10 @@ def render_beginner_risk(market: str, period: str) -> None:
 
     if assessment := st.session_state.get("beginner_stock_risk"):
         _render_risk_card(assessment)
+        if ev := st.session_state.get("beginner_stock_earnings"):
+            st.markdown("**Earnings calendar**")
+            horizon = "options" if goal == "trading" else ("long" if goal == "long_term" else "all")
+            render_earnings_banner(ev, horizon=horizon)
         price = st.session_state.get("beginner_stock_price")
         stop = st.session_state.get("beginner_stock_stop")
         if price and stop and goal != "learning":

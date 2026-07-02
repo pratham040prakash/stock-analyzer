@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 
 import pandas as pd
 
+from analyzer.earnings_calendar import CorporateEvent
 from analyzer.fundamentals import FundamentalResult
 from analyzer.market_regime import MarketRegime, detect_nifty_regime
 
@@ -161,6 +162,7 @@ def assess_market_risk(
     regime: MarketRegime | None = None,
     goal: str = "long_term",
     experience: str = "new",
+    earnings_event: CorporateEvent | None = None,
 ) -> MarketRiskAssessment:
     """
     Score risk from recent chart trend, volatility, drawdown, fundamentals, and Nifty regime.
@@ -254,6 +256,19 @@ def assess_market_risk(
         risks.append(f"Nifty range-bound (ADX {regime.adx}) — stock picks matter more; avoid chasing breakouts.")
     elif regime and regime.regime == "Trending Bullish":
         positives.append(f"Nifty trending up (ADX {regime.adx}) — supportive backdrop for quality names.")
+
+    # Earnings event risk
+    if earnings_event and earnings_event.event_type == "Earnings":
+        if earnings_event.days_until is not None:
+            if earnings_event.days_until <= 3:
+                risk_score += 20
+                risks.append(earnings_event.guidance or f"Earnings in {earnings_event.days_until} days.")
+            elif earnings_event.days_until <= 7:
+                risk_score += 12
+                risks.append(earnings_event.guidance or f"Earnings in {earnings_event.days_until} days.")
+            elif earnings_event.days_until <= 14:
+                risk_score += 5
+                risks.append(f"Earnings in {earnings_event.days_until} days — on watchlist.")
 
     risk_score = min(100.0, max(0.0, risk_score))
     level = _risk_level(risk_score)

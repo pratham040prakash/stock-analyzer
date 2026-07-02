@@ -22,6 +22,7 @@ from analyzer.telegram_notify import format_pulse_alert, send_telegram_broadcast
 from ui.charts import price_chart
 from ui.components.india_macro import pulse_buy_color, render_india_macro_strip
 from ui.components.intraday import render_nse_chain_table
+from ui.components.earnings_calendar import render_earnings_week_strip
 from ui.theme import GLOBAL_BIAS_COLORS, OPTIONS_COLORS, REC_COLORS
 
 
@@ -155,6 +156,13 @@ def render_market_pulse(market: str, period: str) -> None:
         "Full Nifty 50 scan uses the button below.",
     )
 
+    skip_earnings = st.checkbox(
+        "Skip intraday/swing picks with earnings this week",
+        value=True,
+        key="pulse_skip_earnings",
+        help="Hides MIS and swing BUYs when results are within 3–5 days.",
+    )
+
     if st.button("Refresh full market pulse", type="primary", key="pulse_refresh"):
         st.session_state.pop("market_pulse_full", None)
         st.session_state.pop("market_pulse", None)
@@ -196,6 +204,7 @@ def render_market_pulse(market: str, period: str) -> None:
         ):
             st.session_state["market_pulse_full"] = run_market_pulse_scan(
                 period, market, use_cache=not force,
+                skip_earnings_week=skip_earnings,
             )
         st.session_state.pop("pulse_cache_stale", None)
 
@@ -219,6 +228,14 @@ def render_market_pulse(market: str, period: str) -> None:
 
     stock_map = getattr(report, "stock_map", {}) or {s.nse_symbol: s for s in report.top_stocks}
     session = market_session_status()
+
+    earnings_events = getattr(report, "earnings_events", None) or []
+    if not earnings_events and is_india_market(market):
+        from analyzer.earnings_calendar import fetch_nifty50_earnings
+        earnings_events = fetch_nifty50_earnings()
+    if earnings_events:
+        render_earnings_week_strip(earnings_events)
+        st.divider()
 
     st.subheader("🎯 BUY suggestions — all timeframes")
     if not session.get("is_open"):

@@ -29,6 +29,12 @@ from analyzer.nse_options import (
     enrich_with_nse_chain,
 )
 from analyzer.kite_stream import get_kite_ltp_cached
+from analyzer.earnings_calendar import (
+    earnings_note_for_pick,
+    events_by_nse,
+    fetch_nifty50_earnings,
+    should_skip_pick,
+)
 from analyzer.threshold_tuning import get_pulse_thresholds
 
 # Re-export top 10 for display table
@@ -125,6 +131,8 @@ class MarketPulseReport:
     strongest_ce: list[str] = field(default_factory=list)
     strongest_pe: list[str] = field(default_factory=list)
     strongest_equity: list[str] = field(default_factory=list)
+    earnings_events: list = field(default_factory=list)
+    earnings_by_nse: dict = field(default_factory=dict)
 
 
 def _index_options_action(pulse: IndexPulse | None, intraday_action: str | None) -> str:
@@ -333,6 +341,9 @@ def scan_stock(
 def _collect_picks(
     stocks: list[StockPulseEntry],
     regime: MarketRegime | None,
+    earnings_by_nse: dict | None = None,
+    *,
+    skip_earnings_week: bool = False,
 ) -> tuple[list[ChartStockPick], list[ChartStockPick], list[ChartStockPick]]:
     intraday_picks: list[ChartStockPick] = []
     short_picks: list[ChartStockPick] = []
@@ -341,25 +352,38 @@ def _collect_picks(
     intraday_min = gates["intraday"]
     short_min = gates["short"]
     long_min = gates["long"]
+    earn_map = earnings_by_nse or {}
 
     for s in stocks:
         if s.error or not s.short_term or not s.long_term:
             continue
+        ev = earn_map.get(s.nse_symbol.upper())
         if (
             s.intraday
             and s.intraday.score >= intraday_min
             and s.intraday.action in BUY_ACTIONS_INTRADAY
+            and not should_skip_pick(ev, "intraday", skip_earnings_week=skip_earnings_week)
         ):
+            note = earnings_note_for_pick(ev, "intraday")
             intraday_picks.append(_horizon_to_pick(
                 s.nse_symbol, s.name, s.symbol, s.price, s.intraday, regime,
+                regime_note=note,
             ))
-        if s.short_term.score >= short_min and s.short_term.action in BUY_ACTIONS_SHORT:
+        if (
+            s.short_term.score >= short_min
+            and s.short_term.action in BUY_ACTIONS_SHORT
+            and not should_skip_pick(ev, "short", skip_earnings_week=skip_earnings_week)
+        ):
+            note = earnings_note_for_pick(ev, "short")
             short_picks.append(_horizon_to_pick(
                 s.nse_symbol, s.name, s.symbol, s.price, s.short_term, regime,
+                regime_note=note,
             ))
         if s.long_term.score >= long_min and s.long_term.action in BUY_ACTIONS_LONG:
+            note = earnings_note_for_pick(ev, "long")
             long_picks.append(_horizon_to_pick(
                 s.nse_symbol, s.name, s.symbol, s.price, s.long_term, regime,
+                regime_note=note,
             ))
 
     intraday_picks.sort(key=lambda p: -p.score)
@@ -427,6 +451,7 @@ def run_market_pulse_scan(
     *,
     allow_stale_cache: bool = False,
     include_index_options: bool = False,
+    skip_earnings_week: bool = True,
 ) -> MarketPulseReport:
     from analyzer.pulse_cache import load_pulse_cache_with_stale, save_pulse_cache
 
@@ -443,11 +468,13 @@ def run_market_pulse_scan(
         f_macro = pool.submit(build_india_macro_snapshot)
         f_indices = pool.submit(india_market_pulse, period)
         f_stocks = pool.submit(_scan_all_stocks, MARKET_PULSE_SCAN_UNIVERSE, period, market)
+        f_earnings = pool.submit(fetch_nifty50_earnings, MARKET_PULSE_SCAN_UNIVERSE, market)
 
         regime = f_regime.result()
         macro = f_macro.result()
         indices = f_indices.result()
         all_stocks = f_stocks.result()
+        earnings_events = f_earnings.result()
 
     verdict = overall_market_verdict(indices)
 
@@ -464,7 +491,12 @@ def run_market_pulse_scan(
                 index_options.append(fut.result())
         deferred_options = False
 
-    intraday_picks, short_picks, long_picks = _collect_picks(all_stocks, regime)
+    intraday_picks, short_picks, long_picks = _collect_picks(
+        all_stocks,
+        regime,
+        events_by_nse(earnings_events),
+        skip_earnings_week=skip_earnings_week,
+    )
     stock_map = {s.nse_symbol: s for s in all_stocks}
 
     top10_set = set(MARKET_PULSE_TOP_10)
@@ -486,6 +518,8 @@ def run_market_pulse_scan(
         strongest_ce=[f"{p.nse_symbol} ({p.action})" for p in intraday_picks[:5]],
         strongest_pe=[],
         strongest_equity=[f"{p.nse_symbol} ({p.action})" for p in long_picks[:5]],
+        earnings_events=earnings_events,
+        earnings_by_nse=events_by_nse(earnings_events),
     )
     report._index_options_deferred = deferred_options  # type: ignore[attr-defined]
     save_pulse_cache(cache_key, report)

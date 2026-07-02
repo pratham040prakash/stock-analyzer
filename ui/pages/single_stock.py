@@ -9,6 +9,7 @@ from analyzer.candle_narrative import narrate_session
 from analyzer.candlesticks import detect_patterns_at
 from analyzer.combined import analyze_combined
 from analyzer.data import fetch_benchmark, fetch_stock_data
+from analyzer.earnings_calendar import fetch_corporate_event
 from analyzer.india import indian_ticker_help
 from analyzer.indicators import add_indicators
 from analyzer.market_pulse import india_market_pulse
@@ -19,6 +20,7 @@ from analyzer.relative_strength import compute_relative_strength
 from analyzer.risk import capital_from_kite_margins, suggest_position_size
 from analyzer.zerodha import fetch_kite_margins
 from ui.charts import price_chart
+from ui.components.earnings_calendar import render_earnings_banner
 from ui.components.advice import render_advice, render_fundamentals, render_signals
 from ui.components.intraday import render_options_verdict
 from ui.theme import REC_COLORS, SIGNAL_ICONS
@@ -107,6 +109,11 @@ def render_single_stock(market: str, period: str) -> None:
 
     advice = generate_advice(combined, info, rs, market_pulse, df)
     render_advice(advice)
+
+    with st.spinner("Checking earnings calendar…"):
+        earnings_ev = fetch_corporate_event(info["symbol"], market=market)
+    st.markdown("### 📅 Earnings & events")
+    render_earnings_banner(earnings_ev)
 
     st.divider()
     left, right = st.columns([1.4, 1])
