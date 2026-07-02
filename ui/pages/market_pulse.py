@@ -22,6 +22,7 @@ from analyzer.telegram_notify import format_pulse_alert, send_telegram_broadcast
 from ui.charts import price_chart
 from ui.components.india_macro import pulse_buy_color, render_india_macro_strip
 from ui.components.intraday import render_nse_chain_table
+from ui.components.affordable_invest import render_affordable_invest_section
 from ui.components.delivery_quality import render_delivery_banner, render_delivery_table
 from ui.components.earnings_calendar import render_earnings_week_strip
 from ui.components.iv_rank import render_iv_banner, render_iv_market_strip, render_iv_table
@@ -264,6 +265,9 @@ def render_market_pulse(market: str, period: str) -> None:
     if earnings_events or delivery_snapshots or index_iv:
         st.divider()
 
+    render_affordable_invest_section(report)
+
+    st.divider()
     st.subheader("🎯 BUY suggestions — all timeframes")
     if not session.get("is_open"):
         st.caption(
