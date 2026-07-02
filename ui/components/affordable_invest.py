@@ -18,8 +18,9 @@ from ui.theme import INTRADAY_SETUP_COLORS, OPTIONS_COLORS, REC_COLORS
 def _render_index_affordable(report, max_price: float, period: str, load_options: bool) -> None:
     st.markdown("#### 📈 Nifty & Bank Nifty — CE/PE premium under ₹3,000")
     st.caption(
-        "Index **option premium** (not spot) ≤ ₹3,000 — live NSE chain + intraday chart bias. "
-        "Lot sizes apply (Nifty/Bank Nifty); verify margin on Kite."
+        "Index **option premium per unit** (not spot) ≤ ₹3,000. "
+        "**Total buy cost = premium × lot size** (Nifty 75, Bank Nifty 30). "
+        "Margin on Kite may differ — verify before trading."
     )
     if not load_options:
         st.info("Check **Load NSE CE/PE strikes** above to fetch Nifty & Bank Nifty contracts.")
@@ -39,6 +40,14 @@ def _render_index_affordable(report, max_price: float, period: str, load_options
             if idx.error and not idx.ce_pick.strip("—"):
                 st.warning(idx.error[:100])
             st.metric("Index spot", f"₹{idx.spot:,.2f}" if idx.spot else "—")
+            st.metric("Min lot size", f"{idx.lot_size} units" if idx.lot_size else "—")
+            if idx.ce_total_cost is not None or idx.pe_total_cost is not None:
+                cost_parts = []
+                if idx.ce_total_cost is not None:
+                    cost_parts.append(f"CE 1 lot ₹{idx.ce_total_cost:,.0f}")
+                if idx.pe_total_cost is not None:
+                    cost_parts.append(f"PE 1 lot ₹{idx.pe_total_cost:,.0f}")
+                st.caption("**Total to buy 1 lot:** " + " · ".join(cost_parts))
             st.caption(f"Expiry **{idx.expiry}** · Bias **{idx.index_bias}**")
             st.markdown(
                 f"Signal: <span style='color:{opt_color};font-weight:700'>{idx.options_action}</span> · "
@@ -153,6 +162,12 @@ def render_affordable_invest_section(report, period: str = "1y") -> None:
                 if p.options_error:
                     st.warning(f"Chain: {p.options_error[:80]}")
                 else:
+                    if p.lot_size and p.lot_size > 1:
+                        st.caption(f"F&O lot size: **{p.lot_size}** shares per lot")
+                    if p.ce_total_cost is not None:
+                        st.caption(f"CE 1-lot buy: **₹{p.ce_total_cost:,.0f}**")
+                    if p.pe_total_cost is not None:
+                        st.caption(f"PE 1-lot buy: **₹{p.pe_total_cost:,.0f}**")
                     st.markdown(f"**CE:** {p.options_ce_pick}")
                     st.markdown(f"**PE:** {p.options_pe_pick}")
                     if p.options_chain_note:
@@ -176,6 +191,7 @@ def render_affordable_invest_section(report, period: str = "1y") -> None:
                     st.rerun()
 
     st.caption(
-        "Not financial advice. Options can expire worthless. Under ₹3,000 = **1-share affordability** — "
-        "size positions in **SIP & Goals** / **Risk & Goals**."
+        "Not financial advice. Options can expire worthless. "
+        "Stocks: under ₹3,000 = **1-share** price. Index options: ₹3,000 = **per-unit premium** — "
+        "multiply by lot size for total buy cost. Size positions in **SIP & Goals** / **Risk & Goals**."
     )

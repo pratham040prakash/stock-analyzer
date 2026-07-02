@@ -31,6 +31,14 @@ MIN_OI_INDEX = 2000
 MIN_VOLUME_STOCK = 50
 MIN_VOLUME_INDEX = 500
 
+# NSE index lot sizes (fallback if contract-info API omits lotSize)
+DEFAULT_INDEX_LOT_SIZES: dict[str, int] = {
+    "NIFTY": 75,
+    "BANKNIFTY": 30,
+    "FINNIFTY": 40,
+    "MIDCPNIFTY": 50,
+}
+
 
 @dataclass
 class NSEOptionLeg:
@@ -139,6 +147,39 @@ def fetch_contract_info(symbol: str) -> dict:
     if not data:
         raise ValueError(f"NSE contract info unavailable for {nse_sym}")
     return data
+
+
+def get_fno_lot_size(symbol: str) -> int:
+    """Minimum F&O lot size (units per 1 lot). Uses NSE contract info when available."""
+    nse_sym, _kind = normalize_fno_symbol(symbol)
+    try:
+        info = fetch_contract_info(symbol)
+        for key in ("lotSize", "marketLotSize", "lot_size", "lot"):
+            val = info.get(key)
+            if val is not None and val != "":
+                return int(val)
+    except Exception:
+        pass
+    return DEFAULT_INDEX_LOT_SIZES.get(nse_sym, 1)
+
+
+def option_lot_buy_cost(ltp: float | None, lot_size: int) -> float | None:
+    """Total premium to buy 1 lot = LTP × lot size (excludes brokerage/margin)."""
+    if ltp is None or ltp <= 0 or lot_size <= 0:
+        return None
+    return round(ltp * lot_size, 2)
+
+
+def format_leg_with_lot_cost(leg: NSEOptionLeg, spot: float, lot_size: int) -> str:
+    """Affordable leg line plus 1-lot total buy cost."""
+    base = format_affordable_leg(leg, spot)
+    total = option_lot_buy_cost(leg.ltp, lot_size)
+    if total is None:
+        return base
+    return (
+        f"{base} · **1 lot ({lot_size} qty) = ₹{total:,.0f}** "
+        f"(₹{leg.ltp or 0:,.2f} × {lot_size})"
+    )
 
 
 def compute_max_pain(chain: NSEOptionChain) -> float | None:

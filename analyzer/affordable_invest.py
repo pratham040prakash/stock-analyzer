@@ -46,6 +46,9 @@ class AffordableInvestPick:
     options_pe_pick: str = "—"
     options_chain_note: str = ""
     options_error: str | None = None
+    lot_size: int | None = None
+    ce_total_cost: float | None = None
+    pe_total_cost: float | None = None
 
 
 def _invest_score(stock: StockPulseEntry) -> float:
@@ -151,15 +154,28 @@ def enrich_pick_options(pick: AffordableInvestPick) -> AffordableInvestPick:
     from analyzer.nse_options import (
         chain_summary_markdown,
         fetch_option_chain,
+        format_leg_with_lot_cost,
+        get_fno_lot_size,
+        option_lot_buy_cost,
         recommend_nse_strikes,
     )
 
     try:
         chain = fetch_option_chain(pick.nse_symbol)
+        lot_size = get_fno_lot_size(pick.nse_symbol)
+        pick.lot_size = lot_size
         ce_picks = recommend_nse_strikes(chain, "BUY CE")
         pe_picks = recommend_nse_strikes(chain, "BUY PE")
-        pick.options_ce_pick = _format_option_pick(ce_picks[0] if ce_picks else None)
-        pick.options_pe_pick = _format_option_pick(pe_picks[0] if pe_picks else None)
+        ce_leg = ce_picks[0].leg if ce_picks else None
+        pe_leg = pe_picks[0].leg if pe_picks else None
+        pick.options_ce_pick = (
+            format_leg_with_lot_cost(ce_leg, chain.spot, lot_size) if ce_leg else "—"
+        )
+        pick.options_pe_pick = (
+            format_leg_with_lot_cost(pe_leg, chain.spot, lot_size) if pe_leg else "—"
+        )
+        pick.ce_total_cost = option_lot_buy_cost(ce_leg.ltp if ce_leg else None, lot_size)
+        pick.pe_total_cost = option_lot_buy_cost(pe_leg.ltp if pe_leg else None, lot_size)
         pick.options_chain_note = chain_summary_markdown(chain)
     except Exception as exc:
         pick.options_error = str(exc)
@@ -281,32 +297,58 @@ class AffordableIndexPick:
     ce_ltp: float | None
     pe_pick: str
     pe_ltp: float | None
+    lot_size: int
+    ce_total_cost: float | None
+    pe_total_cost: float | None
+    recommended_total_cost: float | None
     recommended: str
     chain_note: str
     error: str | None = None
 
 
-def _recommended_index_side(action: str, ce_leg, pe_leg, max_premium: float) -> str:
+def _recommended_index_side(
+    action: str,
+    ce_leg,
+    pe_leg,
+    max_premium: float,
+    lot_size: int,
+) -> tuple[str, float | None]:
+    from analyzer.nse_options import option_lot_buy_cost
+
+    ce_total = option_lot_buy_cost(ce_leg.ltp if ce_leg else None, lot_size)
+    pe_total = option_lot_buy_cost(pe_leg.ltp if pe_leg else None, lot_size)
+
     if "CE" in action and ce_leg:
+        total_s = f" · **1 lot cost ₹{ce_total:,.0f}** ({lot_size} × ₹{ce_leg.ltp:,.2f})" if ce_total else ""
         return (
-            f"**Pick CE** — premium ₹{ce_leg.ltp:,.2f} (under ₹{max_premium:,.0f}) · "
-            f"strike {ce_leg.strike:g}"
+            f"**Pick CE** — premium ₹{ce_leg.ltp:,.2f}/unit (≤ ₹{max_premium:,.0f}) · "
+            f"strike {ce_leg.strike:g}{total_s}",
+            ce_total,
         )
     if "PE" in action and pe_leg:
+        total_s = f" · **1 lot cost ₹{pe_total:,.0f}** ({lot_size} × ₹{pe_leg.ltp:,.2f})" if pe_total else ""
         return (
-            f"**Pick PE** — premium ₹{pe_leg.ltp:,.2f} (under ₹{max_premium:,.0f}) · "
-            f"strike {pe_leg.strike:g}"
+            f"**Pick PE** — premium ₹{pe_leg.ltp:,.2f}/unit (≤ ₹{max_premium:,.0f}) · "
+            f"strike {pe_leg.strike:g}{total_s}",
+            pe_total,
         )
     if ce_leg and pe_leg:
         return (
-            f"**No strong bias** — affordable **CE** ₹{ce_leg.ltp:,.2f} @ {ce_leg.strike:g} or "
-            f"**PE** ₹{pe_leg.ltp:,.2f} @ {pe_leg.strike:g} (hedge only)"
+            f"**No strong bias** — CE 1 lot **₹{ce_total:,.0f}** @ {ce_leg.strike:g} or "
+            f"PE 1 lot **₹{pe_total:,.0f}** @ {pe_leg.strike:g} (hedge only)",
+            ce_total,
         )
     if ce_leg:
-        return f"Affordable **CE** only — ₹{ce_leg.ltp:,.2f} @ {ce_leg.strike:g}"
+        return (
+            f"Affordable **CE** — 1 lot **₹{ce_total:,.0f}** ({lot_size} × ₹{ce_leg.ltp:,.2f}) @ {ce_leg.strike:g}",
+            ce_total,
+        )
     if pe_leg:
-        return f"Affordable **PE** only — ₹{pe_leg.ltp:,.2f} @ {pe_leg.strike:g}"
-    return f"No liquid CE/PE found with premium ≤ ₹{max_premium:,.0f}"
+        return (
+            f"Affordable **PE** — 1 lot **₹{pe_total:,.0f}** ({lot_size} × ₹{pe_leg.ltp:,.2f}) @ {pe_leg.strike:g}",
+            pe_total,
+        )
+    return f"No liquid CE/PE found with premium ≤ ₹{max_premium:,.0f} per unit", None
 
 
 def _scan_affordable_index(
@@ -322,7 +364,9 @@ def _scan_affordable_index(
     from analyzer.nse_options import (
         chain_summary_markdown,
         fetch_option_chain,
-        format_affordable_leg,
+        format_leg_with_lot_cost,
+        get_fno_lot_size,
+        option_lot_buy_cost,
         pick_affordable_strikes,
     )
 
@@ -336,8 +380,14 @@ def _scan_affordable_index(
         if not chain:
             chain = fetch_option_chain(fno_symbol)
         ce_leg, pe_leg = pick_affordable_strikes(chain, max_premium=max_premium)
-        ce_txt = format_affordable_leg(ce_leg, chain.spot) if ce_leg else "—"
-        pe_txt = format_affordable_leg(pe_leg, chain.spot) if pe_leg else "—"
+        lot_size = get_fno_lot_size(fno_symbol)
+        ce_txt = format_leg_with_lot_cost(ce_leg, chain.spot, lot_size) if ce_leg else "—"
+        pe_txt = format_leg_with_lot_cost(pe_leg, chain.spot, lot_size) if pe_leg else "—"
+        ce_total = option_lot_buy_cost(ce_leg.ltp if ce_leg else None, lot_size)
+        pe_total = option_lot_buy_cost(pe_leg.ltp if pe_leg else None, lot_size)
+        recommended, rec_total = _recommended_index_side(
+            io.options_action, ce_leg, pe_leg, max_premium, lot_size,
+        )
         intra_note = ""
         if io.picks:
             intra_note = io.picks[0].reason
@@ -355,7 +405,11 @@ def _scan_affordable_index(
             ce_ltp=ce_leg.ltp if ce_leg else None,
             pe_pick=pe_txt,
             pe_ltp=pe_leg.ltp if pe_leg else None,
-            recommended=_recommended_index_side(io.options_action, ce_leg, pe_leg, max_premium),
+            lot_size=lot_size,
+            ce_total_cost=ce_total,
+            pe_total_cost=pe_total,
+            recommended_total_cost=rec_total,
+            recommended=recommended,
             chain_note=chain_summary_markdown(chain),
             error=io.error,
         )
@@ -372,6 +426,10 @@ def _scan_affordable_index(
             ce_ltp=None,
             pe_pick="—",
             pe_ltp=None,
+            lot_size=get_fno_lot_size(fno_symbol),
+            ce_total_cost=None,
+            pe_total_cost=None,
+            recommended_total_cost=None,
             recommended="—",
             chain_note="",
             error=str(exc),
