@@ -17,6 +17,7 @@ def _universe_options(market: str) -> dict[str, str]:
             "India IT": "nse_it",
             "India Banks": "nse_banks",
             "India Pharma": "nse_pharma",
+            "Penny candidates (NSE)": "nse_penny",
             "Custom list": "custom",
         }
     return {
@@ -80,7 +81,13 @@ def render_screener(market: str, period: str) -> None:
         )
 
     preset_key = universe_opts[universe_label]
-    if preset_key == "custom":
+    if preset_key == "nse_penny":
+        from analyzer.penny_stocks import penny_universe_yahoo
+
+        penny_list = penny_universe_yahoo()
+        ticker_text = ", ".join(penny_list)
+        st.caption(f"**{len(penny_list)}** penny-band NSE symbols · use **Penny Picks** tab for ranked best")
+    elif preset_key == "custom":
         default_tickers = ", ".join(PRESET_WATCHLISTS.get("nse_nifty_full" if is_india_market(market) else "us_mega", []))
         ticker_text = st.text_area("Tickers (comma or newline)", value=default_tickers, height=80, key="scr_tickers")
     else:
@@ -133,12 +140,15 @@ def render_screener(market: str, period: str) -> None:
 
     if not run:
         st.info(
-            "Presets: **Quality compounders**, **Swing momentum**, **Oversold bounce**, "
-            "**Breakout watch**, **Earnings-safe swing**, **Value hunters**."
+            "Presets: **Quality compounders**, **Swing momentum**, **Penny momentum (risky)**, "
+            "**Oversold bounce**, **Breakout watch**, **Value hunters**."
         )
         return
 
-    tickers = parse_tickers(ticker_text if preset_key == "custom" else ", ".join(PRESET_WATCHLISTS[preset_key]), market)
+    tickers = parse_tickers(
+        ticker_text if preset_key in ("custom", "nse_penny") else ", ".join(PRESET_WATCHLISTS[preset_key]),
+        market,
+    )
     if not tickers:
         st.error("Add at least one ticker to the universe.")
         return

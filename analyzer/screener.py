@@ -164,6 +164,14 @@ PRESET_SCREENS: dict[str, ScreenerCriteria] = {
         above_sma200=True,
         min_roe=0.10,
     ),
+    "Penny momentum (risky)": ScreenerCriteria(
+        name="Penny momentum (risky)",
+        min_short_score=12.0,
+        short_actions=SHORT_BUY,
+        min_volume_ratio=1.0,
+        exclude_speculative_delivery=True,
+        exclude_earnings_within_days=3,
+    ),
 }
 
 

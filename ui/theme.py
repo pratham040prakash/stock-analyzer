@@ -19,6 +19,7 @@ NAV_TABS = [
     "NSE Options",
     "Watchlist",
     "Screener",
+    "Penny Picks",
     "My Portfolio",
     "Backtest",
     "Track Record",
