@@ -288,7 +288,7 @@ def render_market_pulse(market: str, period: str) -> None:
     render_affordable_invest_section(report, period)
 
     st.divider()
-    render_intraday_watchlist_section(report)
+    render_intraday_watchlist_section(report, market=market)
 
     st.divider()
     st.subheader("🎯 BUY suggestions — all timeframes")

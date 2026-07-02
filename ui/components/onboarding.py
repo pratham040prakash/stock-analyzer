@@ -7,6 +7,7 @@ import streamlit as st
 from analyzer.intraday_pulse_source import load_pulse_for_watchlist
 from analyzer.onboarding_state import dismiss_onboarding, is_onboarding_dismissed
 from analyzer.providers import data_source_status
+from analyzer.watchlist_pins import load_pinned_plans
 from ui.navigation import request_nav_tab
 
 
@@ -26,11 +27,7 @@ def render_start_here_onboarding(market: str, *, force_show: bool = False) -> No
         session_report=st.session_state.get("market_pulse_full"),
     )
     scan_ok = report is not None and scan_status in ("session", "cache_fresh", "cache_stale")
-    picks_ok = bool(
-        report
-        and getattr(report, "stock_map", None)
-        and len(getattr(report, "stock_map", {})) > 0
-    )
+    picks_ok = len(load_pinned_plans()) > 0
 
     with st.expander("🚀 Start here — daily MIS workflow", expanded=not is_onboarding_dismissed()):
         st.markdown(
@@ -56,8 +53,8 @@ def render_start_here_onboarding(market: str, *, force_show: bool = False) -> No
                 request_nav_tab("Intraday", intraday_focus_watchlist=True)
 
         st.markdown(
-            f"{_step_done(picks_ok)} **3. Pick 2–3 names only** — "
-            "From the watchlist, choose stocks that pass the checklist. Write Entry · Stop · Target."
+            f"{_step_done(picks_ok)} **3. Pin 2–3 names** — "
+            "Tap **Pin ⭐** on watchlist cards — locks Entry · Stop · Target for tomorrow."
         )
         if scan_ok:
             if st.button("Open watchlist", key="onboard_watchlist"):
