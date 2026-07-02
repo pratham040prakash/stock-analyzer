@@ -24,6 +24,7 @@ from ui.pages.live_charts import render_live_charts_grid
 from ui.pages.market_pulse import render_market_pulse
 from ui.pages.nse_options import render_nse_options
 from ui.pages.single_stock import render_single_stock
+from ui.pages.screener import render_screener
 from ui.pages.track_record import render_track_record
 from ui.pages.varsity import render_varsity_guide
 from ui.pages.watchlist import render_watchlist
@@ -167,6 +168,8 @@ def main() -> None:
         render_nse_options(market)
     elif selected == "Watchlist":
         render_watchlist(market, period)
+    elif selected == "Screener":
+        render_screener(market, period)
     elif selected == "Zerodha Portfolio":
         render_zerodha(period)
     elif selected == "Backtest":

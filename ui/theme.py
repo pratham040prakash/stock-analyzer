@@ -16,6 +16,7 @@ NAV_TABS = [
     "Live Charts",
     "NSE Options",
     "Watchlist",
+    "Screener",
     "Zerodha Portfolio",
     "Backtest",
     "Track Record",
