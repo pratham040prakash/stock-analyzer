@@ -191,6 +191,139 @@ def ten_intraday_tips() -> list[IntradayTip]:
     ]
 
 
+@dataclass
+class DailyChecklistItem:
+    id: str
+    phase: str
+    tip_number: int
+    label: str
+    action: str
+    link_tab: str = ""
+    link_label: str = ""
+    focus_key: str = ""
+
+
+def daily_mis_checklist_items() -> list[DailyChecklistItem]:
+    """Step-by-step MIS routine mapped to the 10 beginner tips."""
+    return [
+        DailyChecklistItem(
+            "night_pulse", "night_before", 1,
+            "Run Market Pulse — scan full Nifty 50",
+            "Note Nifty bias & sector leader",
+            link_tab="Market Pulse",
+            link_label="Open Market Pulse",
+        ),
+        DailyChecklistItem(
+            "night_watchlist", "night_before", 1,
+            "Build pre-market watchlist (max 2–3 names)",
+            "Copy Entry · Stop · Target for each pick — no levels = skip",
+            link_tab="Intraday",
+            link_label="Open watchlist",
+            focus_key="intraday_focus_watchlist",
+        ),
+        DailyChecklistItem(
+            "morning_capital", "morning_setup", 2,
+            "Set total capital & MIS allocation %",
+            "Only MIS pool is for today — keep rest for delivery / tomorrow",
+            link_tab="Intraday",
+            link_label="Set capital",
+            focus_key="intraday_focus_capital",
+        ),
+        DailyChecklistItem(
+            "morning_slots", "morning_setup", 3,
+            "Set max trades (1–3) & check per-trade budget",
+            "Do not exceed per-trade budget or max risk per trade",
+            link_tab="Intraday",
+            link_label="Set slots",
+            focus_key="intraday_focus_capital",
+        ),
+        DailyChecklistItem(
+            "morning_focus", "morning_setup", 4,
+            "Keep Intraday tab open 9:15–3:30 IST",
+            "Enable Auto-refresh; watch session timing banner",
+            link_tab="Intraday",
+            link_label="Intraday tab",
+        ),
+        DailyChecklistItem(
+            "open_observe", "during_session", 9,
+            "9:15–9:45 — observe opening range only",
+            "Note OR High/Low on 5m chart — no new entries yet",
+            link_tab="Intraday",
+            link_label="Open chart",
+            focus_key="intraday_focus_chart",
+        ),
+        DailyChecklistItem(
+            "trade_watchlist", "during_session", 8,
+            "Trade only from tonight's watchlist",
+            "Ignore tips from groups; max trades = your slot count",
+            link_tab="Intraday",
+            link_label="Watchlist",
+            focus_key="intraday_focus_watchlist",
+        ),
+        DailyChecklistItem(
+            "pre_entry_plan", "during_session", 7,
+            "Before entry: read Entry & exit plan",
+            "Place stop on Kite first; skip if plan says Do not enter",
+            link_tab="Intraday",
+            link_label="Entry plan",
+            focus_key="intraday_focus_chart",
+        ),
+        DailyChecklistItem(
+            "penny_check", "during_session", 5,
+            "Confirm no penny warning (price > ₹20)",
+            "Use Nifty 50 liquid names for MIS",
+            link_tab="Intraday",
+            link_label="Check chart",
+            focus_key="intraday_focus_chart",
+        ),
+        DailyChecklistItem(
+            "target_exit", "during_session", 6,
+            "At target: book 50%, trail stop to breakeven",
+            "Do not wait for more — stick to written target",
+            link_tab="Intraday",
+            link_label="Log exit",
+            focus_key="intraday_focus_journal",
+        ),
+        DailyChecklistItem(
+            "square_off", "during_session", 9,
+            "Square off all MIS before 3:20 PM IST",
+            "Close every intraday position on Kite",
+            link_tab="Intraday",
+            link_label="Today's log",
+            focus_key="intraday_focus_journal",
+        ),
+        DailyChecklistItem(
+            "post_review", "after_close", 10,
+            "Review Track Record & refresh watchlist tonight",
+            "What worked → scan for tomorrow",
+            link_tab="Track Record",
+            link_label="Open Track Record",
+        ),
+    ]
+
+
+def checklist_phase_for_session(advice: SessionTimingAdvice) -> str:
+    """Highlight checklist section matching current market phase."""
+    mapping = {
+        "weekend": "night_before",
+        "pre_open": "morning_setup",
+        "opening": "during_session",
+        "core": "during_session",
+        "wind_down": "during_session",
+        "square_off": "during_session",
+        "after_hours": "after_close",
+    }
+    return mapping.get(advice.phase, "morning_setup")
+
+
+PHASE_LABELS = {
+    "night_before": "🌙 Night before (tips 1, 10)",
+    "morning_setup": "☀️ Morning setup (tips 2–4, 8)",
+    "during_session": "⏱️ During session (tips 5–9)",
+    "after_close": "📊 After close (tip 10)",
+}
+
+
 def tips_summary_markdown() -> str:
     return (
         "**10 beginner intraday rules** built into this tab: research, capital limits, small size, "

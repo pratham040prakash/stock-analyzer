@@ -144,8 +144,10 @@ def render_live_verdict(
     *,
     account_inr: float | None = None,
     max_risk_pct: float = 1.0,
-) -> None:
-    """Buy/sell + CE/PE suggestions from current candle."""
+    max_trades: int = 3,
+    show_trade_log: bool = True,
+) -> "IntradayTradePlan | None":
+    """Buy/sell + CE/PE suggestions from current candle. Returns trade plan if built."""
     if verdict.options:
         render_options_verdict(verdict.options)
 
@@ -181,6 +183,22 @@ def render_live_verdict(
 
     if verdict.action == "WAIT":
         st.warning("Wait for a clearer candle (engulfing, marubozu, or OR breakout) before entering.")
+
+    if show_trade_log:
+        from ui.components.intraday_journal import render_log_trade_panel
+
+        render_log_trade_panel(
+            verdict.ticker,
+            verdict.action,
+            entry=verdict.entry,
+            stop_loss=verdict.stop_loss,
+            target=verdict.target,
+            price_at_log=verdict.intraday.last_price if verdict.intraday else None,
+            suggested_shares=plan.suggested_shares,
+            max_trades=max_trades,
+        )
+
+    return plan
 
 
 def render_candle_stories(verdict: LiveChartVerdict) -> None:

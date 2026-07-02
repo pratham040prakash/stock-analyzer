@@ -40,6 +40,15 @@ class TestIntradayBeginnerTips(unittest.TestCase):
     def test_ten_tips_count(self):
         self.assertEqual(len(ten_intraday_tips()), 10)
 
+    def test_daily_checklist_has_phases(self):
+        from analyzer.intraday_beginner_tips import daily_mis_checklist_items
+
+        items = daily_mis_checklist_items()
+        self.assertGreaterEqual(len(items), 10)
+        phases = {i.phase for i in items}
+        self.assertIn("night_before", phases)
+        self.assertIn("during_session", phases)
+
     def test_default_allocation(self):
         self.assertEqual(DEFAULT_INTRADAY_ALLOCATION_PCT, 50.0)
 

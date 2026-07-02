@@ -24,6 +24,7 @@ from ui.pages.global_markets import render_global_markets
 from ui.pages.intraday import render_intraday
 from ui.pages.live_charts import render_live_charts_grid
 from ui.pages.market_pulse import render_market_pulse
+from ui.pages.nse_options import render_nse_options
 from ui.pages.penny_picks import render_penny_picks
 from ui.pages.screener import render_screener
 from ui.pages.single_stock import render_single_stock

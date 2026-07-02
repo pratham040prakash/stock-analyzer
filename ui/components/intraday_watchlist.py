@@ -6,6 +6,11 @@ import pandas as pd
 import streamlit as st
 
 from analyzer.intraday_beginner_tips import too_many_watchlist_warning
+from analyzer.intraday_pulse_source import (
+    DEFAULT_INTRADAY_PULSE_PERIOD,
+    load_pulse_for_watchlist,
+    run_quick_watchlist_scan,
+)
 from analyzer.intraday_watchlist import build_intraday_watchlist
 
 
@@ -23,7 +28,7 @@ def render_intraday_watchlist_section(report, *, max_concurrent_trades: int = 2)
     if not wl.picks:
         st.info(
             "No names passed the **5-point checklist** yet (volume, ATR ≥1.5%, RSI/MACD, "
-            "pivots, news). Refresh **Market Pulse** after close or loosen filters tomorrow."
+            "pivots, news). Run **Quick scan** above or refresh **Market Pulse** after close."
         )
         st.markdown(
             "**Nightly routine**\n"
@@ -75,6 +80,7 @@ def render_intraday_watchlist_section(report, *, max_concurrent_trades: int = 2)
                 st.markdown(f"- {note}")
             if st.button(f"Open {p.nse_symbol} intraday chart", key=f"wl_intra_{p.nse_symbol}"):
                 st.session_state["intraday_ticker"] = p.nse_symbol
+                st.session_state["intraday_focus_chart"] = True
                 st.session_state["nav_tab"] = "Intraday"
                 st.rerun()
 
@@ -82,3 +88,42 @@ def render_intraday_watchlist_section(report, *, max_concurrent_trades: int = 2)
         "Avoid: tip-chasing, illiquid names, too many stocks, no stop-loss. "
         "**Fewer stocks, better prepared.**"
     )
+
+
+def render_intraday_watchlist_block(
+    market: str,
+    *,
+    period: str = DEFAULT_INTRADAY_PULSE_PERIOD,
+    max_concurrent_trades: int = 2,
+) -> None:
+    """Watchlist with cache/session load + Quick scan — no Market Pulse tab required."""
+    expand = st.session_state.pop("intraday_focus_watchlist", False)
+    with st.expander("🌙 Pre-market watchlist", expanded=expand):
+        session_report = st.session_state.get("market_pulse_full")
+        report, status = load_pulse_for_watchlist(market, period, session_report=session_report)
+        if report is not None and status in ("cache_fresh", "cache_stale"):
+            st.session_state.setdefault("market_pulse_full", report)
+
+        status_msgs = {
+            "session": "Using **current session** Market Pulse data.",
+            "cache_fresh": "Loaded from **fresh cache** (no Pulse tab visit needed).",
+            "cache_stale": "Loaded from **cached scan** (>15 min old) — Quick scan for latest.",
+            "missing": "No scan data yet — tap **Quick scan** (1–2 min).",
+        }
+        st.caption(status_msgs.get(status, ""))
+
+        c1, c2 = st.columns([3, 1])
+        with c2:
+            if st.button("Quick scan", type="primary", key="intra_quick_scan"):
+                with st.spinner("Scanning Nifty 50 for watchlist… usually **1–2 min**."):
+                    report = run_quick_watchlist_scan(market, period, use_cache=False)
+                    st.session_state["market_pulse_full"] = report
+                st.rerun()
+
+        if report and getattr(report, "stock_map", None):
+            render_intraday_watchlist_section(report, max_concurrent_trades=max_concurrent_trades)
+        else:
+            st.info(
+                "Tap **Quick scan** to build tonight's watchlist without opening Market Pulse. "
+                "Uses the same Nifty 50 scan (cached 15 min)."
+            )
