@@ -11,7 +11,53 @@ from analyzer.intraday_pulse_source import (
     load_pulse_for_watchlist,
     run_quick_watchlist_scan,
 )
-from analyzer.intraday_watchlist import build_intraday_watchlist
+from analyzer.intraday_watchlist import IntradayWatchlistPick, build_intraday_watchlist
+
+
+def _render_pick_card(p: IntradayWatchlistPick) -> None:
+    """Compact mobile-friendly card — Entry · Stop · Target + chart button."""
+    checks = f"{p.checklist.passed}/{p.checklist.total}"
+    st.markdown(
+        f"""
+<div class="watchlist-card">
+  <h4>#{p.rank} {p.nse_symbol} · {p.sector[:14]}</h4>
+  <div class="watchlist-levels">
+    <b>Entry</b> ₹{p.entry:,.0f} &nbsp;·&nbsp;
+    <b>Stop</b> ₹{p.stop_loss:,.0f} &nbsp;·&nbsp;
+    <b>Target</b> ₹{p.target:,.0f}
+  </div>
+  <div class="watchlist-meta">
+    Price ₹{p.price:,.0f} · Checks {checks} · Score {p.prep_score:.0f}
+    · ATR {f"{p.atr_pct:.1f}%" if p.atr_pct else "—"}
+  </div>
+</div>
+        """,
+        unsafe_allow_html=True,
+    )
+    if st.button(f"Open {p.nse_symbol} chart", key=f"wl_card_{p.nse_symbol}", use_container_width=True):
+        st.session_state["intraday_ticker"] = p.nse_symbol
+        st.session_state["intraday_focus_chart"] = True
+        st.rerun()
+
+
+def _render_pick_detail_expander(p: IntradayWatchlistPick) -> None:
+    with st.expander(
+        f"Details — #{p.rank} {p.nse_symbol}",
+        expanded=False,
+    ):
+        st.caption(p.breakout_note)
+        if p.pivot:
+            st.caption(
+                f"Pivots: P **₹{p.pivot.pivot:,.0f}** · R1 **₹{p.pivot.r1:,.0f}** · "
+                f"R2 **₹{p.pivot.r2:,.0f}** · S1 **₹{p.pivot.s1:,.0f}** · S2 **₹{p.pivot.s2:,.0f}**"
+            )
+        st.caption(
+            f"20d range: support **₹{p.support:,.0f}** · resistance **₹{p.resistance:,.0f}**"
+        )
+        st.markdown(f"**Plan:** {p.plan_summary}")
+        st.markdown("**Pro checklist**")
+        for note in p.checklist.notes:
+            st.markdown(f"- {note}")
 
 
 def render_intraday_watchlist_section(report, *, max_concurrent_trades: int = 2) -> None:
@@ -42,46 +88,39 @@ def render_intraday_watchlist_section(report, *, max_concurrent_trades: int = 2)
     if over:
         st.warning(over)
 
-    table = []
-    for p in wl.picks:
-        checks = f"{p.checklist.passed}/{p.checklist.total}"
-        table.append({
-            "Rank": p.rank,
-            "Stock": p.nse_symbol,
-            "Sector": p.sector[:12],
-            "Price": f"₹{p.price:,.0f}",
-            "ATR%": f"{p.atr_pct:.1f}" if p.atr_pct else "—",
-            "Vol×": f"{p.volume_ratio:.1f}" if p.volume_ratio else "—",
-            "RSI": f"{p.rsi:.0f}" if p.rsi else "—",
-            "Checks": checks,
-            "Entry": f"₹{p.entry:,.0f}",
-            "Stop": f"₹{p.stop_loss:,.0f}",
-            "Target": f"₹{p.target:,.0f}",
-        })
-    st.dataframe(pd.DataFrame(table), use_container_width=True, hide_index=True)
+    st.caption("**Pick 2–3** for tomorrow — cards show your plan at a glance on mobile.")
+    view = st.radio(
+        "Watchlist view",
+        ["Cards", "Table"],
+        horizontal=True,
+        key="watchlist_view_mode",
+        label_visibility="collapsed",
+    )
 
-    for p in wl.picks:
-        with st.expander(
-            f"#{p.rank} {p.nse_symbol} — prep score {p.prep_score:.0f}",
-            expanded=p.rank <= 3,
-        ):
-            st.caption(p.breakout_note)
-            if p.pivot:
-                st.caption(
-                    f"Pivots: P **₹{p.pivot.pivot:,.0f}** · R1 **₹{p.pivot.r1:,.0f}** · "
-                    f"R2 **₹{p.pivot.r2:,.0f}** · S1 **₹{p.pivot.s1:,.0f}** · S2 **₹{p.pivot.s2:,.0f}**"
-                )
-            st.caption(
-                f"20d range: support **₹{p.support:,.0f}** · resistance **₹{p.resistance:,.0f}**"
-            )
-            st.markdown(f"**Plan:** {p.plan_summary}")
-            st.markdown("**Pro checklist**")
-            for note in p.checklist.notes:
-                st.markdown(f"- {note}")
-            if st.button(f"Open {p.nse_symbol} intraday chart", key=f"wl_intra_{p.nse_symbol}"):
-                st.session_state["intraday_ticker"] = p.nse_symbol
-                st.session_state["intraday_focus_chart"] = True
-                st.rerun()
+    if view == "Cards":
+        for p in wl.picks:
+            _render_pick_card(p)
+            _render_pick_detail_expander(p)
+    else:
+        table = []
+        for p in wl.picks:
+            checks = f"{p.checklist.passed}/{p.checklist.total}"
+            table.append({
+                "Rank": p.rank,
+                "Stock": p.nse_symbol,
+                "Sector": p.sector[:12],
+                "Price": f"₹{p.price:,.0f}",
+                "ATR%": f"{p.atr_pct:.1f}" if p.atr_pct else "—",
+                "Vol×": f"{p.volume_ratio:.1f}" if p.volume_ratio else "—",
+                "RSI": f"{p.rsi:.0f}" if p.rsi else "—",
+                "Checks": checks,
+                "Entry": f"₹{p.entry:,.0f}",
+                "Stop": f"₹{p.stop_loss:,.0f}",
+                "Target": f"₹{p.target:,.0f}",
+            })
+        st.dataframe(pd.DataFrame(table), use_container_width=True, hide_index=True)
+        for p in wl.picks:
+            _render_pick_detail_expander(p)
 
     st.caption(
         "Avoid: tip-chasing, illiquid names, too many stocks, no stop-loss. "
@@ -111,7 +150,7 @@ def render_intraday_watchlist_block(
         }
         st.caption(status_msgs.get(status, ""))
 
-        c1, c2 = st.columns([3, 1])
+        _, c2 = st.columns([3, 1])
         with c2:
             if st.button("Quick scan", type="primary", key="intra_quick_scan"):
                 with st.spinner("Scanning Nifty 50 for watchlist… usually **1–2 min**."):

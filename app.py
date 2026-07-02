@@ -14,6 +14,7 @@ from analyzer.portfolio_store import load_saved_portfolio, portfolio_profile_key
 from analyzer.providers import data_source_status
 from analyzer.telegram_notify import format_morning_telegram, send_telegram_broadcast, telegram_configured
 from analyzer.varsity_knowledge import VARSITY_MODULE_URL
+from ui.components.onboarding import render_sidebar_onboarding_button, render_start_here_onboarding
 from ui.components.nse import render_nse_error_banner
 from ui.components.telegram_subscribe import render_telegram_subscribe_sidebar
 from ui.pages.beginner_risk import render_beginner_risk
@@ -33,8 +34,8 @@ from ui.pages.track_record import render_track_record
 from ui.pages.varsity import render_varsity_guide
 from ui.pages.watchlist import render_watchlist
 from ui.pages.zerodha import render_zerodha
-from ui.navigation import apply_pending_nav_tab
-from ui.theme import DISCLAIMER, MOBILE_CSS, NAV_TABS
+from ui.navigation import apply_pending_nav_tab, init_nav_state, on_nav_group_change
+from ui.theme import DISCLAIMER, MOBILE_CSS, NAV_GROUPS
 
 
 def _hydrate_saved_portfolio() -> None:
@@ -121,6 +122,7 @@ def main() -> None:
                     request_nav_tab("Varsity TA")
 
         st.divider()
+        render_sidebar_onboarding_button()
         render_telegram_subscribe_sidebar()
         if telegram_configured():
             if st.button("Send morning briefing now", key="sidebar_morning_tg"):
@@ -157,14 +159,31 @@ def main() -> None:
     st.info(DISCLAIMER)
     render_nse_error_banner()
 
-    if "nav_tab" not in st.session_state:
-        st.session_state["nav_tab"] = NAV_TABS[0]
+    force_onboard = st.session_state.pop("_onboarding_force_show", False)
+    hidden_session = st.session_state.get("_onboarding_hidden_session", False)
+    if force_onboard or not hidden_session:
+        render_start_here_onboarding(market, force_show=force_onboard)
 
+    init_nav_state()
     apply_pending_nav_tab()
 
+    st.caption("Choose a category, then a page:")
+    st.radio(
+        "Category",
+        list(NAV_GROUPS.keys()),
+        horizontal=True,
+        label_visibility="collapsed",
+        key="nav_group",
+        on_change=on_nav_group_change,
+    )
+
+    tabs_in_group = NAV_GROUPS[st.session_state["nav_group"]]
+    if st.session_state["nav_tab"] not in tabs_in_group:
+        st.session_state["nav_tab"] = tabs_in_group[0]
+
     selected = st.radio(
-        "Section",
-        NAV_TABS,
+        "Page",
+        tabs_in_group,
         horizontal=True,
         label_visibility="collapsed",
         key="nav_tab",

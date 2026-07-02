@@ -17,6 +17,7 @@ class TestNavigation(unittest.TestCase):
 
         self.assertNotIn(_NAV_REQUEST_KEY, state)
         self.assertEqual(state["nav_tab"], "Intraday")
+        self.assertEqual(state["nav_group"], "📈 Trade today")
 
     def test_apply_pending_noop(self):
         state = {"nav_tab": "Intraday"}

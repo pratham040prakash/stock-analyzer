@@ -26,6 +26,49 @@ NAV_TABS = [
     "Varsity TA",
 ]
 
+NAV_GROUPS: dict[str, list[str]] = {
+    "📈 Trade today": [
+        "Market Pulse",
+        "Intraday",
+        "Live Charts",
+        "NSE Options",
+    ],
+    "🔍 Research": [
+        "Single Stock",
+        "Compare",
+        "Watchlist",
+        "Screener",
+        "Penny Picks",
+        "Global Markets",
+    ],
+    "💼 Portfolio": [
+        "My Portfolio",
+        "Daily Advisor",
+        "SIP & Goals",
+        "Risk & Goals",
+        "Track Record",
+    ],
+    "📚 Learn": [
+        "Backtest",
+        "Varsity TA",
+    ],
+}
+
+DEFAULT_NAV_GROUP = "📈 Trade today"
+DEFAULT_NAV_TAB = "Intraday"
+
+
+def nav_group_for_tab(tab: str) -> str:
+    for group, tabs in NAV_GROUPS.items():
+        if tab in tabs:
+            return group
+    return DEFAULT_NAV_GROUP
+
+
+def ensure_tab_in_group(tab: str, group: str) -> str:
+    tabs = NAV_GROUPS.get(group, NAV_GROUPS[DEFAULT_NAV_GROUP])
+    return tab if tab in tabs else tabs[0]
+
 MOBILE_CSS = """
 <style>
 @media (max-width: 768px) {
@@ -33,6 +76,29 @@ MOBILE_CSS = """
         flex: 1 1 100% !important;
         min-width: 100% !important;
     }
+    div[data-testid="stRadio"] > div {
+        flex-wrap: wrap !important;
+    }
+}
+.watchlist-card {
+    border: 1px solid rgba(128,128,128,0.35);
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    background: rgba(30,30,30,0.25);
+}
+.watchlist-card h4 {
+    margin: 0 0 6px 0;
+    font-size: 1.05rem;
+}
+.watchlist-levels {
+    font-size: 0.95rem;
+    line-height: 1.5;
+    margin: 6px 0;
+}
+.watchlist-meta {
+    font-size: 0.8rem;
+    opacity: 0.85;
 }
 </style>
 """
