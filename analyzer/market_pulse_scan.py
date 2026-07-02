@@ -76,6 +76,7 @@ class IndexOptionsPulse:
     options_action: str
     chain: NSEOptionChain | None = None
     picks: list[NSEOptionPick] = field(default_factory=list)
+    options_analytics: object | None = None
     error: str | None = None
 
 
@@ -241,12 +242,15 @@ def scan_index_options(
 
     action = _index_options_action(index_pulse, intraday_action)
     try:
+        from analyzer.options_analytics import analyze_and_record_chain
+
         chain, picks, err = enrich_with_nse_chain(action, fno_symbol)
+        analytics = analyze_and_record_chain(chain) if chain else None
         if err:
-            return IndexOptionsPulse(fno_symbol, name, index_pulse, action, None, [], err)
-        return IndexOptionsPulse(fno_symbol, name, index_pulse, action, chain, picks)
+            return IndexOptionsPulse(fno_symbol, name, index_pulse, action, None, [], analytics, err)
+        return IndexOptionsPulse(fno_symbol, name, index_pulse, action, chain, picks, analytics)
     except Exception as exc:
-        return IndexOptionsPulse(fno_symbol, name, index_pulse, action, None, [], str(exc))
+        return IndexOptionsPulse(fno_symbol, name, index_pulse, action, None, [], None, str(exc))
 
 
 def scan_stock(

@@ -9,6 +9,7 @@ import pandas as pd
 from analyzer.earnings_calendar import CorporateEvent
 from analyzer.delivery_quality import DeliverySnapshot
 from analyzer.fundamentals import FundamentalResult
+from analyzer.options_analytics import OptionsAnalytics, should_warn_options_entry
 from analyzer.market_regime import MarketRegime, detect_nifty_regime
 
 
@@ -165,6 +166,7 @@ def assess_market_risk(
     experience: str = "new",
     earnings_event: CorporateEvent | None = None,
     delivery_snapshot: DeliverySnapshot | None = None,
+    options_analytics: OptionsAnalytics | None = None,
 ) -> MarketRiskAssessment:
     """
     Score risk from recent chart trend, volatility, drawdown, fundamentals, and Nifty regime.
@@ -283,6 +285,28 @@ def assess_market_risk(
             positives.append(
                 f"Strong delivery {delivery_snapshot.delivery_pct:.0f}% — accumulation signal."
             )
+
+    options_horizon = "options" if goal == "trading" else ("long" if goal == "long_term" else "all")
+    if options_analytics and options_analytics.atm_iv is not None:
+        if options_analytics.iv_band == "expensive":
+            bump = 12 if goal == "trading" else 6
+            risk_score += bump
+            risks.append(
+                options_analytics.guidance
+                or f"IV rank {options_analytics.iv_rank:.0f} — expensive options premium."
+            )
+        elif options_analytics.iv_band == "cheap" and goal in ("trading", "long_term"):
+            rank_s = (
+                f"{options_analytics.iv_rank:.0f}"
+                if options_analytics.iv_rank is not None
+                else "low"
+            )
+            positives.append(f"IV rank {rank_s} — cheaper options / hedges available.")
+        if should_warn_options_entry(
+            options_analytics, horizon=options_horizon, earnings_event=earnings_event
+        ):
+            risk_score += 8
+            risks.append("High IV near earnings — avoid aggressive option buying.")
 
     risk_score = min(100.0, max(0.0, risk_score))
     level = _risk_level(risk_score)

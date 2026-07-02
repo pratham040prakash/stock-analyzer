@@ -13,8 +13,9 @@ from analyzer.nse_options import (
     fetch_option_chain,
     recommend_nse_strikes,
 )
-from analyzer.options_analytics import analyze_and_record_chain, analytics_markdown
+from analyzer.options_analytics import analyze_and_record_chain
 from ui.components.intraday import render_candle_stories, render_options_verdict
+from ui.components.iv_rank import render_iv_banner
 
 
 def render_nse_options(market: str) -> None:
@@ -82,7 +83,10 @@ def render_nse_options(market: str) -> None:
     if chain:
         st.markdown(chain_summary_markdown(chain))
         if analytics:
-            st.info(analytics_markdown(analytics))
+            render_iv_banner(analytics, horizon="options", symbol=sym)
+            with st.expander("PCR & OI details"):
+                from analyzer.options_analytics import analytics_markdown
+                st.markdown(analytics_markdown(analytics))
     if verdict and verdict.options:
         verdict.options.nse_chain = chain
         verdict.options.nse_picks = picks

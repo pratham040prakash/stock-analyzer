@@ -8,12 +8,14 @@ from analyzer.combined import analyze_combined
 from analyzer.data import fetch_stock_data
 from analyzer.delivery_quality import build_delivery_snapshot
 from analyzer.earnings_calendar import fetch_corporate_event
+from analyzer.options_analytics import build_options_analytics
 from analyzer.indicators import add_indicators
 from analyzer.market_risk import assess_market_risk, assess_nifty_market_risk
 from analyzer.markets import format_price, is_india_market
 from analyzer.risk import suggest_position_size
 from ui.components.delivery_quality import render_delivery_banner
 from ui.components.earnings_calendar import render_earnings_banner
+from ui.components.iv_rank import render_iv_banner
 from ui.theme import ACTION_COLORS
 
 
@@ -154,6 +156,11 @@ def render_beginner_risk(market: str, period: str) -> None:
                 combined = analyze_combined(df, info["symbol"], yf_info=info)
                 earnings_ev = fetch_corporate_event(info["symbol"], market=market)
                 delivery_snap = build_delivery_snapshot(info["symbol"], df=df) if is_india_market(market) else None
+                options_iv = (
+                    build_options_analytics(info["symbol"].replace(".NS", "").replace(".BO", ""))
+                    if is_india_market(market)
+                    else None
+                )
                 assessment = assess_market_risk(
                     df,
                     info["symbol"],
@@ -164,10 +171,12 @@ def render_beginner_risk(market: str, period: str) -> None:
                     experience=experience,
                     earnings_event=earnings_ev,
                     delivery_snapshot=delivery_snap,
+                    options_analytics=options_iv,
                 )
                 st.session_state["beginner_stock_risk"] = assessment
                 st.session_state["beginner_stock_earnings"] = earnings_ev
                 st.session_state["beginner_stock_delivery"] = delivery_snap
+                st.session_state["beginner_stock_iv"] = options_iv
                 st.session_state["beginner_stock_price"] = info.get("nse_last_price") or combined.technical.current_price
                 st.session_state["beginner_stock_stop"] = combined.technical.stop_loss
             except Exception as exc:
@@ -183,6 +192,10 @@ def render_beginner_risk(market: str, period: str) -> None:
         if dv := st.session_state.get("beginner_stock_delivery"):
             st.markdown("**Delivery & volume**")
             render_delivery_banner(dv)
+        if iv := st.session_state.get("beginner_stock_iv"):
+            st.markdown("**IV rank (options)**")
+            horizon = "options" if goal == "trading" else ("long" if goal == "long_term" else "all")
+            render_iv_banner(iv, horizon=horizon)
         price = st.session_state.get("beginner_stock_price")
         stop = st.session_state.get("beginner_stock_stop")
         if price and stop and goal != "learning":

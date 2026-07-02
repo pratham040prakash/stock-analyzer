@@ -24,6 +24,7 @@ from ui.components.india_macro import pulse_buy_color, render_india_macro_strip
 from ui.components.intraday import render_nse_chain_table
 from ui.components.delivery_quality import render_delivery_banner, render_delivery_table
 from ui.components.earnings_calendar import render_earnings_week_strip
+from ui.components.iv_rank import render_iv_banner, render_iv_market_strip, render_iv_table
 from ui.theme import GLOBAL_BIAS_COLORS, OPTIONS_COLORS, REC_COLORS
 
 
@@ -251,7 +252,16 @@ def render_market_pulse(market: str, period: str) -> None:
     if delivery_snapshots:
         render_delivery_table(delivery_snapshots)
 
-    if earnings_events or delivery_snapshots:
+    index_iv = [
+        io.options_analytics for io in getattr(report, "index_options", [])
+        if getattr(io, "options_analytics", None)
+    ]
+    if index_iv or getattr(report, "macro", None):
+        render_iv_market_strip(getattr(report, "macro", None), index_iv)
+    if index_iv:
+        render_iv_table(index_iv)
+
+    if earnings_events or delivery_snapshots or index_iv:
         st.divider()
 
     st.subheader("🎯 BUY suggestions — all timeframes")
@@ -314,6 +324,8 @@ def render_market_pulse(market: str, period: str) -> None:
                 st.warning(io.error)
             elif io.chain:
                 st.markdown(chain_summary_markdown(io.chain))
+                if io.options_analytics:
+                    render_iv_banner(io.options_analytics, horizon="options", symbol=io.name)
                 if io.picks:
                     for pick in io.picks[:3]:
                         leg = pick.leg

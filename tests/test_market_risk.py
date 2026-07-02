@@ -38,6 +38,17 @@ class TestMarketRisk(unittest.TestCase):
         assessment = assess_market_risk(df, "TEST.NS", goal="learning", experience="new")
         self.assertEqual(assessment.max_suggested_allocation_pct, 0.0)
 
+    def test_expensive_iv_raises_risk_for_trading(self):
+        from analyzer.options_analytics import OptionsAnalytics
+
+        df = self._sample_df()
+        iv = OptionsAnalytics(atm_iv=25.0, iv_rank=85.0, iv_band="expensive", guidance="IV high")
+        base = assess_market_risk(df, "TEST.NS", goal="long_term", experience="new")
+        with_iv = assess_market_risk(
+            df, "TEST.NS", goal="trading", experience="new", options_analytics=iv
+        )
+        self.assertGreater(with_iv.risk_score, base.risk_score)
+
 
 if __name__ == "__main__":
     unittest.main()

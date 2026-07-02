@@ -20,9 +20,10 @@ from analyzer.market_pulse_scan import (
 )
 from analyzer.delivery_quality import snapshot_from_dict, snapshot_to_dict
 from analyzer.earnings_calendar import event_from_dict, event_to_dict
+from analyzer.options_analytics import analytics_from_dict, analytics_to_dict
 from analyzer.market_regime import MarketRegime
 
-PULSE_CACHE_VER = "pulse_v1"
+PULSE_CACHE_VER = "pulse_v2"
 
 
 def _pulse_cache_path(key: str) -> Path:
@@ -96,6 +97,7 @@ def _stock_entry(d: dict) -> StockPulseEntry:
 
 
 def _index_options(d: dict) -> IndexOptionsPulse:
+    analytics = analytics_from_dict(d["options_analytics"]) if d.get("options_analytics") else None
     return IndexOptionsPulse(
         fno_symbol=d["fno_symbol"],
         name=d["name"],
@@ -103,6 +105,7 @@ def _index_options(d: dict) -> IndexOptionsPulse:
         options_action=d["options_action"],
         chain=None,
         picks=[],
+        options_analytics=analytics,
         error=d.get("error"),
     )
 
@@ -119,6 +122,9 @@ def serialize_pulse_report(report: MarketPulseReport) -> dict:
                 "name": io.name,
                 "index_pulse": asdict(io.index_pulse) if io.index_pulse else None,
                 "options_action": io.options_action,
+                "options_analytics": (
+                    analytics_to_dict(io.options_analytics) if io.options_analytics else None
+                ),
                 "error": io.error,
             }
             for io in report.index_options

@@ -16,6 +16,7 @@ from analyzer.indicators import add_indicators
 from analyzer.market_pulse import india_market_pulse
 from analyzer.markets import format_market_cap, format_price, is_india_market
 from analyzer.nse_options import enrich_with_nse_chain
+from analyzer.options_analytics import analyze_and_record_chain
 from analyzer.options_signal import suggest_options_daily
 from analyzer.relative_strength import compute_relative_strength
 from analyzer.risk import capital_from_kite_margins, suggest_position_size
@@ -23,6 +24,7 @@ from analyzer.zerodha import fetch_kite_margins
 from ui.charts import price_chart
 from ui.components.delivery_quality import render_delivery_banner
 from ui.components.earnings_calendar import render_earnings_banner
+from ui.components.iv_rank import render_iv_banner
 from ui.components.advice import render_advice, render_fundamentals, render_signals
 from ui.components.intraday import render_options_verdict
 from ui.theme import REC_COLORS, SIGNAL_ICONS
@@ -219,4 +221,7 @@ def render_single_stock(market: str, period: str) -> None:
         daily_options.nse_picks = picks
         daily_options.nse_error = err
         st.markdown("#### Options (daily timeframe — CE / PE)")
+        if chain:
+            iv_analytics = analyze_and_record_chain(chain)
+            render_iv_banner(iv_analytics, horizon="short", symbol=info["symbol"])
         render_options_verdict(daily_options)
