@@ -1,4 +1,4 @@
-"""Market Pulse — top invest picks under ₹3,000."""
+"""Market Pulse — top invest picks under budget."""
 
 from __future__ import annotations
 
@@ -7,19 +7,30 @@ import streamlit as st
 
 from analyzer.affordable_invest import (
     DEFAULT_MAX_INVEST_PRICE_INR,
+    DEFAULT_MAX_OPTION_LOT_COST_INR,
+    OPTION_LOT_BUDGET_OPTIONS,
     affordable_from_pulse_report,
     affordable_invest_summary,
     build_affordable_index_options,
 )
 from analyzer.markets import format_price
+from analyzer.nse_options import get_fno_lot_size
 from ui.theme import INTRADAY_SETUP_COLORS, OPTIONS_COLORS, REC_COLORS
 
 
-def _render_index_affordable(report, max_price: float, period: str, load_options: bool) -> None:
-    st.markdown("#### 📈 Nifty & Bank Nifty — CE/PE premium under ₹3,000")
+def _render_index_affordable(
+    report,
+    max_lot_cost: float,
+    period: str,
+    load_options: bool,
+) -> None:
+    st.markdown(f"#### 📈 Nifty & Bank Nifty — 1-lot under ₹{max_lot_cost:,.0f}")
+    nifty_lot = get_fno_lot_size("NIFTY")
+    bank_lot = get_fno_lot_size("BANKNIFTY")
     st.caption(
-        "Index **option premium per unit** (not spot) ≤ ₹3,000. "
-        "**Total buy cost = premium × lot size** (Nifty 75, Bank Nifty 30). "
+        f"Picks **CE/PE** where **premium × lot size ≤ ₹{max_lot_cost:,.0f}**. "
+        f"Rough max per unit: Nifty **₹{max_lot_cost / nifty_lot:,.0f}** ({nifty_lot} lot), "
+        f"Bank Nifty **₹{max_lot_cost / bank_lot:,.0f}** ({bank_lot} lot). "
         "Margin on Kite may differ — verify before trading."
     )
     if not load_options:
@@ -28,7 +39,7 @@ def _render_index_affordable(report, max_price: float, period: str, load_options
 
     with st.spinner("Fetching Nifty & Bank Nifty option chains…"):
         index_picks = build_affordable_index_options(
-            report, max_premium=max_price, period=period,
+            report, max_lot_cost=max_lot_cost, period=period,
         )
 
     cols = st.columns(2)
@@ -57,8 +68,8 @@ def _render_index_affordable(report, max_price: float, period: str, load_options
             if idx.intraday_note:
                 st.caption(idx.intraday_note[:140])
             st.markdown(idx.recommended)
-            st.markdown(f"**CE (≤₹{max_price:,.0f}):** {idx.ce_pick}")
-            st.markdown(f"**PE (≤₹{max_price:,.0f}):** {idx.pe_pick}")
+            st.markdown(f"**CE (≤₹{max_lot_cost:,.0f} total):** {idx.ce_pick}")
+            st.markdown(f"**PE (≤₹{max_lot_cost:,.0f} total):** {idx.pe_pick}")
             if idx.chain_note:
                 st.caption(idx.chain_note)
             if st.button(f"Open {idx.fno_symbol} in NSE Options", key=f"aff_idx_{idx.fno_symbol}"):
@@ -70,12 +81,22 @@ def _render_index_affordable(report, max_price: float, period: str, load_options
 
 
 def render_affordable_invest_section(report, period: str = "1y") -> None:
-    max_price = DEFAULT_MAX_INVEST_PRICE_INR
+    max_share_price = DEFAULT_MAX_INVEST_PRICE_INR
+    default_budget_idx = list(OPTION_LOT_BUDGET_OPTIONS).index(DEFAULT_MAX_OPTION_LOT_COST_INR)
 
-    st.subheader(f"💰 Top 5 stocks under ₹{max_price:,.0f} — Delivery · Intraday · CE/PE")
+    st.subheader(f"💰 Top 5 stocks under ₹{max_share_price:,.0f} — Delivery · Intraday · CE/PE")
     st.caption(
-        "Live **Nifty 50** scan: **delivery/SIP**, **intraday MIS**, and **NSE option strikes** "
-        "(Kite LTP + NSE chain when available)."
+        "Live **Nifty 50** scan: **delivery/SIP** (share price cap), **intraday MIS**, "
+        "and **NSE options** filtered by your **1-lot budget** below."
+    )
+
+    max_lot_cost = st.select_slider(
+        "Options budget — max to buy 1 F&O lot (premium × lot size)",
+        options=list(OPTION_LOT_BUDGET_OPTIONS),
+        value=OPTION_LOT_BUDGET_OPTIONS[default_budget_idx],
+        format_func=lambda x: f"₹{x:,.0f}",
+        key="aff_option_lot_budget",
+        help="Lower budget → cheaper (farther OTM) strikes. Nifty 75 lot: ₹10k ≈ ₹133/unit max.",
     )
 
     load_options = st.checkbox(
@@ -85,22 +106,25 @@ def render_affordable_invest_section(report, period: str = "1y") -> None:
         help="Fetches Nifty, Bank Nifty, and stock option chains (~10–20 sec).",
     )
 
-    _render_index_affordable(report, max_price, period, load_options)
+    _render_index_affordable(report, max_lot_cost, period, load_options)
 
     with st.spinner("Ranking stock picks + intraday setups…"):
         picks = affordable_from_pulse_report(
-            report, limit=5, enrich_options=load_options,
+            report,
+            limit=5,
+            enrich_options=load_options,
+            max_option_lot_cost=max_lot_cost,
         )
 
     if not picks:
-        st.warning(affordable_invest_summary(picks, max_price))
+        st.warning(affordable_invest_summary(picks, max_share_price))
         st.caption(
             "Most Nifty names may be above ₹3,000 or bearish today. "
             "Check **long-term** picks below or **Compare** tab."
         )
         return
 
-    st.success(affordable_invest_summary(picks, max_price))
+    st.success(affordable_invest_summary(picks, max_share_price))
 
     table = []
     for p in picks:
@@ -112,8 +136,8 @@ def render_affordable_invest_section(report, period: str = "1y") -> None:
             "Delivery": f"{p.long_action} ({p.long_score:+.0f})",
             "Intraday": f"{p.intraday_action} ({p.intraday_score:+.0f})",
             "Options": p.options_action,
-            "CE idea": p.options_ce_pick.replace("**", "")[:36] if p.options_ce_pick != "—" else "—",
-            "PE idea": p.options_pe_pick.replace("**", "")[:36] if p.options_pe_pick != "—" else "—",
+            "CE 1-lot": f"₹{p.ce_total_cost:,.0f}" if p.ce_total_cost else "—",
+            "PE 1-lot": f"₹{p.pe_total_cost:,.0f}" if p.pe_total_cost else "—",
             "Score": f"{p.invest_score:.0f}",
         })
     st.dataframe(pd.DataFrame(table), use_container_width=True, hide_index=True)
@@ -154,7 +178,7 @@ def render_affordable_invest_section(report, period: str = "1y") -> None:
                     st.caption(p.intraday_summary[:120])
                 st.caption("Square off MIS before **3:20 PM IST**.")
             with d3:
-                st.markdown("**🎯 Options (NSE)**")
+                st.markdown(f"**🎯 Options (≤₹{max_lot_cost:,.0f}/lot)**")
                 st.markdown(
                     f"<span style='color:{opt_color};font-weight:700'>{p.options_action}</span>",
                     unsafe_allow_html=True,
@@ -192,6 +216,7 @@ def render_affordable_invest_section(report, period: str = "1y") -> None:
 
     st.caption(
         "Not financial advice. Options can expire worthless. "
-        "Stocks: under ₹3,000 = **1-share** price. Index options: ₹3,000 = **per-unit premium** — "
-        "multiply by lot size for total buy cost. Size positions in **SIP & Goals** / **Risk & Goals**."
+        f"Stocks: delivery cap **₹{max_share_price:,.0f}/share**. "
+        f"Options: **1-lot budget ₹{max_lot_cost:,.0f}** (premium × lot size). "
+        "Size positions in **SIP & Goals** / **Risk & Goals**."
     )

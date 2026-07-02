@@ -368,15 +368,24 @@ def recommend_nse_strikes(
 
 def pick_affordable_strikes(
     chain: NSEOptionChain,
-    max_premium: float = 3000.0,
+    max_premium: float | None = None,
+    *,
+    max_lot_cost: float | None = None,
+    lot_size: int | None = None,
 ) -> tuple[NSEOptionLeg | None, NSEOptionLeg | None]:
-    """Best liquid CE and PE contracts with LTP at or below max_premium."""
+    """Best liquid CE and PE under per-unit premium and/or 1-lot total budget."""
+    cap = max_premium
+    if max_lot_cost is not None and lot_size and lot_size > 0:
+        per_unit = max_lot_cost / lot_size
+        cap = per_unit if cap is None else min(cap, per_unit)
+    if cap is None:
+        cap = 3000.0
     is_index = chain.instrument_type == "index"
 
     def _best(pool: list[NSEOptionLeg]) -> NSEOptionLeg | None:
         candidates = [
             leg for leg in pool
-            if leg.ltp is not None and 0 < leg.ltp <= max_premium
+            if leg.ltp is not None and 0 < leg.ltp <= cap
         ]
         if not candidates:
             return None

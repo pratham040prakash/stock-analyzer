@@ -13,6 +13,12 @@ from analyzer.market_pulse_scan import (
 )
 
 DEFAULT_MAX_INVEST_PRICE_INR = 3000.0
+"""Max share price for delivery/SIP stock picks (1 share)."""
+
+DEFAULT_MAX_OPTION_LOT_COST_INR = 10000.0
+"""Max total premium to buy 1 F&O lot (LTP × lot size)."""
+
+OPTION_LOT_BUDGET_OPTIONS = (5000.0, 7500.0, 10000.0, 15000.0, 20000.0)
 BUY_COMBINED = frozenset({"STRONG BUY", "BUY"})
 
 
@@ -149,25 +155,28 @@ def _format_option_pick(pick) -> str:
     )
 
 
-def enrich_pick_options(pick: AffordableInvestPick) -> AffordableInvestPick:
-    """Fetch NSE chain and attach top CE + PE strike ideas."""
+def enrich_pick_options(
+    pick: AffordableInvestPick,
+    *,
+    max_lot_cost: float = DEFAULT_MAX_OPTION_LOT_COST_INR,
+) -> AffordableInvestPick:
+    """Fetch NSE chain and attach affordable CE + PE strikes under lot budget."""
     from analyzer.nse_options import (
         chain_summary_markdown,
         fetch_option_chain,
         format_leg_with_lot_cost,
         get_fno_lot_size,
         option_lot_buy_cost,
-        recommend_nse_strikes,
+        pick_affordable_strikes,
     )
 
     try:
         chain = fetch_option_chain(pick.nse_symbol)
         lot_size = get_fno_lot_size(pick.nse_symbol)
         pick.lot_size = lot_size
-        ce_picks = recommend_nse_strikes(chain, "BUY CE")
-        pe_picks = recommend_nse_strikes(chain, "BUY PE")
-        ce_leg = ce_picks[0].leg if ce_picks else None
-        pe_leg = pe_picks[0].leg if pe_picks else None
+        ce_leg, pe_leg = pick_affordable_strikes(
+            chain, max_lot_cost=max_lot_cost, lot_size=lot_size,
+        )
         pick.options_ce_pick = (
             format_leg_with_lot_cost(ce_leg, chain.spot, lot_size) if ce_leg else "—"
         )
@@ -213,6 +222,7 @@ def rank_affordable_investments(
     stocks: list[StockPulseEntry],
     *,
     max_price_inr: float = DEFAULT_MAX_INVEST_PRICE_INR,
+    max_option_lot_cost: float = DEFAULT_MAX_OPTION_LOT_COST_INR,
     limit: int = 5,
     enrich_options: bool = False,
 ) -> list[AffordableInvestPick]:
@@ -240,7 +250,10 @@ def rank_affordable_investments(
 
     if enrich_options and picks:
         with ThreadPoolExecutor(max_workers=min(5, len(picks))) as pool:
-            futs = {pool.submit(enrich_pick_options, p): p for p in picks}
+            futs = {
+                pool.submit(enrich_pick_options, p, max_lot_cost=max_option_lot_cost): p
+                for p in picks
+            }
             enriched: list[AffordableInvestPick] = []
             for fut in as_completed(futs):
                 enriched.append(fut.result())
@@ -254,12 +267,18 @@ def affordable_from_pulse_report(
     limit: int = 5,
     *,
     enrich_options: bool = False,
+    max_option_lot_cost: float = DEFAULT_MAX_OPTION_LOT_COST_INR,
 ) -> list[AffordableInvestPick]:
     """Build top picks from a MarketPulseReport (uses full Nifty 50 stock_map)."""
     stocks = list(getattr(report, "stock_map", {}).values())
     if not stocks and getattr(report, "top_stocks", None):
         stocks = list(report.top_stocks)
-    return rank_affordable_investments(stocks, limit=limit, enrich_options=enrich_options)
+    return rank_affordable_investments(
+        stocks,
+        limit=limit,
+        enrich_options=enrich_options,
+        max_option_lot_cost=max_option_lot_cost,
+    )
 
 
 def affordable_invest_summary(picks: list[AffordableInvestPick], max_price: float) -> str:
@@ -310,7 +329,7 @@ def _recommended_index_side(
     action: str,
     ce_leg,
     pe_leg,
-    max_premium: float,
+    max_lot_cost: float,
     lot_size: int,
 ) -> tuple[str, float | None]:
     from analyzer.nse_options import option_lot_buy_cost
@@ -319,23 +338,23 @@ def _recommended_index_side(
     pe_total = option_lot_buy_cost(pe_leg.ltp if pe_leg else None, lot_size)
 
     if "CE" in action and ce_leg:
-        total_s = f" · **1 lot cost ₹{ce_total:,.0f}** ({lot_size} × ₹{ce_leg.ltp:,.2f})" if ce_total else ""
+        total_s = f" · **1 lot ₹{ce_total:,.0f}** (≤ ₹{max_lot_cost:,.0f})" if ce_total else ""
         return (
-            f"**Pick CE** — premium ₹{ce_leg.ltp:,.2f}/unit (≤ ₹{max_premium:,.0f}) · "
+            f"**Pick CE** — premium ₹{ce_leg.ltp:,.2f}/unit × {lot_size} · "
             f"strike {ce_leg.strike:g}{total_s}",
             ce_total,
         )
     if "PE" in action and pe_leg:
-        total_s = f" · **1 lot cost ₹{pe_total:,.0f}** ({lot_size} × ₹{pe_leg.ltp:,.2f})" if pe_total else ""
+        total_s = f" · **1 lot ₹{pe_total:,.0f}** (≤ ₹{max_lot_cost:,.0f})" if pe_total else ""
         return (
-            f"**Pick PE** — premium ₹{pe_leg.ltp:,.2f}/unit (≤ ₹{max_premium:,.0f}) · "
+            f"**Pick PE** — premium ₹{pe_leg.ltp:,.2f}/unit × {lot_size} · "
             f"strike {pe_leg.strike:g}{total_s}",
             pe_total,
         )
     if ce_leg and pe_leg:
         return (
             f"**No strong bias** — CE 1 lot **₹{ce_total:,.0f}** @ {ce_leg.strike:g} or "
-            f"PE 1 lot **₹{pe_total:,.0f}** @ {pe_leg.strike:g} (hedge only)",
+            f"PE 1 lot **₹{pe_total:,.0f}** @ {pe_leg.strike:g} (both ≤ ₹{max_lot_cost:,.0f})",
             ce_total,
         )
     if ce_leg:
@@ -348,7 +367,11 @@ def _recommended_index_side(
             f"Affordable **PE** — 1 lot **₹{pe_total:,.0f}** ({lot_size} × ₹{pe_leg.ltp:,.2f}) @ {pe_leg.strike:g}",
             pe_total,
         )
-    return f"No liquid CE/PE found with premium ≤ ₹{max_premium:,.0f} per unit", None
+    return (
+        f"No liquid CE/PE with **1-lot cost ≤ ₹{max_lot_cost:,.0f}** "
+        f"(try a higher budget or farther OTM strikes)",
+        None,
+    )
 
 
 def _scan_affordable_index(
@@ -357,7 +380,7 @@ def _scan_affordable_index(
     yahoo_symbol: str,
     index_pulse,
     *,
-    max_premium: float,
+    max_lot_cost: float,
     period: str,
 ) -> AffordableIndexPick:
     from analyzer.market_pulse_scan import scan_index_options
@@ -379,14 +402,16 @@ def _scan_affordable_index(
         chain = io.chain
         if not chain:
             chain = fetch_option_chain(fno_symbol)
-        ce_leg, pe_leg = pick_affordable_strikes(chain, max_premium=max_premium)
         lot_size = get_fno_lot_size(fno_symbol)
+        ce_leg, pe_leg = pick_affordable_strikes(
+            chain, max_lot_cost=max_lot_cost, lot_size=lot_size,
+        )
         ce_txt = format_leg_with_lot_cost(ce_leg, chain.spot, lot_size) if ce_leg else "—"
         pe_txt = format_leg_with_lot_cost(pe_leg, chain.spot, lot_size) if pe_leg else "—"
         ce_total = option_lot_buy_cost(ce_leg.ltp if ce_leg else None, lot_size)
         pe_total = option_lot_buy_cost(pe_leg.ltp if pe_leg else None, lot_size)
         recommended, rec_total = _recommended_index_side(
-            io.options_action, ce_leg, pe_leg, max_premium, lot_size,
+            io.options_action, ce_leg, pe_leg, max_lot_cost, lot_size,
         )
         intra_note = ""
         if io.picks:
@@ -439,10 +464,10 @@ def _scan_affordable_index(
 def build_affordable_index_options(
     report,
     *,
-    max_premium: float = DEFAULT_MAX_INVEST_PRICE_INR,
+    max_lot_cost: float = DEFAULT_MAX_OPTION_LOT_COST_INR,
     period: str = "1y",
 ) -> list[AffordableIndexPick]:
-    """Nifty & Bank Nifty CE/PE with option premium ≤ max_premium."""
+    """Nifty & Bank Nifty CE/PE with 1-lot buy cost ≤ max_lot_cost."""
     pulse_by_yahoo = {p.symbol: p for p in getattr(report, "indices", [])}
     results: list[AffordableIndexPick] = []
     with ThreadPoolExecutor(max_workers=2) as pool:
@@ -453,7 +478,7 @@ def build_affordable_index_options(
                 name,
                 yahoo,
                 pulse_by_yahoo.get(yahoo),
-                max_premium=max_premium,
+                max_lot_cost=max_lot_cost,
                 period=period,
             ): fno
             for fno, name, yahoo in INDEX_AFFORDABLE_TARGETS

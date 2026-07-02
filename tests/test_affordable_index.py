@@ -60,14 +60,34 @@ class TestAffordableIndexOptions(unittest.TestCase):
         self.assertEqual(ce.strike, 24000)
         self.assertEqual(pe.strike, 23900)
 
+    def test_pick_affordable_by_lot_budget(self):
+        """₹10k Nifty lot (75) → max ~₹133/unit; picks cheaper OTM legs."""
+        chain = NSEOptionChain(
+            symbol="NIFTY",
+            instrument_type="index",
+            spot=24000.0,
+            expiry="2026-04-24",
+            legs=[
+                _leg("CE", 25000, 120.0),
+                _leg("CE", 24000, 200.0),
+                _leg("PE", 23500, 90.0),
+                _leg("PE", 23900, 150.0),
+            ],
+        )
+        ce, pe = pick_affordable_strikes(chain, max_lot_cost=10000, lot_size=75)
+        assert ce is not None and pe is not None
+        self.assertLessEqual((ce.ltp or 0) * 75, 10000)
+        self.assertLessEqual((pe.ltp or 0) * 75, 10000)
+        self.assertEqual(ce.strike, 25000)
+        self.assertEqual(pe.strike, 23500)
+
     def test_recommended_side_ce(self):
-        ce = _leg("CE", 24100, 1200)
-        pe = _leg("PE", 23900, 900)
-        text, total = _recommended_index_side("BUY CE", ce, pe, 3000, lot_size=75)
+        ce = _leg("CE", 25000, 100.0)
+        pe = _leg("PE", 23500, 90.0)
+        text, total = _recommended_index_side("BUY CE", ce, pe, 10000, lot_size=75)
         self.assertIn("Pick CE", text)
-        self.assertIn("1,200", text)
-        self.assertIn("1 lot cost", text)
-        self.assertEqual(total, 1200 * 75)
+        self.assertIn("1 lot", text)
+        self.assertEqual(total, 7500.0)
 
     def test_option_lot_buy_cost(self):
         self.assertEqual(option_lot_buy_cost(100.0, 75), 7500.0)
