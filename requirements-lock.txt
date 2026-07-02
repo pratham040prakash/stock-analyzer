@@ -1,11 +1,10 @@
 # Pinned versions for reproducible CI installs. Regenerate with:
-# pip freeze | grep -iE '^(yfinance|pandas|numpy|streamlit|plotly|pandas-ta|requests|python-dotenv|kiteconnect)=='
+# pip freeze | grep -iE '^(yfinance|pandas|numpy|streamlit|plotly|requests|python-dotenv|kiteconnect)=='
 yfinance==1.5.1
 pandas==3.0.3
 numpy==2.2.6
 streamlit==1.58.0
 plotly==6.8.0
-pandas-ta==0.4.71b0
 requests==2.34.2
 python-dotenv==1.2.2
 kiteconnect==5.2.0
