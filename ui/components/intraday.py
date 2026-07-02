@@ -6,6 +6,7 @@ import pandas as pd
 import streamlit as st
 
 from analyzer.candle_narrative import LiveChartVerdict
+from analyzer.intraday_trade_plan import IntradayTradePlan, build_intraday_trade_plan, discipline_intro
 from analyzer.nse_options import chain_summary_markdown
 from ui.theme import INTRADAY_SETUP_COLORS, OPTIONS_COLORS, SIGNAL_ICONS
 
@@ -93,7 +94,57 @@ def render_options_verdict(options, show_nse_table: bool = True) -> None:
             st.markdown(f"- {note}")
 
 
-def render_live_verdict(verdict: LiveChartVerdict) -> None:
+def render_entry_exit_plan(
+    plan: IntradayTradePlan,
+    *,
+    show_capital_hint: bool = True,
+) -> None:
+    """Entry/exit discipline card — exits defined before entry."""
+    st.markdown("### 🚪 Entry & exit plan (before you trade)")
+    st.caption(discipline_intro())
+
+    if plan.can_enter:
+        st.success(plan.summary)
+    elif plan.side != "FLAT":
+        st.error(plan.summary)
+    else:
+        st.warning(plan.skip_reason or plan.summary)
+
+    e1, e2, e3, e4 = st.columns(4)
+    e1.metric("Entry", f"₹{plan.entry:,.2f}" if plan.entry else "—")
+    e2.metric("Stop (full exit)", f"₹{plan.stop_loss:,.2f}" if plan.stop_loss else "—")
+    e3.metric("Target", f"₹{plan.target:,.2f}" if plan.target else "—")
+    e4.metric("R:R", f"{plan.risk_reward_ratio:.1f}×" if plan.risk_reward_ratio else "—")
+
+    if plan.risk_per_share is not None:
+        st.caption(
+            f"Risk **₹{plan.risk_per_share:,.2f}/share** "
+            f"({plan.risk_pct_of_price:.1f}% of entry)"
+            + (
+                f" · Size hint **{plan.suggested_shares}** shares "
+                f"(max loss ≈ ₹{plan.max_loss_inr:,.0f})"
+                if plan.suggested_shares and plan.max_loss_inr and show_capital_hint
+                else ""
+            )
+        )
+
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown("**Entry rules**")
+        for rule in plan.entry_rules:
+            st.markdown(f"- {rule}")
+    with c2:
+        st.markdown("**Exit rules** (more important than entry)")
+        for rule in plan.exit_rules:
+            st.markdown(f"- {rule}")
+
+
+def render_live_verdict(
+    verdict: LiveChartVerdict,
+    *,
+    account_inr: float | None = None,
+    max_risk_pct: float = 1.0,
+) -> None:
     """Buy/sell + CE/PE suggestions from current candle."""
     if verdict.options:
         render_options_verdict(verdict.options)
@@ -117,13 +168,18 @@ def render_live_verdict(verdict: LiveChartVerdict) -> None:
             for reason in verdict.reasons:
                 st.markdown(f"- {reason}")
 
-    if verdict.action not in ("WAIT",) and verdict.entry:
-        st.success(
-            f"**Trade plan:** Entry ₹{verdict.entry:,.2f} · "
-            f"Stop ₹{verdict.stop_loss:,.2f} · Target ₹{verdict.target:,.2f} · "
-            f"Square off MIS before **3:20 PM IST**"
-        )
-    elif verdict.action == "WAIT":
+    plan = build_intraday_trade_plan(
+        verdict.action,
+        verdict.entry,
+        verdict.stop_loss,
+        verdict.target,
+        account_inr=account_inr,
+        max_risk_pct=max_risk_pct,
+        entry_reasons=verdict.reasons,
+    )
+    render_entry_exit_plan(plan)
+
+    if verdict.action == "WAIT":
         st.warning("Wait for a clearer candle (engulfing, marubozu, or OR breakout) before entering.")
 
 

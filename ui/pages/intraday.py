@@ -10,6 +10,7 @@ from analyzer.candle_narrative import analyze_live_chart
 from analyzer.intraday_chart import intraday_chart
 from analyzer.intraday_data import INTERVAL_OPTIONS, fetch_intraday, market_session_status
 from analyzer.intraday_signals import add_intraday_indicators
+from analyzer.intraday_trade_plan import DEFAULT_MAX_RISK_PCT, discipline_intro
 from analyzer.intraday_stock_picker import investopedia_screen_summary
 from analyzer.nse_options import enrich_with_nse_chain
 from analyzer.varsity_knowledge import format_signal_context
@@ -21,6 +22,8 @@ from ui.theme import SIGNAL_ICONS
 def display_intraday_live(ticker: str, interval_key: str, market: str) -> None:
     interval = INTERVAL_OPTIONS[interval_key]
     session = market_session_status()
+    account_inr = float(st.session_state.get("intraday_capital", 50_000))
+    max_risk_pct = float(st.session_state.get("intraday_max_risk_pct", DEFAULT_MAX_RISK_PCT))
 
     try:
         df, meta = fetch_intraday(ticker, interval=interval, market=market)
@@ -61,7 +64,11 @@ def display_intraday_live(ticker: str, interval_key: str, market: str) -> None:
             f"{interval_key} · source **{meta.get('source', 'Yahoo')}**"
         )
 
-        render_live_verdict(verdict)
+        render_live_verdict(
+            verdict,
+            account_inr=account_inr,
+            max_risk_pct=max_risk_pct,
+        )
 
         m1, m2, m3, m4, m5 = st.columns(5)
         m1.metric("LTP", f"₹{analysis.last_price:,.2f}")
@@ -108,9 +115,31 @@ def render_intraday(market: str) -> None:
     st.subheader("Intraday — Live Charts & Candle Stories")
     st.markdown(
         "Reads the **live chart** candle-by-candle (Varsity TA), tells you **what each candle means**, "
-        "and gives a **BUY / SELL / WAIT** suggestion from the **current candle**. "
+        "and gives a **BUY / SELL / WAIT** suggestion with **entry & exit written before you trade**. "
         "With **≤10 stocks** in **My Portfolio**, you get a **full watchlist scan** above."
     )
+
+    st.caption(discipline_intro())
+    r1, r2 = st.columns(2)
+    with r1:
+        st.number_input(
+            "Trading capital for size check (₹)",
+            min_value=5_000,
+            max_value=10_000_000,
+            value=int(st.session_state.get("intraday_capital", 50_000)),
+            step=5_000,
+            key="intraday_capital",
+            help="Used to suggest share qty so stop loss ≈ your risk %.",
+        )
+    with r2:
+        st.slider(
+            "Max risk per trade (%)",
+            min_value=0.5,
+            max_value=3.0,
+            value=float(st.session_state.get("intraday_max_risk_pct", DEFAULT_MAX_RISK_PCT)),
+            step=0.25,
+            key="intraday_max_risk_pct",
+        )
 
     c1, c2, c3 = st.columns([2, 1, 1])
     default_t = st.session_state.get("intraday_ticker", st.session_state.get("single_ticker", "RELIANCE"))
@@ -152,6 +181,7 @@ def render_intraday(market: str) -> None:
         "- **Nifty correlation** — trade long when index is bullish and stock tracks Nifty\n"
         "- **VWAP** — price above = bullish bias for the day; below = bearish\n"
         "- **Opening range** (first 15 min on 5m chart) — breakout/breakdown signals\n"
-        "- **Square off** MIS positions before 3:20 PM IST to avoid auto square-off\n"
+        "- **Exits first** — stop + target before entry; 50% profit at target, trail rest to breakeven\n"
+        "- **Skip wide stops** — if loss at stop exceeds your risk %, do not enter\n"
         "- For **true tick-by-tick** data, connect Zerodha Kite API (₹500/mo data subscription)"
     )

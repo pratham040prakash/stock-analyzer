@@ -21,11 +21,12 @@ from analyzer.session_advisory import PulseLiveSnapshot, fetch_pulse_live_update
 from analyzer.telegram_notify import format_pulse_alert, send_telegram_broadcast, telegram_configured
 from ui.charts import price_chart
 from ui.components.india_macro import pulse_buy_color, render_india_macro_strip
-from ui.components.intraday import render_nse_chain_table
-from ui.components.affordable_invest import render_affordable_invest_section
 from analyzer.intraday_stock_picker import investopedia_screen_summary
+from analyzer.intraday_trade_plan import build_intraday_trade_plan
 from ui.components.delivery_quality import render_delivery_banner, render_delivery_table
 from ui.components.earnings_calendar import render_earnings_week_strip
+from ui.components.intraday import render_entry_exit_plan, render_nse_chain_table
+from ui.components.affordable_invest import render_affordable_invest_section
 from ui.components.iv_rank import render_iv_banner, render_iv_market_strip, render_iv_table
 from ui.theme import GLOBAL_BIAS_COLORS, OPTIONS_COLORS, REC_COLORS
 
@@ -54,6 +55,18 @@ def render_pulse_pick_card(pick, stock_map: dict) -> None:
         st.markdown(f"- {sig}")
 
     entry = stock_map.get(pick.nse_symbol)
+    if pick.horizon == "intraday" and entry and entry.intraday_verdict:
+        v = entry.intraday_verdict
+        plan = build_intraday_trade_plan(
+            v.action,
+            v.entry,
+            v.stop_loss,
+            v.target,
+            entry_reasons=v.reasons,
+        )
+        with st.expander("Entry & exit plan", expanded=True):
+            render_entry_exit_plan(plan, show_capital_hint=False)
+
     if not entry:
         return
 
