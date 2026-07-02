@@ -9,15 +9,61 @@ from analyzer.affordable_invest import (
     DEFAULT_MAX_INVEST_PRICE_INR,
     affordable_from_pulse_report,
     affordable_invest_summary,
+    build_affordable_index_options,
 )
 from analyzer.markets import format_price
 from ui.theme import INTRADAY_SETUP_COLORS, OPTIONS_COLORS, REC_COLORS
 
 
-def render_affordable_invest_section(report) -> None:
+def _render_index_affordable(report, max_price: float, period: str, load_options: bool) -> None:
+    st.markdown("#### 📈 Nifty & Bank Nifty — CE/PE premium under ₹3,000")
+    st.caption(
+        "Index **option premium** (not spot) ≤ ₹3,000 — live NSE chain + intraday chart bias. "
+        "Lot sizes apply (Nifty/Bank Nifty); verify margin on Kite."
+    )
+    if not load_options:
+        st.info("Check **Load NSE CE/PE strikes** above to fetch Nifty & Bank Nifty contracts.")
+        return
+
+    with st.spinner("Fetching Nifty & Bank Nifty option chains…"):
+        index_picks = build_affordable_index_options(
+            report, max_premium=max_price, period=period,
+        )
+
+    cols = st.columns(2)
+    for col, idx in zip(cols, index_picks):
+        with col:
+            opt_color = OPTIONS_COLORS.get(idx.options_action, "#ffd600")
+            bias_color = REC_COLORS.get(idx.index_bias, "#ffd600")
+            st.markdown(f"**{idx.name}** (`{idx.fno_symbol}`)")
+            if idx.error and not idx.ce_pick.strip("—"):
+                st.warning(idx.error[:100])
+            st.metric("Index spot", f"₹{idx.spot:,.2f}" if idx.spot else "—")
+            st.caption(f"Expiry **{idx.expiry}** · Bias **{idx.index_bias}**")
+            st.markdown(
+                f"Signal: <span style='color:{opt_color};font-weight:700'>{idx.options_action}</span> · "
+                f"Index TA: <span style='color:{bias_color};font-weight:600'>{idx.index_bias}</span>",
+                unsafe_allow_html=True,
+            )
+            if idx.intraday_note:
+                st.caption(idx.intraday_note[:140])
+            st.markdown(idx.recommended)
+            st.markdown(f"**CE (≤₹{max_price:,.0f}):** {idx.ce_pick}")
+            st.markdown(f"**PE (≤₹{max_price:,.0f}):** {idx.pe_pick}")
+            if idx.chain_note:
+                st.caption(idx.chain_note)
+            if st.button(f"Open {idx.fno_symbol} in NSE Options", key=f"aff_idx_{idx.fno_symbol}"):
+                st.session_state["nse_opt_symbol"] = idx.fno_symbol
+                st.session_state["nav_tab"] = "NSE Options"
+                st.rerun()
+
+    st.divider()
+
+
+def render_affordable_invest_section(report, period: str = "1y") -> None:
     max_price = DEFAULT_MAX_INVEST_PRICE_INR
 
-    st.subheader(f"💰 Top 5 under ₹{max_price:,.0f} — Delivery · Intraday · CE/PE")
+    st.subheader(f"💰 Top 5 stocks under ₹{max_price:,.0f} — Delivery · Intraday · CE/PE")
     st.caption(
         "Live **Nifty 50** scan: **delivery/SIP**, **intraday MIS**, and **NSE option strikes** "
         "(Kite LTP + NSE chain when available)."
@@ -27,10 +73,12 @@ def render_affordable_invest_section(report) -> None:
         "Load NSE CE/PE strikes (slower)",
         value=True,
         key="aff_load_options",
-        help="Fetches live option chain per pick (~5–15 sec). Uncheck for delivery + intraday only.",
+        help="Fetches Nifty, Bank Nifty, and stock option chains (~10–20 sec).",
     )
 
-    with st.spinner("Ranking picks + intraday setups…"):
+    _render_index_affordable(report, max_price, period, load_options)
+
+    with st.spinner("Ranking stock picks + intraday setups…"):
         picks = affordable_from_pulse_report(
             report, limit=5, enrich_options=load_options,
         )

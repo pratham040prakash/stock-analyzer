@@ -265,7 +265,7 @@ def render_market_pulse(market: str, period: str) -> None:
     if earnings_events or delivery_snapshots or index_iv:
         st.divider()
 
-    render_affordable_invest_section(report)
+    render_affordable_invest_section(report, period)
 
     st.divider()
     st.subheader("🎯 BUY suggestions — all timeframes")

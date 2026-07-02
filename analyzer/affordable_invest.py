@@ -257,5 +257,151 @@ def affordable_invest_summary(picks: list[AffordableInvestPick], max_price: floa
     src = f"**{live}** with live Kite LTP" if live else "Yahoo/NSE delayed prices"
     return (
         f"Top **{len(picks)}** ideas under **₹{max_price:,.0f}** — {names}. "
-        f"Includes **delivery**, **intraday MIS**, and **NSE CE/PE** strikes. Prices: {src}."
+        f"Includes **delivery**, **intraday MIS**, **Nifty/Bank Nifty CE/PE**, and stock options. Prices: {src}."
     )
+
+
+# Nifty 50 & Bank Nifty for index options under premium cap
+INDEX_AFFORDABLE_TARGETS = [
+    ("NIFTY", "Nifty 50", "^NSEI"),
+    ("BANKNIFTY", "Nifty Bank", "^NSEBANK"),
+]
+
+
+@dataclass
+class AffordableIndexPick:
+    fno_symbol: str
+    name: str
+    spot: float
+    expiry: str
+    index_bias: str
+    options_action: str
+    intraday_note: str
+    ce_pick: str
+    ce_ltp: float | None
+    pe_pick: str
+    pe_ltp: float | None
+    recommended: str
+    chain_note: str
+    error: str | None = None
+
+
+def _recommended_index_side(action: str, ce_leg, pe_leg, max_premium: float) -> str:
+    if "CE" in action and ce_leg:
+        return (
+            f"**Pick CE** — premium ₹{ce_leg.ltp:,.2f} (under ₹{max_premium:,.0f}) · "
+            f"strike {ce_leg.strike:g}"
+        )
+    if "PE" in action and pe_leg:
+        return (
+            f"**Pick PE** — premium ₹{pe_leg.ltp:,.2f} (under ₹{max_premium:,.0f}) · "
+            f"strike {pe_leg.strike:g}"
+        )
+    if ce_leg and pe_leg:
+        return (
+            f"**No strong bias** — affordable **CE** ₹{ce_leg.ltp:,.2f} @ {ce_leg.strike:g} or "
+            f"**PE** ₹{pe_leg.ltp:,.2f} @ {pe_leg.strike:g} (hedge only)"
+        )
+    if ce_leg:
+        return f"Affordable **CE** only — ₹{ce_leg.ltp:,.2f} @ {ce_leg.strike:g}"
+    if pe_leg:
+        return f"Affordable **PE** only — ₹{pe_leg.ltp:,.2f} @ {pe_leg.strike:g}"
+    return f"No liquid CE/PE found with premium ≤ ₹{max_premium:,.0f}"
+
+
+def _scan_affordable_index(
+    fno_symbol: str,
+    name: str,
+    yahoo_symbol: str,
+    index_pulse,
+    *,
+    max_premium: float,
+    period: str,
+) -> AffordableIndexPick:
+    from analyzer.market_pulse_scan import scan_index_options
+    from analyzer.nse_options import (
+        chain_summary_markdown,
+        fetch_option_chain,
+        format_affordable_leg,
+        pick_affordable_strikes,
+    )
+
+    bias = "NEUTRAL"
+    if index_pulse:
+        bias = getattr(index_pulse, "recommendation", None) or "NEUTRAL"
+
+    try:
+        io = scan_index_options(fno_symbol, name, yahoo_symbol, period, index_pulse)
+        chain = io.chain
+        if not chain:
+            chain = fetch_option_chain(fno_symbol)
+        ce_leg, pe_leg = pick_affordable_strikes(chain, max_premium=max_premium)
+        ce_txt = format_affordable_leg(ce_leg, chain.spot) if ce_leg else "—"
+        pe_txt = format_affordable_leg(pe_leg, chain.spot) if pe_leg else "—"
+        intra_note = ""
+        if io.picks:
+            intra_note = io.picks[0].reason
+        elif io.options_action not in ("NO TRADE", "WAIT"):
+            intra_note = f"Live chart bias: **{io.options_action}**"
+        return AffordableIndexPick(
+            fno_symbol=fno_symbol,
+            name=name,
+            spot=chain.spot,
+            expiry=chain.expiry,
+            index_bias=bias,
+            options_action=io.options_action,
+            intraday_note=intra_note,
+            ce_pick=ce_txt,
+            ce_ltp=ce_leg.ltp if ce_leg else None,
+            pe_pick=pe_txt,
+            pe_ltp=pe_leg.ltp if pe_leg else None,
+            recommended=_recommended_index_side(io.options_action, ce_leg, pe_leg, max_premium),
+            chain_note=chain_summary_markdown(chain),
+            error=io.error,
+        )
+    except Exception as exc:
+        return AffordableIndexPick(
+            fno_symbol=fno_symbol,
+            name=name,
+            spot=0.0,
+            expiry="",
+            index_bias=bias,
+            options_action="NO TRADE",
+            intraday_note="",
+            ce_pick="—",
+            ce_ltp=None,
+            pe_pick="—",
+            pe_ltp=None,
+            recommended="—",
+            chain_note="",
+            error=str(exc),
+        )
+
+
+def build_affordable_index_options(
+    report,
+    *,
+    max_premium: float = DEFAULT_MAX_INVEST_PRICE_INR,
+    period: str = "1y",
+) -> list[AffordableIndexPick]:
+    """Nifty & Bank Nifty CE/PE with option premium ≤ max_premium."""
+    pulse_by_yahoo = {p.symbol: p for p in getattr(report, "indices", [])}
+    results: list[AffordableIndexPick] = []
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futs = {
+            pool.submit(
+                _scan_affordable_index,
+                fno,
+                name,
+                yahoo,
+                pulse_by_yahoo.get(yahoo),
+                max_premium=max_premium,
+                period=period,
+            ): fno
+            for fno, name, yahoo in INDEX_AFFORDABLE_TARGETS
+        }
+        for fut in as_completed(futs):
+            results.append(fut.result())
+    order = {fno: i for i, (fno, _, _) in enumerate(INDEX_AFFORDABLE_TARGETS)}
+    results.sort(key=lambda r: order.get(r.fno_symbol, 99))
+    return results

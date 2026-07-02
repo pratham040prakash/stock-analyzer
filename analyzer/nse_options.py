@@ -325,6 +325,49 @@ def recommend_nse_strikes(
     return picks
 
 
+def pick_affordable_strikes(
+    chain: NSEOptionChain,
+    max_premium: float = 3000.0,
+) -> tuple[NSEOptionLeg | None, NSEOptionLeg | None]:
+    """Best liquid CE and PE contracts with LTP at or below max_premium."""
+    is_index = chain.instrument_type == "index"
+
+    def _best(pool: list[NSEOptionLeg]) -> NSEOptionLeg | None:
+        candidates = [
+            leg for leg in pool
+            if leg.ltp is not None and 0 < leg.ltp <= max_premium
+        ]
+        if not candidates:
+            return None
+        scored: list[tuple[float, NSEOptionLeg]] = []
+        for leg in candidates:
+            liq = _liquidity_score(leg, is_index)
+            dist_penalty = abs(leg.strike - chain.spot) * 0.02
+            if liq >= 0:
+                scored.append((liq - dist_penalty, leg))
+        if scored:
+            scored.sort(key=lambda x: -x[0])
+            return scored[0][1]
+        candidates.sort(key=lambda l: abs(l.strike - chain.spot))
+        return candidates[0]
+
+    return _best(chain.ce_legs), _best(chain.pe_legs)
+
+
+def format_affordable_leg(leg: NSEOptionLeg, spot: float) -> str:
+    if leg.strike == spot:
+        m = "ATM"
+    elif leg.option_type == "CE":
+        m = "OTM" if leg.strike > spot else "ITM"
+    else:
+        m = "OTM" if leg.strike < spot else "ITM"
+    iv = f" · IV {leg.iv:.1f}%" if leg.iv else ""
+    return (
+        f"**{leg.option_type} {leg.strike:g}** ({m}) · LTP ₹{leg.ltp or 0:,.2f} · "
+        f"OI {leg.open_interest:,} · Vol {leg.volume:,}{iv}"
+    )
+
+
 def enrich_with_nse_chain(
     action: str,
     ticker: str,
