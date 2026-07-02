@@ -61,9 +61,15 @@ Redirect URL for Kite: `http://127.0.0.1:8501`
 1. Add `TELEGRAM_BOT_TOKEN` to `.env` (from @BotFather).
 2. In the app **sidebar → Telegram alerts**, tap **Open in Telegram** and press **Start**.
 3. Return to the app and tap **Verify subscription**.
-4. Choose alert types: morning briefing, EOD track record, optional pulse.
+4. Choose alert types: morning briefing, EOD track record, optional pulse, **SIP reminders**.
 
 No `TELEGRAM_CHAT_ID` required. Subscribers are stored in `data/telegram/subscribers.db`.
+
+**SIP reminders:** Save a goal in **SIP & Goals → Export & share**, enable monthly reminder, and tick **SIP reminders** in the sidebar. Schedule:
+
+```bash
+python scripts/sip_reminder.py   # runs on reminder day (1–28)
+```
 
 ## CLI
 

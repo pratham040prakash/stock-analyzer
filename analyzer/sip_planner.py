@@ -94,6 +94,36 @@ class SipPlannerInput:
     market: str = "india"
 
 
+def sip_input_to_dict(inp: SipPlannerInput) -> dict:
+    return {
+        "goal_name": inp.goal_name,
+        "target_amount": inp.target_amount,
+        "years": inp.years,
+        "current_corpus": inp.current_corpus,
+        "monthly_budget": inp.monthly_budget,
+        "annual_return_pct": inp.annual_return_pct,
+        "step_up_annual_pct": inp.step_up_annual_pct,
+        "risk_profile": inp.risk_profile,
+        "experience": inp.experience,
+        "market": inp.market,
+    }
+
+
+def sip_input_from_dict(d: dict) -> SipPlannerInput:
+    return SipPlannerInput(
+        goal_name=d.get("goal_name", "Custom goal"),
+        target_amount=float(d.get("target_amount", 0)),
+        years=float(d.get("years", 10)),
+        current_corpus=float(d.get("current_corpus", 0)),
+        monthly_budget=d.get("monthly_budget"),
+        annual_return_pct=float(d.get("annual_return_pct", 12)),
+        step_up_annual_pct=float(d.get("step_up_annual_pct", 0)),
+        risk_profile=d.get("risk_profile", "balanced"),
+        experience=d.get("experience", "new"),
+        market=d.get("market", "india"),
+    )
+
+
 def _months(years: float) -> int:
     return max(1, int(round(years * 12)))
 

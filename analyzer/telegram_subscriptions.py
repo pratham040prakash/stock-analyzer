@@ -53,6 +53,7 @@ class TelegramSubscriber:
     alerts_morning: bool = True
     alerts_eod: bool = True
     alerts_pulse: bool = False
+    alerts_sip: bool = False
     active: bool = True
 
 
@@ -86,6 +87,15 @@ def init_subscriptions_db() -> None:
                 created_at TEXT NOT NULL
             )
         """)
+        _migrate_subscriptions(conn)
+
+
+def _migrate_subscriptions(conn: sqlite3.Connection) -> None:
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(telegram_subscribers)")}
+    if "alerts_sip" not in cols:
+        conn.execute(
+            "ALTER TABLE telegram_subscribers ADD COLUMN alerts_sip INTEGER DEFAULT 0"
+        )
 
 
 def _row_to_subscriber(row: sqlite3.Row) -> TelegramSubscriber:
@@ -98,6 +108,7 @@ def _row_to_subscriber(row: sqlite3.Row) -> TelegramSubscriber:
         alerts_morning=bool(row["alerts_morning"]),
         alerts_eod=bool(row["alerts_eod"]),
         alerts_pulse=bool(row["alerts_pulse"]),
+        alerts_sip=bool(row["alerts_sip"]) if "alerts_sip" in row.keys() else False,
         active=bool(row["active"]),
     )
 
@@ -182,6 +193,7 @@ def list_active_subscribers(alert_type: str | None = None) -> list[TelegramSubsc
                 alerts_morning=True,
                 alerts_eod=True,
                 alerts_pulse=True,
+                alerts_sip=True,
                 active=True,
             )
         )
@@ -192,6 +204,8 @@ def list_active_subscribers(alert_type: str | None = None) -> list[TelegramSubsc
         return [s for s in subs if s.alerts_eod]
     if alert_type == "pulse":
         return [s for s in subs if s.alerts_pulse]
+    if alert_type == "sip":
+        return [s for s in subs if s.alerts_sip]
     return subs
 
 
@@ -205,6 +219,7 @@ def update_alert_preferences(
     alerts_morning: bool | None = None,
     alerts_eod: bool | None = None,
     alerts_pulse: bool | None = None,
+    alerts_sip: bool | None = None,
 ) -> bool:
     init_subscriptions_db()
     fields: list[str] = []
@@ -218,6 +233,9 @@ def update_alert_preferences(
     if alerts_pulse is not None:
         fields.append("alerts_pulse = ?")
         values.append(int(alerts_pulse))
+    if alerts_sip is not None:
+        fields.append("alerts_sip = ?")
+        values.append(int(alerts_sip))
     if not fields:
         return False
     values.append(subscribe_token)
@@ -337,7 +355,7 @@ def _handle_start(chat_id: int, username: str, first_name: str, payload: str) ->
         chat_id,
         "Subscribed to Stock Analyzer alerts.\n"
         "You'll receive morning briefing and EOD track-record scorecards "
-        "(toggle types in the app sidebar).",
+        "(toggle types in the app sidebar). Enable SIP reminders under SIP & Goals.",
     )
 
 

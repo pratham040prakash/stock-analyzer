@@ -84,16 +84,23 @@ def render_telegram_subscribe_sidebar() -> None:
             value=sub.alerts_pulse,
             key="tg_pref_pulse",
         )
+        sip = st.checkbox(
+            "SIP reminders (monthly)",
+            value=sub.alerts_sip,
+            key="tg_pref_sip",
+        )
         if (
             morning != sub.alerts_morning
             or eod != sub.alerts_eod
             or pulse != sub.alerts_pulse
+            or sip != sub.alerts_sip
         ):
             update_alert_preferences(
                 token,
                 alerts_morning=morning,
                 alerts_eod=eod,
                 alerts_pulse=pulse,
+                alerts_sip=sip,
             )
 
         if st.button("Send test message", key="tg_test"):
