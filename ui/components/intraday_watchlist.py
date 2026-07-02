@@ -5,10 +5,11 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+from analyzer.intraday_beginner_tips import too_many_watchlist_warning
 from analyzer.intraday_watchlist import build_intraday_watchlist
 
 
-def render_intraday_watchlist_section(report) -> None:
+def render_intraday_watchlist_section(report, *, max_concurrent_trades: int = 2) -> None:
     """Tonight's lean MIS shortlist — entry/stop/target pre-written."""
     wl = build_intraday_watchlist(report)
 
@@ -32,6 +33,9 @@ def render_intraday_watchlist_section(report) -> None:
         return
 
     st.success(f"**{len(wl.picks)}** stocks ready — entry, stop, and target defined for each.")
+    over = too_many_watchlist_warning(len(wl.picks), max_concurrent_trades)
+    if over:
+        st.warning(over)
 
     table = []
     for p in wl.picks:

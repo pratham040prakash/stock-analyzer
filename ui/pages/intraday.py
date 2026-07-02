@@ -10,11 +10,22 @@ from analyzer.candle_narrative import analyze_live_chart
 from analyzer.intraday_chart import intraday_chart
 from analyzer.intraday_data import INTERVAL_OPTIONS, fetch_intraday, market_session_status
 from analyzer.intraday_signals import add_intraday_indicators
+from analyzer.intraday_beginner_tips import (
+    DEFAULT_INTRADAY_ALLOCATION_PCT,
+    DEFAULT_MAX_CONCURRENT_TRADES,
+    penny_stock_intraday_warning,
+    session_timing_advice,
+)
 from analyzer.intraday_trade_plan import DEFAULT_MAX_RISK_PCT, discipline_intro
 from analyzer.intraday_stock_picker import investopedia_screen_summary
 from analyzer.nse_options import enrich_with_nse_chain
 from analyzer.varsity_knowledge import format_signal_context
 from ui.components.intraday import render_candle_stories, render_live_verdict
+from ui.components.intraday_tips import (
+    render_capital_budget_panel,
+    render_session_timing_banner,
+    render_ten_tips_expander,
+)
 from ui.components.intraday_watchlist import render_intraday_watchlist_section
 from ui.components.small_trader_intraday import render_small_trader_portfolio_intraday
 from ui.theme import SIGNAL_ICONS
@@ -23,8 +34,9 @@ from ui.theme import SIGNAL_ICONS
 def display_intraday_live(ticker: str, interval_key: str, market: str) -> None:
     interval = INTERVAL_OPTIONS[interval_key]
     session = market_session_status()
-    account_inr = float(st.session_state.get("intraday_capital", 50_000))
+    account_inr = float(st.session_state.get("intraday_allocated_pool", 25_000))
     max_risk_pct = float(st.session_state.get("intraday_max_risk_pct", DEFAULT_MAX_RISK_PCT))
+    timing = session_timing_advice()
 
     try:
         df, meta = fetch_intraday(ticker, interval=interval, market=market)
@@ -70,6 +82,13 @@ def display_intraday_live(ticker: str, interval_key: str, market: str) -> None:
             account_inr=account_inr,
             max_risk_pct=max_risk_pct,
         )
+        penny_warn = penny_stock_intraday_warning(analysis.last_price)
+        if penny_warn:
+            st.warning(penny_warn)
+        if not timing.allow_new_entries and verdict.action in ("BUY", "STRONG BUY", "SELL", "STRONG SELL"):
+            st.warning(
+                f"**Session timing:** {timing.headline} — prefer WAIT for new entries right now."
+            )
 
         m1, m2, m3, m4, m5 = st.columns(5)
         m1.metric("LTP", f"₹{analysis.last_price:,.2f}")
@@ -121,18 +140,30 @@ def render_intraday(market: str) -> None:
     )
 
     st.caption(discipline_intro())
-    r1, r2 = st.columns(2)
+    render_session_timing_banner()
+
+    r1, r2, r3, r4 = st.columns(4)
     with r1:
         st.number_input(
-            "Trading capital for size check (₹)",
+            "Total capital (₹)",
             min_value=5_000,
             max_value=10_000_000,
             value=int(st.session_state.get("intraday_capital", 50_000)),
             step=5_000,
             key="intraday_capital",
-            help="Used to suggest share qty so stop loss ≈ your risk %.",
+            help="Tip #2: not all of this goes to MIS.",
         )
     with r2:
+        st.slider(
+            "MIS allocation today (%)",
+            min_value=10,
+            max_value=80,
+            value=int(st.session_state.get("intraday_allocation_pct", DEFAULT_INTRADAY_ALLOCATION_PCT)),
+            step=5,
+            key="intraday_allocation_pct",
+            help="Tip #2–3: keep the rest for delivery / next day.",
+        )
+    with r3:
         st.slider(
             "Max risk per trade (%)",
             min_value=0.5,
@@ -141,6 +172,26 @@ def render_intraday(market: str) -> None:
             step=0.25,
             key="intraday_max_risk_pct",
         )
+    with r4:
+        _mt_opts = [1, 2, 3]
+        _mt_default = int(st.session_state.get("intraday_max_trades", DEFAULT_MAX_CONCURRENT_TRADES))
+        st.selectbox(
+            "Max trades today",
+            options=_mt_opts,
+            index=_mt_opts.index(_mt_default) if _mt_default in _mt_opts else 1,
+            key="intraday_max_trades",
+            help="Tip #8: few instruments, focused attention.",
+        )
+
+    allocated = render_capital_budget_panel(
+        float(st.session_state["intraday_capital"]),
+        float(st.session_state["intraday_allocation_pct"]),
+        float(st.session_state["intraday_max_risk_pct"]),
+        int(st.session_state["intraday_max_trades"]),
+    )
+    st.session_state["intraday_allocated_pool"] = allocated
+
+    render_ten_tips_expander()
 
     c1, c2, c3 = st.columns([2, 1, 1])
     default_t = st.session_state.get("intraday_ticker", st.session_state.get("single_ticker", "RELIANCE"))
@@ -161,7 +212,10 @@ def render_intraday(market: str) -> None:
     report = st.session_state.get("market_pulse_full")
     if report and getattr(report, "stock_map", None):
         st.divider()
-        render_intraday_watchlist_section(report)
+        render_intraday_watchlist_section(
+            report,
+            max_concurrent_trades=int(st.session_state.get("intraday_max_trades", DEFAULT_MAX_CONCURRENT_TRADES)),
+        )
 
     st.divider()
     st.markdown("#### Single stock — deep dive")
@@ -176,6 +230,16 @@ def render_intraday(market: str) -> None:
         intraday_live_panel(ticker, interval_key, market)
     else:
         display_intraday_live(ticker, interval_key, market)
+
+    st.divider()
+    st.markdown("#### After the session")
+    st.caption(
+        "**Tip #10:** Review outcomes in **Track Record** — what worked, what didn't — "
+        "then refresh **Market Pulse** tonight for tomorrow's watchlist."
+    )
+    if st.button("Open Track Record", key="intra_track_record"):
+        st.session_state["nav_tab"] = "Track Record"
+        st.rerun()
 
     st.divider()
     st.markdown("#### How we pick intraday stocks")
