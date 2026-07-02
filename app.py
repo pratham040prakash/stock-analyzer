@@ -23,8 +23,9 @@ from ui.pages.intraday import render_intraday
 from ui.pages.live_charts import render_live_charts_grid
 from ui.pages.market_pulse import render_market_pulse
 from ui.pages.nse_options import render_nse_options
-from ui.pages.single_stock import render_single_stock
 from ui.pages.screener import render_screener
+from ui.pages.single_stock import render_single_stock
+from ui.pages.sip_goals import render_sip_goals
 from ui.pages.track_record import render_track_record
 from ui.pages.varsity import render_varsity_guide
 from ui.pages.watchlist import render_watchlist
@@ -152,6 +153,8 @@ def main() -> None:
 
     if selected == "Risk & Goals":
         render_beginner_risk(market, period)
+    elif selected == "SIP & Goals":
+        render_sip_goals(market, period)
     elif selected == "Market Pulse":
         render_market_pulse(market, period)
     elif selected == "Daily Advisor":
