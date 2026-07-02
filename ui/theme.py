@@ -7,6 +7,7 @@ DISCLAIMER = (
 )
 
 NAV_TABS = [
+    "Risk & Goals",
     "Market Pulse",
     "Daily Advisor",
     "Global Markets",

@@ -15,6 +15,7 @@ from analyzer.telegram_notify import format_morning_telegram, send_telegram_broa
 from analyzer.varsity_knowledge import VARSITY_MODULE_URL
 from ui.components.nse import render_nse_error_banner
 from ui.components.telegram_subscribe import render_telegram_subscribe_sidebar
+from ui.pages.beginner_risk import render_beginner_risk
 from ui.pages.backtest import render_backtest
 from ui.pages.daily_advisor import render_daily_advisor
 from ui.pages.global_markets import render_global_markets
@@ -148,7 +149,9 @@ def main() -> None:
         key="nav_tab",
     )
 
-    if selected == "Market Pulse":
+    if selected == "Risk & Goals":
+        render_beginner_risk(market, period)
+    elif selected == "Market Pulse":
         render_market_pulse(market, period)
     elif selected == "Daily Advisor":
         render_daily_advisor(period)
