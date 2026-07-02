@@ -15,6 +15,7 @@ from analyzer.intraday_stock_picker import investopedia_screen_summary
 from analyzer.nse_options import enrich_with_nse_chain
 from analyzer.varsity_knowledge import format_signal_context
 from ui.components.intraday import render_candle_stories, render_live_verdict
+from ui.components.intraday_watchlist import render_intraday_watchlist_section
 from ui.components.small_trader_intraday import render_small_trader_portfolio_intraday
 from ui.theme import SIGNAL_ICONS
 
@@ -156,6 +157,11 @@ def render_intraday(market: str) -> None:
         small_trader_portfolio_panel(market, interval_key)
     else:
         render_small_trader_portfolio_intraday(market, interval_key)
+
+    report = st.session_state.get("market_pulse_full")
+    if report and getattr(report, "stock_map", None):
+        st.divider()
+        render_intraday_watchlist_section(report)
 
     st.divider()
     st.markdown("#### Single stock — deep dive")

@@ -128,6 +128,17 @@ class StockPulseEntry:
     avg_daily_volume: float | None = None
     daily_range_pct: float | None = None
     nifty_correlation: float | None = None
+    sector: str = ""
+    atr_pct: float | None = None
+    rsi_14: float | None = None
+    macd_bullish: bool = False
+    pivot_p: float | None = None
+    pivot_r1: float | None = None
+    pivot_r2: float | None = None
+    pivot_s1: float | None = None
+    pivot_s2: float | None = None
+    support_20d: float | None = None
+    resistance_20d: float | None = None
     error: str | None = None
 
     @property
@@ -362,6 +373,11 @@ def scan_stock(
                 from analyzer.intraday_stock_picker import rolling_nifty_correlation
                 nifty_correlation = rolling_nifty_correlation(df, nifty_daily_df)
 
+        from analyzer.intraday_watchlist import compute_prep_metrics
+
+        prep = compute_prep_metrics(df)
+        piv = prep.get("pivot")
+
         return StockPulseEntry(
             symbol=info["symbol"],
             nse_symbol=nse,
@@ -383,6 +399,17 @@ def scan_stock(
             avg_daily_volume=avg_daily_volume,
             daily_range_pct=daily_range_pct,
             nifty_correlation=nifty_correlation,
+            sector=str(info.get("sector") or ""),
+            atr_pct=prep.get("atr_pct"),
+            rsi_14=prep.get("rsi"),
+            macd_bullish=bool(prep.get("macd_bullish")),
+            pivot_p=piv.pivot if piv else None,
+            pivot_r1=piv.r1 if piv else None,
+            pivot_r2=piv.r2 if piv else None,
+            pivot_s1=piv.s1 if piv else None,
+            pivot_s2=piv.s2 if piv else None,
+            support_20d=prep.get("support"),
+            resistance_20d=prep.get("resistance"),
         )
     except Exception as exc:
         return StockPulseEntry(

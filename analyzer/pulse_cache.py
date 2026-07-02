@@ -96,6 +96,17 @@ def _stock_entry(d: dict) -> StockPulseEntry:
         avg_daily_volume=d.get("avg_daily_volume"),
         daily_range_pct=d.get("daily_range_pct"),
         nifty_correlation=d.get("nifty_correlation"),
+        sector=d.get("sector", ""),
+        atr_pct=d.get("atr_pct"),
+        rsi_14=d.get("rsi_14"),
+        macd_bullish=bool(d.get("macd_bullish", False)),
+        pivot_p=d.get("pivot_p"),
+        pivot_r1=d.get("pivot_r1"),
+        pivot_r2=d.get("pivot_r2"),
+        pivot_s1=d.get("pivot_s1"),
+        pivot_s2=d.get("pivot_s2"),
+        support_20d=d.get("support_20d"),
+        resistance_20d=d.get("resistance_20d"),
     )
 
 
@@ -164,6 +175,20 @@ def _stock_to_dict(s: StockPulseEntry) -> dict:
         "error": s.error,
         "volume_ratio": s.volume_ratio,
         "price_change_pct": s.price_change_pct,
+        "avg_daily_volume": s.avg_daily_volume,
+        "daily_range_pct": s.daily_range_pct,
+        "nifty_correlation": s.nifty_correlation,
+        "sector": s.sector,
+        "atr_pct": s.atr_pct,
+        "rsi_14": s.rsi_14,
+        "macd_bullish": s.macd_bullish,
+        "pivot_p": s.pivot_p,
+        "pivot_r1": s.pivot_r1,
+        "pivot_r2": s.pivot_r2,
+        "pivot_s1": s.pivot_s1,
+        "pivot_s2": s.pivot_s2,
+        "support_20d": s.support_20d,
+        "resistance_20d": s.resistance_20d,
     }
 
 

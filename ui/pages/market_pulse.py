@@ -27,6 +27,7 @@ from ui.components.delivery_quality import render_delivery_banner, render_delive
 from ui.components.earnings_calendar import render_earnings_week_strip
 from ui.components.intraday import render_entry_exit_plan, render_nse_chain_table
 from ui.components.affordable_invest import render_affordable_invest_section
+from ui.components.intraday_watchlist import render_intraday_watchlist_section
 from ui.components.iv_rank import render_iv_banner, render_iv_market_strip, render_iv_table
 from ui.theme import GLOBAL_BIAS_COLORS, OPTIONS_COLORS, REC_COLORS
 
@@ -285,6 +286,9 @@ def render_market_pulse(market: str, period: str) -> None:
         st.divider()
 
     render_affordable_invest_section(report, period)
+
+    st.divider()
+    render_intraday_watchlist_section(report)
 
     st.divider()
     st.subheader("🎯 BUY suggestions — all timeframes")
