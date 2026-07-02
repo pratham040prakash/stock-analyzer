@@ -13,6 +13,7 @@ from analyzer.intraday_signals import add_intraday_indicators
 from analyzer.nse_options import enrich_with_nse_chain
 from analyzer.varsity_knowledge import format_signal_context
 from ui.components.intraday import render_candle_stories, render_live_verdict
+from ui.components.small_trader_intraday import render_small_trader_portfolio_intraday
 from ui.theme import SIGNAL_ICONS
 
 
@@ -96,11 +97,18 @@ def intraday_live_panel(ticker: str, interval_key: str, market: str) -> None:
     display_intraday_live(ticker, interval_key, market)
 
 
+@st.fragment(run_every=timedelta(seconds=30))
+def small_trader_portfolio_panel(market: str, interval_key: str) -> None:
+    """Auto-refresh portfolio intraday strip every 30s."""
+    render_small_trader_portfolio_intraday(market, interval_key)
+
+
 def render_intraday(market: str) -> None:
     st.subheader("Intraday — Live Charts & Candle Stories")
     st.markdown(
         "Reads the **live chart** candle-by-candle (Varsity TA), tells you **what each candle means**, "
-        "and gives a **BUY / SELL / WAIT** suggestion from the **current candle**. Auto-refreshes every 30s."
+        "and gives a **BUY / SELL / WAIT** suggestion from the **current candle**. "
+        "With **≤10 stocks** in **My Portfolio**, you get a **full watchlist scan** above."
     )
 
     c1, c2, c3 = st.columns([2, 1, 1])
@@ -113,6 +121,14 @@ def render_intraday(market: str) -> None:
         auto = st.checkbox("Auto-refresh", value=True, key="intraday_auto")
         if st.button("Refresh now", key="intraday_refresh"):
             st.rerun()
+
+    if auto:
+        small_trader_portfolio_panel(market, interval_key)
+    else:
+        render_small_trader_portfolio_intraday(market, interval_key)
+
+    st.divider()
+    st.markdown("#### Single stock — deep dive")
 
     st.session_state["intraday_ticker"] = ticker
 
