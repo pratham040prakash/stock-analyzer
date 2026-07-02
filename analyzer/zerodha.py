@@ -1,0 +1,367 @@
+"""Zerodha Kite symbol conversion, CSV import, and optional Kite Connect API."""
+
+from __future__ import annotations
+
+import csv
+import io
+import os
+import re
+from dataclasses import dataclass, field
+from pathlib import Path
+
+from analyzer.india import BSE_SCRIP_TO_NSE, _NSE_SERIES_RE
+
+# Zerodha Kite format: NSE:RELIANCE-EQ, BSE:500325, NSE:SBIN
+_KITE_PREFIX_RE = re.compile(r"^(NSE|BSE)[:\s]+", re.IGNORECASE)
+
+
+@dataclass
+class ZerodhaHolding:
+    """One row from Zerodha holdings (CSV or Kite API)."""
+    kite_symbol: str          # e.g. NSE:RELIANCE-EQ
+    tradingsymbol: str        # e.g. RELIANCE
+    exchange: str             # NSE | BSE
+    quantity: float
+    average_price: float | None = None
+    last_price: float | None = None
+    pnl: float | None = None
+    yahoo_symbol: str = ""    # resolved e.g. RELIANCE.NS
+
+
+@dataclass
+class ZerodhaImportResult:
+    holdings: list[ZerodhaHolding] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
+    source: str = ""
+
+
+def kite_to_yahoo(kite_symbol: str) -> str:
+    """
+    Convert Zerodha Kite symbol to Yahoo Finance symbol.
+
+    Examples:
+        NSE:RELIANCE-EQ  -> RELIANCE.NS
+        NSE:SBIN         -> SBIN.NS
+        BSE:500325       -> RELIANCE.NS (mapped) or 500325.BO
+        RELIANCE         -> RELIANCE.NS (assume NSE)
+    """
+    raw = kite_symbol.strip().upper()
+    exchange = "NSE"
+    symbol = raw
+
+    if _KITE_PREFIX_RE.match(raw):
+        parts = re.split(r"[:\s]+", raw, maxsplit=1)
+        exchange = parts[0].upper()
+        symbol = parts[1] if len(parts) > 1 else ""
+
+    symbol = _NSE_SERIES_RE.sub("", symbol)
+
+    if exchange == "BSE" and re.match(r"^\d{6}$", symbol):
+        nse = BSE_SCRIP_TO_NSE.get(symbol)
+        if nse:
+            return f"{nse}.NS"
+        return f"{symbol}.BO"
+
+    if exchange == "BSE":
+        return f"{symbol}.BO"
+    return f"{symbol}.NS"
+
+
+def yahoo_to_kite(yahoo_symbol: str) -> str:
+    """Convert Yahoo symbol to Zerodha-style display (NSE:SYMBOL-EQ)."""
+    s = yahoo_symbol.strip().upper()
+    if s.endswith(".NS"):
+        return f"NSE:{s[:-3]}-EQ"
+    if s.endswith(".BO"):
+        base = s[:-3]
+        if base.isdigit():
+            return f"BSE:{base}"
+        return f"BSE:{base}"
+    return f"NSE:{s}-EQ"
+
+
+def parse_kite_symbol_list(text: str) -> list[str]:
+    """
+    Parse pasted Zerodha symbols (comma/newline separated).
+    Accepts: NSE:RELIANCE-EQ, SBIN, RELIANCE, etc.
+    """
+    items = text.replace("\n", ",").split(",")
+    yahoo: list[str] = []
+    seen: set[str] = set()
+    for item in items:
+        item = item.strip()
+        if not item:
+            continue
+        y = kite_to_yahoo(item)
+        if y not in seen:
+            seen.add(y)
+            yahoo.append(y)
+    return yahoo
+
+
+def _parse_float(val: str | None) -> float | None:
+    if val is None or str(val).strip() in ("", "-", "NA"):
+        return None
+    try:
+        return float(str(val).replace(",", "").strip())
+    except ValueError:
+        return None
+
+
+def _row_get(row: dict, *keys: str) -> str:
+    """Case-insensitive column lookup."""
+    lower_map = {k.lower().strip(): v for k, v in row.items()}
+    for key in keys:
+        if key.lower() in lower_map:
+            val = lower_map[key.lower()]
+            return str(val).strip() if val is not None else ""
+    return ""
+
+
+def parse_holdings_csv(content: str) -> ZerodhaImportResult:
+    """
+    Parse Zerodha holdings CSV export.
+
+    Supports Kite / Console exports with columns like:
+    Symbol, Tradingsymbol, Exchange, Quantity, Average Price, LTP, P&L
+    """
+    result = ZerodhaImportResult(source="csv")
+    reader = csv.DictReader(io.StringIO(content))
+    if not reader.fieldnames:
+        result.errors.append("CSV has no header row")
+        return result
+
+    for i, row in enumerate(reader, start=2):
+        symbol_col = _row_get(row, "Symbol", "Instrument", "Trading Symbol", "tradingsymbol")
+        exchange = _row_get(row, "Exchange", "exchange") or "NSE"
+        tradingsymbol = _row_get(row, "Tradingsymbol", "tradingsymbol", "Trading Symbol")
+        if not tradingsymbol and symbol_col:
+            if ":" in symbol_col:
+                parts = symbol_col.split(":", 1)
+                exchange = parts[0].upper()
+                tradingsymbol = _NSE_SERIES_RE.sub("", parts[1])
+            else:
+                tradingsymbol = symbol_col
+
+        if not tradingsymbol:
+            continue
+
+        qty = _parse_float(_row_get(row, "Quantity", "Qty", "quantity", "Open Quantity"))
+        if qty is None or qty <= 0:
+            continue
+
+        kite_sym = f"{exchange}:{tradingsymbol}"
+        if not tradingsymbol.endswith("-EQ") and exchange == "NSE" and not tradingsymbol.isdigit():
+            kite_sym = f"{exchange}:{tradingsymbol}-EQ"
+
+        holding = ZerodhaHolding(
+            kite_symbol=kite_sym,
+            tradingsymbol=tradingsymbol.replace("-EQ", ""),
+            exchange=exchange.upper(),
+            quantity=qty,
+            average_price=_parse_float(_row_get(row, "Average Price", "Avg Price", "average_price", "Buy Value")),
+            last_price=_parse_float(_row_get(row, "LTP", "Last Price", "Close Price", "last_price")),
+            pnl=_parse_float(_row_get(row, "P&L", "PnL", "pnl", "Unrealized P&L")),
+            yahoo_symbol=kite_to_yahoo(kite_sym),
+        )
+        result.holdings.append(holding)
+
+    if not result.holdings:
+        result.errors.append(
+            "No holdings found. Ensure CSV has Symbol/Tradingsymbol and Quantity columns."
+        )
+    return result
+
+
+def _env_path() -> Path:
+    return Path(__file__).resolve().parent.parent / ".env"
+
+
+def load_env_credentials() -> dict[str, str]:
+    """Load Zerodha API credentials from environment or .env file."""
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv(_env_path())
+    except ImportError:
+        pass
+
+    return {
+        "api_key": os.getenv("ZERODHA_API_KEY", ""),
+        "api_secret": os.getenv("ZERODHA_API_SECRET", ""),
+        "access_token": os.getenv("ZERODHA_ACCESS_TOKEN", ""),
+    }
+
+
+def save_access_token_to_env(access_token: str) -> None:
+    """Persist access token to .env (create or update ZERODHA_ACCESS_TOKEN line)."""
+    env_path = _env_path()
+    lines: list[str] = []
+    if env_path.exists():
+        lines = env_path.read_text(encoding="utf-8").splitlines()
+
+    key = "ZERODHA_ACCESS_TOKEN"
+    updated = False
+    for i, line in enumerate(lines):
+        if line.startswith(f"{key}="):
+            lines[i] = f"{key}={access_token}"
+            updated = True
+            break
+    if not updated:
+        lines.append(f"{key}={access_token}")
+
+    env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    os.environ[key] = access_token
+
+
+def get_kite_login_url(api_key: str) -> str:
+    return f"https://kite.zerodha.com/connect/login?api_key={api_key}&v=3"
+
+
+def exchange_request_token(api_key: str, api_secret: str, request_token: str) -> str:
+    """Exchange one-time request_token for access_token. User must save to .env."""
+    try:
+        from kiteconnect import KiteConnect
+    except ImportError as exc:
+        raise ImportError("Install kiteconnect: pip install kiteconnect") from exc
+
+    kite = KiteConnect(api_key=api_key)
+    data = kite.generate_session(request_token, api_secret=api_secret)
+    return data["access_token"]
+
+
+def fetch_holdings_from_kite(
+    api_key: str | None = None,
+    access_token: str | None = None,
+) -> ZerodhaImportResult:
+    """Fetch live equity holdings from Zerodha Kite Connect API."""
+    result = ZerodhaImportResult(source="kite_api")
+    creds = load_env_credentials()
+    api_key = api_key or creds["api_key"]
+    access_token = access_token or creds["access_token"]
+
+    if not api_key or not access_token:
+        result.errors.append(
+            "Missing ZERODHA_API_KEY or ZERODHA_ACCESS_TOKEN in .env. "
+            "See .env.example for setup steps."
+        )
+        return result
+
+    try:
+        from kiteconnect import KiteConnect
+    except ImportError:
+        result.errors.append("Install kiteconnect: pip install kiteconnect python-dotenv")
+        return result
+
+    try:
+        kite = KiteConnect(api_key=api_key)
+        kite.set_access_token(access_token)
+        raw_holdings = kite.holdings()
+    except Exception as exc:
+        result.errors.append(f"Kite API error: {exc}")
+        return result
+
+    for h in raw_holdings:
+        qty = float(h.get("quantity", 0) or 0) + float(h.get("t1_quantity", 0) or 0)
+        if qty <= 0:
+            continue
+        exchange = h.get("exchange", "NSE")
+        tradingsymbol = h.get("tradingsymbol", "")
+        kite_sym = f"{exchange}:{tradingsymbol}"
+        result.holdings.append(
+            ZerodhaHolding(
+                kite_symbol=kite_sym,
+                tradingsymbol=tradingsymbol,
+                exchange=exchange,
+                quantity=qty,
+                average_price=float(h.get("average_price") or 0) or None,
+                last_price=float(h.get("last_price") or 0) or None,
+                pnl=float(h.get("pnl") or 0) or None,
+                yahoo_symbol=kite_to_yahoo(kite_sym),
+            )
+        )
+
+    if not result.holdings:
+        result.errors.append("No equity holdings returned from Kite (portfolio may be empty).")
+    return result
+
+
+def get_kite_client():
+    """Return authenticated KiteConnect client or None."""
+    creds = load_env_credentials()
+    if not creds["api_key"] or not creds["access_token"]:
+        return None
+    try:
+        from kiteconnect import KiteConnect
+    except ImportError:
+        return None
+    try:
+        kite = KiteConnect(api_key=creds["api_key"])
+        kite.set_access_token(creds["access_token"])
+        return kite
+    except Exception:
+        return None
+
+
+def fetch_kite_ltp(kite_symbols: list[str]) -> dict[str, float]:
+    """Live LTP from Kite for NSE:SYMBOL-EQ keys. Returns {symbol: ltp}."""
+    kite = get_kite_client()
+    if not kite or not kite_symbols:
+        return {}
+    try:
+        quotes = kite.quote(kite_symbols)
+        out: dict[str, float] = {}
+        for sym, q in quotes.items():
+            ltp = q.get("last_price")
+            if ltp:
+                out[sym] = float(ltp)
+        return out
+    except Exception:
+        return {}
+
+
+def fetch_kite_margins() -> dict | None:
+    """Equity margins from Kite — for position sizing."""
+    kite = get_kite_client()
+    if not kite:
+        return None
+    try:
+        return kite.margins(segment="equity")
+    except Exception:
+        return None
+
+
+def zerodha_setup_help() -> str:
+    return """
+### Connect your Zerodha account (Kite Connect API)
+
+1. **Create a Kite Connect app** (one-time)
+   - Go to [developers.kite.trade](https://developers.kite.trade/)
+   - Sign in with your Zerodha credentials
+   - Create app → note **API Key** and **API Secret**
+   - Set redirect URL to `http://127.0.0.1:8501` (for local Streamlit)
+
+2. **Install Zerodha dependencies**
+   ```bash
+   pip install kiteconnect python-dotenv
+   ```
+
+3. **Create `.env`** in the project folder (copy from `.env.example`):
+   ```
+   ZERODHA_API_KEY=your_api_key
+   ZERODHA_API_SECRET=your_api_secret
+   ZERODHA_ACCESS_TOKEN=your_daily_token
+   ```
+
+4. **Get access token** (valid until ~6 AM IST next day)
+   - Use the **Generate Login URL** button below
+   - Log in with Zerodha → copy `request_token` from redirect URL
+   - Paste it here to generate today's `access_token`
+   - Add the token to `.env` as `ZERODHA_ACCESS_TOKEN`
+
+**Without API:** Upload a holdings CSV from [Kite web](https://kite.zerodha.com) → Holdings → Download,
+or paste symbols like `NSE:RELIANCE-EQ, NSE:TCS-EQ`.
+
+> Kite Connect may require a subscription (₹500/month) for API access — check Zerodha's current pricing.
+> CSV import is free and needs no API.
+"""

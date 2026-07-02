@@ -1,0 +1,4 @@
+# Zerodha Kite Connect (optional — for live portfolio import)
+# pip install kiteconnect python-dotenv
+kiteconnect>=5.0.0
+python-dotenv>=1.0.0
