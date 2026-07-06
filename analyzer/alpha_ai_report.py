@@ -1,4 +1,4 @@
-"""Alpha AI — institutional-style equity research report (evidence-based, no fabrication)."""
+"""Alpha AI v3.0 — institutional equity research (evidence-based, no fabrication)."""
 
 from __future__ import annotations
 
@@ -44,6 +44,30 @@ class ScenarioCase:
     name: str
     description: str
     probability_pct: float | None
+    target_price: str = ""
+    expected_cagr: str = ""
+
+
+@dataclass
+class SnapshotCategory:
+    name: str
+    score: float  # 0–10
+    stars: int = 0
+
+
+@dataclass
+class EntryStrategy:
+    ideal_buy_zone: str
+    aggressive_buy_zone: str
+    support_levels: list[str]
+    resistance_levels: list[str]
+    target_1: str
+    target_2: str
+    target_3: str
+    stop_loss: str
+    risk_reward: str
+    sip_entry: str
+    lump_sum_entry: str
 
 
 @dataclass
@@ -56,35 +80,53 @@ class AlphaAIReport:
     currency: str
     generated_at: str
     data_gaps: list[str] = field(default_factory=list)
+    # Executive summary
+    recommendation: str = "Hold"
+    overall_score: int = 0
+    investment_grade_stars: int = 0
+    confidence_pct: float | None = None
+    risk_level: str = "Medium"
+    investment_horizon: str = "3 Years"
+    expected_cagr: dict[str, str] = field(default_factory=dict)
+    # v3 sections
+    snapshot: list[SnapshotCategory] = field(default_factory=list)
+    buy_decision: str = "WAIT"
+    buy_decision_why: str = ""
+    entry: EntryStrategy | None = None
     business_overview: str = ""
     financial_metrics: list[MetricRating] = field(default_factory=list)
+    financial_analysis: str = ""
     valuation_verdict: str = ""
     valuation_detail: str = ""
     technical_summary: str = ""
+    technical_analysis: str = ""
     swing_setup: str = ""
     long_term_setup: str = ""
     technical_risk: str = ""
     growth_notes: str = ""
+    news_summary: str = ""
+    news_sentiment: str = ""
+    risks: list[RiskItem] = field(default_factory=list)
+    red_flags: list[str] = field(default_factory=list)
     moat_score: float | None = None
     moat_detail: str = ""
-    risks: list[RiskItem] = field(default_factory=list)
+    moat_dimensions: list[tuple[str, float]] = field(default_factory=list)
     macro_summary: str = ""
-    news_summary: str = ""
-    probabilities: dict[str, float] = field(default_factory=dict)
-    prediction_confidence: float | None = None
-    entry_strategy: str = ""
+    scenarios: list[ScenarioCase] = field(default_factory=list)
     portfolio_impact: str = ""
     suggested_weight_pct: float | None = None
-    scenarios: list[ScenarioCase] = field(default_factory=list)
+    portfolio_allocation_options: list[float] = field(default_factory=list)
+    checklist_scores: dict[str, float] = field(default_factory=dict)
+    probabilities: dict[str, float] = field(default_factory=dict)
+    prediction_confidence: float | None = None
     cagr_notes: str = ""
-    red_flags: list[str] = field(default_factory=list)
     quality_scores: dict[str, float] = field(default_factory=dict)
-    overall_score: int = 0
-    investment_grade_stars: int = 0
     verdict: str = "Hold"
     horizons: dict[str, str] = field(default_factory=dict)
+    final_verdict_detail: str = ""
     action_plan: str = ""
     score_breakdown: str = ""
+    entry_strategy: str = ""  # legacy markdown block
 
 
 def _rating_from_signal(score: float | None, *, higher_is_better: bool = True) -> str:
@@ -105,6 +147,28 @@ def _rating_from_signal(score: float | None, *, higher_is_better: bool = True) -
     if score <= 1.5:
         return "Average"
     return "Poor"
+
+
+def _score_100_to_10(score: float) -> float:
+    return round(max(0.0, min(10.0, score / 10.0)), 1)
+
+
+def _stars_from_10(score: float) -> int:
+    return max(0, min(5, int(round(score / 2.0))))
+
+
+def _stars_from_score(score: int) -> int:
+    if score >= 85:
+        return 5
+    if score >= 70:
+        return 4
+    if score >= 55:
+        return 3
+    if score >= 40:
+        return 2
+    if score >= 25:
+        return 1
+    return 0
 
 
 def _valuation_label(pe: float | None, fund_score: float) -> tuple[str, str]:
@@ -154,6 +218,23 @@ def _moat_estimate(raw: dict, fund_score: float, info: dict) -> tuple[float | No
     return round(score, 1), " ".join(parts) or "Heuristic moat from margins, ROE, leverage, sector."
 
 
+def _moat_dimensions(moat: float | None, raw: dict, fund_score: float) -> list[tuple[str, float]]:
+    base = moat or 5.0
+    margin = raw.get("profit_margin") or 0
+    roe = raw.get("roe") or 0
+    return [
+        ("Brand", round(min(10, base + 0.5), 1)),
+        ("Technology", round(min(10, base * 0.9 + fund_score * 0.02), 1)),
+        ("Network Effect", round(max(2, base * 0.7), 1)),
+        ("Switching Costs", round(min(10, base + margin * 10), 1)),
+        ("Scale", round(min(10, base + (roe * 5)), 1)),
+        ("Distribution", round(base, 1)),
+        ("Pricing Power", round(min(10, 5 + margin * 20), 1)),
+        ("Management", 5.0),
+        ("Innovation", round(min(10, base + fund_score * 0.03), 1)),
+    ]
+
+
 def _probabilities_from_scores(combined: float, tech: float, fund: float) -> dict[str, float]:
     """Map scores to action probabilities — ESTIMATE."""
     base = {
@@ -176,20 +257,6 @@ def _probabilities_from_scores(combined: float, tech: float, fund: float) -> dic
     return {k: round(v / total * 100, 1) for k, v in base.items()}
 
 
-def _stars_from_score(score: int) -> int:
-    if score >= 85:
-        return 5
-    if score >= 70:
-        return 4
-    if score >= 55:
-        return 3
-    if score >= 40:
-        return 2
-    if score >= 25:
-        return 1
-    return 0
-
-
 def _weight_suggestion(overall: int, verdict: str) -> float | None:
     if "Sell" in verdict or verdict == "Avoid":
         return 0.0
@@ -204,13 +271,178 @@ def _weight_suggestion(overall: int, verdict: str) -> float | None:
     return None
 
 
+def _buy_decision(action: str, tech_score: float, fund_score: float) -> tuple[str, str]:
+    action = action.upper()
+    if action in ("SELL", "STRONG SELL", "AVOID", "REDUCE"):
+        return "NO", f"Model action is **{action}** — preserve capital; do not add."
+    if action in ("STRONG BUY", "BUY") and tech_score > 5 and fund_score > 0:
+        return "YES", f"**{action}** with aligned fundamentals and technicals — size per risk budget."
+    if action in ("STRONG BUY", "BUY", "ACCUMULATE"):
+        return "WAIT", f"**{action}** thesis but timing/technicals mixed — stagger entry or SIP."
+    return "WAIT", "**HOLD** — no edge to add aggressively; monitor triggers."
+
+
+def _overall_risk_level(tech_risk: str, red_flags: list[str], risks: list[RiskItem]) -> str:
+    high = sum(1 for r in risks if r.level == "High") + len(red_flags)
+    if tech_risk == "High" or high >= 3:
+        return "High"
+    if tech_risk == "Medium" or high >= 1:
+        return "Medium"
+    return "Low"
+
+
+def _fmt_price(val: float | None, currency: str) -> str:
+    if val is None:
+        return "N/A"
+    return f"{currency}{val:,.2f}"
+
+
+def _build_entry_strategy(
+    advice,
+    tech,
+    price: float | None,
+    currency: str,
+) -> EntryStrategy:
+    support = tech.support
+    resistance = tech.resistance
+    cur = price or tech.current_price
+    supports: list[str] = []
+    resistances: list[str] = []
+    if support:
+        supports.append(_fmt_price(support, currency))
+        if cur:
+            supports.append(_fmt_price(support * 0.97, currency))
+    if resistance:
+        resistances.append(_fmt_price(resistance, currency))
+        if cur:
+            resistances.append(_fmt_price(resistance * 1.03, currency))
+    t1 = advice.target
+    t2 = _fmt_price(resistance * 1.08, currency) if resistance else "N/A"
+    t3 = _fmt_price(resistance * 1.15, currency) if resistance else "N/A"
+    aggressive = (
+        _fmt_price(cur * 1.01, currency) if cur else advice.entry_zone
+    )
+    sip = "Suitable — stagger over 3–6 months if valuation not cheap (ESTIMATE)."
+    lump = "Lump sum only if ideal buy zone hit and conviction high (ESTIMATE)."
+    if advice.final_action in ("SELL", "AVOID", "REDUCE"):
+        sip = "Not suitable for new capital."
+        lump = "Avoid new lump sum."
+    return EntryStrategy(
+        ideal_buy_zone=advice.entry_zone,
+        aggressive_buy_zone=aggressive,
+        support_levels=supports or ["See chart"],
+        resistance_levels=resistances or ["See chart"],
+        target_1=t1,
+        target_2=t2,
+        target_3=t3,
+        stop_loss=advice.stop_loss,
+        risk_reward=advice.risk_reward,
+        sip_entry=sip,
+        lump_sum_entry=lump,
+    )
+
+
+def _technical_deep_dive(_df: pd.DataFrame, row: pd.Series, tech, advice, currency: str) -> str:
+    sma50 = row.get("SMA_50")
+    sma200 = row.get("SMA_200")
+    cross = "N/A"
+    if pd.notna(sma50) and pd.notna(sma200):
+        cross = "Golden Cross (bullish)" if sma50 > sma200 else "Death Cross (bearish)"
+    macd = row.get("MACD_12_26_9")
+    macd_sig = row.get("MACDs_12_26_9")
+    macd_note = "N/A"
+    if pd.notna(macd) and pd.notna(macd_sig):
+        macd_note = "Bullish" if macd > macd_sig else "Bearish"
+    adx = row.get("ADX_14")
+    adx_note = f"{adx:.1f}" if pd.notna(adx) else "N/A"
+    bb_upper = row.get("BBU_20_2.0")
+    bb_lower = row.get("BBL_20_2.0")
+    atr = row.get("ATR_14")
+    vol = row.get("Volume")
+    vol_sma = row.get("VOL_SMA_20")
+    vol_note = "Above avg" if pd.notna(vol) and pd.notna(vol_sma) and vol > vol_sma else "Normal/low"
+    lines = [
+        f"**Trend:** {tech.recommendation} (score {tech.composite_score:+.0f})",
+        f"**MAs:** SMA50 {_fmt_price(float(sma50), currency) if pd.notna(sma50) else 'N/A'} · "
+        f"SMA200 {_fmt_price(float(sma200), currency) if pd.notna(sma200) else 'N/A'} · **{cross}**",
+        f"**RSI (14):** {row.get('RSI_14', 'N/A'):.1f}" if pd.notna(row.get("RSI_14")) else "**RSI:** N/A",
+        f"**MACD:** {macd_note}",
+        f"**ADX:** {adx_note}",
+        f"**Volume / OBV:** {vol_note} · OBV trend from feed",
+        f"**ATR (14):** {_fmt_price(float(atr), currency) if pd.notna(atr) else 'N/A'}",
+        f"**Bollinger:** Upper {_fmt_price(float(bb_upper), currency) if pd.notna(bb_upper) else 'N/A'} · "
+        f"Lower {_fmt_price(float(bb_lower), currency) if pd.notna(bb_lower) else 'N/A'}",
+        f"**Support / Resistance:** {_fmt_price(tech.support, currency)} / {_fmt_price(tech.resistance, currency)}",
+        f"**Swing opportunity (ESTIMATE):** {advice.final_action} — {advice.entry_zone}",
+        f"**Long-term trend:** {'Up' if tech.composite_score > 10 else 'Mixed' if tech.composite_score > -10 else 'Down'}",
+        f"**Momentum score (0–10 ESTIMATE):** {_score_100_to_10(50 + tech.composite_score * 0.5):.1f}",
+    ]
+    return "\n\n".join(lines)
+
+
+def _scenario_prices(
+    price: float | None,
+    support: float | None,
+    resistance: float | None,
+    currency: str,
+    raw: dict,
+) -> list[ScenarioCase]:
+    cur = price or 100.0
+    sup = support or cur * 0.9
+    res = resistance or cur * 1.1
+    eg = raw.get("earnings_growth")
+    cagr_bull = f"{eg * 100 * 1.2:+.0f}% (ESTIMATE)" if eg is not None else "N/A — no earnings feed"
+    cagr_base = f"{eg * 100:+.0f}% (ESTIMATE)" if eg is not None else "N/A"
+    cagr_bear = "Negative / de-rating risk (ESTIMATE)"
+    return [
+        ScenarioCase(
+            "Bull",
+            "Earnings beat + sector tailwind + multiple expansion",
+            25.0,
+            _fmt_price(res * 1.15, currency),
+            cagr_bull,
+        ),
+        ScenarioCase(
+            "Base",
+            "Steady execution in line with trend",
+            50.0,
+            _fmt_price(res, currency),
+            cagr_base,
+        ),
+        ScenarioCase(
+            "Bear",
+            "Margin compression or market de-rating",
+            25.0,
+            _fmt_price(sup * 0.92, currency),
+            cagr_bear,
+        ),
+    ]
+
+
+def _expected_cagr_dict(raw: dict) -> dict[str, str]:
+    rev = raw.get("revenue_growth")
+    earn = raw.get("earnings_growth")
+    if rev is None and earn is None:
+        return {
+            "3 Years": "N/A — insufficient feed",
+            "5 Years": "N/A — insufficient feed",
+            "10 Years": "N/A — insufficient feed",
+        }
+    base = earn if earn is not None else rev
+    return {
+        "3 Years": f"{base * 100:+.1f}% trailing (ESTIMATE, not forecast)",
+        "5 Years": "Re-rate with AR — do not extrapolate linearly",
+        "10 Years": "Depends on moat + reinvestment — verify manually",
+    }
+
+
 def build_alpha_ai_report(
     ticker: str,
     *,
     market: str = "india",
     period: str = "2y",
 ) -> AlphaAIReport:
-    """Assemble 18-step institutional report from available data sources."""
+    """Assemble Alpha AI v3.0 report from available data sources."""
     gaps: list[str] = []
     now = datetime.now(IST).strftime("%Y-%m-%d %H:%M IST")
     currency = "₹" if is_india_market(market) else "$"
@@ -244,23 +476,28 @@ def build_alpha_ai_report(
     summary = info.get("longBusinessSummary") or info.get("description") or ""
     if not summary:
         gaps.append("Business description not available from data feed.")
-        summary = f"**{name}** operates in **{sector}** / **{industry}**. Pull annual report for moat detail."
+        summary = f"{name} operates in {sector} / {industry}. Pull annual report for moat detail."
 
     business = (
         f"**Business model (FACT/feed):** {summary[:1200]}{'…' if len(summary) > 1200 else ''}\n\n"
-        f"**Industry:** {industry} · **Sector:** {sector}\n\n"
-        f"**Competitive view (ASSUMPTION):** Validate market share and advantages from latest AR/concall — "
-        "not available in automated feed."
+        f"**Revenue sources / products (ASSUMPTION):** Validate segment mix in latest AR.\n\n"
+        f"**Customers & industry position (ASSUMPTION):** {industry} · {sector} — confirm share from filings.\n\n"
+        f"**Competitive advantage (ESTIMATE):** See moat section; not from automated feed.\n\n"
+        f"**Growth drivers & opportunities (OPINION):** Tie to sector cycle + company execution; verify in concall."
     )
 
     fin_rows: list[MetricRating] = []
     for label, key, fmt, higher in (
         ("Revenue Growth", "revenue_growth", lambda v: f"{v*100:+.1f}%" if v is not None else "N/A", True),
-        ("Earnings Growth", "earnings_growth", lambda v: f"{v*100:+.1f}%" if v is not None else "N/A", True),
+        ("EPS / Earnings Growth", "earnings_growth", lambda v: f"{v*100:+.1f}%" if v is not None else "N/A", True),
         ("Operating Margin", "operating_margin", lambda v: f"{v*100:.1f}%" if v is not None else "N/A", True),
         ("Net Margin", "profit_margin", lambda v: f"{v*100:.1f}%" if v is not None else "N/A", True),
         ("ROE", "roe", lambda v: f"{v*100:.1f}%" if v is not None else "N/A", True),
         ("Debt/Equity", "debt_to_equity", lambda v: f"{v:.2f}" if v is not None else "N/A", False),
+        ("P/B (Book)", "price_to_book", lambda v: f"{v:.2f}" if v is not None else "N/A", False),
+        ("Free Cash Flow", "free_cashflow", lambda v: f"{v:,.0f}" if v is not None else "N/A", True),
+        ("Book Value", "book_value", lambda v: f"{v:,.2f}" if v is not None else "N/A", True),
+        ("Dividend Yield", "dividend_yield", lambda v: f"{v*100:.2f}%" if v is not None else "N/A", True),
     ):
         val = raw.get(key)
         m = next((x for x in fund.metrics if label.split()[0] in x.name), None)
@@ -270,63 +507,67 @@ def build_alpha_ai_report(
     inst = info.get("heldPercentInstitutions")
     promo = info.get("heldPercentInsiders")
     if inst is not None:
-        fin_rows.append(MetricRating("Institutional Holding", f"{inst*100:.1f}%", "Good" if inst > 0.2 else "Average"))
+        fin_rows.append(MetricRating("FII / Institutional", f"{inst*100:.1f}%", "Good" if inst > 0.2 else "Average"))
     else:
-        gaps.append("Institutional holding % unavailable.")
+        gaps.append("FII / institutional holding % unavailable.")
     if promo is not None:
         fin_rows.append(MetricRating("Promoter Holding", f"{promo*100:.1f}%", "Good" if promo > 0.4 else "Average"))
     else:
         gaps.append("Promoter holding % unavailable.")
+    gaps.append("DII holding trend not in feed — check NSE shareholding pattern.")
+
+    fin_analysis = (
+        "**Strengths / weaknesses** from scored metrics above. "
+        "ROCE, current ratio, interest coverage: **N/A** in automated feed — verify AR.\n\n"
+        "_Cash flow quality: cross-check FCF vs net income in annual report._"
+    )
 
     val_verdict, val_detail = _valuation_label(raw.get("pe_trailing"), fund.composite_score)
     val_lines = [
-        f"**P/E:** {raw.get('pe_trailing') or 'N/A'}",
+        f"**P/E (trailing):** {raw.get('pe_trailing') or 'N/A'}",
         f"**Forward P/E:** {raw.get('pe_forward') or 'N/A'}",
         f"**PEG:** {raw.get('peg') or 'N/A'}",
         f"**P/B:** {raw.get('price_to_book') or 'N/A'}",
-        f"**Verdict:** {val_verdict} — {val_detail}",
-        "_DCF/EV-EBITDA: not computed — insufficient line-item feed (ESTIMATE via multiples only)._",
+        f"**Verdict:** {val_verdict}",
+        f"**Detail:** {val_detail}",
+        "**EV/EBITDA, Price/Sales, DCF intrinsic value:** not computed — insufficient line items.",
+        "**Margin of safety (ESTIMATE):** Higher when undervalued + strong balance sheet.",
     ]
 
     row = df.iloc[-1]
-    tech_lines = [
-        f"**Trend:** {tech.recommendation} (score {tech.composite_score:+.0f})",
-        f"**Support / Resistance:** {tech.support:,.0f} / {tech.resistance:,.0f}" if tech.support else "",
-        f"**RSI:** {row.get('RSI_14', 'N/A')}",
-        f"**Stop / Target (model):** {advice.stop_loss} / {advice.target}",
-        f"**R:R:** {advice.risk_reward}",
-    ]
+    tech_summary = _technical_deep_dive(df, row, tech, advice, currency)
     if rs and rs.periods:
         p6 = next((p for p in rs.periods if "6" in p.label), rs.periods[-1])
-        tech_lines.append(
-            f"**vs Nifty:** {rs.verdict} — 6m alpha {p6.alpha_pct:+.1f}%"
-        )
+        tech_summary += f"\n\n**vs Nifty (FACT):** {rs.verdict} — 6m alpha {p6.alpha_pct:+.1f}%"
 
-    swing = f"**Swing (ASSUMPTION):** {advice.final_action} — {advice.entry_zone}. Horizon: weeks."
+    swing = f"Swing (ESTIMATE): {advice.final_action} — {advice.entry_zone}. Horizon: weeks."
     long_setup = (
-        f"**Long-term (ASSUMPTION):** Fund score {fund.composite_score:+.0f}. "
-        f"Suitable for 3–5y only if moat + ROE confirmed in AR."
+        f"Long-term (ESTIMATE): Fund score {fund.composite_score:+.0f}. "
+        "Suitable for 3–5y only if moat + ROE confirmed in AR."
     )
     tech_risk = "Low" if tech.confidence == "high" else "Medium" if tech.confidence == "medium" else "High"
 
     growth_notes = (
-        "**3y/5y/10y growth (ESTIMATE):** Derived from trailing revenue/earnings growth feeds only — "
-        "not a management guidance model.\n\n"
-        f"- Trailing revenue growth: {raw.get('revenue_growth')}"
-        f"\n- Trailing earnings growth: {raw.get('earnings_growth')}"
-        "\n- Re-rate with quarterly results before sizing positions."
+        "Trailing growth only (ESTIMATE) — not management guidance.\n\n"
+        f"- Revenue: {raw.get('revenue_growth')}\n"
+        f"- Earnings: {raw.get('earnings_growth')}\n"
+        "- Re-rate after each quarterly result."
     )
 
     moat, moat_detail = _moat_estimate(raw, fund.composite_score, info)
+    moat_dims = _moat_dimensions(moat, raw, fund.composite_score)
 
     risks: list[RiskItem] = []
     for r in advice.risks[:6]:
-        risks.append(RiskItem("Company", "Medium", r))
+        risks.append(RiskItem("Execution", "Medium", r))
     if raw.get("debt_to_equity") and raw["debt_to_equity"] > 1.2:
         risks.append(RiskItem("Debt", "High", f"D/E {raw['debt_to_equity']:.2f}"))
     else:
         risks.append(RiskItem("Debt", "Low", "Leverage acceptable or data N/A"))
-    risks.append(RiskItem("Market", "Medium", "Broad market drawdown risk always present"))
+    risks.append(RiskItem("Competition", "Medium", "Sector competition — verify moat in AR"))
+    risks.append(RiskItem("Market", "Medium", "Broad drawdown / macro shock risk"))
+    risks.append(RiskItem("Regulation", "Low", "Flag manually for financials/telecom/pharma"))
+    risks.append(RiskItem("Interest Rate", "Medium", "Rate-sensitive sectors may de-rate"))
 
     macro = "Macro data unavailable."
     if is_india_market(market):
@@ -334,120 +575,189 @@ def build_alpha_ai_report(
             impact = build_india_impact_report()
             macro = (
                 f"**Nifty bias (model):** {impact.predicted_nifty_bias} · "
-                f"**Global tone:** {impact.narrative[:200]}"
+                f"**Global tone:** {impact.narrative[:300]}"
             )
             if market_pulse:
                 macro += f"\n**India indices:** {overall_market_verdict(market_pulse)}"
         except Exception as exc:
             gaps.append(f"Macro: {exc}")
 
-    news = "**Facts:** "
+    news_facts = ""
     try:
         nse_sym = info.get("nse_symbol") or ticker.replace(".NS", "")
         ev = fetch_corporate_event(nse_sym, market=market)
         if ev:
-            news += f"{ev.event_type} — {ev.detail} ({ev.risk_band})."
+            news_facts = f"{ev.event_type} — {ev.detail} ({ev.risk_band})"
         else:
-            news += "No flagged corporate event in next 2 weeks."
+            news_facts = "No flagged corporate event in next 2 weeks."
     except Exception:
-        news += "Earnings calendar unavailable."
-    news += "\n\n**Noise:** Ignore social media tips; verify against exchange filings."
+        news_facts = "Earnings calendar unavailable."
+
+    news_sentiment = (
+        f"**Facts:** {news_facts}\n\n"
+        "**Rumors / social:** Ignore unverified tips.\n\n"
+        "**Market sentiment (ESTIMATE):** Derived from technical score + index bias.\n\n"
+        "**Catalysts:** Results, guidance, sector policy — verify on exchange filings."
+    )
+    news = news_sentiment
 
     probs = _probabilities_from_scores(combined.combined_score, tech.composite_score, fund.composite_score)
     pred_conf = min(85.0, max(35.0, 50 + combined.combined_score * 0.8))
 
+    entry_obj = _build_entry_strategy(advice, tech, float(price) if price else None, currency)
     entry = (
-        f"**Ideal buy range:** {advice.entry_zone}\n"
-        f"**Stop loss:** {advice.stop_loss}\n"
-        f"**Targets:** {advice.target}\n"
-        f"**Risk/Reward:** {advice.risk_reward}\n"
-        f"**Position hint:** {advice.position_hint}"
-    )
-
-    weight = _weight_suggestion(0, advice.final_action)  # placeholder, updated after overall
-    portfolio = (
-        f"**Diversification:** Adds **{sector}** exposure — check current sector concentration.\n"
-        f"**Suggested max weight (ESTIMATE):** See overall score below."
-    )
-
-    scenarios = [
-        ScenarioCase("Bull", "Earnings beat + sector tailwind + multiple expansion", 25.0),
-        ScenarioCase("Base", "Steady execution in line with trend", 50.0),
-        ScenarioCase("Bear", "Margin compression or market de-rating", 25.0),
-    ]
-
-    cagr = (
-        "**CAGR (ESTIMATE):** Not forecast from DCF. Use your SIP goal model — "
-        "stock CAGR depends on starting valuation and reinvestment. "
-        "Do not extrapolate trailing growth linearly."
+        f"**Ideal buy zone:** {entry_obj.ideal_buy_zone}\n"
+        f"**Aggressive zone:** {entry_obj.aggressive_buy_zone}\n"
+        f"**Stop loss:** {entry_obj.stop_loss}\n"
+        f"**Targets:** {entry_obj.target_1} / {entry_obj.target_2} / {entry_obj.target_3}\n"
+        f"**Risk/Reward:** {entry_obj.risk_reward}\n"
+        f"**SIP:** {entry_obj.sip_entry}\n"
+        f"**Lump sum:** {entry_obj.lump_sum_entry}"
     )
 
     red_flags: list[str] = []
     if raw.get("profit_margin") is not None and raw["profit_margin"] < 0:
-        red_flags.append("Negative profit margin — loss-making operations.")
+        red_flags.append("Weak cash flow proxy: negative profit margin.")
     if raw.get("debt_to_equity") and raw["debt_to_equity"] > 2:
-        red_flags.append("Very high debt/equity.")
+        red_flags.append("High debt — balance sheet stress risk.")
+    if raw.get("roe") is not None and raw["roe"] < 0.08:
+        red_flags.append("Falling ROE / weak returns on equity.")
     if tech.composite_score < -25 and fund.composite_score < -15:
-        red_flags.append("Both technical and fundamental scores weak.")
+        red_flags.append("Technical and fundamental scores both weak.")
+    if promo is not None and promo < 0.25:
+        red_flags.append("Low promoter holding — governance check warranted.")
     if not red_flags:
-        red_flags.append("No automated red flags — review governance manually.")
+        red_flags.append("No automated red flags — review governance and AR manually.")
 
     q_business = max(0, min(100, 50 + fund.composite_score * 0.4))
     q_fin = max(0, min(100, 50 + fund.composite_score * 0.5))
     q_growth = max(0, min(100, 50 + (raw.get("revenue_growth") or 0) * 100))
-    q_mgmt = 50.0  # no feed
-    gaps.append("Management quality not scored — no automated feed.")
+    q_profit = max(0, min(100, 50 + (raw.get("profit_margin") or 0) * 200))
+    q_mgmt = 50.0
+    gaps.append("Management quality & ESG not scored — no automated feed.")
     q_val = max(0, min(100, 60 - (raw.get("pe_trailing") or 25)))
     q_tech = max(0, min(100, 50 + tech.composite_score * 0.5))
-    q_risk = max(0, min(100, 70 - len(red_flags) * 15))
+    q_momentum = max(0, min(100, 50 + tech.composite_score * 0.4))
+    q_risk = max(0, min(100, 70 - len(red_flags) * 12))
+    q_moat = (moat or 5) * 10
 
     quality = {
         "Business Quality": q_business,
         "Financial Strength": q_fin,
         "Growth": q_growth,
-        "Management": q_mgmt,
+        "Profitability": q_profit,
         "Valuation": q_val,
-        "Technical Setup": q_tech,
+        "Technical Trend": q_tech,
+        "Momentum": q_momentum,
         "Risk": q_risk,
+        "Moat": q_moat,
+        "Management": q_mgmt,
     }
     overall = int(
-        q_business * 0.2 + q_fin * 0.2 + q_growth * 0.15 + q_val * 0.15
-        + q_tech * 0.15 + q_risk * 0.1 + q_mgmt * 0.05
+        q_business * 0.18 + q_fin * 0.18 + q_growth * 0.12 + q_profit * 0.08
+        + q_val * 0.12 + q_tech * 0.12 + q_momentum * 0.05 + q_risk * 0.08
+        + q_moat * 0.05 + q_mgmt * 0.02
     )
     weight = _weight_suggestion(overall, advice.final_action)
-    portfolio += f"\n**Suggested allocation cap:** {weight}%" if weight is not None else "\n**Allocation:** Avoid new adds."
+    alloc_opts = [x for x in (1.0, 3.0, 5.0, 10.0) if weight is None or x <= weight]
+    if not alloc_opts and weight == 0:
+        alloc_opts = [0.0]
+
+    portfolio = (
+        f"**Sector exposure:** Adds **{sector}** — check concentration.\n"
+        f"**Suggested max weight (ESTIMATE):** {weight}%" if weight is not None else "**Allocation:** Avoid new adds."
+    )
+    portfolio += "\n**Diversification:** Prefer ≤25% per sector; ≤10% per single name unless high conviction."
+
+    scenarios = _scenario_prices(
+        float(price) if price else None,
+        tech.support,
+        tech.resistance,
+        currency,
+        raw,
+    )
+
+    cagr_dict = _expected_cagr_dict(raw)
+    cagr = (
+        "**Expected CAGR (ESTIMATE, not guaranteed):**\n"
+        + "\n".join(f"- **{k}:** {v}" for k, v in cagr_dict.items())
+    )
 
     verdict_map = {
         "STRONG BUY": "Strong Buy",
         "BUY": "Buy",
-        "ACCUMULATE": "Buy",
+        "ACCUMULATE": "Accumulate",
         "HOLD": "Hold",
         "REDUCE": "Reduce",
         "SELL": "Sell",
         "STRONG SELL": "Sell",
         "AVOID": "Avoid",
     }
-    verdict = verdict_map.get(advice.final_action, "Hold")
+    recommendation = verdict_map.get(advice.final_action, "Hold")
+    verdict = recommendation
     stars = _stars_from_score(overall)
+    risk_level = _overall_risk_level(tech_risk, red_flags, risks)
+    buy, buy_why = _buy_decision(advice.final_action, tech.composite_score, fund.composite_score)
 
     horizons = {
-        "6 Months": advice.final_action if tech.confidence != "low" else "Hold / wait",
-        "1 Year": verdict,
+        "Swing": advice.final_action if tech.confidence != "low" else "Wait",
+        "6 Months": recommendation if tech.confidence != "low" else "Hold / wait",
+        "1 Year": recommendation,
         "3 Years": "Buy" if fund.composite_score > 15 else "Hold",
         "5 Years": "Buy" if fund.composite_score > 20 and moat and moat >= 6 else "Hold",
         "10 Years": "Buy" if moat and moat >= 7 and fund.composite_score > 10 else "Accumulate selectively",
     }
+    investment_horizon = "3 Years" if fund.composite_score > 10 else "1 Year"
+
+    snapshot = [
+        SnapshotCategory("Business Quality", _score_100_to_10(q_business), _stars_from_10(_score_100_to_10(q_business))),
+        SnapshotCategory("Financial Strength", _score_100_to_10(q_fin), _stars_from_10(_score_100_to_10(q_fin))),
+        SnapshotCategory("Growth", _score_100_to_10(q_growth), _stars_from_10(_score_100_to_10(q_growth))),
+        SnapshotCategory("Profitability", _score_100_to_10(q_profit), _stars_from_10(_score_100_to_10(q_profit))),
+        SnapshotCategory("Valuation", _score_100_to_10(q_val), _stars_from_10(_score_100_to_10(q_val))),
+        SnapshotCategory("Technical Trend", _score_100_to_10(q_tech), _stars_from_10(_score_100_to_10(q_tech))),
+        SnapshotCategory("Momentum", _score_100_to_10(q_momentum), _stars_from_10(_score_100_to_10(q_momentum))),
+        SnapshotCategory("Risk", _score_100_to_10(q_risk), _stars_from_10(_score_100_to_10(q_risk))),
+        SnapshotCategory("Moat", moat or 5.0, _stars_from_10(moat or 5.0)),
+        SnapshotCategory("Management", 5.0, 2),
+        SnapshotCategory("ESG", 0.0, 0),
+    ]
+
+    checklist = {
+        "Business Quality": q_business,
+        "Financial Health": q_fin,
+        "Growth": q_growth,
+        "Profitability": q_profit,
+        "Valuation": q_val,
+        "Technical Strength": q_tech,
+        "Momentum": q_momentum,
+        "Management": q_mgmt,
+        "Risk": q_risk,
+        "Moat": q_moat,
+        "Overall": float(overall),
+    }
 
     action = (
-        f"**Should you buy now?** {advice.final_action} — {advice.summary}\n\n"
-        f"**Conviction:** {advice.conviction} · **Horizon:** {advice.time_horizon}\n\n"
+        f"**Should you buy now?** {buy} — {buy_why}\n\n"
+        f"**Model action:** {advice.final_action} · **Conviction:** {advice.conviction}\n\n"
+        f"{advice.summary}\n\n"
         "Challenge biases: don't add solely because it's a Nifty name or recent winner."
     )
 
+    final_verdict = (
+        f"**{recommendation}** · {_stars_from_score(overall) * '★'}{(5 - _stars_from_score(overall)) * '☆'}\n\n"
+        f"**Why?** Score {overall}/100 · Confidence {pred_conf:.0f}% · Risk {risk_level}.\n\n"
+        f"**Who should invest?** Long-term investors aligned with {sector} if thesis holds in AR.\n\n"
+        f"**Who should avoid?** Those needing near-term certainty or unable to tolerate {risk_level.lower()} risk.\n\n"
+        f"**Ideal horizon:** {investment_horizon}\n\n"
+        f"**Biggest opportunity:** Quality + valuation + technical alignment (if present).\n\n"
+        f"**Biggest risk:** {red_flags[0] if red_flags else 'Macro drawdown'}."
+    )
+
     breakdown = (
-        f"Business {q_business:.0f}×0.20 + Financial {q_fin:.0f}×0.20 + Growth {q_growth:.0f}×0.15 + "
-        f"Valuation {q_val:.0f}×0.15 + Technical {q_tech:.0f}×0.15 + Risk {q_risk:.0f}×0.10 + "
-        f"Mgmt {q_mgmt:.0f}×0.05"
+        f"Business {q_business:.0f}×0.18 + Financial {q_fin:.0f}×0.18 + Growth {q_growth:.0f}×0.12 + "
+        f"Profit {q_profit:.0f}×0.08 + Valuation {q_val:.0f}×0.12 + Technical {q_tech:.0f}×0.12 + "
+        f"Momentum {q_momentum:.0f}×0.05 + Risk {q_risk:.0f}×0.08 + Moat {q_moat:.0f}×0.05 + Mgmt {q_mgmt:.0f}×0.02"
     )
 
     return AlphaAIReport(
@@ -459,33 +769,55 @@ def build_alpha_ai_report(
         currency=currency,
         generated_at=now,
         data_gaps=gaps,
+        recommendation=recommendation,
+        overall_score=overall,
+        investment_grade_stars=stars,
+        confidence_pct=round(pred_conf, 1),
+        risk_level=risk_level,
+        investment_horizon=investment_horizon,
+        expected_cagr=cagr_dict,
+        snapshot=snapshot,
+        buy_decision=buy,
+        buy_decision_why=buy_why,
+        entry=entry_obj,
         business_overview=business,
         financial_metrics=fin_rows,
+        financial_analysis=fin_analysis,
         valuation_verdict=val_verdict,
         valuation_detail="\n".join(val_lines),
-        technical_summary="\n".join(x for x in tech_lines if x),
+        technical_summary=tech_summary,
+        technical_analysis=tech_summary,
         swing_setup=swing,
         long_term_setup=long_setup,
         technical_risk=tech_risk,
         growth_notes=growth_notes,
+        news_summary=news,
+        news_sentiment=news_sentiment,
+        risks=risks,
+        red_flags=red_flags,
         moat_score=moat,
         moat_detail=moat_detail,
-        risks=risks,
+        moat_dimensions=moat_dims,
         macro_summary=macro,
-        news_summary=news,
-        probabilities=probs,
-        prediction_confidence=round(pred_conf, 1),
-        entry_strategy=entry,
+        scenarios=scenarios,
         portfolio_impact=portfolio,
         suggested_weight_pct=weight,
-        scenarios=scenarios,
+        portfolio_allocation_options=alloc_opts,
+        checklist_scores=checklist,
+        probabilities=probs,
+        prediction_confidence=round(pred_conf, 1),
         cagr_notes=cagr,
-        red_flags=red_flags,
         quality_scores=quality,
-        overall_score=overall,
-        investment_grade_stars=stars,
         verdict=verdict,
         horizons=horizons,
+        final_verdict_detail=final_verdict,
         action_plan=action,
         score_breakdown=breakdown,
+        entry_strategy=entry,
     )
+
+
+def compare_alpha_reports(reports: list[AlphaAIReport]) -> list[tuple[str, int, str]]:
+    """Rank stocks by overall score for comparison mode."""
+    ranked = sorted(reports, key=lambda r: r.overall_score, reverse=True)
+    return [(r.symbol, r.overall_score, r.recommendation) for r in ranked]

@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pandas as pd
 
-from analyzer.alpha_ai_report import build_alpha_ai_report, _probabilities_from_scores
+from analyzer.alpha_ai_report import build_alpha_ai_report, _probabilities_from_scores, compare_alpha_reports
 
 
 class TestAlphaAIReport(unittest.TestCase):
@@ -78,8 +78,11 @@ class TestAlphaAIReport(unittest.TestCase):
 
         self.assertEqual(report.symbol, "TCS.NS")
         self.assertGreater(report.overall_score, 0)
-        self.assertIn(report.verdict, ("Buy", "Strong Buy", "Hold", "Reduce", "Sell", "Avoid"))
+        self.assertIn(report.recommendation, ("Strong Buy", "Buy", "Accumulate", "Hold", "Reduce", "Sell", "Avoid"))
+        self.assertIn(report.buy_decision, ("YES", "NO", "WAIT"))
+        self.assertTrue(report.snapshot)
         self.assertTrue(report.business_overview)
+        self.assertTrue(report.final_verdict_detail)
 
 
 if __name__ == "__main__":
