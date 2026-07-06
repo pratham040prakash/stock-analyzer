@@ -21,17 +21,14 @@ from analyzer.portfolio_store import (
 from analyzer.zerodha import (
     ZerodhaHolding,
     ZerodhaImportResult,
-    exchange_request_token,
     fetch_holdings_from_kite,
-    get_kite_login_url,
     kite_to_yahoo,
     load_env_credentials,
     parse_holdings_csv,
     parse_kite_symbol_list,
-    save_access_token_to_env,
-    zerodha_setup_help,
 )
 from ui.components.kite_auth import handle_kite_redirect
+from ui.components.kite_connect import render_kite_connect
 from ui.navigation import request_nav_tab
 
 
@@ -163,43 +160,14 @@ def render_zerodha(period: str) -> None:
                 st.success(f"Imported {len(yahoo_syms)} symbols")
 
     else:
-        with st.expander("How to set up Kite Connect API", expanded=False):
-            st.markdown(zerodha_setup_help())
+        render_kite_connect(key_prefix="portfolio_kite")
+        st.divider()
 
         creds = load_env_credentials()
-        api_key = st.text_input("API Key", value=creds["api_key"], type="password")
-        api_secret = st.text_input("API Secret", value=creds["api_secret"], type="password")
-
-        if api_key:
-            login_url = get_kite_login_url(api_key)
-            st.markdown(
-                f"**Step 1:** Keep this app running, then "
-                f"[**Login to Zerodha**]({login_url}) — you'll be redirected back here automatically."
-            )
-            st.caption("Request tokens expire in ~2 minutes. The app auto-saves your access token on redirect.")
-
-        request_token = st.text_input(
-            "Or paste request_token manually (if redirect didn't work)",
-            placeholder="From URL: request_token=...",
-        )
-        if request_token and st.button("Generate access token", key="zd_token"):
-            try:
-                token = exchange_request_token(api_key, api_secret, request_token.strip())
-                save_access_token_to_env(token)
-                st.session_state["kite_access_token"] = token
-                st.success("Access token saved to `.env` (valid until ~6 AM IST tomorrow)")
-            except Exception as exc:
-                st.error(f"Token exchange failed: {exc}. Log in again — tokens are single-use.")
-
-        access_token = st.text_input(
-            "Access token",
-            value=creds["access_token"],
-            type="password",
-            help="From .env or generated above",
-        )
+        access_token = creds["access_token"]
         if st.button("Fetch live holdings from Kite", type="primary", key="zd_fetch"):
             with st.spinner("Connecting to Zerodha Kite..."):
-                import_result = fetch_holdings_from_kite(api_key, access_token)
+                import_result = fetch_holdings_from_kite(creds["api_key"], access_token)
                 if import_result.errors and not import_result.holdings:
                     st.error(import_result.errors[0])
                 else:

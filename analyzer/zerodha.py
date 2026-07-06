@@ -195,23 +195,38 @@ def load_env_credentials() -> dict[str, str]:
 
 def save_access_token_to_env(access_token: str) -> None:
     """Persist access token to .env (create or update ZERODHA_ACCESS_TOKEN line)."""
+    _save_env_value("ZERODHA_ACCESS_TOKEN", access_token)
+
+
+def save_zerodha_api_credentials_to_env(
+    *,
+    api_key: str | None = None,
+    api_secret: str | None = None,
+) -> None:
+    """Persist API key/secret to .env (one-time Kite Connect app setup)."""
+    if api_key is not None:
+        _save_env_value("ZERODHA_API_KEY", api_key.strip())
+    if api_secret is not None:
+        _save_env_value("ZERODHA_API_SECRET", api_secret.strip())
+
+
+def _save_env_value(key: str, value: str) -> None:
     env_path = _env_path()
     lines: list[str] = []
     if env_path.exists():
         lines = env_path.read_text(encoding="utf-8").splitlines()
 
-    key = "ZERODHA_ACCESS_TOKEN"
     updated = False
     for i, line in enumerate(lines):
         if line.startswith(f"{key}="):
-            lines[i] = f"{key}={access_token}"
+            lines[i] = f"{key}={value}"
             updated = True
             break
     if not updated:
-        lines.append(f"{key}={access_token}")
+        lines.append(f"{key}={value}")
 
     env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    os.environ[key] = access_token
+    os.environ[key] = value
 
 
 def get_kite_login_url(api_key: str) -> str:

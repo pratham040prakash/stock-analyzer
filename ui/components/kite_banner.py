@@ -5,11 +5,12 @@ from __future__ import annotations
 import streamlit as st
 
 from analyzer.kite_status import kite_connection_status
-from ui.navigation import request_nav_tab
+from analyzer.zerodha import get_kite_login_url, load_env_credentials
+from ui.components.kite_connect import clear_kite_status_caches, render_kite_connect
 
 
 def render_kite_banner(*, cache_key: str = "_kite_status_cache") -> None:
-    """Show fix link when Kite token is missing or expired."""
+    """Show one-click login when Kite token is missing or expired."""
     cached = st.session_state.get(cache_key)
     if cached is None:
         cached = kite_connection_status(probe=True)
@@ -19,17 +20,29 @@ def render_kite_banner(*, cache_key: str = "_kite_status_cache") -> None:
     if level == "ok":
         return
 
+    creds = load_env_credentials()
     headline = cached.get("headline", "Kite issue")
     detail = cached.get("detail", "")
-    c1, c2 = st.columns([5, 1])
+
+    if level == "missing":
+        st.info(f"**{headline}** — {detail}")
+        render_kite_connect(compact=True, key_prefix=f"banner_{cache_key}")
+        return
+
+    c1, c2 = st.columns([4, 1])
     with c1:
-        if level == "missing":
-            st.info(f"**{headline}** — {detail}")
+        st.warning(f"**{headline}** — {detail}")
+        if creds.get("api_key"):
+            st.link_button(
+                "Login with Zerodha",
+                get_kite_login_url(creds["api_key"]),
+                type="primary",
+            )
+            st.caption("One click · auto-saves token · no My Portfolio tab needed")
         else:
-            st.warning(f"**{headline}** — {detail}")
+            render_kite_connect(compact=True, key_prefix=f"banner_{cache_key}")
     with c2:
-        if st.button("Fix in 10s", key=f"kite_banner_fix_{cache_key}", use_container_width=True):
-            request_nav_tab("My Portfolio")
         if st.button("Retry", key=f"kite_banner_retry_{cache_key}", use_container_width=True):
+            clear_kite_status_caches()
             st.session_state.pop(cache_key, None)
             st.rerun()

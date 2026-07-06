@@ -15,7 +15,7 @@ from analyzer.providers import get_live_ltp
 from analyzer.trade_selection import effective_trade_plans, load_selected_symbols, selection_status_line
 from analyzer.watchlist_pins import load_pinned_plans
 from analyzer.watchlist_plan_tracker import assess_live_plan
-from ui.navigation import request_nav_tab
+from analyzer.zerodha import get_kite_login_url, load_env_credentials
 
 _LADDER_STAGE_LABEL = {
     0: "→ T1",
@@ -115,8 +115,18 @@ def _render_cockpit_body(market: str) -> None:
     c5.metric("Kite", kite_main.replace("✅ ", "").replace("❌ ", "").replace("⚠️ ", ""))
     c5.caption(kite_sub)
     if kite_main != "✅ OK":
-        if c5.button("Fix", key="cockpit_kite_fix", use_container_width=True):
-            request_nav_tab("My Portfolio")
+        creds = load_env_credentials()
+        if creds.get("api_key"):
+            st.link_button(
+                "Login with Zerodha",
+                get_kite_login_url(creds["api_key"]),
+                key="cockpit_kite_login",
+                use_container_width=True,
+            )
+        else:
+            if st.button("Setup Kite", key="cockpit_kite_fix", use_container_width=True):
+                from ui.navigation import request_nav_tab
+                request_nav_tab("My Portfolio")
 
     opt = load_selected_option()
     if opt:

@@ -16,7 +16,9 @@ from analyzer.telegram_notify import format_morning_telegram, send_telegram_broa
 from analyzer.varsity_knowledge import VARSITY_MODULE_URL
 from ui.components.onboarding import render_sidebar_onboarding_button, render_start_here_onboarding
 from ui.components.nse import render_nse_error_banner
+from ui.components.kite_auth import handle_kite_redirect
 from ui.components.kite_banner import render_kite_banner
+from ui.components.kite_connect import render_kite_connect_sidebar
 from ui.components.telegram_subscribe import render_telegram_subscribe_sidebar
 from ui.pages.beginner_risk import render_beginner_risk
 from ui.pages.backtest import render_backtest
@@ -128,6 +130,7 @@ def main() -> None:
     load_app_env()
     st.set_page_config(page_title="Stock Analyzer", page_icon="📈", layout="wide")
     st.markdown(MOBILE_CSS, unsafe_allow_html=True)
+    handle_kite_redirect()
     st.title("📈 Stock Analyzer")
     st.caption("Multi-indicator technical analysis · Watchlist scanner · Backtesting")
 
@@ -184,6 +187,7 @@ def main() -> None:
                     request_nav_tab("Varsity TA")
 
         st.divider()
+        render_kite_connect_sidebar()
         render_sidebar_onboarding_button()
         render_telegram_subscribe_sidebar()
         if telegram_configured():
