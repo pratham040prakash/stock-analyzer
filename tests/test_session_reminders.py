@@ -28,9 +28,9 @@ class TestSessionReminders(unittest.TestCase):
         self.tmp.cleanup()
 
     def test_format_messages(self):
-        self.assertIn("9:15", format_open_reminder())
+        self.assertIn("Today's picks", format_open_reminder())
         self.assertIn("3:20", format_square_off_reminder())
-        self.assertIn("quick scan", format_open_reminder().lower())
+        self.assertIn("star 2", format_open_reminder().lower())
 
     def test_early_square_off(self):
         from analyzer.session_reminders import format_early_square_off_reminder

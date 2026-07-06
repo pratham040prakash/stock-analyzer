@@ -106,13 +106,6 @@ def build_mis_eod_summary(
     _, eq_rows = build_session_watchlist_rows(trade_date)
     _, opt_rows = build_options_session_rows(trade_date)
 
-    from analyzer.trade_selection import load_selected_symbols
-
-    selected = load_selected_symbols(trade_date)
-    if selected:
-        sel = {s.upper() for s in selected}
-        eq_rows = [r for r in eq_rows if r.symbol.upper() in sel]
-
     from analyzer.options_trade_selection import load_selected_option, snap_matches_pick
     from analyzer.options_watchlist_history import fetch_options_snapshots_for_date
 
@@ -163,52 +156,27 @@ def build_mis_eod_summary(
 
 
 def format_mis_eod_telegram(summary: MisEodSummary) -> str:
-    lines = [f"*📊 MIS EOD — {summary.trade_date}*"]
+    """Hit-summary Telegram (equity focus; options one-liner if present)."""
+    from analyzer.suggestions_telegram import format_eod_hit_summary_telegram
 
-    if summary.equity_picks:
-        wr = (
-            f"{summary.equity_win_rate_pct:.0f}%"
-            if summary.equity_win_rate_pct is not None
-            else "—"
+    msg = format_eod_hit_summary_telegram(
+        summary.trade_date,
+        equity_rows=summary.equity_rows,
+        include_weekly=True,
+    )
+    if summary.options_picks and summary.options_rows:
+        opt_scored = [r for r in summary.options_rows if r.scored]
+        opt_t = sum(1 for r in opt_scored if r.outcome == "target_hit")
+        opt_d = sum(
+            1 for r in opt_scored if r.outcome in ("target_hit", "stop_hit", "mixed")
         )
-        lines.append(
-            f"*Equity:* {summary.equity_targets}/{summary.equity_picks} hit target · "
-            f"{summary.equity_stops} stops · win **{wr}**"
-        )
-        for r in summary.equity_rows[:5]:
-            if not r.scored:
-                continue
-            icon = "✅" if r.outcome == "target_hit" else "❌" if r.outcome in ("stop_hit", "mixed") else "➖"
-            lines.append(f"{icon} {r.symbol}")
-    else:
-        lines.append("_No equity watchlist for this session._")
-
-    lines.append("")
-    if summary.options_picks:
-        wr = (
-            f"{summary.options_win_rate_pct:.0f}%"
-            if summary.options_win_rate_pct is not None
-            else "—"
-        )
-        lines.append(
-            f"*Options ★:* {summary.options_targets}/{summary.options_picks} premium targets · "
-            f"{summary.options_stops} stops · win **{wr}**"
-        )
-        for r in summary.options_rows:
-            if not r.scored:
-                continue
-            icon = "✅" if r.outcome == "target_hit" else "❌" if r.outcome in ("stop_hit", "mixed") else "➖"
-            lines.append(f"{icon} {r.fno_symbol} {r.option_type} {r.strike:g}")
-    else:
-        lines.append("_No options picks scored._")
-
-    if summary.gate_changes:
-        lines.append("")
-        lines.append(f"_Gates tuned:_ {', '.join(summary.gate_changes[:3])}")
-
-    lines.append("")
-    lines.append("_Log trades in app · Not financial advice._")
-    return "\n".join(lines)
+        if opt_scored:
+            opt_wr = f"{100.0 * opt_t / opt_d:.0f}%" if opt_d else "—"
+            msg += (
+                f"\n\n_Options ({summary.options_picks}): "
+                f"{opt_t}/{opt_d or len(opt_scored)} hit ({opt_wr}) — see app for detail._"
+            )
+    return msg
 
 
 def run_mis_eod_summary(

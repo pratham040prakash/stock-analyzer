@@ -56,19 +56,35 @@ NAV_GROUPS: dict[str, list[str]] = {
     ],
 }
 
+from analyzer.app_mode import is_simple_cloud_mode
+
+SIMPLE_NAV_GROUPS: dict[str, list[str]] = {
+    "🎯 Suggestions": [
+        "Suggestions",
+        "Track Record",
+    ],
+}
+
 DEFAULT_NAV_GROUP = "🎯 Suggestions"
 DEFAULT_NAV_TAB = "Suggestions"
 
 
+def active_nav_groups() -> dict[str, list[str]]:
+    """Full nav locally; Suggestions + Track Record only on Streamlit Cloud."""
+    if is_simple_cloud_mode():
+        return SIMPLE_NAV_GROUPS
+    return NAV_GROUPS
+
+
 def nav_group_for_tab(tab: str) -> str:
-    for group, tabs in NAV_GROUPS.items():
+    for group, tabs in active_nav_groups().items():
         if tab in tabs:
             return group
     return DEFAULT_NAV_GROUP
 
 
 def ensure_tab_in_group(tab: str, group: str) -> str:
-    tabs = NAV_GROUPS.get(group, NAV_GROUPS[DEFAULT_NAV_GROUP])
+    tabs = active_nav_groups().get(group, active_nav_groups()[DEFAULT_NAV_GROUP])
     return tab if tab in tabs else tabs[0]
 
 MOBILE_CSS = """

@@ -63,7 +63,7 @@ class TestMisEodSummary(unittest.TestCase):
 
         msg = format_mis_eod_telegram(MisEodSummary(trade_date="2026-07-03"))
         self.assertIn("2026-07-03", msg)
-        self.assertIn("MIS EOD", msg)
+        self.assertIn("Did targets hit", msg)
 
     def test_trade_date_weekday(self):
         from analyzer.mis_eod_summary import mis_eod_trade_date

@@ -13,7 +13,7 @@ from analyzer.options_watchlist_history import save_options_watchlist_snapshot
 from analyzer.prep_status import mark_prep_step
 from analyzer.watchlist_persist import persist_watchlist_state
 from analyzer.watchlist_pins import TOP_TOMORROW_PICKS
-from analyzer.watchlist_telegram import format_combined_prep_telegram
+from analyzer.suggestions_telegram import format_nightly_suggestions_telegram
 
 
 @dataclass
@@ -85,13 +85,12 @@ def run_nightly_prep(
         if not telegram_configured():
             result.telegram_error = "Telegram not configured"
         else:
-            msg = format_combined_prep_telegram(
+            msg = format_nightly_suggestions_telegram(
                 load_pinned_plans(),
-                opt_picks,
                 market_bias=result.market_bias,
                 prep_date=prep_date,
             )
-            ok, err = send_telegram_broadcast(msg, alert_type="pulse")
+            ok, err = send_telegram_broadcast(msg, alert_type="morning")
             result.telegram_sent = ok
             result.telegram_error = err if not ok else ""
             if ok:

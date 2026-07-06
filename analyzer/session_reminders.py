@@ -10,12 +10,8 @@ from zoneinfo import ZoneInfo
 from analyzer.market_session import market_session_status
 from analyzer.nse_holidays import skip_scheduled_job_reason
 from analyzer.options_watchlist_history import fetch_options_snapshots_for_date
-from analyzer.trade_selection import effective_trade_plans, load_selected_symbols
+from analyzer.trade_selection import effective_trade_plans
 from analyzer.watchlist_history import session_target_date
-from analyzer.watchlist_telegram import (
-    format_options_watchlist_telegram,
-    format_pinned_watchlist_telegram,
-)
 
 IST = ZoneInfo("Asia/Kolkata")
 STATE_PATH = Path(__file__).resolve().parent.parent / "data" / "intraday" / "session_reminders.json"
@@ -62,40 +58,9 @@ def _mark_sent(kind: str, day: str) -> None:
 
 
 def format_open_reminder() -> str:
-    from analyzer.gift_nifty import format_gift_nifty_telegram_line
+    from analyzer.suggestions_telegram import format_morning_suggestions_telegram
 
-    pins = effective_trade_plans()
-    selected = load_selected_symbols()
-    opt_snaps = fetch_options_snapshots_for_date(session_target_date())
-    lines = [
-        "*MIS session open — 9:15 IST*",
-        format_gift_nifty_telegram_line(),
-        "1. Open **Suggestions** → tick **Daily MIS checklist**",
-    ]
-    if selected:
-        lines.append(
-            f"2. Trade **only your 2 picks:** **{', '.join(selected)}** "
-            "(+ options ★ side if loaded)"
-        )
-    else:
-        lines.append(
-            "2. **Star 2** names in Intraday (or trade top 2 by rank) · options ★ only"
-        )
-    lines.append("3. Place **stop on Kite** before entry")
-    if pins:
-        lines.append("")
-        lines.append(format_pinned_watchlist_telegram(pins, with_shares=True).split("\n", 1)[-1])
-    else:
-        lines.append("")
-        lines.append("_No equity picks yet — run **Quick scan** on Suggestions tonight._")
-    if opt_snaps:
-        lines.append("")
-        lines.append(format_options_watchlist_telegram(opt_snaps, stars_only=True))
-    else:
-        lines.append("")
-        lines.append("_No options CE/PE loaded — optional advanced section on Suggestions._")
-    lines.append("_Not financial advice._")
-    return "\n".join(lines)
+    return format_morning_suggestions_telegram()
 
 
 def format_early_square_off_reminder() -> str:

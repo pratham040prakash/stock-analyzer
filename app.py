@@ -9,10 +9,10 @@ from analyzer.india import indian_ticker_help, search_indian_stocks
 from analyzer.kite_stream import start_kite_ticker_on_app_start, ws_subscription_status
 from analyzer.market_session import market_session_status
 from analyzer.markets import MARKETS, is_india_market
-from analyzer.morning_briefing import build_morning_briefing
+from analyzer.app_mode import is_simple_cloud_mode
 from analyzer.portfolio_store import load_saved_portfolio, portfolio_profile_key
 from analyzer.providers import data_source_status
-from analyzer.telegram_notify import format_morning_telegram, send_telegram_broadcast, telegram_configured
+from analyzer.telegram_notify import send_telegram_broadcast, telegram_configured
 from analyzer.varsity_knowledge import VARSITY_MODULE_URL
 from ui.components.onboarding import render_sidebar_onboarding_button, render_start_here_onboarding
 from ui.components.nse import render_nse_error_banner
@@ -37,7 +37,7 @@ from ui.pages.varsity import render_varsity_guide
 from ui.pages.watchlist import render_watchlist
 from ui.pages.zerodha import render_zerodha
 from ui.navigation import apply_pending_nav_tab, init_nav_state, on_nav_group_change
-from ui.theme import DISCLAIMER, MOBILE_CSS, NAV_GROUPS
+from ui.theme import DISCLAIMER, MOBILE_CSS, active_nav_groups
 
 
 def _hydrate_saved_portfolio() -> None:
@@ -217,18 +217,21 @@ def main() -> None:
         with st.expander("📱 Telegram & schedules (optional)", expanded=False):
             render_telegram_subscribe_sidebar()
             if telegram_configured():
-                if st.button("Send morning briefing now", key="sidebar_morning_tg"):
-                    with st.spinner("Building morning briefing..."):
-                        mb = build_morning_briefing(period=period)
-                        ok, msg = send_telegram_broadcast(
-                            format_morning_telegram(mb),
-                            alert_type="morning",
-                        )
-                        if ok:
-                            st.success(msg)
-                        else:
-                            st.error(msg)
-            st.caption("Schedules: `bash scripts/install_all_schedules.sh`")
+                if st.button("Send morning pick list", key="sidebar_morning_tg"):
+                    from analyzer.suggestions_telegram import format_morning_suggestions_telegram
+
+                    ok, msg = send_telegram_broadcast(
+                        format_morning_suggestions_telegram(),
+                        alert_type="morning",
+                    )
+                    if ok:
+                        st.success(msg)
+                    else:
+                        st.error(msg)
+            st.caption(
+                "Telegram: morning list + EOD hit summary · "
+                "Mac schedules: `bash scripts/install_all_schedules.sh`"
+            )
 
         if is_india_market(market):
             with st.expander("Data feeds", expanded=False):
@@ -256,20 +259,28 @@ def main() -> None:
     if force_onboard or not hidden_session:
         render_start_here_onboarding(market, force_show=force_onboard)
 
+    if is_simple_cloud_mode():
+        st.info(
+            "**Cloud mode** — equity suggestions work here. For reliable NSE options (CE/PE), "
+            "run locally: `streamlit run app.py` on your Mac. "
+            "Set `SIMPLE_CLOUD_MODE=0` in secrets to show all tabs."
+        )
+
     init_nav_state()
     apply_pending_nav_tab()
 
+    nav_groups = active_nav_groups()
     st.caption("Choose a category, then a page:")
     st.radio(
         "Category",
-        list(NAV_GROUPS.keys()),
+        list(nav_groups.keys()),
         horizontal=True,
         label_visibility="collapsed",
         key="nav_group",
         on_change=on_nav_group_change,
     )
 
-    tabs_in_group = NAV_GROUPS[st.session_state["nav_group"]]
+    tabs_in_group = nav_groups[st.session_state["nav_group"]]
     if st.session_state["nav_tab"] not in tabs_in_group:
         st.session_state["nav_tab"] = tabs_in_group[0]
 

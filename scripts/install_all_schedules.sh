@@ -1,5 +1,6 @@
 #!/bin/bash
-# Install all MIS automation launchd jobs (morning, nightly prep, session reminders, EOD).
+# Install all suggestion automation launchd jobs on your Mac:
+# nightly Quick scan (9 PM), morning list, EOD hit scoring, session reminders.
 
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

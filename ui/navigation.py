@@ -37,10 +37,10 @@ def init_nav_state() -> None:
 
 def on_nav_group_change() -> None:
     """Keep nav_tab valid when user switches category."""
-    from ui.theme import NAV_GROUPS, ensure_tab_in_group
+    from ui.theme import DEFAULT_NAV_GROUP, active_nav_groups
 
     group = st.session_state.get("nav_group", DEFAULT_NAV_GROUP)
-    tabs = NAV_GROUPS.get(group, [])
+    tabs = active_nav_groups().get(group, [])
     if tabs and st.session_state.get("nav_tab") not in tabs:
         st.session_state["nav_tab"] = tabs[0]
 

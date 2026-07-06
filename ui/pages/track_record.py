@@ -8,12 +8,12 @@ import streamlit as st
 from analyzer.eod_learning import run_eod_learning_cycle
 from analyzer.suggestion_journal import count_pending_validation, fetch_suggestions
 from analyzer.suggestion_learning import build_learning_report
+from analyzer.suggestions_export import build_suggestions_csv
 from analyzer.telegram_notify import (
-    format_track_record_telegram,
     send_telegram_broadcast,
     telegram_configured,
 )
-from analyzer.threshold_tuning import TuningResult, get_pulse_thresholds, recent_tuning_history, reset_thresholds
+from analyzer.threshold_tuning import get_pulse_thresholds, recent_tuning_history, reset_thresholds
 from analyzer.watchlist_eod import score_pinned_plans
 from ui.components.watchlist_stats import render_watchlist_success_panel
 
@@ -26,6 +26,16 @@ def render_track_record() -> None:
     )
 
     render_watchlist_success_panel(days=7, market="india")
+
+    csv_data = build_suggestions_csv(days=30, market="india")
+    if csv_data.strip().count("\n") > 0:
+        st.download_button(
+            "Export CSV — all suggestions + hit/miss (30 days)",
+            data=csv_data,
+            file_name="suggestions_30d.csv",
+            mime="text/csv",
+            key="tr_export_csv",
+        )
 
     st.divider()
 
@@ -106,12 +116,18 @@ def render_track_record() -> None:
         st.rerun()
 
     if telegram_configured():
-        if st.button("Send Telegram scorecard", key="tg_track_record"):
-            report = build_learning_report()
-            tuning = TuningResult(thresholds=get_pulse_thresholds())
-            msg = format_track_record_telegram(report, tuning, {"validated": 0})
-            ok, err = send_telegram_broadcast(msg, alert_type="eod")
-            if ok:
-                st.success("Scorecard sent.")
+        if st.button("Send EOD hit summary to Telegram", key="tg_track_record"):
+            from analyzer.mis_eod_summary import build_mis_eod_summary, format_mis_eod_telegram
+            from analyzer.watchlist_history import session_target_date
+
+            td = session_target_date()
+            summary = build_mis_eod_summary(td)
+            if summary and summary.equity_picks:
+                msg = format_mis_eod_telegram(summary)
+                ok, err = send_telegram_broadcast(msg, alert_type="eod")
+                if ok:
+                    st.success("Hit summary sent.")
+                else:
+                    st.error(err)
             else:
-                st.error(err)
+                st.warning("No scored suggestions for today yet.")
