@@ -75,7 +75,7 @@ DEFAULT_NAV_TAB = "Suggestions"
 
 
 def active_nav_groups() -> dict[str, list[str]]:
-    """Full nav locally; Suggestions + Track Record + Alpha AI on Streamlit Cloud."""
+    """Full nav by default; SIMPLE_CLOUD_MODE=1 trims to suggestions + Alpha AI."""
     if is_simple_cloud_mode():
         return SIMPLE_NAV_GROUPS
     return NAV_GROUPS

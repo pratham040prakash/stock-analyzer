@@ -73,9 +73,11 @@ class TestAppMode(unittest.TestCase):
     def test_simple_cloud_override(self):
         from analyzer.app_mode import is_simple_cloud_mode
 
-        with patch.dict(os.environ, {"SIMPLE_CLOUD_MODE": "1"}):
+        with patch.dict(os.environ, {"SIMPLE_CLOUD_MODE": "1"}, clear=False):
             self.assertTrue(is_simple_cloud_mode())
-        with patch.dict(os.environ, {"SIMPLE_CLOUD_MODE": "0"}):
+        with patch.dict(os.environ, {"SIMPLE_CLOUD_MODE": "0"}, clear=False):
+            self.assertFalse(is_simple_cloud_mode())
+        with patch.dict(os.environ, {}, clear=True):
             self.assertFalse(is_simple_cloud_mode())
 
     def test_simple_nav_includes_alpha_ai(self):

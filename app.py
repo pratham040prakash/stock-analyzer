@@ -272,10 +272,20 @@ def main() -> None:
 
     if is_simple_cloud_mode():
         st.info(
-            "**Cloud mode** — **Suggestions**, **Track Record**, and **Alpha AI** are available. "
-            "For MIS autopilot and NSE options, run locally: `streamlit run app.py`. "
-            "Set `SIMPLE_CLOUD_MODE=0` in secrets to show all tabs."
+            "**Simple nav mode** — only Suggestions, Track Record, and Alpha AI are shown. "
+            "Remove `SIMPLE_CLOUD_MODE` from secrets (or set `0`) for the full menu."
         )
+    else:
+        try:
+            from analyzer.zerodha import kite_runs_on_cloud
+
+            if kite_runs_on_cloud():
+                st.caption(
+                    "Hosted on Streamlit Cloud — **Kite login & MIS autopilot** need a local run: "
+                    "`streamlit run app.py` on your Mac."
+                )
+        except Exception:
+            pass
 
     init_nav_state()
     apply_pending_nav_tab()

@@ -72,7 +72,7 @@ python scripts/autopilot_daily.py morning --force
 | NSE options | ❌ unreliable | ✅ |
 | Live cockpit | Yahoo lag | Kite if subscribed |
 
-Set `SIMPLE_CLOUD_MODE=0` in secrets to show all nav tabs on cloud.
+Full nav is shown by default on cloud. Set `SIMPLE_CLOUD_MODE=1` in secrets only if you want a trimmed menu (Suggestions + Alpha AI).
 
 ## Docker (optional)
 

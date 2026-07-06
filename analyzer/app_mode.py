@@ -7,17 +7,8 @@ import os
 
 def is_simple_cloud_mode() -> bool:
     """
-    Streamlit Cloud: hide Research / More trading nav; nudge local run for NSE options.
-    Override with SIMPLE_CLOUD_MODE=0 locally if you want full nav while testing cloud URL.
+    Optional simplified nav (Suggestions + Track Record + Alpha AI only).
+    Full nav is the default everywhere. Opt in with SIMPLE_CLOUD_MODE=1 in env/secrets.
     """
     override = os.getenv("SIMPLE_CLOUD_MODE", "").strip().lower()
-    if override in ("1", "true", "yes", "on"):
-        return True
-    if override in ("0", "false", "no", "off"):
-        return False
-    try:
-        from analyzer.zerodha import kite_runs_on_cloud
-
-        return kite_runs_on_cloud()
-    except Exception:
-        return False
+    return override in ("1", "true", "yes", "on")
