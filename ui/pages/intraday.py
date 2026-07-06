@@ -180,7 +180,8 @@ def render_intraday(market: str, *, period: str = "1y") -> None:
 
     with st.expander("⚙️ Evening prep, capital & morning checklist", expanded=False):
         timing = render_session_timing_banner()
-        render_morning_cockpit(market)
+        if not market_session_status().get("is_open"):
+            render_morning_cockpit(market)
         render_daily_mis_checklist(timing)
         render_prep_all_bar(market, period=period)
         capital_focus = st.session_state.pop("intraday_focus_capital", False)

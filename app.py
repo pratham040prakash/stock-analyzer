@@ -14,6 +14,7 @@ from analyzer.portfolio_store import load_saved_portfolio, portfolio_profile_key
 from analyzer.providers import data_source_status
 from analyzer.telegram_notify import send_telegram_broadcast, telegram_configured
 from analyzer.varsity_knowledge import VARSITY_MODULE_URL
+from ui.components.autopilot import render_autopilot_sidebar
 from ui.components.onboarding import render_sidebar_onboarding_button, render_start_here_onboarding
 from ui.components.nse import render_nse_error_banner
 from ui.components.kite_auth import handle_kite_redirect
@@ -148,6 +149,15 @@ def _maybe_watchlist_live_alerts() -> None:
     _run_background_task("Watchlist live alerts", _run)
 
 
+def _maybe_post_close_scan() -> None:
+    def _run() -> None:
+        from analyzer.post_close_scan_scheduler import maybe_run_post_close_scan
+
+        maybe_run_post_close_scan()
+
+    _run_background_task("Post-close Quick scan", _run)
+
+
 def main() -> None:
     load_app_env()
     st.set_page_config(page_title="Stock Analyzer", page_icon="📈", layout="wide")
@@ -166,6 +176,7 @@ def main() -> None:
     _maybe_watchlist_live_alerts()
     _maybe_validate_suggestions_eod()
     _maybe_score_watchlist_eod()
+    _maybe_post_close_scan()
 
     with st.sidebar:
         st.header("Market")
@@ -212,6 +223,7 @@ def main() -> None:
                     request_nav_tab("Varsity TA")
 
         st.divider()
+        render_autopilot_sidebar()
         render_kite_connect_sidebar()
         render_sidebar_onboarding_button()
         with st.expander("📱 Telegram & schedules (optional)", expanded=False):

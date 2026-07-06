@@ -16,6 +16,7 @@ from analyzer.watchlist_history import (
 from analyzer.watchlist_learning import run_watchlist_learning_cycle
 from analyzer.options_watchlist_history import score_options_daily_watchlist
 from ui.components.intraday_watchlist import render_intraday_watchlist_block
+from ui.components.morning_cockpit import render_morning_cockpit
 from ui.components.watchlist_stats import (
     render_all_suggested_picks_table,
     render_selected_vs_all_banner,
@@ -40,7 +41,7 @@ def render_suggestions_hero() -> None:
         )
     else:
         st.caption(
-            "Optional: `bash scripts/install_all_schedules.sh` for nightly Quick scan + EOD scoring on your Mac."
+            "Enable **🤖 Autopilot** in the sidebar for hands-free scan + scoring on this Mac."
         )
 
 
@@ -74,6 +75,10 @@ def render_suggestions_core(
 
     render_weekly_hero_metric(days=days)
     render_selected_vs_all_banner(days=days)
+
+    if market_session_status().get("is_open"):
+        render_morning_cockpit(market)
+        st.divider()
 
     if report.total_picks > 0:
         render_watchlist_success_banner(days=days)

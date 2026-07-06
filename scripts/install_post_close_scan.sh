@@ -1,11 +1,11 @@
 #!/bin/bash
-# Install macOS launchd job — MIS EOD summary at 3:35 PM local time (set Mac to IST).
+# Install macOS launchd — post-close Quick scan at 3:45 PM (set Mac to IST).
 
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-PLIST="$HOME/Library/LaunchAgents/com.stockanalyzer.miseod.plist"
+PLIST="$HOME/Library/LaunchAgents/com.stockanalyzer.postclosescan.plist"
 VENV_PYTHON="$ROOT/.venv/bin/python"
-SCRIPT="$ROOT/scripts/mis_eod_summary.py"
+SCRIPT="$ROOT/scripts/post_close_scan.py"
 
 if [[ ! -x "$VENV_PYTHON" ]]; then
   VENV_PYTHON="$(command -v python3)"
@@ -20,7 +20,7 @@ cat > "$PLIST" <<EOF
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>com.stockanalyzer.miseod</string>
+  <string>com.stockanalyzer.postclosescan</string>
   <key>ProgramArguments</key>
   <array>
     <string>$VENV_PYTHON</string>
@@ -33,12 +33,12 @@ cat > "$PLIST" <<EOF
     <key>Hour</key>
     <integer>15</integer>
     <key>Minute</key>
-    <integer>50</integer>
+    <integer>45</integer>
   </dict>
   <key>StandardOutPath</key>
-  <string>$ROOT/logs/mis_eod_summary.log</string>
+  <string>$ROOT/logs/post_close_scan.log</string>
   <key>StandardErrorPath</key>
-  <string>$ROOT/logs/mis_eod_summary.err</string>
+  <string>$ROOT/logs/post_close_scan.err</string>
 </dict>
 </plist>
 EOF
@@ -47,6 +47,6 @@ launchctl unload "$PLIST" 2>/dev/null || true
 launchctl load "$PLIST"
 
 echo "Installed: $PLIST"
-echo "Runs daily at 3:50 PM (system local time)."
+echo "Runs daily at 3:45 PM (system local time)."
 echo "Test now: $VENV_PYTHON $SCRIPT --force"
-echo "Logs: $ROOT/logs/mis_eod_summary.log"
+echo "Logs: $ROOT/logs/post_close_scan.log"

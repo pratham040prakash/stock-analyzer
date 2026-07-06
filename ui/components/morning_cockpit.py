@@ -87,7 +87,9 @@ def _render_cockpit_body(market: str) -> None:
     gift_chg, gift_px = _gift_nifty_text()
     kite_main, kite_sub = _kite_summary()
 
-    st.markdown("##### ☀️ Morning cockpit")
+    st.markdown(
+        f"##### ☀️ {'Live session — your picks' if session.get('is_open') else 'Morning cockpit'}"
+    )
     st.caption(
         f"{session.get('status', '—')} · {session.get('time_ist', '')} · "
         f"{selection_status_line()} · {option_selection_status_line()}"
