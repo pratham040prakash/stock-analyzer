@@ -45,6 +45,7 @@ from analyzer.trade_selection import (
 )
 from analyzer.prep_status import sync_selection_prep_step
 from analyzer.watchlist_pick_display import format_pick_history, format_pick_why
+from analyzer.watchlist_sector import sector_concentration_warning
 from ui.components.prep_all import send_combined_telegram_from_session
 
 
