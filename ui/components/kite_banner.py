@@ -19,6 +19,9 @@ def render_kite_banner(*, cache_key: str = "_kite_status_cache") -> None:
     level = cached.get("level", "ok")
     if level == "ok":
         return
+    if level == "limited":
+        st.info(f"**{cached.get('headline', 'Kite')}** — {cached.get('detail', '')}")
+        return
 
     creds = load_env_credentials()
     headline = cached.get("headline", "Kite issue")

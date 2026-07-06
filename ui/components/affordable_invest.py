@@ -202,7 +202,7 @@ def render_affordable_invest_section(report, period: str = "1y") -> None:
                     request_nav_tab("Single Stock", single_ticker=p.nse_symbol)
             with c2:
                 if st.button(f"Intraday chart", key=f"aff_intra_{p.nse_symbol}"):
-                    request_nav_tab("Intraday", intraday_ticker=p.nse_symbol)
+                    request_nav_tab("Suggestions", intraday_ticker=p.nse_symbol)
             with c3:
                 if st.button(f"NSE Options", key=f"aff_opt_{p.nse_symbol}"):
                     request_nav_tab("NSE Options", nse_opt_symbol=p.nse_symbol)

@@ -17,7 +17,6 @@ from analyzer.varsity_knowledge import VARSITY_MODULE_URL
 from ui.components.onboarding import render_sidebar_onboarding_button, render_start_here_onboarding
 from ui.components.nse import render_nse_error_banner
 from ui.components.kite_auth import handle_kite_redirect
-from ui.components.kite_banner import render_kite_banner
 from ui.components.kite_connect import render_kite_connect_sidebar
 from ui.components.telegram_subscribe import render_telegram_subscribe_sidebar
 from ui.pages.beginner_risk import render_beginner_risk
@@ -157,8 +156,8 @@ def main() -> None:
     from analyzer.zerodha import hydrate_kite_access_token
 
     hydrate_kite_access_token()
-    st.title("📈 Stock Analyzer")
-    st.caption("Multi-indicator technical analysis · Watchlist scanner · Backtesting")
+    st.title("📈 Stock Suggestions")
+    st.caption("Nightly picks · Entry / Stop / Target · Hit-rate tracking")
 
     start_kite_ticker_on_app_start()
     _hydrate_saved_portfolio()
@@ -215,48 +214,42 @@ def main() -> None:
         st.divider()
         render_kite_connect_sidebar()
         render_sidebar_onboarding_button()
-        render_telegram_subscribe_sidebar()
-        if telegram_configured():
-            if st.button("Send morning briefing now", key="sidebar_morning_tg"):
-                with st.spinner("Building morning briefing..."):
-                    mb = build_morning_briefing(period=period)
-                    ok, msg = send_telegram_broadcast(
-                        format_morning_telegram(mb),
-                        alert_type="morning",
-                    )
-                    if ok:
-                        st.success(msg)
-                    else:
-                        st.error(msg)
-        st.caption("All schedules: `bash scripts/install_all_schedules.sh`")
-        st.caption(
-            "· Morning 8:30 · Prep nag 8:45 · Nightly 9:00 · Auto-pick 9:10 · "
-            "Open 9:15 / square-off 3:15–3:20 · Live alerts 5m · EOD 3:35 PM"
-        )
+        with st.expander("📱 Telegram & schedules (optional)", expanded=False):
+            render_telegram_subscribe_sidebar()
+            if telegram_configured():
+                if st.button("Send morning briefing now", key="sidebar_morning_tg"):
+                    with st.spinner("Building morning briefing..."):
+                        mb = build_morning_briefing(period=period)
+                        ok, msg = send_telegram_broadcast(
+                            format_morning_telegram(mb),
+                            alert_type="morning",
+                        )
+                        if ok:
+                            st.success(msg)
+                        else:
+                            st.error(msg)
+            st.caption("Schedules: `bash scripts/install_all_schedules.sh`")
 
         if is_india_market(market):
-            st.divider()
-            st.subheader("Data feeds")
-            ds = data_source_status()
-            if ds["kite_configured"]:
-                ws = ws_subscription_status()
-                if ws["nifty50_mode"]:
-                    st.success(
-                        f"Live: **{ds['primary_intraday']}** · "
-                        f"WebSocket **Nifty 50** ({ws['subscribed_tokens']} tokens)"
-                    )
+            with st.expander("Data feeds", expanded=False):
+                ds = data_source_status()
+                if ds.get("kite_live_data"):
+                    ws = ws_subscription_status()
+                    if ws["nifty50_mode"]:
+                        st.success(
+                            f"Live: **{ds['primary_intraday']}** · "
+                            f"WebSocket **Nifty 50** ({ws['subscribed_tokens']} tokens)"
+                        )
+                    else:
+                        st.success(f"Live: **{ds['primary_intraday']}**")
+                elif ds.get("kite_configured"):
+                    st.info(ds.get("upgrade_hint", "Kite login OK — using Yahoo/NSE for prices."))
                 else:
-                    st.success(f"Live: **{ds['primary_intraday']}**")
-                    if not ws["market_open"]:
-                        st.caption("WebSocket: Nifty index only (market closed)")
-            else:
-                st.caption(ds["upgrade_hint"])
+                    st.caption(ds["upgrade_hint"])
 
     st.info(DISCLAIMER)
     render_nse_error_banner()
     _render_background_task_errors()
-    if is_india_market(market):
-        render_kite_banner(cache_key="_app_kite_status")
 
     force_onboard = st.session_state.pop("_onboarding_force_show", False)
     hidden_session = st.session_state.get("_onboarding_hidden_session", False)
@@ -302,7 +295,7 @@ def main() -> None:
         render_single_stock(market, period)
     elif selected == "Compare":
         render_compare(market, period)
-    elif selected == "Intraday":
+    elif selected == "Suggestions":
         render_intraday(market, period=period)
     elif selected == "Live Charts":
         render_live_charts_grid(market)

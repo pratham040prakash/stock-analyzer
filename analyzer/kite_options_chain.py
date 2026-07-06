@@ -25,9 +25,9 @@ _INDEX_KITE_SYMBOL = {
 
 
 def kite_options_available() -> bool:
-    from analyzer.zerodha import get_kite_client
+    from analyzer.kite_status import kite_options_available as _kite_nfo_ok
 
-    return get_kite_client() is not None
+    return _kite_nfo_ok()
 
 
 def _kite_client():

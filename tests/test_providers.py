@@ -30,7 +30,7 @@ class TestDataProviders(unittest.TestCase):
             source="Kite",
             market={},
         )
-        with patch("analyzer.providers.router.is_kite_configured", return_value=True):
+        with patch("analyzer.providers.router.is_kite_live", return_value=True):
             with patch("analyzer.providers.router.fetch_kite_intraday", return_value=(df, meta)):
                 out_df, out_meta = fetch_intraday_bars("RELIANCE", "5m", "india")
         self.assertEqual(out_meta.source, "Kite")

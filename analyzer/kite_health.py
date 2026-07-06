@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 
 from analyzer.market_session import IST
+from analyzer.kite_status import probe_kite_market_data
 from analyzer.zerodha import fetch_kite_ltp, fetch_kite_margins, get_kite_client, load_env_credentials
 
 
@@ -43,12 +44,20 @@ def check_kite_apis() -> dict:
     _check("margins", lambda: f"available ₹{fetch_kite_margins().get('net', 0):,.0f}" if fetch_kite_margins() else "—")
 
     ltp = fetch_kite_ltp(["NSE:RELIANCE-EQ", "NSE:NIFTY 50"])
+    market = probe_kite_market_data(force=True)
     if ltp:
         checks.append({
             "name": "quote_ltp",
             "ok": True,
             "detail": ", ".join(f"{k}=₹{v:,.2f}" for k, v in ltp.items()),
         })
+    elif market == "no_permission":
+        checks.append({
+            "name": "quote_ltp",
+            "ok": False,
+            "detail": "Insufficient permission — Kite Connect market data subscription required",
+        })
+        errors.append("quote_ltp: market data API not subscribed (₹500/mo)")
     else:
         checks.append({"name": "quote_ltp", "ok": False, "detail": "no quotes returned"})
         errors.append("quote_ltp: failed")

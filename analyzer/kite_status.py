@@ -1,36 +1,103 @@
-"""Lightweight Kite / NFO connection status for UI banners."""
+"""Kite Connect login + market-data permission status for UI and routing."""
 
 from __future__ import annotations
 
+import time
+
 from analyzer.zerodha import fetch_kite_ltp, get_kite_client, load_env_credentials
+
+_MARKET_PROBE_CACHE: tuple[float, str] | None = None
+_PROBE_TTL = 300  # seconds
+
+_MARKET_DATA_HINT = (
+    "Login works, but **live quotes/candles** need the Kite Connect **market data** "
+    "subscription (₹500/mo at developers.kite.trade). Until then the app uses "
+    "**NSE** (local) or **Yahoo Finance** for prices."
+)
+
+
+def probe_kite_market_data(*, force: bool = False) -> str:
+    """
+    Probe whether quote API works (not just login).
+
+    Returns: ok | no_permission | expired | not_logged_in | not_configured
+    """
+    global _MARKET_PROBE_CACHE
+    now = time.time()
+    if not force and _MARKET_PROBE_CACHE and now - _MARKET_PROBE_CACHE[0] < _PROBE_TTL:
+        return _MARKET_PROBE_CACHE[1]
+
+    creds = load_env_credentials()
+    if not creds.get("api_key"):
+        status = "not_configured"
+    elif not creds.get("access_token"):
+        status = "not_logged_in"
+    else:
+        kite = get_kite_client()
+        if kite is None:
+            status = "expired"
+        else:
+            try:
+                kite.quote([256265])  # NIFTY 50 index token
+                status = "ok"
+            except Exception as exc:
+                msg = str(exc).lower()
+                if "insufficient permission" in msg:
+                    status = "no_permission"
+                elif "token" in msg or "session" in msg or "api_key" in msg:
+                    status = "expired"
+                else:
+                    # Fallback: try REST helper used elsewhere
+                    ltp = fetch_kite_ltp(["NSE:NIFTY 50"])
+                    status = "ok" if ltp else "no_permission"
+
+    _MARKET_PROBE_CACHE = (now, status)
+    return status
+
+
+def kite_market_data_ok(*, force: bool = False) -> bool:
+    return probe_kite_market_data(force=force) == "ok"
+
+
+def kite_options_available(*, force: bool = False) -> bool:
+    """True only when Kite can return NFO quotes (not login-only)."""
+    return kite_market_data_ok(force=force)
+
+
+def clear_kite_probe_cache() -> None:
+    global _MARKET_PROBE_CACHE
+    _MARKET_PROBE_CACHE = None
 
 
 def kite_connection_status(*, probe: bool = True) -> dict:
     """
-    Returns level: ok | missing | no_token | expired
-    headline + detail for banners; portfolio_tab for fix link.
+    Returns level: ok | limited | missing | no_token | expired
+    headline + detail for banners; nfo_ok for options charts.
     """
     creds = load_env_credentials()
     if not creds.get("api_key"):
         return {
             "level": "missing",
             "headline": "Kite not configured",
-            "detail": "Add ZERODHA_API_KEY to `.env` for live candles, LTP & NFO premium charts.",
+            "detail": "Add ZERODHA_API_KEY to `.env` / Streamlit secrets.",
             "nfo_ok": False,
+            "market_data": "not_configured",
         }
     if not creds.get("access_token"):
         return {
             "level": "no_token",
             "headline": "Kite login required",
-            "detail": "Daily access token missing — live data & option premium charts need a fresh login.",
+            "detail": "Daily access token missing — sidebar → **Login with Zerodha**.",
             "nfo_ok": False,
+            "market_data": "not_logged_in",
         }
     if not probe:
         return {
             "level": "ok",
             "headline": "Kite configured",
-            "detail": "Token present — live data when market is open.",
-            "nfo_ok": True,
+            "detail": "Token present.",
+            "nfo_ok": False,
+            "market_data": "unknown",
         }
 
     kite = get_kite_client()
@@ -38,17 +105,27 @@ def kite_connection_status(*, probe: bool = True) -> dict:
         return {
             "level": "expired",
             "headline": "Kite token expired",
-            "detail": "Refresh login in **My Portfolio** (~10 sec) — needed for live LTP & NFO charts.",
+            "detail": "Sidebar → **Login with Zerodha** again (~10 sec).",
             "nfo_ok": False,
+            "market_data": "expired",
         }
 
-    ltp = fetch_kite_ltp(["NSE:RELIANCE-EQ", "NSE:NIFTY 50"])
-    if not ltp:
+    market = probe_kite_market_data()
+    if market == "no_permission":
+        return {
+            "level": "limited",
+            "headline": "Kite logged in — no market data API",
+            "detail": _MARKET_DATA_HINT,
+            "nfo_ok": False,
+            "market_data": market,
+        }
+    if market != "ok":
         return {
             "level": "expired",
             "headline": "Kite token expired",
-            "detail": "Refresh login in **My Portfolio** (~10 sec) — needed for live LTP & NFO charts.",
+            "detail": "Sidebar → **Login with Zerodha** again.",
             "nfo_ok": False,
+            "market_data": market,
         }
 
     nfo_ok = False
@@ -68,9 +145,10 @@ def kite_connection_status(*, probe: bool = True) -> dict:
         "level": "ok",
         "headline": "Kite live",
         "detail": (
-            "Equity LTP active · NFO data OK"
+            "Equity + NFO quotes active"
             if nfo_ok
-            else "Equity LTP active · NFO charts may use index fallback until market data loads"
+            else "Equity quotes active · NFO uses NSE/Yahoo when needed"
         ),
         "nfo_ok": nfo_ok,
+        "market_data": "ok",
     }

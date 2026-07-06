@@ -13,7 +13,7 @@ def render_watchlist(market: str, period: str) -> None:
     st.subheader("Batch Scanner")
     st.info(
         "**Batch Scanner** = scan any ticker list for signals. "
-        "**Intraday tab → Top MIS picks** = your nightly top-5 with entry/stop/target for tomorrow."
+        "**Suggestions tab → Quick scan** = nightly top-5 with entry/stop/target."
     )
     st.caption(
         "Parallel scan of multiple symbols — not your MIS workflow. "

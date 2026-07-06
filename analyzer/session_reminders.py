@@ -70,7 +70,7 @@ def format_open_reminder() -> str:
     lines = [
         "*MIS session open — 9:15 IST*",
         format_gift_nifty_telegram_line(),
-        "1. Open **Intraday** → tick **Daily MIS checklist**",
+        "1. Open **Suggestions** → tick **Daily MIS checklist**",
     ]
     if selected:
         lines.append(
@@ -87,13 +87,13 @@ def format_open_reminder() -> str:
         lines.append(format_pinned_watchlist_telegram(pins, with_shares=True).split("\n", 1)[-1])
     else:
         lines.append("")
-        lines.append("_No equity picks yet — run **Quick scan** on Intraday tonight._")
+        lines.append("_No equity picks yet — run **Quick scan** on Suggestions tonight._")
     if opt_snaps:
         lines.append("")
         lines.append(format_options_watchlist_telegram(opt_snaps, stars_only=True))
     else:
         lines.append("")
-        lines.append("_No options CE/PE loaded — tap **Load CE/PE** on Intraday tonight._")
+        lines.append("_No options CE/PE loaded — optional advanced section on Suggestions._")
     lines.append("_Not financial advice._")
     return "\n".join(lines)
 

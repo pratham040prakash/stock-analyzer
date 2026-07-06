@@ -7,6 +7,8 @@ DISCLAIMER = (
 )
 
 NAV_TABS = [
+    "Suggestions",
+    "Track Record",
     "Risk & Goals",
     "SIP & Goals",
     "Market Pulse",
@@ -14,7 +16,6 @@ NAV_TABS = [
     "Global Markets",
     "Single Stock",
     "Compare",
-    "Intraday",
     "Live Charts",
     "NSE Options",
     "Batch Scanner",
@@ -22,14 +23,16 @@ NAV_TABS = [
     "Penny Picks",
     "My Portfolio",
     "Backtest",
-    "Track Record",
     "Varsity TA",
 ]
 
 NAV_GROUPS: dict[str, list[str]] = {
-    "📈 Trade today": [
+    "🎯 Suggestions": [
+        "Suggestions",
+        "Track Record",
+    ],
+    "📈 More trading": [
         "Market Pulse",
-        "Intraday",
         "Live Charts",
         "NSE Options",
     ],
@@ -46,7 +49,6 @@ NAV_GROUPS: dict[str, list[str]] = {
         "Daily Advisor",
         "SIP & Goals",
         "Risk & Goals",
-        "Track Record",
     ],
     "📚 Learn": [
         "Backtest",
@@ -54,8 +56,8 @@ NAV_GROUPS: dict[str, list[str]] = {
     ],
 }
 
-DEFAULT_NAV_GROUP = "📈 Trade today"
-DEFAULT_NAV_TAB = "Intraday"
+DEFAULT_NAV_GROUP = "🎯 Suggestions"
+DEFAULT_NAV_TAB = "Suggestions"
 
 
 def nav_group_for_tab(tab: str) -> str:

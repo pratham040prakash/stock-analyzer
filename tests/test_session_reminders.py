@@ -30,7 +30,7 @@ class TestSessionReminders(unittest.TestCase):
     def test_format_messages(self):
         self.assertIn("9:15", format_open_reminder())
         self.assertIn("3:20", format_square_off_reminder())
-        self.assertIn("options expiry", format_open_reminder().lower())
+        self.assertIn("quick scan", format_open_reminder().lower())
 
     def test_early_square_off(self):
         from analyzer.session_reminders import format_early_square_off_reminder

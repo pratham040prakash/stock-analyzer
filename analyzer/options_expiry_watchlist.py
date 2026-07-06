@@ -240,7 +240,7 @@ def build_options_expiry_watchlist(
     market: str = "india",
 ) -> OptionsExpiryWatchlist:
     """Build Nifty + Bank Nifty expiry CE/PE picks with strike and premium levels."""
-    from analyzer.kite_options_chain import kite_options_available
+    from analyzer.kite_status import kite_options_available
     from analyzer.nse_session import is_nse_available, nse_status_message
 
     kite_ok = kite_options_available()

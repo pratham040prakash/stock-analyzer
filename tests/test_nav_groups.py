@@ -14,25 +14,26 @@ class TestNavGroups(unittest.TestCase):
         grouped = [t for tabs in NAV_GROUPS.values() for t in tabs]
         self.assertEqual(sorted(grouped), sorted(NAV_TABS))
 
-    def test_intraday_in_trade_today(self):
-        self.assertIn("Intraday", NAV_GROUPS["📈 Trade today"])
+    def test_suggestions_in_core_group(self):
+        self.assertIn("Suggestions", NAV_GROUPS["🎯 Suggestions"])
+        self.assertIn("Track Record", NAV_GROUPS["🎯 Suggestions"])
 
     def test_group_for_tab(self):
-        self.assertEqual(nav_group_for_tab("Intraday"), "📈 Trade today")
+        self.assertEqual(nav_group_for_tab("Suggestions"), "🎯 Suggestions")
         self.assertEqual(nav_group_for_tab("Varsity TA"), "📚 Learn")
 
     def test_ensure_tab_in_group(self):
         self.assertEqual(
-            ensure_tab_in_group("Intraday", "📈 Trade today"),
-            "Intraday",
+            ensure_tab_in_group("Suggestions", "🎯 Suggestions"),
+            "Suggestions",
         )
         self.assertEqual(
-            ensure_tab_in_group("Varsity TA", "📈 Trade today"),
-            "Market Pulse",
+            ensure_tab_in_group("Varsity TA", "🎯 Suggestions"),
+            "Suggestions",
         )
 
     def test_default_tab(self):
-        self.assertEqual(DEFAULT_NAV_TAB, "Intraday")
+        self.assertEqual(DEFAULT_NAV_TAB, "Suggestions")
 
 
 class TestOnboardingState(unittest.TestCase):

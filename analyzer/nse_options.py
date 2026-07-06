@@ -139,9 +139,11 @@ def _f(val) -> float | None:
 
 def fetch_contract_info(symbol: str) -> dict:
     """Available expiries and strikes — Kite NFO when logged in, else NSE."""
-    from analyzer.kite_options_chain import fetch_contract_info_from_kite, kite_options_available
+    from analyzer.kite_status import kite_options_available
 
     if kite_options_available():
+        from analyzer.kite_options_chain import fetch_contract_info_from_kite
+
         kite_info = fetch_contract_info_from_kite(symbol)
         if kite_info:
             return kite_info
@@ -291,10 +293,12 @@ def _fetch_option_chain_nse(symbol: str, expiry: str | None = None) -> NSEOption
 
 def fetch_option_chain(symbol: str, expiry: str | None = None) -> NSEOptionChain:
     """Option chain — Kite NFO when logged in, NSE as secondary source."""
-    from analyzer.kite_options_chain import fetch_option_chain_from_kite, kite_options_available
+    from analyzer.kite_status import kite_options_available
 
     kite_error: str | None = None
     if kite_options_available():
+        from analyzer.kite_options_chain import fetch_option_chain_from_kite
+
         kite_chain = fetch_option_chain_from_kite(symbol, expiry=expiry)
         if kite_chain:
             kite_chain.max_pain = compute_max_pain(kite_chain)

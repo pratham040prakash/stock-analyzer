@@ -264,6 +264,31 @@ def get_kite_login_url(api_key: str) -> str:
     return f"https://kite.zerodha.com/connect/login?api_key={api_key}&v=3"
 
 
+def kite_app_base_url() -> str:
+    """
+    Public URL where Zerodha redirects after login.
+    Must match the Redirect URL in your Kite Connect app (developers.kite.trade).
+    """
+    env_url = _normalize_credential(os.getenv("KITE_REDIRECT_URL", ""))
+    if env_url:
+        return env_url.rstrip("/")
+    try:
+        import streamlit as st
+
+        url = getattr(st.context, "url", None) or ""
+        if url.startswith("http"):
+            return url.split("?")[0].rstrip("/")
+    except Exception:
+        pass
+    return "http://127.0.0.1:8501"
+
+
+def kite_runs_on_cloud() -> bool:
+    """True when the app is not served from localhost (e.g. Streamlit Cloud)."""
+    base = kite_app_base_url().lower()
+    return not base.startswith("http://127.0.0.1") and not base.startswith("http://localhost")
+
+
 def exchange_request_token(api_key: str, api_secret: str, request_token: str) -> str:
     """Exchange one-time request_token for access_token. User must save to .env."""
     try:
@@ -392,7 +417,7 @@ def zerodha_setup_help() -> str:
    - Go to [developers.kite.trade](https://developers.kite.trade/)
    - Sign in with your Zerodha credentials
    - Create app → note **API Key** and **API Secret**
-   - Set redirect URL to `http://127.0.0.1:8501` (for local Streamlit)
+   - Set redirect URL to your app URL (local: `http://127.0.0.1:8501`; cloud: your `*.streamlit.app` URL)
 
 2. **Install Zerodha dependencies**
    ```bash

@@ -85,7 +85,7 @@ def render_daily_mis_checklist(advice: SessionTimingAdvice | None = None) -> Non
                             use_container_width=True,
                         ):
                             extra = {item.focus_key: True} if item.focus_key else {}
-                            if item.link_tab == "Intraday":
+                            if item.link_tab in ("Intraday", "Suggestions"):
                                 for k, v in extra.items():
                                     st.session_state[k] = v
                                 st.rerun()

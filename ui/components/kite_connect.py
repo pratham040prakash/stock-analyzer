@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import streamlit as st
 
-from analyzer.kite_status import kite_connection_status
+from analyzer.kite_status import clear_kite_probe_cache, kite_connection_status
 from analyzer.zerodha import (
     get_kite_login_url,
+    kite_app_base_url,
+    kite_runs_on_cloud,
     load_env_credentials,
     save_zerodha_api_credentials_to_env,
 )
@@ -14,9 +16,29 @@ from analyzer.zerodha import (
 
 def clear_kite_status_caches() -> None:
     """Clear cached Kite probe results; keep OAuth access token in session."""
+    clear_kite_probe_cache()
     for key in list(st.session_state.keys()):
         if "kite_status" in str(key).lower():
             st.session_state.pop(key, None)
+
+
+def _render_kite_redirect_setup() -> None:
+    """Explain the one redirect URL Zerodha allows per Kite Connect app."""
+    redirect_url = kite_app_base_url()
+    st.info(
+        f"**Kite redirect URL** (set once at [developers.kite.trade](https://developers.kite.trade/) "
+        f"→ your app → **Redirect URL**):\n\n`{redirect_url}`"
+    )
+    if kite_runs_on_cloud():
+        st.warning(
+            "You are on a **hosted** app. If Zerodha sends you to `http://127.0.0.1:8501` after login, "
+            "your Kite app still has the local redirect URL. Change it to the URL above, then login again. "
+            "Kite allows **one** redirect URL per app (use a second app for local dev if needed)."
+        )
+    else:
+        st.caption(
+            "Local dev: Redirect URL should be `http://127.0.0.1:8501` (or your Streamlit port)."
+        )
 
 
 def render_kite_connect(*, compact: bool = False, key_prefix: str = "kite") -> bool:
@@ -27,9 +49,15 @@ def render_kite_connect(*, compact: bool = False, key_prefix: str = "kite") -> b
     """
     creds = load_env_credentials()
     status = kite_connection_status(probe=True)
-    if status.get("level") == "ok":
+    level = status.get("level", "ok")
+    if level == "ok":
         if not compact:
             st.success(f"**Kite connected** — {status.get('detail', 'live data active')}")
+        return True
+    if level == "limited":
+        if not compact:
+            st.success("**Kite logged in** — holdings & margins OK")
+            st.info(status.get("detail", ""))
         return True
 
     if not creds.get("api_key") or not creds.get("api_secret"):
@@ -37,10 +65,10 @@ def render_kite_connect(*, compact: bool = False, key_prefix: str = "kite") -> b
             st.caption("Kite: set up API key once in sidebar expander below.")
             return False
         st.markdown("#### Connect Zerodha Kite")
+        _render_kite_redirect_setup()
         st.caption(
             "**One-time:** Create a free app at [developers.kite.trade](https://developers.kite.trade/) "
-            "→ copy **API Key** & **API Secret** (Zerodha login cannot provide these automatically). "
-            "Set redirect URL to `http://127.0.0.1:8501`."
+            "→ copy **API Key** & **API Secret**. Set **Redirect URL** to the value shown above."
         )
         with st.form(f"{key_prefix}_creds_form"):
             api_key = st.text_input("API Key", type="password", placeholder="From Kite Connect app")
@@ -74,6 +102,7 @@ def render_kite_connect(*, compact: bool = False, key_prefix: str = "kite") -> b
         return False
 
     st.markdown("#### Connect Zerodha Kite")
+    _render_kite_redirect_setup()
     st.warning(f"**{headline}** — {detail}")
     st.link_button(
         "Login with Zerodha",
@@ -115,6 +144,13 @@ def render_kite_connect_sidebar() -> None:
         if level == "ok":
             st.success("Live data connected")
             if st.button("Re-check Kite", key="sidebar_kite_recheck", use_container_width=True):
+                clear_kite_status_caches()
+                st.rerun()
+            return
+        if level == "limited":
+            st.success("Logged in (no market data API)")
+            st.caption("Prices use Yahoo/NSE · see banner for details")
+            if st.button("Re-check Kite", key="sidebar_kite_recheck_lim", use_container_width=True):
                 clear_kite_status_caches()
                 st.rerun()
             return

@@ -21,7 +21,8 @@ Open http://127.0.0.1:8501 — sidebar **India (Auto)**.
 | **Daily Advisor** | Holdings briefing + swing/long ideas |
 | **Global Markets** | World indices → Nifty bias (30s refresh) |
 | **Single Stock** | TA + fundamentals + position sizing |
-| **Intraday** | MIS workflow — **Prep all**, top 5 equity, Nifty/Bank Nifty CE/PE, track record, learning |
+| **Suggestions** | **Quick scan** → top 5 with Entry/Stop/Target · **Hit target?** track record |
+| **Track Record** | Win rate, all suggestions, optional Pulse journal |
 | **Live Charts** | All Nifty stocks — 1m narratives + buy/sell grid (60s) |
 | **NSE Options** | Live CE/PE chain, PCR, max pain |
 | **Batch Scanner** | Parallel multi-ticker batch scanner |
@@ -29,9 +30,11 @@ Open http://127.0.0.1:8501 — sidebar **India (Auto)**.
 | **Backtest** | Long-only strategy vs buy-hold and Nifty; options premium history (experimental) |
 | **Varsity TA** | 22 cached Zerodha chapters |
 
-## Intraday MIS workflow
+## Daily suggestions workflow
 
-1. **Intraday** tab → **Prep all tonight** (Quick scan + CE/PE + Telegram in one click)
+1. **Suggestions** tab → **Quick scan** after market close (saves top 5)
+2. Next session → trade from the list; optional **star 2** picks
+3. After **3:30 PM IST** → check **Hit target?** on Suggestions or **Track Record**
 2. Or step-by-step: **Quick scan** → **Load CE/PE** → **Send MIS prep to Telegram**
 3. Bedtime **prep checklist**: equity ✓ · options ✓ · telegram ✓ · **2 trades** ✓ · MIS checklist
 4. **9:15** / **3:15** / **3:20** Telegram session reminders (if subscribed)
@@ -76,9 +79,14 @@ python scripts/morning_briefing.py --send-telegram
 bash scripts/install_morning_schedule.sh
 ```
 
-CLI: `python cli.py --morning-briefing` or `--send-morning-telegram`
+### Zerodha Kite Connect
 
-Redirect URL for Kite: `http://127.0.0.1:8501`
+- **Local:** Redirect URL = `http://127.0.0.1:8501` at [developers.kite.trade](https://developers.kite.trade/)
+- **Streamlit Cloud:** Redirect URL = your app URL, e.g. `https://your-app.streamlit.app` (sidebar shows the exact value)
+- Kite allows **one** redirect URL per app — use a second Kite app if you need both local and cloud
+- Optional: `KITE_REDIRECT_URL` in secrets when auto-detect fails
+
+CLI: `python cli.py --morning-briefing` or `--send-morning-telegram`
 
 ### Telegram alerts (in-app subscribe)
 
