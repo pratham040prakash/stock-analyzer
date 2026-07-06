@@ -22,6 +22,8 @@ from analyzer.intraday_stock_picker import investopedia_screen_summary
 from analyzer.nse_options import enrich_with_nse_chain
 from analyzer.varsity_knowledge import format_signal_context
 from ui.components.intraday import render_candle_stories, render_live_verdict
+from ui.components.kite_banner import render_kite_banner
+from ui.components.morning_cockpit import render_morning_cockpit
 from ui.components.intraday_tips import (
     render_capital_budget_panel,
     render_daily_mis_checklist,
@@ -173,6 +175,8 @@ def render_intraday(market: str) -> None:
     max_trades = int(st.session_state.get("intraday_max_trades", DEFAULT_MAX_CONCURRENT_TRADES))
 
     timing = render_session_timing_banner()
+    render_kite_banner(cache_key="_intraday_kite_status")
+    render_morning_cockpit(market)
     render_daily_mis_checklist(timing)
 
     render_prep_all_bar(market)
@@ -190,108 +194,108 @@ def render_intraday(market: str) -> None:
     render_intraday_track_record(days=7, market=market, max_trades=max_trades)
 
     st.divider()
-    st.markdown("### Charts & live analysis")
-    st.caption(
-        "Candle stories, entry/exit plans, and portfolio scan. "
-        "With **≤10 stocks** in **My Portfolio**, you get a full strip below."
-    )
-
-    capital_focus = st.session_state.pop("intraday_focus_capital", False)
-    with st.expander("💰 Capital & risk settings", expanded=capital_focus):
-        r1, r2, r3, r4 = st.columns(4)
-        with r1:
-            st.number_input(
-                "Total capital (₹)",
-                min_value=5_000,
-                max_value=10_000_000,
-                step=5_000,
-                key="intraday_capital",
-                help="Tip #2: not all of this goes to MIS.",
-                on_change=_persist_intraday_prefs,
-            )
-        with r2:
-            st.slider(
-                "MIS allocation today (%)",
-                min_value=10,
-                max_value=80,
-                step=5,
-                key="intraday_allocation_pct",
-                help="Tip #2–3: keep the rest for delivery / next day.",
-                on_change=_persist_intraday_prefs,
-            )
-        with r3:
-            st.slider(
-                "Max risk per trade (%)",
-                min_value=0.5,
-                max_value=3.0,
-                step=0.25,
-                key="intraday_max_risk_pct",
-                on_change=_persist_intraday_prefs,
-            )
-        with r4:
-            _mt_opts = [1, 2, 3]
-            _mt_default = int(st.session_state.get("intraday_max_trades", DEFAULT_MAX_CONCURRENT_TRADES))
-            st.selectbox(
-                "Max trades today",
-                options=_mt_opts,
-                index=_mt_opts.index(_mt_default) if _mt_default in _mt_opts else 1,
-                key="intraday_max_trades",
-                help="Tip #8: few instruments, focused attention.",
-                on_change=_persist_intraday_prefs,
-            )
-        st.caption("Settings are **saved automatically** for your next session.")
-
-        allocated = render_capital_budget_panel(
-            float(st.session_state["intraday_capital"]),
-            float(st.session_state["intraday_allocation_pct"]),
-            float(st.session_state["intraday_max_risk_pct"]),
-            int(st.session_state["intraday_max_trades"]),
+    with st.expander("📊 Charts & live analysis (optional deep dive)", expanded=False):
+        st.caption(
+            "Candle stories, entry/exit plans, and portfolio scan. "
+            "With **≤10 stocks** in **My Portfolio**, you get a full strip below."
         )
-        st.session_state["intraday_allocated_pool"] = allocated
 
-    render_ten_tips_expander()
+        capital_focus = st.session_state.pop("intraday_focus_capital", False)
+        with st.expander("💰 Capital & risk settings", expanded=capital_focus):
+            r1, r2, r3, r4 = st.columns(4)
+            with r1:
+                st.number_input(
+                    "Total capital (₹)",
+                    min_value=5_000,
+                    max_value=10_000_000,
+                    step=5_000,
+                    key="intraday_capital",
+                    help="Tip #2: not all of this goes to MIS.",
+                    on_change=_persist_intraday_prefs,
+                )
+            with r2:
+                st.slider(
+                    "MIS allocation today (%)",
+                    min_value=10,
+                    max_value=80,
+                    step=5,
+                    key="intraday_allocation_pct",
+                    help="Tip #2–3: keep the rest for delivery / next day.",
+                    on_change=_persist_intraday_prefs,
+                )
+            with r3:
+                st.slider(
+                    "Max risk per trade (%)",
+                    min_value=0.5,
+                    max_value=3.0,
+                    step=0.25,
+                    key="intraday_max_risk_pct",
+                    on_change=_persist_intraday_prefs,
+                )
+            with r4:
+                _mt_opts = [1, 2, 3]
+                _mt_default = int(st.session_state.get("intraday_max_trades", DEFAULT_MAX_CONCURRENT_TRADES))
+                st.selectbox(
+                    "Max trades today",
+                    options=_mt_opts,
+                    index=_mt_opts.index(_mt_default) if _mt_default in _mt_opts else 1,
+                    key="intraday_max_trades",
+                    help="Tip #8: few instruments, focused attention.",
+                    on_change=_persist_intraday_prefs,
+                )
+            st.caption("Settings are **saved automatically** for your next session.")
 
-    c1, c2, c3 = st.columns([2, 1, 1])
-    default_t = st.session_state.get("intraday_ticker", st.session_state.get("single_ticker", "RELIANCE"))
-    with c1:
-        ticker = st.text_input("Stock", value=default_t, key="intraday_ticker_input").strip().upper()
-    with c2:
-        interval_key = st.selectbox("Candle", list(INTERVAL_OPTIONS.keys()), index=1, key="intraday_interval")
-    with c3:
-        auto = st.checkbox("Auto-refresh", value=True, key="intraday_auto")
-        if st.button("Refresh now", key="intraday_refresh"):
-            st.rerun()
+            allocated = render_capital_budget_panel(
+                float(st.session_state["intraday_capital"]),
+                float(st.session_state["intraday_allocation_pct"]),
+                float(st.session_state["intraday_max_risk_pct"]),
+                int(st.session_state["intraday_max_trades"]),
+            )
+            st.session_state["intraday_allocated_pool"] = allocated
 
-    if auto:
-        small_trader_portfolio_panel(market, interval_key)
-    else:
-        render_small_trader_portfolio_intraday(market, interval_key)
+        render_ten_tips_expander()
 
-    chart_focus = st.session_state.pop("intraday_focus_chart", False)
-    st.markdown("#### Single stock — deep dive")
-    if chart_focus and ticker:
-        st.info(f"Chart focused on **{ticker}** — review entry & exit plan below.")
+        c1, c2, c3 = st.columns([2, 1, 1])
+        default_t = st.session_state.get("intraday_ticker", st.session_state.get("single_ticker", "RELIANCE"))
+        with c1:
+            ticker = st.text_input("Stock", value=default_t, key="intraday_ticker_input").strip().upper()
+        with c2:
+            interval_key = st.selectbox("Candle", list(INTERVAL_OPTIONS.keys()), index=1, key="intraday_interval")
+        with c3:
+            auto = st.checkbox("Auto-refresh", value=True, key="intraday_auto")
+            if st.button("Refresh now", key="intraday_refresh"):
+                st.rerun()
 
-    st.session_state["intraday_ticker"] = ticker
+        if auto:
+            small_trader_portfolio_panel(market, interval_key)
+        else:
+            render_small_trader_portfolio_intraday(market, interval_key)
 
-    if not ticker:
-        st.warning("Enter a stock symbol (e.g. RELIANCE, TCS, HDFCBANK).")
-    elif auto:
-        intraday_live_panel(ticker, interval_key, market)
-    else:
-        display_intraday_live(ticker, interval_key, market)
+        chart_focus = st.session_state.pop("intraday_focus_chart", False)
+        st.markdown("#### Single stock — deep dive")
+        if chart_focus and ticker:
+            st.info(f"Chart focused on **{ticker}** — review entry & exit plan below.")
 
-    st.divider()
-    st.markdown("#### How we pick intraday stocks")
-    st.caption(investopedia_screen_summary())
-    st.markdown(
-        "**Intraday tips**\n"
-        "- **Liquidity** — Nifty 50 names with high volume; avoid illiquid strikes\n"
-        "- **Volatility** — target ~2–5% daily range; skip dead or extreme movers\n"
-        "- **Nifty correlation** — trade long when index is bullish and stock tracks Nifty\n"
-        "- **VWAP** — price above = bullish bias for the day; below = bearish\n"
-        "- **Opening range** (first 15 min on 5m chart) — breakout/breakdown signals\n"
-        "- **Exits first** — stop + target before entry; 50% profit at target, trail rest to breakeven\n"
-        "- **Skip wide stops** — if loss at stop exceeds your risk %, do not enter\n"
-        "- For **true tick-by-tick** data, connect Zerodha Kite API (₹500/mo data subscription)"
-    )
+        st.session_state["intraday_ticker"] = ticker
+
+        if not ticker:
+            st.warning("Enter a stock symbol (e.g. RELIANCE, TCS, HDFCBANK).")
+        elif auto:
+            intraday_live_panel(ticker, interval_key, market)
+        else:
+            display_intraday_live(ticker, interval_key, market)
+
+        st.divider()
+        st.markdown("#### How we pick intraday stocks")
+        st.caption(investopedia_screen_summary())
+        st.markdown(
+            "**Intraday tips**\n"
+            "- **Liquidity** — Nifty 50 names with high volume; avoid illiquid strikes\n"
+            "- **Volatility** — target ~2–5% daily range; skip dead or extreme movers\n"
+            "- **Nifty correlation** — trade long when index is bullish and stock tracks Nifty\n"
+            "- **VWAP** — price above = bullish bias for the day; below = bearish\n"
+            "- **Opening range** (first 15 min on 5m chart) — breakout/breakdown signals\n"
+            "- **Exits first** — stop + target before entry; 40/30/30 at T1/T2/T3\n"
+            "- **Skip wide stops** — if loss at stop exceeds your risk %, do not enter\n"
+            "- For **true tick-by-tick** data, connect Zerodha Kite API (₹500/mo data subscription)"
+        )

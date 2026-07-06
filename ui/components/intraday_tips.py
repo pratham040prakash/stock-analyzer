@@ -15,11 +15,23 @@ from analyzer.intraday_beginner_tips import (
     tips_summary_markdown,
 )
 from analyzer.market_session import market_session_status
+from analyzer.mis_checklist_store import (
+    load_checklist_done,
+    reset_checklist,
+    save_checklist_item,
+)
 from ui.navigation import request_nav_tab
 
 
 def _checklist_storage_key() -> str:
     return f"mis_checklist_{market_session_status().get('date', 'today')}"
+
+
+def _hydrate_checklist_session() -> dict[str, bool]:
+    storage = _checklist_storage_key()
+    if storage not in st.session_state:
+        st.session_state[storage] = load_checklist_done()
+    return st.session_state[storage]
 
 
 def render_daily_mis_checklist(advice: SessionTimingAdvice | None = None) -> None:
@@ -28,10 +40,7 @@ def render_daily_mis_checklist(advice: SessionTimingAdvice | None = None) -> Non
     current_phase = checklist_phase_for_session(advice)
     items = daily_mis_checklist_items()
     storage = _checklist_storage_key()
-    if storage not in st.session_state:
-        st.session_state[storage] = {}
-
-    done_map: dict = st.session_state[storage]
+    done_map: dict = _hydrate_checklist_session()
     done_count = sum(1 for it in items if done_map.get(it.id, False))
 
     with st.expander(
@@ -44,6 +53,7 @@ def render_daily_mis_checklist(advice: SessionTimingAdvice | None = None) -> Non
         _, c2 = st.columns([3, 1])
         with c2:
             if st.button("Reset today's checks", key="mis_checklist_reset"):
+                reset_checklist()
                 st.session_state[storage] = {}
                 st.rerun()
 
@@ -57,11 +67,14 @@ def render_daily_mis_checklist(advice: SessionTimingAdvice | None = None) -> Non
             for item in phase_items:
                 row_l, row_r = st.columns([5, 1])
                 with row_l:
+                    prev = bool(done_map.get(item.id, False))
                     checked = st.checkbox(
                         f"**Tip {item.tip_number}:** {item.label}",
-                        value=bool(done_map.get(item.id, False)),
+                        value=prev,
                         key=f"mis_chk_{storage}_{item.id}",
                     )
+                    if checked != prev:
+                        save_checklist_item(item.id, checked)
                     done_map[item.id] = checked
                     st.caption(f"→ {item.action}")
                 with row_r:

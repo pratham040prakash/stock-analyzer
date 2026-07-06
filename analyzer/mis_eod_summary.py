@@ -113,15 +113,23 @@ def build_mis_eod_summary(
         sel = {s.upper() for s in selected}
         eq_rows = [r for r in eq_rows if r.symbol.upper() in sel]
 
+    from analyzer.options_trade_selection import load_selected_option, snap_matches_pick
     from analyzer.options_watchlist_history import fetch_options_snapshots_for_date
 
-    rec_keys = {
-        (s.fno_symbol, s.option_type, s.strike)
-        for s in fetch_options_snapshots_for_date(trade_date)
-        if s.recommended
-    }
-    opt_star = [r for r in opt_rows if (r.fno_symbol, r.option_type, r.strike) in rec_keys]
-    if not opt_star:
+    selected_opt = load_selected_option(trade_date)
+    if selected_opt:
+        opt_star = [
+            r for r in opt_rows
+            if snap_matches_pick(r, selected_opt)
+        ]
+    else:
+        rec_keys = {
+            (s.fno_symbol, s.option_type, s.strike)
+            for s in fetch_options_snapshots_for_date(trade_date)
+            if s.recommended
+        }
+        opt_star = [r for r in opt_rows if (r.fno_symbol, r.option_type, r.strike) in rec_keys]
+    if not opt_star and not selected_opt:
         opt_star = opt_rows
 
     eq_scored = [r for r in eq_rows if r.scored]

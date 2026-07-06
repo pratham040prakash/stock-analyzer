@@ -16,6 +16,7 @@ from analyzer.telegram_notify import format_morning_telegram, send_telegram_broa
 from analyzer.varsity_knowledge import VARSITY_MODULE_URL
 from ui.components.onboarding import render_sidebar_onboarding_button, render_start_here_onboarding
 from ui.components.nse import render_nse_error_banner
+from ui.components.kite_banner import render_kite_banner
 from ui.components.telegram_subscribe import render_telegram_subscribe_sidebar
 from ui.pages.beginner_risk import render_beginner_risk
 from ui.pages.backtest import render_backtest
@@ -223,6 +224,8 @@ def main() -> None:
 
     st.info(DISCLAIMER)
     render_nse_error_banner()
+    if is_india_market(market):
+        render_kite_banner(cache_key="_app_kite_status")
 
     force_onboard = st.session_state.pop("_onboarding_force_show", False)
     hidden_session = st.session_state.get("_onboarding_hidden_session", False)
@@ -274,7 +277,7 @@ def main() -> None:
         render_live_charts_grid(market)
     elif selected == "NSE Options":
         render_nse_options(market)
-    elif selected == "Watchlist":
+    elif selected == "Batch Scanner":
         render_watchlist(market, period)
     elif selected == "Screener":
         render_screener(market, period)

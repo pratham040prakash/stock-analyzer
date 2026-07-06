@@ -174,7 +174,18 @@ def format_combined_prep_telegram(
     lines.append("")
     if options_picks:
         lines.append("*Options expiry (CE/PE)*")
-        for p in options_picks:
+        try:
+            from analyzer.options_trade_selection import load_selected_option, snap_matches_pick
+
+            selected_opt = load_selected_option(prep_date or None)
+        except Exception:
+            selected_opt = None
+        shown = options_picks
+        if selected_opt:
+            shown = [p for p in options_picks if snap_matches_pick(p, selected_opt)]
+        if not shown:
+            shown = [p for p in options_picks if getattr(p, "recommended", False)] or options_picks[:1]
+        for p in shown:
             star = "★ " if getattr(p, "recommended", False) else ""
             fno = getattr(p, "fno_symbol", "")
             opt = getattr(p, "option_type", "")
@@ -212,6 +223,16 @@ def format_combined_prep_telegram(
     if selected:
         lines.append("")
         lines.append(f"_Your 2 trades: **{', '.join(selected)}**_")
+    try:
+        from analyzer.options_trade_selection import load_selected_option
+
+        opt = load_selected_option(prep_date or None)
+        if opt:
+            lines.append(
+                f"_Your option: **{opt['fno_symbol']} {opt['option_type']} {opt['strike']:g}**_"
+            )
+    except Exception:
+        pass
 
     lines.append("")
     lines.append(

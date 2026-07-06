@@ -10,6 +10,11 @@ from analyzer.watchlist import scan_watchlist
 
 
 def render_watchlist(market: str, period: str) -> None:
+    st.subheader("Batch Scanner")
+    st.caption(
+        "Scan multiple tickers in parallel — not your MIS top-5. "
+        "For tonight's **2 equity picks**, use the **Intraday** tab."
+    )
     if is_india_market(market):
         preset_options = {
             "India Nifty 50 (top 15)": "nse_nifty",
@@ -35,7 +40,7 @@ def render_watchlist(market: str, period: str) -> None:
         value=", ".join(preset_tickers),
         height=100,
     )
-    scan_btn = st.button("Scan Watchlist", type="primary", key="watchlist_scan")
+    scan_btn = st.button("Scan batch", type="primary", key="watchlist_scan")
 
     if not scan_btn:
         st.markdown(

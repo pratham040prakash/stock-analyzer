@@ -27,7 +27,11 @@ from analyzer.options_premium_chart import (
     ladder_for_pick,
     options_premium_chart,
 )
-from analyzer.prep_status import mark_prep_step
+from analyzer.options_trade_selection import (
+    is_option_selected,
+    option_selection_status_line,
+    toggle_option_selected,
+)
 from analyzer.providers import is_kite_live
 from analyzer.trade_ladder import format_stop_trail_guide
 from analyzer.watchlist_plan_tracker import assess_options_live_plan
@@ -128,7 +132,7 @@ def _render_options_plan_charts_body(picks, market: str, interval: str) -> None:
         star = "★ " if p.recommended else ""
         with st.expander(
             f"{star}{p.fno_symbol} {p.option_type} {p.strike:g} — premium chart & levels",
-            expanded=p.recommended,
+            expanded=is_option_selected(p.fno_symbol, p.option_type, p.strike) or p.recommended,
         ):
             _render_options_live_status(p, market)
             _render_options_plan_chart(p, market, interval)
@@ -272,6 +276,21 @@ def render_options_expiry_watchlist_section(wl: OptionsExpiryWatchlist, *, marke
         f"**{len(wl.picks)}** CE/PE row(s) — **{rec_count}** signal-aligned (★)."
     )
 
+    pick_pool = [p for p in wl.picks if p.recommended] or wl.picks
+    st.markdown("##### Pick your 1 option leg")
+    st.caption(
+        f"{option_selection_status_line()} · Live alerts & EOD focus on starred leg only."
+    )
+    opt_cols = st.columns(min(len(pick_pool), 4))
+    for i, p in enumerate(pick_pool):
+        with opt_cols[i % len(opt_cols)]:
+            star = "⭐" if is_option_selected(p.fno_symbol, p.option_type, p.strike) else "☆"
+            label = f"{star} {p.fno_symbol} {p.option_type} {p.strike:g}"
+            if st.button(label, key=f"opt_sel_{p.fno_symbol}_{p.option_type}_{p.strike:g}", use_container_width=True):
+                _, msg = toggle_option_selected(p.fno_symbol, p.option_type, p.strike)
+                st.toast(msg.replace("**", ""))
+                st.rerun()
+
     star_only = st.checkbox(
         "Show ★ signal side only",
         value=bool(st.session_state.get("options_star_only", False)),
@@ -286,12 +305,13 @@ def render_options_expiry_watchlist_section(wl: OptionsExpiryWatchlist, *, marke
     table = []
     for p in display_picks:
         star = "★ " if p.recommended else ""
+        sel = "⭐ " if is_option_selected(p.fno_symbol, p.option_type, p.strike) else ""
         table.append({
             "Rank": p.rank,
             "Index": p.fno_symbol,
             "Expiry": p.expiry,
             "Signal": p.signal,
-            "Side": f"{star}{p.option_type}",
+            "Side": f"{sel}{star}{p.option_type}",
             "Strike": f"{p.strike:g}",
             "Entry (prem)": f"₹{p.premium:,.2f}" if p.premium else "—",
             "Stop (start)": f"₹{p.stop_premium:,.2f}" if p.stop_premium else "—",

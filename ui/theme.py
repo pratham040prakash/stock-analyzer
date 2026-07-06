@@ -17,7 +17,7 @@ NAV_TABS = [
     "Intraday",
     "Live Charts",
     "NSE Options",
-    "Watchlist",
+    "Batch Scanner",
     "Screener",
     "Penny Picks",
     "My Portfolio",
@@ -36,7 +36,7 @@ NAV_GROUPS: dict[str, list[str]] = {
     "🔍 Research": [
         "Single Stock",
         "Compare",
-        "Watchlist",
+        "Batch Scanner",
         "Screener",
         "Penny Picks",
         "Global Markets",

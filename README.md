@@ -24,7 +24,7 @@ Open http://127.0.0.1:8501 — sidebar **India (Auto)**.
 | **Intraday** | MIS workflow — **Prep all**, top 5 equity, Nifty/Bank Nifty CE/PE, track record, learning |
 | **Live Charts** | All Nifty stocks — 1m narratives + buy/sell grid (60s) |
 | **NSE Options** | Live CE/PE chain, PCR, max pain |
-| **Watchlist** | Parallel batch scanner |
+| **Batch Scanner** | Parallel multi-ticker batch scanner |
 | **Zerodha Portfolio** | Holdings + **portfolio risk** (β, sectors, concentration) |
 | **Backtest** | Long-only strategy vs buy-hold and Nifty; options premium history (experimental) |
 | **Varsity TA** | 22 cached Zerodha chapters |

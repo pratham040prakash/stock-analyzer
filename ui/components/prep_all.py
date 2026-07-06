@@ -6,8 +6,7 @@ import streamlit as st
 
 from analyzer.affordable_invest import DEFAULT_MAX_OPTION_LOT_COST_INR
 from analyzer.intraday_pulse_source import DEFAULT_INTRADAY_PULSE_PERIOD
-from ui.components.intraday_tips import _checklist_storage_key
-from analyzer.intraday_beginner_tips import daily_mis_checklist_items
+from analyzer.mis_checklist_store import is_checklist_complete
 from analyzer.market_session import market_session_status
 from analyzer.nightly_prep import run_nightly_prep
 from analyzer.nightly_prep import NightlyPrepResult
@@ -25,10 +24,7 @@ from analyzer.watchlist_telegram import format_combined_prep_telegram
 
 
 def _checklist_done() -> bool:
-    storage = _checklist_storage_key()
-    items = daily_mis_checklist_items()
-    done_map = st.session_state.get(storage, {})
-    return all(done_map.get(it.id, False) for it in items)
+    return is_checklist_complete()
 
 
 def render_prep_checklist() -> None:

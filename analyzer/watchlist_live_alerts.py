@@ -12,6 +12,7 @@ from analyzer.nse_holidays import skip_scheduled_job_reason
 from analyzer.nse_options import fetch_option_leg_ltp
 from analyzer.options_watchlist_history import fetch_options_snapshots_for_date
 from analyzer.providers import get_live_ltp
+from analyzer.options_trade_selection import load_selected_option, snap_matches_pick
 from analyzer.trade_selection import effective_trade_plans, load_selected_symbols
 from analyzer.watchlist_history import session_target_date
 from analyzer.watchlist_plan_tracker import assess_live_plan, assess_options_live_plan
@@ -132,8 +133,12 @@ def check_watchlist_live_alerts(
             messages.append(format_live_alert(status, plan=plan))
             _mark_alert_sent(trade_date, plan.symbol, kind)
 
+    selected_opt = load_selected_option(trade_date)
     for snap in fetch_options_snapshots_for_date(trade_date):
-        if not snap.recommended:
+        if selected_opt:
+            if not snap_matches_pick(snap, selected_opt):
+                continue
+        elif not snap.recommended:
             continue
         sym_key = f"OPT:{snap.fno_symbol}:{snap.option_type}:{snap.strike:g}"
         prem = fetch_option_leg_ltp(
