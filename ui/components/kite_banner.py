@@ -45,6 +45,7 @@ def render_kite_banner(*, cache_key: str = "_kite_status_cache") -> None:
                 "Login with Zerodha",
                 get_kite_login_url(creds["api_key"]),
                 type="primary",
+                key=f"kite_banner_login_{cache_key}",
             )
             st.caption("One click · auto-saves token · no My Portfolio tab needed")
         else:

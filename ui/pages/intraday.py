@@ -23,7 +23,6 @@ from analyzer.intraday_stock_picker import investopedia_screen_summary
 from analyzer.nse_options import enrich_with_nse_chain
 from analyzer.varsity_knowledge import format_signal_context
 from ui.components.intraday import render_candle_stories, render_live_verdict
-from ui.components.morning_cockpit import render_morning_cockpit
 from ui.components.intraday_tips import (
     render_capital_budget_panel,
     render_daily_mis_checklist,
@@ -180,8 +179,6 @@ def render_intraday(market: str, *, period: str = "1y") -> None:
 
     with st.expander("⚙️ Evening prep, capital & morning checklist", expanded=False):
         timing = render_session_timing_banner()
-        if not market_session_status().get("is_open"):
-            render_morning_cockpit(market)
         render_daily_mis_checklist(timing)
         render_prep_all_bar(market, period=period)
         capital_focus = st.session_state.pop("intraday_focus_capital", False)

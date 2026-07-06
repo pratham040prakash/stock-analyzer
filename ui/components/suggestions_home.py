@@ -93,7 +93,7 @@ def render_suggestions_core(
     render_selected_vs_all_banner(days=days)
 
     if phase == "live":
-        render_morning_cockpit(market)
+        render_morning_cockpit(market, key_prefix="sugg_cockpit")
         st.divider()
         if report.total_picks > 0:
             render_watchlist_success_banner(days=days)
@@ -130,7 +130,7 @@ def render_suggestions_core(
         st.divider()
         render_todays_track_record(market=market)
         if phase != "weekend":
-            render_morning_cockpit(market)
+            render_morning_cockpit(market, key_prefix="sugg_cockpit")
         _render_score_button(market)
 
     with st.expander(f"All suggestions — last {days} days", expanded=report.total_picks > 0):

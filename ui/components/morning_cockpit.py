@@ -82,7 +82,7 @@ def _kite_summary() -> tuple[str, str]:
     return "⚠️ Setup", "Add API key"
 
 
-def _render_cockpit_body(market: str) -> None:
+def _render_cockpit_body(market: str, *, key_prefix: str = "cockpit") -> None:
     session = market_session_status()
     health = build_data_health()
     stars = load_selected_symbols()
@@ -130,11 +130,11 @@ def _render_cockpit_body(market: str) -> None:
             st.link_button(
                 "Login with Zerodha",
                 get_kite_login_url(creds["api_key"]),
-                key="cockpit_kite_login",
+                key=f"{key_prefix}_kite_login",
                 use_container_width=True,
             )
         else:
-            if st.button("Setup Kite", key="cockpit_kite_fix", use_container_width=True):
+            if st.button("Setup Kite", key=f"{key_prefix}_kite_fix", use_container_width=True):
                 from ui.navigation import request_nav_tab
                 request_nav_tab("My Portfolio")
 
@@ -150,13 +150,13 @@ def _render_cockpit_body(market: str) -> None:
 
 
 @st.fragment(run_every=timedelta(seconds=60))
-def _cockpit_fragment(market: str) -> None:
-    _render_cockpit_body(market)
+def _cockpit_fragment(market: str, *, key_prefix: str = "cockpit") -> None:
+    _render_cockpit_body(market, key_prefix=key_prefix)
 
 
-def render_morning_cockpit(market: str) -> None:
+def render_morning_cockpit(market: str, *, key_prefix: str = "cockpit") -> None:
     """One-strip status for pre-open and live session."""
     if market_session_status().get("is_open"):
-        _cockpit_fragment(market)
+        _cockpit_fragment(market, key_prefix=key_prefix)
     else:
-        _render_cockpit_body(market)
+        _render_cockpit_body(market, key_prefix=key_prefix)

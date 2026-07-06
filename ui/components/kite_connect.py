@@ -104,7 +104,12 @@ def render_kite_connect(*, compact: bool = False, key_prefix: str = "kite") -> b
 
     if compact:
         st.warning(f"**{headline}**")
-        st.link_button("Login with Zerodha", login_url, use_container_width=True)
+        st.link_button(
+            "Login with Zerodha",
+            login_url,
+            key=f"{key_prefix}_login_compact",
+            use_container_width=True,
+        )
         st.caption("Returns here automatically · token saved to `.env`")
         return False
 
@@ -115,6 +120,7 @@ def render_kite_connect(*, compact: bool = False, key_prefix: str = "kite") -> b
         "Login with Zerodha",
         login_url,
         type="primary",
+        key=f"{key_prefix}_login_full",
         use_container_width=True,
     )
     st.caption(
