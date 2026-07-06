@@ -107,6 +107,8 @@ def _render_entry(report) -> None:
     c2.markdown(f"**Target 1 / 2 / 3:** {e.target_1} · {e.target_2} · {e.target_3}")
     c2.markdown(f"**SIP:** {e.sip_entry}")
     c2.markdown(f"**Lump sum:** {e.lump_sum_entry}")
+    if getattr(e, "or_confirm_note", None):
+        st.info(e.or_confirm_note)
 
 
 def _render_export_buttons(report) -> None:

@@ -20,6 +20,26 @@ from analyzer.post_close_scan_scheduler import run_post_close_scan
 from analyzer.structured_log import tail_log_lines
 
 
+def render_autopilot_home_readonly() -> None:
+    """Read-only autopilot loop status for Cloud / non-Mac viewers."""
+    status = build_autopilot_status()
+    with st.expander(
+        f"🤖 Autopilot status ({status.schedules_installed}/{status.schedules_total} schedules on Mac)",
+        expanded=False,
+    ):
+        st.caption(
+            f"Session **{status.trade_date}** · picks for **{status.prep_for}** · view-only on Cloud"
+        )
+        for step in status.steps:
+            icon = "✅" if step.done_today else ("⏳" if step.installed else "○")
+            st.markdown(f"{icon} **{step.label}** · {step.schedule or 'manual'}")
+            if step.detail:
+                st.caption(step.detail)
+        st.caption(status.timezone_hint)
+        if not is_macos():
+            st.info("Install schedules on your Mac (`scripts/install_all_schedules.sh`) for zero-touch runs.")
+
+
 def render_autopilot_sidebar() -> None:
     status = build_autopilot_status()
     gaps = collect_autopilot_gaps()

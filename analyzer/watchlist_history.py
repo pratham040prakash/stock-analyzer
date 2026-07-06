@@ -21,7 +21,7 @@ from analyzer.watchlist_pins import infer_trade_side, load_pinned_plans, pinned_
 
 IST = ZoneInfo("Asia/Kolkata")
 MIN_RETENTION_DAYS = 7
-DEFAULT_KEEP_DAYS = 90
+DEFAULT_KEEP_DAYS = 180
 
 
 @dataclass
@@ -37,6 +37,7 @@ class WatchlistSnapshot:
     market_bias: str
     saved_at: str
     side: str = "LONG"
+    confidence_pct: float | None = None
 
 
 @dataclass
@@ -118,6 +119,7 @@ def init_watchlist_history() -> None:
             "sector_tailwind": "INTEGER DEFAULT 0",
             "macd_bullish": "INTEGER DEFAULT 0",
             "side": "TEXT DEFAULT 'LONG'",
+            "confidence_pct": "REAL",
         }.items():
             if col not in snap_cols:
                 conn.execute(f"ALTER TABLE watchlist_daily_snapshots ADD COLUMN {col} {typ}")
@@ -328,8 +330,8 @@ def save_watchlist_snapshot(
                     id, trade_date, prep_date, symbol, rank, entry, stop_loss,
                     target, prep_score, market_bias, saved_at,
                     checklist_passed, atr_pct, rsi, volume_ratio,
-                    sector_tailwind, macd_bullish, side
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    sector_tailwind, macd_bullish, side, confidence_pct
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     f"snap_{trade_date}_{sym}",
@@ -350,6 +352,7 @@ def save_watchlist_snapshot(
                     int(p.sector_tailwind),
                     int(p.macd_bullish),
                     getattr(p, "side", "LONG") or "LONG",
+                    p.confidence_pct,
                 ),
             )
     return len(picks)
@@ -382,6 +385,7 @@ def fetch_snapshots_for_date(trade_date: str) -> list[WatchlistSnapshot]:
                 float(r["stop_loss"]),
                 explicit=r["side"] if "side" in r.keys() else None,
             ),
+            confidence_pct=float(r["confidence_pct"]) if r["confidence_pct"] is not None else None,
         )
         for r in rows
     ]

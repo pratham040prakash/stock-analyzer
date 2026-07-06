@@ -46,7 +46,9 @@ from analyzer.trade_selection import (
 from analyzer.prep_status import sync_selection_prep_step
 from analyzer.watchlist_pick_display import format_pick_history, format_pick_why
 from analyzer.watchlist_sector import sector_concentration_warning
+from analyzer.whatsapp_export import mis_prep_whatsapp_url
 from ui.components.prep_all import send_combined_telegram_from_session
+from ui.navigation import request_nav_tab
 
 
 def _watchlist_ticker(nse_symbol: str, market: str) -> str:
@@ -240,7 +242,7 @@ def _render_top_picks_actions(
     if not picks:
         return
 
-    t1, t2 = st.columns(2)
+    t1, t2, t3 = st.columns(3)
     with t1:
         if telegram_configured():
             if st.button("Send MIS prep to Telegram", key="wl_tg_top5", type="primary"):
@@ -255,6 +257,17 @@ def _render_top_picks_actions(
         else:
             st.caption("Subscribe to Telegram in sidebar to export picks.")
     with t2:
+        wa_url = mis_prep_whatsapp_url(
+            options_picks=options_picks or [],
+            market_bias=market_bias,
+        )
+        st.link_button(
+            "Share via WhatsApp",
+            wa_url,
+            use_container_width=True,
+            help="Opens WhatsApp with MIS prep text — tap Send on your phone.",
+        )
+    with t3:
         st.caption(
             f"Auto-selected **{len(picks)}** names ranked by prep score — "
             "trade only these tomorrow."
@@ -399,6 +412,19 @@ def render_intraday_watchlist_section(
             ),
         })
     st.dataframe(pd.DataFrame(table), use_container_width=True, hide_index=True)
+
+    st.markdown("##### Open in Alpha AI")
+    alpha_cols = st.columns(min(len(wl.picks), 5))
+    for i, p in enumerate(wl.picks):
+        with alpha_cols[i]:
+            if st.button(
+                f"Alpha · {p.nse_symbol}",
+                key=f"wl_alpha_{p.nse_symbol}",
+                use_container_width=True,
+            ):
+                sym = p.nse_symbol.replace(".NS", "").replace(".BO", "")
+                request_nav_tab("Alpha AI", alpha_ai_ticker=sym)
+                st.stop()
 
     _render_top_picks_actions(
         market_bias=wl.market_bias,

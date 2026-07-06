@@ -5,6 +5,7 @@ from __future__ import annotations
 import streamlit as st
 
 from analyzer.app_mode import is_simple_cloud_mode
+from analyzer.autopilot_status import is_macos
 from analyzer.market_session import market_session_status
 from analyzer.session_phase import phase_banner_text, suggestions_ui_phase
 from analyzer.suggestions_export import build_suggestions_csv
@@ -18,8 +19,10 @@ from analyzer.watchlist_learning import run_watchlist_learning_cycle
 from analyzer.options_watchlist_history import score_options_daily_watchlist
 from ui.components.intraday_watchlist import render_intraday_watchlist_block
 from ui.components.morning_cockpit import render_morning_cockpit
+from ui.components.autopilot import render_autopilot_home_readonly
 from ui.components.watchlist_stats import (
     render_all_suggested_picks_table,
+    render_hit_rate_dashboard,
     render_selected_vs_all_banner,
     render_todays_track_record,
     render_watchlist_success_banner,
@@ -88,6 +91,10 @@ def render_suggestions_core(
     banner = phase_banner_text(phase)
     if banner:
         st.info(banner)
+
+    render_hit_rate_dashboard(market=market)
+    if not is_macos() or is_simple_cloud_mode():
+        render_autopilot_home_readonly()
 
     render_weekly_hero_metric(days=days)
     render_selected_vs_all_banner(days=days)

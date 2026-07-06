@@ -261,6 +261,62 @@ def render_selected_vs_all_banner(*, days: int = 7) -> None:
     )
 
 
+def render_hit_rate_dashboard(*, market: str = "india") -> int | None:
+    """30 / 90 / 180-day win-rate summary for Suggestions home."""
+    st.markdown("#### Hit rate dashboard")
+    cols = st.columns(3)
+    best_days = None
+    best_wr = -1.0
+    for col, days in zip(cols, (30, 90, 180)):
+        days = max(days, MIN_RETENTION_DAYS)
+        report = build_watchlist_success_report(days)
+        with col:
+            if report.scored_picks == 0:
+                col.metric(f"{days}d win rate", "—")
+                col.caption("No scored picks yet")
+                continue
+            wr = report.win_rate_pct
+            wr_s = f"{wr:.0f}%" if wr is not None else "—"
+            col.metric(f"{days}d win rate", wr_s)
+            col.caption(
+                f"{report.target_hits}T · {report.stop_hits}S · {report.scored_picks} scored"
+            )
+            if wr is not None and wr > best_wr:
+                best_wr = wr
+                best_days = days
+    if best_days:
+        st.caption(f"Best window in retention: **{best_days}d** at **{best_wr:.0f}%**")
+    return best_days
+
+
+def render_confidence_calibration_panel(*, days: int = 90) -> None:
+    """Confidence % buckets vs actual target-hit rate."""
+    from analyzer.confidence_calibration import build_confidence_calibration
+
+    st.markdown("##### Confidence vs actual hit rate")
+    st.caption(
+        "Backtests the **Conf.** column on watchlist picks against EOD target/stop outcomes."
+    )
+    buckets = build_confidence_calibration(days=days)
+    if not any(b.picks for b in buckets):
+        st.info("Need more scored picks with saved confidence — run Quick scan after update.")
+        return
+    rows = []
+    for b in buckets:
+        if b.picks == 0:
+            continue
+        rows.append({
+            "Confidence bucket": b.label,
+            "Picks": b.picks,
+            "Targets": b.targets,
+            "Stops": b.stops,
+            "Actual hit %": f"{b.actual_hit_pct:.0f}" if b.actual_hit_pct is not None else "—",
+            "Avg conf.": f"{b.avg_confidence:.0f}%" if b.avg_confidence is not None else "—",
+        })
+    if rows:
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+
 def render_watchlist_success_banner(*, days: int = 7) -> None:
     days = max(days, MIN_RETENTION_DAYS)
     report = build_watchlist_success_report(days)

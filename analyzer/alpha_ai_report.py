@@ -77,6 +77,7 @@ class EntryStrategy:
     risk_reward: str
     sip_entry: str
     lump_sum_entry: str
+    or_confirm_note: str = ""
 
 
 @dataclass
@@ -334,6 +335,9 @@ def _build_entry_strategy(
     tech,
     price: float | None,
     currency: str,
+    *,
+    symbol: str | None = None,
+    market: str = "india",
 ) -> EntryStrategy:
     support = tech.support
     resistance = tech.resistance
@@ -359,6 +363,31 @@ def _build_entry_strategy(
     if advice.final_action in ("SELL", "AVOID", "REDUCE"):
         sip = "Not suitable for new capital."
         lump = "Avoid new lump sum."
+
+    or_note = ""
+    if symbol and is_india_market(market):
+        try:
+            from analyzer.opening_range_confirm import confirm_or_entry, fetch_symbol_opening_range
+            from analyzer.providers import get_live_ltp
+
+            or_rng = fetch_symbol_opening_range(symbol, market=market)
+            ltp, _ = get_live_ltp(symbol, market=market)
+            entry_px = float(price) if price else (ltp or 0)
+            if or_rng and ltp and entry_px > 0:
+                or_status = confirm_or_entry(
+                    ltp,
+                    entry=entry_px,
+                    or_high=or_rng[0],
+                    or_low=or_rng[1],
+                    side="LONG",
+                )
+                or_note = (
+                    f"{or_status.emoji} **MIS OR confirm:** {or_status.label} — "
+                    f"{or_status.detail} (OR high ₹{or_rng[0]:,.0f} · low ₹{or_rng[1]:,.0f})"
+                )
+        except Exception:
+            pass
+
     return EntryStrategy(
         ideal_buy_zone=advice.entry_zone,
         aggressive_buy_zone=aggressive,
@@ -371,6 +400,7 @@ def _build_entry_strategy(
         risk_reward=advice.risk_reward,
         sip_entry=sip,
         lump_sum_entry=lump,
+        or_confirm_note=or_note,
     )
 
 
@@ -708,7 +738,14 @@ def build_alpha_ai_report(
     probs = _probabilities_from_scores(combined.combined_score, tech.composite_score, fund.composite_score)
     pred_conf = _confidence_pct(combined.combined_score, gaps, advice.conviction)
 
-    entry_obj = _build_entry_strategy(advice, tech, float(price) if price else None, currency)
+    entry_obj = _build_entry_strategy(
+        advice,
+        tech,
+        float(price) if price else None,
+        currency,
+        symbol=info["symbol"],
+        market=market,
+    )
     entry = (
         f"**Ideal buy zone:** {entry_obj.ideal_buy_zone}\n"
         f"**Aggressive zone:** {entry_obj.aggressive_buy_zone}\n"
@@ -718,6 +755,8 @@ def build_alpha_ai_report(
         f"**SIP:** {entry_obj.sip_entry}\n"
         f"**Lump sum:** {entry_obj.lump_sum_entry}"
     )
+    if entry_obj.or_confirm_note:
+        entry += f"\n\n{entry_obj.or_confirm_note}"
 
     red_flags = detect_red_flags(
         raw,
@@ -767,10 +806,15 @@ def build_alpha_ai_report(
         f"**Suggested max weight (ESTIMATE):** {weight}%" if weight is not None else "**Allocation:** Avoid new adds."
     )
     portfolio += "\n**Diversification:** Prefer ≤25% per sector; ≤10% per single name unless high conviction."
+    if sector:
+        portfolio += (
+            f"\n\n**Sector concentration (ESTIMATE):** Adding **{name}** increases **{sector}** "
+            "exposure — check overlap with Nifty sector weights and existing holdings."
+        )
 
     if portfolio_mode:
         try:
-            pia = analyze_portfolio_impact(info["symbol"], sector)
+            pia = analyze_portfolio_impact(info["symbol"], sector, market=market)
             portfolio += "\n\n" + format_portfolio_impact_block(pia)
             section_sources["portfolio"] = ["saved portfolio JSON", "internal model"]
         except Exception as exc:
