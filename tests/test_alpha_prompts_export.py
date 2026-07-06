@@ -6,7 +6,7 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from analyzer.alpha_ai_export import report_to_markdown
+from analyzer.alpha_ai_export import _pdf_safe_text, report_to_markdown, report_to_pdf_bytes
 from analyzer.alpha_ai_prompts import detect_report_mode, mode_framing
 from analyzer.alpha_ai_report import AlphaAIReport, ScenarioCase, _confidence_pct
 from analyzer.alpha_monte_carlo import monte_carlo_scenarios
@@ -57,6 +57,29 @@ class TestExport(unittest.TestCase):
         md = report_to_markdown(r)
         self.assertIn("Executive Summary", md)
         self.assertIn("Data sources", md)
+
+    def test_pdf_unicode_safe(self):
+        r = AlphaAIReport(
+            symbol="RELIANCE.NS",
+            name="Reliance Industries — ₹ leader",
+            sector="Energy",
+            industry="Refining",
+            price=2500,
+            currency="₹",
+            generated_at="2026-01-01 IST",
+            recommendation="Hold",
+            overall_score=55,
+            buy_decision="WAIT",
+            final_verdict_detail="Score 55/100 · ₹2,500 target — verify AR.",
+            portfolio_impact="Sector exposure adds **Energy** — check concentration.",
+            scenarios=[ScenarioCase("Base", "mc", 50, "₹2,600", "8%")],
+        )
+        pdf = report_to_pdf_bytes(r)
+        self.assertTrue(pdf.startswith(b"%PDF"))
+        self.assertNotIn("₹".encode(), pdf)
+
+    def test_pdf_safe_text_replaces_rupee(self):
+        self.assertIn("Rs.", _pdf_safe_text("Target ₹110 · stop ₹95"))
 
 
 class TestInsufficientData(unittest.TestCase):

@@ -28,6 +28,7 @@ from analyzer.zerodha import (
     parse_kite_symbol_list,
 )
 from ui.components.kite_connect import render_kite_connect
+from ui.components.empty_states import empty_connect_kite, empty_portfolio
 from ui.navigation import request_nav_tab
 
 
@@ -173,7 +174,10 @@ def render_zerodha(period: str) -> None:
 
     import_result = st.session_state.get("zd_import")
     if not import_result or not import_result.holdings:
-        st.info("Add holdings using **Manual entry** (no broker needed) or import from CSV / Kite.")
+        empty_portfolio(key="zd_empty_portfolio")
+        creds = load_env_credentials()
+        if not creds.get("access_token"):
+            empty_connect_kite(key="zd_empty_kite")
         return
 
     st.divider()

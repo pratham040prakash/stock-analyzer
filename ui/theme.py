@@ -102,6 +102,9 @@ MOBILE_CSS = """
     div[data-testid="stRadio"] > div {
         flex-wrap: wrap !important;
     }
+    .compact-nav-hint {
+        display: block !important;
+    }
 }
 .watchlist-card {
     border: 1px solid rgba(128,128,128,0.35);
@@ -122,6 +125,47 @@ MOBILE_CSS = """
 .watchlist-meta {
     font-size: 0.8rem;
     opacity: 0.85;
+}
+</style>
+"""
+
+LIGHT_THEME_CSS = """
+<style>
+[data-testid="stAppViewContainer"] {
+    background-color: #f5f7fa !important;
+    color: #1a1a2e !important;
+}
+[data-testid="stSidebar"] {
+    background-color: #ffffff !important;
+}
+[data-testid="stMetric"] {
+    background-color: rgba(0,0,0,0.04);
+    border-radius: 8px;
+    padding: 8px;
+}
+.watchlist-card {
+    background: rgba(255,255,255,0.9) !important;
+    border-color: rgba(0,0,0,0.12) !important;
+}
+</style>
+"""
+
+STICKY_SUMMARY_CSS = """
+<style>
+.alpha-sticky-summary {
+    position: sticky;
+    top: 3.5rem;
+    z-index: 100;
+    background: rgba(14, 17, 23, 0.92);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(128,128,128,0.35);
+    border-radius: 12px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+}
+[data-theme="light"] .alpha-sticky-summary,
+.light-theme .alpha-sticky-summary {
+    background: rgba(245, 247, 250, 0.95);
 }
 </style>
 """

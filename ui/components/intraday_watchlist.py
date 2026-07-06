@@ -48,6 +48,7 @@ from analyzer.watchlist_pick_display import format_pick_history, format_pick_why
 from analyzer.watchlist_sector import sector_concentration_warning
 from analyzer.whatsapp_export import mis_prep_whatsapp_url
 from ui.components.prep_all import send_combined_telegram_from_session
+from ui.components.empty_states import empty_quick_scan
 from ui.navigation import request_nav_tab
 
 
@@ -303,10 +304,7 @@ def render_intraday_watchlist_section(
     c3.metric("Lagging sector", wl.sector_laggard)
 
     if not wl.picks:
-        st.info(
-            "No names passed the **5-point checklist** yet (volume, ATR ≥1.5%, RSI/MACD, "
-            "pivots, news). Run **Quick scan** above or refresh **Market Pulse** after close."
-        )
+        empty_quick_scan(key="wl_empty_scan")
         st.markdown(
             "**Nightly routine**\n"
             "1. Nifty trend · 2. Sector leaders · 3. Volume shockers · "

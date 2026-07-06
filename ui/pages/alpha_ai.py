@@ -10,7 +10,7 @@ from analyzer.alpha_ai_export import report_to_markdown, report_to_pdf_bytes
 from analyzer.alpha_ai_llm import llm_enabled
 from analyzer.india import indian_ticker_help
 from analyzer.markets import format_price, is_india_market
-from ui.theme import MOBILE_CSS, REC_COLORS
+from ui.theme import MOBILE_CSS, REC_COLORS, STICKY_SUMMARY_CSS
 
 
 def _stars(n: int) -> str:
@@ -49,27 +49,30 @@ def _radar_chart(checklist: dict[str, float]) -> go.Figure:
 
 def _render_executive_summary(report, horizon: str) -> None:
     color = REC_COLORS.get(report.recommendation.upper().replace(" ", " "), "#ffd600")
-    st.markdown("## Executive Summary")
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Investment Score", f"{report.overall_score}/100")
-    c2.markdown(
-        f"<p style='margin:0;color:#aaa;font-size:0.85rem'>Grade</p>"
-        f"<p style='font-size:1.4rem'>{_stars(report.investment_grade_stars)}</p>",
+    cagr = report.expected_cagr.get("3 Years", "N/A")[:20] if report.expected_cagr else "—"
+    price = format_price(report.price, report.symbol) if report.price else "—"
+    stars = _stars(report.investment_grade_stars)
+    conf = f"{report.confidence_pct or 0:.0f}%"
+    st.markdown(STICKY_SUMMARY_CSS, unsafe_allow_html=True)
+    st.markdown(
+        f"""
+<div class="alpha-sticky-summary">
+<h2 style="margin-top:0">Executive Summary</h2>
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;font-size:0.95rem">
+  <div><span style="opacity:0.7">Score</span><br><strong>{report.overall_score}/100</strong></div>
+  <div><span style="opacity:0.7">Grade</span><br><strong>{stars}</strong></div>
+  <div><span style="opacity:0.7">Recommendation</span><br><strong style="color:{color}">{report.recommendation}</strong></div>
+  <div><span style="opacity:0.7">Confidence</span><br><strong>{conf}</strong></div>
+  <div><span style="opacity:0.7">Risk</span><br><strong>{report.risk_level}</strong></div>
+  <div><span style="opacity:0.7">Horizon</span><br><strong>{horizon}</strong></div>
+  <div><span style="opacity:0.7">Price</span><br><strong>{price}</strong></div>
+  <div><span style="opacity:0.7">3Y CAGR (est.)</span><br><strong>{cagr}</strong></div>
+</div>
+<p style="opacity:0.8;font-size:0.85rem;margin:8px 0 0">{report.name} · {report.sector} · {report.generated_at}</p>
+</div>
+        """,
         unsafe_allow_html=True,
     )
-    c3.markdown(
-        f"<p style='margin:0;color:#aaa;font-size:0.85rem'>Recommendation</p>"
-        f"<p style='font-size:1.2rem;font-weight:700;color:{color}'>{report.recommendation}</p>",
-        unsafe_allow_html=True,
-    )
-    c4.metric("Confidence", f"{report.confidence_pct or 0:.0f}%")
-    d1, d2, d3, d4 = st.columns(4)
-    d1.metric("Risk Level", report.risk_level)
-    d2.metric("Horizon Focus", horizon)
-    d3.metric("Price", format_price(report.price, report.symbol) if report.price else "—")
-    if report.expected_cagr:
-        d4.metric("3Y CAGR (est.)", report.expected_cagr.get("3 Years", "N/A")[:20])
-    st.caption(f"{report.name} · {report.sector} · {report.generated_at}")
 
 
 def _render_snapshot(report) -> None:
@@ -129,8 +132,8 @@ def _render_export_buttons(report) -> None:
             mime="application/pdf",
             key=f"dl_pdf_{report.symbol}",
         )
-    except RuntimeError as exc:
-        st.caption(str(exc))
+    except Exception as exc:
+        st.caption(f"PDF export unavailable: {exc}")
 
 
 def _render_report_body(report) -> None:

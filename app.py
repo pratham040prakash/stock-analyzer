@@ -5,7 +5,7 @@ from __future__ import annotations
 import streamlit as st
 
 from analyzer.env_loader import load_app_env
-from analyzer.india import indian_ticker_help, search_indian_stocks
+from analyzer.india import indian_ticker_help
 from analyzer.kite_stream import start_kite_ticker_on_app_start
 from analyzer.market_session import market_session_status
 from analyzer.markets import MARKETS, is_india_market
@@ -17,6 +17,10 @@ from ui.components.setup_wizard import render_setup_wizard_sidebar
 from ui.components.data_health_panel import render_data_health_sidebar
 from ui.components.autopilot import render_autopilot_sidebar
 from ui.components.onboarding import render_sidebar_onboarding_button, render_start_here_onboarding
+from ui.components.onboarding_tour import render_onboarding_tour
+from ui.components.command_palette import render_command_palette, render_tab_quick_links
+from ui.components.navigation_bar import render_app_navigation
+from ui.components.theme_toggle import apply_theme_css, render_theme_toggle_sidebar
 from ui.components.nse import render_nse_error_banner
 from ui.components.kite_auth import handle_kite_redirect
 from ui.components.kite_connect import render_kite_connect_sidebar
@@ -39,8 +43,8 @@ from ui.pages.track_record import render_track_record
 from ui.pages.varsity import render_varsity_guide
 from ui.pages.watchlist import render_watchlist
 from ui.pages.zerodha import render_zerodha
-from ui.navigation import apply_pending_nav_tab, init_nav_state, on_nav_group_change
-from ui.theme import DISCLAIMER, MOBILE_CSS, active_nav_groups
+from ui.navigation import apply_pending_nav_tab, init_nav_state
+from ui.theme import DISCLAIMER, MOBILE_CSS
 
 
 def _hydrate_saved_portfolio() -> None:
@@ -172,6 +176,7 @@ def _maybe_autopilot_health_alert() -> None:
 def main() -> None:
     load_app_env()
     st.set_page_config(page_title="Stock Analyzer", page_icon="📈", layout="wide")
+    apply_theme_css()
     st.markdown(MOBILE_CSS, unsafe_allow_html=True)
     handle_kite_redirect()
     from analyzer.zerodha import hydrate_kite_access_token
@@ -200,27 +205,15 @@ def main() -> None:
         )
         period = st.selectbox("History period", options=["3mo", "6mo", "1y", "2y", "5y"], index=2)
 
+        render_theme_toggle_sidebar()
+        st.checkbox(
+            "Compact navigation (mobile-friendly)",
+            key="compact_nav",
+            help="Collapsible nav groups instead of horizontal tabs",
+        )
+
         if is_india_market(market):
-            st.divider()
-            st.subheader("Find Indian Stock")
-            search_q = st.text_input("Search by name", placeholder="e.g. Reliance, TCS, HDFC Bank")
-            if search_q:
-                results = search_indian_stocks(search_q, max_results=8)
-                if results:
-                    for r in results:
-                        sym_short = r["symbol"].replace(".NS", "").replace(".BO", "")
-                        if st.button(f"{r['symbol']} — {r['name'][:28]}", key=f"sr_{r['symbol']}"):
-                            from ui.navigation import request_nav_tab
-
-                            request_nav_tab(
-                                "Single Stock",
-                                single_ticker=sym_short,
-                                bt_ticker=sym_short,
-                                intraday_ticker=sym_short,
-                            )
-                else:
-                    st.caption("No NSE/BSE results. Try a different name.")
-
+            st.caption("Use **⌘ Jump** at the top for symbol, name, ISIN, or tab search.")
             with st.expander("Indian ticker help"):
                 st.markdown(indian_ticker_help())
 
@@ -270,6 +263,10 @@ def main() -> None:
     if force_onboard or not hidden_session:
         render_start_here_onboarding(market, force_show=force_onboard)
 
+    render_command_palette(market=market)
+    render_tab_quick_links()
+    render_onboarding_tour(force=force_onboard)
+
     if is_simple_cloud_mode():
         st.info(
             "**Simple nav mode** — only Suggestions, Track Record, and Alpha AI are shown. "
@@ -290,28 +287,7 @@ def main() -> None:
     init_nav_state()
     apply_pending_nav_tab()
 
-    nav_groups = active_nav_groups()
-    st.caption("Choose a category, then a page:")
-    st.radio(
-        "Category",
-        list(nav_groups.keys()),
-        horizontal=True,
-        label_visibility="collapsed",
-        key="nav_group",
-        on_change=on_nav_group_change,
-    )
-
-    tabs_in_group = nav_groups[st.session_state["nav_group"]]
-    if st.session_state["nav_tab"] not in tabs_in_group:
-        st.session_state["nav_tab"] = tabs_in_group[0]
-
-    selected = st.radio(
-        "Page",
-        tabs_in_group,
-        horizontal=True,
-        label_visibility="collapsed",
-        key="nav_tab",
-    )
+    selected = render_app_navigation()
 
     if selected == "Risk & Goals":
         render_beginner_risk(market, period)

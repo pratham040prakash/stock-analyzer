@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from analyzer.onboarding_state import dismiss_onboarding, is_onboarding_dismissed, reset_onboarding
+from analyzer.onboarding_state import dismiss_onboarding, is_onboarding_dismissed, is_tour_complete, reset_onboarding
 from ui.theme import DEFAULT_NAV_TAB, NAV_GROUPS, NAV_TABS, ensure_tab_in_group, nav_group_for_tab
 
 
@@ -44,6 +44,7 @@ class TestOnboardingState(unittest.TestCase):
                 self.assertFalse(is_onboarding_dismissed())
                 dismiss_onboarding()
                 self.assertTrue(is_onboarding_dismissed())
+                self.assertTrue(is_tour_complete())
                 reset_onboarding()
                 self.assertFalse(is_onboarding_dismissed())
 

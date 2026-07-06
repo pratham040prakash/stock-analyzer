@@ -3,9 +3,58 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from io import BytesIO
 
 from analyzer.alpha_ai_report import AlphaAIReport
+
+# Helvetica / core PDF fonts are Latin-1 only — map common report Unicode for Cloud safety.
+_PDF_CHAR_MAP: dict[str, str] = {
+    "₹": "Rs.",
+    "·": " - ",
+    "—": "-",
+    "–": "-",
+    "’": "'",
+    "‘": "'",
+    "“": '"',
+    "”": '"',
+    "…": "...",
+    "★": "*",
+    "☆": "*",
+    "⚠️": "[!]",
+    "⚠": "[!]",
+    "→": "->",
+    "≤": "<=",
+    "≥": ">=",
+    "×": "x",
+    "÷": "/",
+}
+
+
+def _pdf_safe_text(text: str) -> str:
+    """Strip/replace characters fpdf2 core fonts cannot encode."""
+    if not text:
+        return ""
+    normalized = unicodedata.normalize("NFKC", text)
+    for src, dst in _PDF_CHAR_MAP.items():
+        normalized = normalized.replace(src, dst)
+    out: list[str] = []
+    for ch in normalized:
+        if ord(ch) < 128:
+            out.append(ch)
+            continue
+        if ord(ch) < 256:
+            try:
+                ch.encode("latin-1")
+                out.append(ch)
+            except UnicodeEncodeError:
+                pass
+            continue
+        decomposed = unicodedata.normalize("NFKD", ch)
+        ascii_part = decomposed.encode("ascii", "ignore").decode("ascii")
+        if ascii_part:
+            out.append(ascii_part)
+    return "".join(out)
 
 
 def _strip_md(text: str) -> str:
@@ -69,12 +118,21 @@ def report_to_pdf_bytes(report: AlphaAIReport) -> bytes:
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
     pdf.set_font("Helvetica", size=11)
+    line_width = pdf.epw
 
     def writeln(text: str) -> None:
         for para in text.split("\n"):
-            line = _strip_md(para.strip())[:110]
-            if line:
-                pdf.multi_cell(0, 6, line)
+            line = _pdf_safe_text(_strip_md(para.strip()))[:110]
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                pdf.multi_cell(line_width, 6, line)
+            except Exception:
+                # Last resort: ASCII-only slice for stubborn glyphs
+                fallback = line.encode("ascii", "ignore").decode("ascii").strip()
+                if fallback:
+                    pdf.multi_cell(line_width, 6, fallback)
 
     writeln(f"Alpha AI — {report.name} ({report.symbol})")
     writeln(f"Score {report.overall_score}/100 · {report.recommendation} · Buy: {report.buy_decision}")
