@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+from analyzer.nse_holidays import is_nse_trading_day
+
 IST = ZoneInfo("Asia/Kolkata")
 
 
@@ -15,12 +17,17 @@ def market_session_status() -> dict:
     close_time = now.replace(hour=15, minute=30, second=0, microsecond=0)
 
     is_weekday = now.weekday() < 5
-    is_open = is_weekday and open_time <= now <= close_time
+    is_trading_day = is_nse_trading_day(now.date())
+    is_open = is_weekday and is_trading_day and open_time <= now <= close_time
 
     if not is_weekday:
         status = "Closed (weekend)"
         phase = "weekend"
         next_session = "Opens Mon 9:15 AM IST"
+    elif not is_trading_day:
+        status = "Closed (NSE holiday)"
+        phase = "holiday"
+        next_session = "Next NSE session — see calendar"
     elif now < open_time:
         status = "Pre-market"
         phase = "pre_market"

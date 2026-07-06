@@ -1,11 +1,17 @@
-"""Pre-market intraday watchlist UI."""
+"""Pre-market intraday watchlist UI — auto top 5 for tomorrow."""
 
 from __future__ import annotations
+
+from datetime import timedelta
 
 import pandas as pd
 import streamlit as st
 
-from analyzer.intraday_beginner_tips import too_many_watchlist_warning
+from analyzer.intraday_beginner_tips import build_capital_budget, too_many_watchlist_warning
+from analyzer.intraday_chart import intraday_chart
+from analyzer.intraday_data import INTERVAL_OPTIONS, fetch_intraday
+from analyzer.intraday_prefs import load_intraday_prefs
+from analyzer.intraday_signals import add_intraday_indicators, analyze_intraday
 from analyzer.intraday_pulse_source import (
     DEFAULT_INTRADAY_PULSE_PERIOD,
     load_pulse_for_watchlist,
@@ -13,17 +19,122 @@ from analyzer.intraday_pulse_source import (
 )
 from analyzer.intraday_watchlist import IntradayWatchlistPick, build_intraday_watchlist
 from analyzer.market_session import market_session_status
-from analyzer.providers import get_live_ltp
-from analyzer.telegram_notify import send_telegram_broadcast, telegram_configured
-from analyzer.watchlist_eod import fetch_watchlist_outcomes, outcome_label, score_pinned_plans
-from analyzer.watchlist_pins import (
-    clear_pins,
-    is_pinned,
-    load_pinned_plans,
-    toggle_pin,
+from analyzer.opening_range_confirm import confirm_or_long_entry, fetch_symbol_opening_range
+from analyzer.providers import data_source_status, get_live_ltp
+from analyzer.telegram_notify import telegram_configured
+from analyzer.watchlist_profit import (
+    equity_target_profit_one_share,
+    format_expected_profit,
+    options_target_profit_one_lot,
 )
+from analyzer.watchlist_history import save_watchlist_snapshot
+from analyzer.prep_status import mark_prep_step
+from analyzer.watchlist_pins import TOP_TOMORROW_PICKS, sync_auto_top_picks
+from analyzer.trade_ladder import build_equity_ladder, format_stop_trail_guide
 from analyzer.watchlist_plan_tracker import assess_live_plan
-from analyzer.watchlist_telegram import format_pinned_watchlist_telegram
+from analyzer.watchlist_position_size import (
+    equity_position_hint,
+    format_risk_cell,
+    format_shares_cell,
+)
+from analyzer.trade_selection import (
+    is_selected,
+    load_selected_symbols,
+    selection_status_line,
+    toggle_selected,
+)
+from analyzer.prep_status import sync_selection_prep_step
+from analyzer.watchlist_sector import sector_concentration_warning
+from ui.components.prep_all import send_combined_telegram_from_session
+
+
+def _watchlist_ticker(nse_symbol: str, market: str) -> str:
+    sym = nse_symbol.upper().replace(".NS", "").replace(".BO", "")
+    return f"{sym}.NS" if market == "india" else sym
+
+
+def _render_watchlist_plan_chart(p: IntradayWatchlistPick, market: str, interval: str) -> None:
+    """Intraday candle chart with entry, stop, T1/T2/T3 lines."""
+    ticker = _watchlist_ticker(p.nse_symbol, market)
+    ladder = build_equity_ladder(
+        "LONG", p.entry, p.stop_loss, p.target,
+        pivot_r2=p.pivot.r2 if p.pivot else None,
+    )
+    try:
+        df, meta = fetch_intraday(ticker, interval=interval, market=market)
+        if df is None or df.empty or len(df) < 5:
+            st.caption("Not enough intraday bars yet — try again after open.")
+            return
+        df = add_intraday_indicators(df)
+        analysis = analyze_intraday(df, ticker, interval)
+        st.plotly_chart(
+            intraday_chart(df, analysis, ladder=ladder),
+            use_container_width=True,
+            key=f"wl_plan_chart_{p.nse_symbol}_{interval}",
+        )
+        src = meta.get("source", "—")
+        lag = meta.get("lag_note", "")
+        st.caption(
+            f"Lines: **Stop** ₹{ladder.initial_stop:,.0f} · **Entry** ₹{ladder.entry:,.0f} · "
+            f"**T1** ₹{ladder.target:,.0f} · **T2** ₹{ladder.target2:,.0f} · "
+            f"**T3** ₹{ladder.target3:,.0f} · {src}{(' · ' + lag) if lag else ''}"
+        )
+        st.caption(format_stop_trail_guide(ladder))
+    except Exception as exc:
+        st.warning(f"Chart unavailable for {p.nse_symbol}: {exc}")
+
+
+@st.fragment(run_every=timedelta(seconds=60))
+def _watchlist_plan_charts_panel(
+    picks: list[IntradayWatchlistPick],
+    market: str,
+    interval: str,
+) -> None:
+    """Auto-refreshing plan charts during the session."""
+    _render_watchlist_plan_charts_body(picks, market, interval)
+
+
+def _render_watchlist_plan_charts_body(
+    picks: list[IntradayWatchlistPick],
+    market: str,
+    interval: str,
+) -> None:
+    for p in picks:
+        star = "⭐ " if is_selected(p.nse_symbol) else ""
+        expanded = is_selected(p.nse_symbol) or p.rank <= 2
+        with st.expander(
+            f"#{p.rank} {star}{p.nse_symbol} — live chart & plan levels",
+            expanded=expanded,
+        ):
+            _render_live_status(p, market)
+            _render_watchlist_plan_chart(p, market, interval)
+
+
+def _render_watchlist_plan_charts(
+    picks: list[IntradayWatchlistPick],
+    market: str,
+    *,
+    auto_refresh: bool = False,
+) -> None:
+    if not picks:
+        return
+    st.markdown("##### 📈 Live charts — entry · stop · T1/T2/T3")
+    ds = data_source_status()
+    st.caption(
+        f"Candles: **{ds['primary_intraday']}** · "
+        "Yellow = entry · Red = stop · Green dashed = T1/T2/T3"
+    )
+    interval_label = st.selectbox(
+        "Chart interval",
+        list(INTERVAL_OPTIONS.keys()),
+        index=1,
+        key="wl_plan_chart_interval",
+    )
+    interval = INTERVAL_OPTIONS[interval_label]
+    if auto_refresh:
+        _watchlist_plan_charts_panel(picks, market, interval)
+    else:
+        _render_watchlist_plan_charts_body(picks, market, interval)
 
 
 def _render_live_status(p: IntradayWatchlistPick | object, market: str) -> None:
@@ -32,120 +143,20 @@ def _render_live_status(p: IntradayWatchlistPick | object, market: str) -> None:
     stop = float(getattr(p, "stop_loss"))
     target = float(getattr(p, "target"))
     ltp, src = get_live_ltp(sym, market=market)
-    status = assess_live_plan(ltp, entry=entry, stop_loss=stop, target=target, symbol=sym)
-    st.caption(f"{status.emoji} **{status.label}** — {status.detail} ({src})")
-
-
-def _render_pick_card(
-    p: IntradayWatchlistPick,
-    *,
-    market: str,
-    max_pins: int,
-    show_live: bool,
-) -> None:
-    """Compact mobile-friendly card — Entry · Stop · Target + pin + chart."""
-    checks = f"{p.checklist.passed}/{p.checklist.total}"
-    pinned = is_pinned(p.nse_symbol)
-    pin_badge = " ⭐" if pinned else ""
-
-    st.markdown(
-        f"""
-<div class="watchlist-card">
-  <h4>#{p.rank} {p.nse_symbol}{pin_badge} · {p.sector[:14]}</h4>
-  <div class="watchlist-levels">
-    <b>Entry</b> ₹{p.entry:,.0f} &nbsp;·&nbsp;
-    <b>Stop</b> ₹{p.stop_loss:,.0f} &nbsp;·&nbsp;
-    <b>Target</b> ₹{p.target:,.0f}
-  </div>
-  <div class="watchlist-meta">
-    Price ₹{p.price:,.0f} · Checks {checks} · Score {p.prep_score:.0f}
-    · ATR {f"{p.atr_pct:.1f}%" if p.atr_pct else "—"}
-  </div>
-</div>
-        """,
-        unsafe_allow_html=True,
+    pivot_r2 = getattr(getattr(p, "pivot", None), "r2", None)
+    status = assess_live_plan(
+        ltp, entry=entry, stop_loss=stop, target=target, symbol=sym, pivot_r2=pivot_r2,
     )
-
-    if show_live and pinned:
-        _render_live_status(p, market)
-
-    c1, c2 = st.columns([1, 2])
-    with c1:
-        pin_label = "Unpin" if pinned else "Pin ⭐"
-        if st.button(pin_label, key=f"wl_pin_{p.nse_symbol}", use_container_width=True):
-            now_pinned, msg = toggle_pin(
-                p.nse_symbol,
-                entry=p.entry,
-                stop_loss=p.stop_loss,
-                target=p.target,
-                max_pins=max_pins,
-            )
-            if now_pinned:
-                st.success(msg)
-            else:
-                st.info(msg)
-            st.rerun()
-    with c2:
-        if st.button(f"Open {p.nse_symbol} chart", key=f"wl_card_{p.nse_symbol}", use_container_width=True):
-            st.session_state["intraday_ticker"] = p.nse_symbol
-            st.session_state["intraday_focus_chart"] = True
-            st.rerun()
-
-
-def _render_pinned_section(
-    *,
-    market: str,
-    market_bias: str,
-    prep_date: str,
-    max_pins: int,
-) -> None:
-    pins = load_pinned_plans()
-    if not pins:
-        return
-
-    session = market_session_status()
-    show_live = session.get("is_open", False)
-
-    st.markdown(f"#### ⭐ My picks tonight ({len(pins)}/{max_pins})")
-    st.caption("Trade **only** these tomorrow — levels are locked when you pin.")
-
-    for pin in pins:
-        st.markdown(
-            f"**{pin.symbol}** — Entry ₹{pin.entry:,.0f} · "
-            f"Stop ₹{pin.stop_loss:,.0f} · Target ₹{pin.target:,.0f}"
+    st.caption(f"{status.emoji} **{status.label}** — {status.detail} ({src})")
+    if status.ladder_note:
+        st.caption(f"Ladder: {status.ladder_note}")
+    or_rng = fetch_symbol_opening_range(sym, market=market)
+    if or_rng and ltp:
+        or_high, or_low = or_rng
+        or_status = confirm_or_long_entry(
+            ltp, entry=entry, or_high=or_high, or_low=or_low,
         )
-        if show_live:
-            _render_live_status(pin, market)
-
-    t1, t2, t3 = st.columns(3)
-    with t1:
-        if telegram_configured():
-            if st.button("Send picks to Telegram", key="wl_tg_pins", type="primary"):
-                msg = format_pinned_watchlist_telegram(
-                    pins, market_bias=market_bias, prep_date=prep_date
-                )
-                ok, err = send_telegram_broadcast(msg, alert_type="pulse")
-                if ok:
-                    st.success("Watchlist sent to Telegram.")
-                else:
-                    st.error(err)
-        else:
-            st.caption("Subscribe to Telegram in sidebar to export picks.")
-    with t2:
-        if not session.get("is_open") and st.button("Score today's picks", key="wl_score_eod"):
-            with st.spinner("Scoring vs session high/low…"):
-                scored = score_pinned_plans(market=market)
-            if scored:
-                st.success(f"Scored **{len(scored)}** pick(s). See **Track Record**.")
-            else:
-                st.info("Already scored or no session data.")
-            st.rerun()
-    with t3:
-        if st.button("Clear pins", key="wl_clear_pins"):
-            clear_pins()
-            st.rerun()
-
-    st.divider()
+        st.caption(f"{or_status.emoji} **OR:** {or_status.label} — {or_status.detail}")
 
 
 def _render_pick_detail_expander(p: IntradayWatchlistPick) -> None:
@@ -163,9 +174,69 @@ def _render_pick_detail_expander(p: IntradayWatchlistPick) -> None:
             f"20d range: support **₹{p.support:,.0f}** · resistance **₹{p.resistance:,.0f}**"
         )
         st.markdown(f"**Plan:** {p.plan_summary}")
+        ladder = build_equity_ladder(
+            "LONG", p.entry, p.stop_loss, p.target,
+            pivot_r2=p.pivot.r2 if p.pivot else None,
+        )
+        st.caption(format_stop_trail_guide(ladder))
+        prefs = load_intraday_prefs()
+        budget = build_capital_budget(
+            prefs.capital,
+            allocation_pct=prefs.allocation_pct,
+            max_risk_pct=prefs.max_risk_pct,
+            max_concurrent_trades=prefs.max_trades,
+        )
+        hint = equity_position_hint(
+            p.nse_symbol,
+            p.entry,
+            p.stop_loss,
+            p.target,
+            allocated_inr=budget.allocated_inr,
+            max_risk_pct=prefs.max_risk_pct,
+            max_concurrent_trades=prefs.max_trades,
+            per_trade_budget_inr=budget.per_trade_budget_inr,
+        )
+        if hint.suggested_shares:
+            st.caption(
+                f"**Size:** {hint.suggested_shares} shares · max loss **₹{hint.max_loss_inr:,.0f}** "
+                f"({prefs.max_risk_pct:.1f}% of MIS pool ₹{budget.allocated_inr:,.0f})"
+            )
+        elif hint.skip_reason:
+            st.caption(f"**Size:** skip — {hint.skip_reason}")
         st.markdown("**Pro checklist**")
         for note in p.checklist.notes:
             st.markdown(f"- {note}")
+
+
+def _render_top_picks_actions(
+    *,
+    market_bias: str,
+    prep_date: str,
+    picks: list[IntradayWatchlistPick],
+    options_picks: list | None = None,
+) -> None:
+    if not picks:
+        return
+
+    t1, t2 = st.columns(2)
+    with t1:
+        if telegram_configured():
+            if st.button("Send MIS prep to Telegram", key="wl_tg_top5", type="primary"):
+                ok, err = send_combined_telegram_from_session(
+                    options_picks=options_picks or [],
+                    market_bias=market_bias,
+                )
+                if ok:
+                    st.success("Equity + options sent to Telegram.")
+                else:
+                    st.error(err)
+        else:
+            st.caption("Subscribe to Telegram in sidebar to export picks.")
+    with t2:
+        st.caption(
+            f"Auto-selected **{len(picks)}** names ranked by prep score — "
+            "trade only these tomorrow."
+        )
 
 
 def render_intraday_watchlist_section(
@@ -174,25 +245,29 @@ def render_intraday_watchlist_section(
     market: str = "india",
     max_concurrent_trades: int = 2,
 ) -> None:
-    """Tonight's lean MIS shortlist — entry/stop/target pre-written."""
-    wl = build_intraday_watchlist(report)
-    max_pins = min(3, max(1, max_concurrent_trades))
+    """Tonight's top 5 MIS picks — entry/stop/target pre-written."""
+    wl = build_intraday_watchlist(report, limit=TOP_TOMORROW_PICKS)
     prep_date = market_session_status().get("date", "")
     show_live = market_session_status().get("is_open", False)
 
-    st.markdown("#### 🌙 Pre-market intraday watchlist (prepare tonight)")
-    st.caption(wl.routine_note)
+    st.markdown(f"#### 🌙 Top {TOP_TOMORROW_PICKS} for tomorrow")
+    st.caption(
+        f"{wl.routine_note} · Today's results are in **Intraday track record** below."
+    )
+
+    if wl.picks:
+        sync_auto_top_picks(wl.picks, limit=TOP_TOMORROW_PICKS)
+        save_watchlist_snapshot(
+            wl.picks,
+            market_bias=wl.market_bias,
+            prep_date=prep_date,
+        )
+        mark_prep_step("equity")
+
     c1, c2, c3 = st.columns(3)
     c1.metric("Market bias", wl.market_bias)
     c2.metric("Leading sector", wl.sector_leader)
     c3.metric("Lagging sector", wl.sector_laggard)
-
-    _render_pinned_section(
-        market=market,
-        market_bias=wl.market_bias,
-        prep_date=prep_date,
-        max_pins=max_pins,
-    )
 
     if not wl.picks:
         st.info(
@@ -206,67 +281,161 @@ def render_intraday_watchlist_section(
         )
         return
 
-    st.success(f"**{len(wl.picks)}** stocks ready — entry, stop, and target defined for each.")
+    st.success(
+        f"**{len(wl.picks)}** stocks auto-selected — entry, stop, and target defined for each."
+    )
     over = too_many_watchlist_warning(len(wl.picks), max_concurrent_trades)
     if over:
         st.warning(over)
 
-    st.caption(f"**Pin up to {max_pins}** for tomorrow — live LTP vs plan when market is open.")
-    view = st.radio(
-        "Watchlist view",
-        ["Cards", "Table"],
-        horizontal=True,
-        key="watchlist_view_mode",
-        label_visibility="collapsed",
+    sector_warn = sector_concentration_warning(wl.picks)
+    if sector_warn:
+        st.warning(sector_warn)
+
+    st.markdown("##### Pick your 2 trades")
+    st.caption(selection_status_line(max_selected=max_concurrent_trades))
+    sel_cols = st.columns(min(len(wl.picks), 5))
+    for i, p in enumerate(wl.picks):
+        with sel_cols[i]:
+            star = "⭐" if is_selected(p.nse_symbol) else "☆"
+            if st.button(
+                f"{star} {p.nse_symbol}",
+                key=f"trade_sel_{p.nse_symbol}",
+                use_container_width=True,
+            ):
+                _, msg = toggle_selected(
+                    p.nse_symbol,
+                    max_selected=max_concurrent_trades,
+                    sector=p.sector,
+                )
+                sync_selection_prep_step()
+                st.toast(msg.replace("**", ""))
+                st.rerun()
+    if load_selected_symbols():
+        st.caption(
+            "Reminders & EOD summary focus on your **2 starred** names only."
+        )
+
+    prefs = load_intraday_prefs()
+    budget = build_capital_budget(
+        float(st.session_state.get("intraday_capital", prefs.capital)),
+        allocation_pct=float(st.session_state.get("intraday_allocation_pct", prefs.allocation_pct)),
+        max_risk_pct=float(st.session_state.get("intraday_max_risk_pct", prefs.max_risk_pct)),
+        max_concurrent_trades=int(st.session_state.get("intraday_max_trades", prefs.max_trades)),
+    )
+    st.caption(
+        f"Position size uses **₹{budget.per_trade_budget_inr:,.0f}**/trade "
+        f"(**₹{budget.allocated_inr:,.0f}** MIS pool ÷ {prefs.max_trades}) · "
+        f"**{prefs.max_risk_pct:.1f}%** max risk/trade ≈ **₹{budget.max_risk_per_trade_inr:,.0f}**"
     )
 
-    if view == "Cards":
+    table = []
+    for p in wl.picks:
+        checks = f"{p.checklist.passed}/{p.checklist.total}"
+        hint = equity_position_hint(
+            p.nse_symbol,
+            p.entry,
+            p.stop_loss,
+            p.target,
+            allocated_inr=budget.allocated_inr,
+            max_risk_pct=prefs.max_risk_pct,
+            max_concurrent_trades=prefs.max_trades,
+            per_trade_budget_inr=budget.per_trade_budget_inr,
+        )
+        ladder = build_equity_ladder(
+            "LONG", p.entry, p.stop_loss, p.target,
+            pivot_r2=p.pivot.r2 if p.pivot else None,
+        )
+        table.append({
+            "Rank": p.rank,
+            "Stock": p.nse_symbol,
+            "Trade": "⭐" if is_selected(p.nse_symbol) else "",
+            "Sector": p.sector[:12],
+            "Price": f"₹{p.price:,.0f}",
+            "ATR%": f"{p.atr_pct:.1f}" if p.atr_pct else "—",
+            "Vol×": f"{p.volume_ratio:.1f}" if p.volume_ratio else "—",
+            "RSI": f"{p.rsi:.0f}" if p.rsi else "—",
+            "Checks": checks,
+            "Entry": f"₹{p.entry:,.0f}",
+            "Stop (start)": f"₹{ladder.initial_stop:,.0f}",
+            "Stop@T1": f"₹{ladder.stops_after[0]:,.0f}",
+            "Stop@T2": f"₹{ladder.stops_after[1]:,.0f}",
+            "Stop@T3": f"₹{ladder.stops_after[2]:,.0f}",
+            "T1": f"₹{ladder.target:,.0f}",
+            "T2": f"₹{ladder.target2:,.0f}",
+            "T3": f"₹{ladder.target3:,.0f}",
+            "Shares": format_shares_cell(hint),
+            "Risk ₹": format_risk_cell(hint),
+            "Exp. profit (1 sh)": format_expected_profit(
+                equity_target_profit_one_share(p.entry, p.target)
+            ),
+        })
+    st.dataframe(pd.DataFrame(table), use_container_width=True, hide_index=True)
+
+    _render_top_picks_actions(
+        market_bias=wl.market_bias,
+        prep_date=prep_date,
+        picks=wl.picks,
+        options_picks=st.session_state.get("options_expiry_watchlist_cache", type(None))
+        and getattr(st.session_state.get("options_expiry_watchlist_cache"), "picks", None),
+    )
+
+    _render_watchlist_plan_charts(wl.picks, market, auto_refresh=show_live)
+
+    if show_live:
+        st.markdown("##### Live vs plan (summary)")
         for p in wl.picks:
-            _render_pick_card(p, market=market, max_pins=max_pins, show_live=show_live)
-            _render_pick_detail_expander(p)
-    else:
-        table = []
-        for p in wl.picks:
-            checks = f"{p.checklist.passed}/{p.checklist.total}"
-            pin_mark = "⭐" if is_pinned(p.nse_symbol) else ""
-            table.append({
-                "Rank": p.rank,
-                "Stock": f"{p.nse_symbol}{pin_mark}",
-                "Sector": p.sector[:12],
-                "Price": f"₹{p.price:,.0f}",
-                "ATR%": f"{p.atr_pct:.1f}" if p.atr_pct else "—",
-                "Vol×": f"{p.volume_ratio:.1f}" if p.volume_ratio else "—",
-                "RSI": f"{p.rsi:.0f}" if p.rsi else "—",
-                "Checks": checks,
-                "Entry": f"₹{p.entry:,.0f}",
-                "Stop": f"₹{p.stop_loss:,.0f}",
-                "Target": f"₹{p.target:,.0f}",
-            })
-        st.dataframe(pd.DataFrame(table), use_container_width=True, hide_index=True)
-        for p in wl.picks:
-            c1, c2 = st.columns([1, 3])
-            with c1:
-                if st.button(
-                    "Unpin" if is_pinned(p.nse_symbol) else "Pin ⭐",
-                    key=f"wl_tbl_pin_{p.nse_symbol}",
-                ):
-                    toggle_pin(
-                        p.nse_symbol,
-                        entry=p.entry,
-                        stop_loss=p.stop_loss,
-                        target=p.target,
-                        max_pins=max_pins,
-                    )
-                    st.rerun()
-            with c2:
-                if show_live and is_pinned(p.nse_symbol):
-                    _render_live_status(p, market)
-            _render_pick_detail_expander(p)
+            if is_selected(p.nse_symbol):
+                st.markdown(f"**#{p.rank} {p.nse_symbol}** ⭐")
+                _render_live_status(p, market)
+
+    for p in wl.picks:
+        _render_pick_detail_expander(p)
 
     st.caption(
-        "Avoid: tip-chasing, illiquid names, too many stocks, no stop-loss. "
-        "**Fewer stocks, better prepared.**"
+        "Avoid: tip-chasing, illiquid names, trading more than your max trades, no stop-loss. "
+        "**Stick to the top 5 — better prepared beats more names.**"
     )
+
+
+def _render_watchlist_body(
+    market: str,
+    *,
+    period: str,
+    max_concurrent_trades: int,
+) -> None:
+    session_report = st.session_state.get("market_pulse_full")
+    report, status = load_pulse_for_watchlist(market, period, session_report=session_report)
+    if report is not None and status in ("cache_fresh", "cache_stale"):
+        st.session_state.setdefault("market_pulse_full", report)
+
+    status_msgs = {
+        "session": "Using **current session** Market Pulse data.",
+        "cache_fresh": "Loaded from **fresh cache** (no Pulse tab visit needed).",
+        "cache_stale": "Loaded from **cached scan** (>15 min old) — Quick scan for latest.",
+        "missing": "No scan data yet — tap **Quick scan** (1–2 min).",
+    }
+    st.caption(status_msgs.get(status, ""))
+
+    _, c2 = st.columns([3, 1])
+    with c2:
+        if st.button("Quick scan", type="primary", key="intra_quick_scan"):
+            with st.spinner("Scanning Nifty 50 for watchlist… usually **1–2 min**."):
+                report = run_quick_watchlist_scan(market, period, use_cache=False)
+                st.session_state["market_pulse_full"] = report
+            st.rerun()
+
+    if report and getattr(report, "stock_map", None):
+        render_intraday_watchlist_section(
+            report,
+            market=market,
+            max_concurrent_trades=max_concurrent_trades,
+        )
+    else:
+        st.info(
+            "Tap **Quick scan** to build tonight's **top 5** without opening Market Pulse. "
+            "Uses the same Nifty 50 scan (cached 15 min)."
+        )
 
 
 def render_intraday_watchlist_block(
@@ -274,47 +443,18 @@ def render_intraday_watchlist_block(
     *,
     period: str = DEFAULT_INTRADAY_PULSE_PERIOD,
     max_concurrent_trades: int = 2,
+    as_top_section: bool = False,
 ) -> None:
     """Watchlist with cache/session load + Quick scan — no Market Pulse tab required."""
     expand = st.session_state.pop("intraday_focus_watchlist", False)
-    with st.expander("🌙 Pre-market watchlist", expanded=expand):
-        session_report = st.session_state.get("market_pulse_full")
-        report, status = load_pulse_for_watchlist(market, period, session_report=session_report)
-        if report is not None and status in ("cache_fresh", "cache_stale"):
-            st.session_state.setdefault("market_pulse_full", report)
+    if as_top_section:
+        st.markdown("### 🌙 Top MIS picks for tomorrow")
+        _render_watchlist_body(
+            market, period=period, max_concurrent_trades=max_concurrent_trades,
+        )
+        return
 
-        status_msgs = {
-            "session": "Using **current session** Market Pulse data.",
-            "cache_fresh": "Loaded from **fresh cache** (no Pulse tab visit needed).",
-            "cache_stale": "Loaded from **cached scan** (>15 min old) — Quick scan for latest.",
-            "missing": "No scan data yet — tap **Quick scan** (1–2 min).",
-        }
-        st.caption(status_msgs.get(status, ""))
-
-        _, c2 = st.columns([3, 1])
-        with c2:
-            if st.button("Quick scan", type="primary", key="intra_quick_scan"):
-                with st.spinner("Scanning Nifty 50 for watchlist… usually **1–2 min**."):
-                    report = run_quick_watchlist_scan(market, period, use_cache=False)
-                    st.session_state["market_pulse_full"] = report
-                st.rerun()
-
-        if report and getattr(report, "stock_map", None):
-            render_intraday_watchlist_section(
-                report,
-                market=market,
-                max_concurrent_trades=max_concurrent_trades,
-            )
-        else:
-            pins = load_pinned_plans()
-            if pins:
-                _render_pinned_section(
-                    market=market,
-                    market_bias="—",
-                    prep_date=market_session_status().get("date", ""),
-                    max_pins=min(3, max_concurrent_trades),
-                )
-            st.info(
-                "Tap **Quick scan** to build tonight's watchlist without opening Market Pulse. "
-                "Uses the same Nifty 50 scan (cached 15 min)."
-            )
+    with st.expander("🌙 Top MIS picks for tomorrow", expanded=expand):
+        _render_watchlist_body(
+            market, period=period, max_concurrent_trades=max_concurrent_trades,
+        )

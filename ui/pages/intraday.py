@@ -22,7 +22,6 @@ from analyzer.intraday_stock_picker import investopedia_screen_summary
 from analyzer.nse_options import enrich_with_nse_chain
 from analyzer.varsity_knowledge import format_signal_context
 from ui.components.intraday import render_candle_stories, render_live_verdict
-from ui.components.intraday_journal import render_todays_trade_journal
 from ui.components.intraday_tips import (
     render_capital_budget_panel,
     render_daily_mis_checklist,
@@ -30,8 +29,11 @@ from ui.components.intraday_tips import (
     render_ten_tips_expander,
 )
 from ui.components.intraday_watchlist import render_intraday_watchlist_block
+from ui.components.options_expiry_watchlist import render_options_expiry_watchlist_block
+from ui.components.prep_all import render_prep_all_bar
 from ui.components.small_trader_intraday import render_small_trader_portfolio_intraday
-from ui.theme import SIGNAL_ICONS
+from ui.components.watchlist_stats import render_intraday_track_record
+from ui.theme import MOBILE_CSS, SIGNAL_ICONS
 
 
 def _hydrate_intraday_prefs() -> None:
@@ -163,18 +165,36 @@ def small_trader_portfolio_panel(market: str, interval_key: str) -> None:
 
 
 def render_intraday(market: str) -> None:
-    st.subheader("Intraday — Live Charts & Candle Stories")
-    st.markdown(
-        "Reads the **live chart** candle-by-candle (Varsity TA), tells you **what each candle means**, "
-        "and gives a **BUY / SELL / WAIT** suggestion with **entry & exit written before you trade**. "
-        "With **≤10 stocks** in **My Portfolio**, you get a **full watchlist scan** above."
-    )
+    st.markdown(MOBILE_CSS, unsafe_allow_html=True)
+    st.subheader("Intraday — MIS workflow")
+    st.caption(discipline_intro())
 
     _hydrate_intraday_prefs()
+    max_trades = int(st.session_state.get("intraday_max_trades", DEFAULT_MAX_CONCURRENT_TRADES))
 
-    st.caption(discipline_intro())
     timing = render_session_timing_banner()
     render_daily_mis_checklist(timing)
+
+    render_prep_all_bar(market)
+    st.divider()
+    render_intraday_watchlist_block(
+        market,
+        max_concurrent_trades=max_trades,
+        as_top_section=True,
+    )
+
+    st.divider()
+    render_options_expiry_watchlist_block(market)
+
+    st.divider()
+    render_intraday_track_record(days=7, market=market, max_trades=max_trades)
+
+    st.divider()
+    st.markdown("### Charts & live analysis")
+    st.caption(
+        "Candle stories, entry/exit plans, and portfolio scan. "
+        "With **≤10 stocks** in **My Portfolio**, you get a full strip below."
+    )
 
     capital_focus = st.session_state.pop("intraday_focus_capital", False)
     with st.expander("💰 Capital & risk settings", expanded=capital_focus):
@@ -247,13 +267,6 @@ def render_intraday(market: str) -> None:
     else:
         render_small_trader_portfolio_intraday(market, interval_key)
 
-    st.divider()
-    render_intraday_watchlist_block(
-        market,
-        max_concurrent_trades=int(st.session_state.get("intraday_max_trades", DEFAULT_MAX_CONCURRENT_TRADES)),
-    )
-
-    st.divider()
     chart_focus = st.session_state.pop("intraday_focus_chart", False)
     st.markdown("#### Single stock — deep dive")
     if chart_focus and ticker:
@@ -267,22 +280,6 @@ def render_intraday(market: str) -> None:
         intraday_live_panel(ticker, interval_key, market)
     else:
         display_intraday_live(ticker, interval_key, market)
-
-    st.divider()
-    render_todays_trade_journal(
-        max_trades=int(st.session_state.get("intraday_max_trades", DEFAULT_MAX_CONCURRENT_TRADES)),
-    )
-
-    st.divider()
-    st.markdown("#### After the session")
-    st.caption(
-        "**Tip #10:** Review outcomes in **Track Record** — what worked, what didn't — "
-        "then refresh **Market Pulse** tonight for tomorrow's watchlist."
-    )
-    if st.button("Open Track Record", key="intra_track_record"):
-        from ui.navigation import request_nav_tab
-
-        request_nav_tab("Track Record")
 
     st.divider()
     st.markdown("#### How we pick intraday stocks")

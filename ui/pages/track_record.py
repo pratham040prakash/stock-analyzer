@@ -14,8 +14,8 @@ from analyzer.telegram_notify import (
     telegram_configured,
 )
 from analyzer.threshold_tuning import TuningResult, get_pulse_thresholds, recent_tuning_history, reset_thresholds
-from analyzer.watchlist_eod import fetch_watchlist_outcomes, outcome_label, score_pinned_plans
-from analyzer.watchlist_pins import load_pinned_plans
+from analyzer.watchlist_eod import score_pinned_plans
+from ui.components.watchlist_stats import render_watchlist_success_panel
 
 
 def render_track_record() -> None:
@@ -108,30 +108,12 @@ def render_track_record() -> None:
             })
         st.dataframe(pd.DataFrame(slice_rows), use_container_width=True, hide_index=True)
 
-    wl_outcomes = fetch_watchlist_outcomes(limit=20)
-    pins = load_pinned_plans()
-    st.subheader("Pinned watchlist outcomes")
-    st.caption("EOD score for **⭐ My picks tonight** — did stop or target hit?")
-    if pins and st.button("Score pinned picks now", key="tr_score_pins"):
+    render_watchlist_success_panel(days=7, market="india")
+    if st.button("Score watchlist now", key="tr_score_pins"):
         with st.spinner("Scoring session OHLC…"):
             scored = score_pinned_plans(market="india")
         st.success(f"Scored **{len(scored)}** pick(s).")
         st.rerun()
-    if wl_outcomes:
-        rows = []
-        for o in wl_outcomes:
-            rows.append({
-                "Date": o.trade_date,
-                "Symbol": o.symbol,
-                "Entry": f"₹{o.entry:,.0f}",
-                "Stop": f"₹{o.stop_loss:,.0f}",
-                "Target": f"₹{o.target:,.0f}",
-                "Result": outcome_label(o.outcome),
-                "Note": o.note[:60],
-            })
-        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-    else:
-        st.caption("Pin 2–3 names on the watchlist, then score after market close.")
 
     st.subheader("Recent validated suggestions")
     if report.recent_validated:

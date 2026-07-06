@@ -92,6 +92,10 @@ def _normalize_error(msg: str) -> str:
         return "NSE option chain unavailable — try again or check network"
     if "fiidii" in msg.lower():
         return "NSE FII/DII feed unavailable — macro uses other sources"
+    if "delivery/volume" in msg or "historical-or-options" in msg:
+        return ""  # deprecated path — fallback handles silently
+    if "quote-equity" in msg and "HTTP 404" in msg:
+        return "NSE equity quote unavailable — using Yahoo"
     m = re.search(r"NSE [^:]+: HTTP (\d+)", msg)
     if m:
         return f"NSE API HTTP {m.group(1)}"
@@ -100,7 +104,7 @@ def _normalize_error(msg: str) -> str:
 
 def record_nse_error(msg: str, trip: bool = False, silent: bool = False) -> None:
     key = _normalize_error(msg)
-    if silent:
+    if silent or not key:
         return
     if key in _ERROR_SEEN:
         return
@@ -237,6 +241,54 @@ def _parse_json_response(resp: requests.Response, path: str) -> dict | list | No
         return None
 
 
+def _optional_nse_path(path: str) -> bool:
+    """Endpoints that may 404 when NSE deprecates them — no user-facing banner."""
+    needles = (
+        "historical-or-options",
+        "historicalOR/delivery/volume",
+        "historical/cm/equity",
+        "historicalOR/foDerivatives",
+    )
+    return any(n in path for n in needles)
+
+
+def nse_fetch_text(path: str, timeout: int = 20) -> str | None:
+    """Fetch NSE CSV/text response (historical reports)."""
+    if not is_nse_available():
+        return None
+
+    for attempt in range(2):
+        try:
+            sess = nse_session(force_refresh=attempt > 0)
+            resp = nse_get(sess, path, timeout=timeout)
+            if resp.status_code == 200 and (resp.text or "").strip():
+                return resp.text
+            if resp.status_code in (401, 403, 429):
+                silent = "quote-equity" in path and resp.status_code == 403
+                record_nse_error(f"NSE {path}: HTTP {resp.status_code}", silent=silent)
+                if attempt == 0:
+                    _invalidate_session()
+                    continue
+                return None
+            if resp.status_code == 404:
+                record_nse_error(
+                    f"NSE {path}: HTTP 404",
+                    silent=_optional_nse_path(path),
+                )
+                return None
+            record_nse_error(f"NSE {path}: HTTP {resp.status_code}")
+        except NSECircuitOpen:
+            return None
+        except NSEError:
+            return None
+        except Exception as exc:
+            record_nse_error(f"NSE {path}: {exc}")
+            if attempt > 0:
+                return None
+            _invalidate_session()
+    return None
+
+
 def nse_fetch_json(path: str, timeout: int = 20) -> dict | list | None:
     """Fetch NSE JSON with session reuse, throttle, and circuit breaker."""
     if not is_nse_available():
@@ -263,6 +315,12 @@ def nse_fetch_json(path: str, timeout: int = 20) -> dict | list | None:
                 if "quote-equity" in path:
                     return None
                 _trip_circuit(f"NSE API HTTP {resp.status_code}")
+                return None
+            if resp.status_code == 404:
+                record_nse_error(
+                    f"NSE {path}: HTTP 404",
+                    silent=_optional_nse_path(path),
+                )
                 return None
             record_nse_error(f"NSE {path}: HTTP {resp.status_code}")
         except NSECircuitOpen:

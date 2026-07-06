@@ -1,4 +1,4 @@
-"""Pin 2–3 watchlist names for the next MIS session."""
+"""Auto top-N watchlist names for the next MIS session."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ from analyzer.market_session import market_session_status
 
 IST = ZoneInfo("Asia/Kolkata")
 MAX_PINNED = 3
+TOP_TOMORROW_PICKS = 5
 PINS_PATH = Path(__file__).resolve().parent.parent / "data" / "intraday" / "pinned_watchlist.json"
 
 
@@ -23,6 +24,7 @@ class PinnedPlan:
     target: float
     prep_date: str
     pinned_at: str = ""
+    sector: str = ""
 
 
 def _ensure_dir() -> None:
@@ -60,6 +62,7 @@ def load_pinned_plans() -> list[PinnedPlan]:
                 target=float(p["target"]),
                 prep_date=raw.get("prep_date", ""),
                 pinned_at=p.get("pinned_at", ""),
+                sector=p.get("sector", ""),
             )
         )
     return picks
@@ -67,6 +70,20 @@ def load_pinned_plans() -> list[PinnedPlan]:
 
 def pinned_symbols() -> set[str]:
     return {p.symbol.upper() for p in load_pinned_plans()}
+
+
+def pinned_sector_map() -> dict[str, str]:
+    """Symbol → sector from tonight's pinned top picks."""
+    return {
+        p.symbol.upper(): (p.sector or "").strip()
+        for p in load_pinned_plans()
+        if (p.sector or "").strip()
+    }
+
+
+def sector_for_symbol(symbol: str) -> str:
+    sym = symbol.upper().replace(".NS", "")
+    return pinned_sector_map().get(sym, "")
 
 
 def is_pinned(symbol: str) -> bool:
@@ -133,3 +150,48 @@ def toggle_pin(
 
 def clear_pins() -> None:
     _save_raw({"prep_date": current_prep_date(), "picks": []})
+
+
+def sync_auto_top_picks(
+    picks: list,
+    *,
+    limit: int = TOP_TOMORROW_PICKS,
+) -> list[PinnedPlan]:
+    """
+    Auto-select top N watchlist picks for tomorrow (no manual pin).
+    Writes to pinned_watchlist.json for Telegram, scoring, and reminders.
+    """
+    from analyzer.watchlist_history import session_target_date
+
+    limit = max(1, limit)
+    top = picks[:limit]
+    prep = current_prep_date()
+    trade_for = session_target_date()
+    now = datetime.now(IST).strftime("%Y-%m-%d %H:%M IST")
+    rows = []
+    for p in top:
+        sym = (
+            getattr(p, "nse_symbol", None) or getattr(p, "symbol", "")
+        ).upper().replace(".NS", "")
+        rows.append({
+            "symbol": sym,
+            "entry": float(getattr(p, "entry")),
+            "stop_loss": float(getattr(p, "stop_loss")),
+            "target": float(getattr(p, "target")),
+            "pinned_at": now,
+            "sector": (getattr(p, "sector", "") or "").strip(),
+        })
+    prev_raw = _load_raw()
+    prev_syms = tuple(p.get("symbol") for p in prev_raw.get("picks", []))
+    new_syms = tuple(r["symbol"] for r in rows)
+    if prev_syms != new_syms:
+        from analyzer.trade_selection import clear_selection
+
+        clear_selection(trade_for)
+    _save_raw({
+        "prep_date": prep,
+        "trade_date": trade_for,
+        "auto": True,
+        "picks": rows,
+    })
+    return load_pinned_plans()

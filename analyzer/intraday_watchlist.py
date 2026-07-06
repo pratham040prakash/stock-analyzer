@@ -20,6 +20,13 @@ RSI_BULL_MAX = 65.0
 MAX_WATCHLIST = 8
 
 
+def _gates() -> dict:
+    """Learned screening gates (updated daily from target-hit history)."""
+    from analyzer.watchlist_learning import get_watchlist_strategy
+
+    return get_watchlist_strategy()
+
+
 @dataclass
 class PivotLevels:
     pivot: float
@@ -225,24 +232,29 @@ def _build_checklist(
     event,
     sector_tailwind: bool,
 ) -> ProChecklist:
+    gates = _gates()
+    min_vol = float(gates["min_volume_ratio"])
+    min_atr = float(gates["min_atr_pct"])
+    rsi_min = float(gates["rsi_bull_min"])
+    rsi_max = float(gates["rsi_bull_max"])
     notes: list[str] = []
     vol_ratio = getattr(stock, "volume_ratio", None)
-    volume_ok = vol_ratio is not None and vol_ratio >= MIN_VOLUME_RATIO
+    volume_ok = vol_ratio is not None and vol_ratio >= min_vol
     if volume_ok:
-        notes.append(f"✔ Volume **{vol_ratio:.1f}×** avg (≥ {MIN_VOLUME_RATIO}×)")
+        notes.append(f"✔ Volume **{vol_ratio:.1f}×** avg (≥ {min_vol}×)")
     else:
         notes.append(f"✘ Volume below average ({vol_ratio or '—'}×)")
 
     atr_pct = metrics.get("atr_pct") or getattr(stock, "atr_pct", None)
-    atr_ok = atr_pct is not None and atr_pct >= MIN_ATR_PCT
+    atr_ok = atr_pct is not None and atr_pct >= min_atr
     if atr_ok:
-        notes.append(f"✔ ATR **{atr_pct:.1f}%** (≥ {MIN_ATR_PCT}% movement)")
+        notes.append(f"✔ ATR **{atr_pct:.1f}%** (≥ {min_atr}% movement)")
     else:
         notes.append(f"✘ ATR too low ({atr_pct or '—'}%) — flat stock")
 
     rsi = metrics.get("rsi") or getattr(stock, "rsi_14", None)
     macd_ok = metrics.get("macd_bullish", getattr(stock, "macd_bullish", False))
-    rsi_ok = rsi is not None and RSI_BULL_MIN <= rsi <= RSI_BULL_MAX
+    rsi_ok = rsi is not None and rsi_min <= rsi <= rsi_max
     rsi_macd_ok = rsi_ok and macd_ok
     if rsi_macd_ok:
         notes.append(f"✔ RSI **{rsi:.0f}** + MACD bullish")
@@ -292,8 +304,15 @@ def prep_routine_summary() -> str:
     )
 
 
-def build_intraday_watchlist(report, *, limit: int = MAX_WATCHLIST) -> IntradayWatchlistReport:
+def build_intraday_watchlist(report, *, limit: int | None = None) -> IntradayWatchlistReport:
     """Build lean pre-session MIS watchlist from Market Pulse scan data."""
+    gates = _gates()
+    limit = limit if limit is not None else int(gates["max_watchlist"])
+    min_passed = int(gates["min_checklist_passed"])
+    min_prep = float(gates["min_prep_score"])
+    require_macd = bool(gates["require_rsi_macd"])
+    require_tailwind = bool(gates["require_sector_tailwind"])
+    min_atr = float(gates["min_atr_pct"])
     macro = getattr(report, "macro", None)
     sector_leader = getattr(macro, "sector_leader", "") if macro else ""
     sector_laggard = getattr(macro, "sector_laggard", "") if macro else ""
@@ -338,7 +357,11 @@ def build_intraday_watchlist(report, *, limit: int = MAX_WATCHLIST) -> IntradayW
         event = earn_map.get(stock.nse_symbol.upper())
         checklist = _build_checklist(stock, metrics, event, tailwind)
 
-        if checklist.passed < 3 or not checklist.atr_ok:
+        if checklist.passed < min_passed or not checklist.atr_ok:
+            continue
+        if require_macd and not checklist.rsi_macd_ok:
+            continue
+        if require_tailwind and not tailwind:
             continue
 
         support = metrics.get("support") or getattr(stock, "support_20d", None)
@@ -364,6 +387,10 @@ def build_intraday_watchlist(report, *, limit: int = MAX_WATCHLIST) -> IntradayW
         )
         if stock.intraday and stock.intraday.action in ("STRONG BUY", "BUY"):
             prep_score += 8
+        if prep_score < min_prep:
+            continue
+        if (metrics.get("atr_pct") or 0) < min_atr:
+            continue
 
         news_note, _ = _news_note(event)
         pick = IntradayWatchlistPick(

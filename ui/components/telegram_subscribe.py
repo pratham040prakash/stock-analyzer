@@ -89,11 +89,17 @@ def render_telegram_subscribe_sidebar() -> None:
             value=sub.alerts_sip,
             key="tg_pref_sip",
         )
+        intraday = st.checkbox(
+            "MIS session (9:15 open · 3:20 square-off)",
+            value=sub.alerts_intraday,
+            key="tg_pref_intraday",
+        )
         if (
             morning != sub.alerts_morning
             or eod != sub.alerts_eod
             or pulse != sub.alerts_pulse
             or sip != sub.alerts_sip
+            or intraday != sub.alerts_intraday
         ):
             update_alert_preferences(
                 token,
@@ -101,6 +107,7 @@ def render_telegram_subscribe_sidebar() -> None:
                 alerts_eod=eod,
                 alerts_pulse=pulse,
                 alerts_sip=sip,
+                alerts_intraday=intraday,
             )
 
         if st.button("Send test message", key="tg_test"):

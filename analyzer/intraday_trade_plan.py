@@ -9,8 +9,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-DEFAULT_MAX_RISK_PCT = 1.0
+from analyzer.trade_ladder import build_equity_ladder, ladder_exit_rules
+
 MIN_RISK_REWARD = 1.5
+DEFAULT_MAX_RISK_PCT = 1.0
 PARTIAL_EXIT_FRACTION = 0.5
 MAX_STOP_PCT_WITHOUT_ACCOUNT = 2.5  # skip if stop wider than this without capital input
 
@@ -112,12 +114,9 @@ def build_intraday_trade_plan(
     else:
         entry_rules.append(f"Reward/risk **{rr:.1f}×** — below {MIN_RISK_REWARD}×; prefer wider target or tighter stop.")
 
-    exit_rules = [
-        f"**Stop loss (100% exit):** ₹{stop_loss:,.2f} — if hit, exit fully; being wrong is part of trading.",
-        f"**Profit target:** ₹{target:,.2f} — book **{int(PARTIAL_EXIT_FRACTION * 100)}%** at target.",
-        f"**Trail remainder:** move stop to **breakeven ₹{entry:,.2f}** after partial exit.",
-        "**Time exit:** square off all MIS qty before **3:20 PM IST** regardless of P&L.",
-    ]
+    exit_rules = ladder_exit_rules(
+        build_equity_ladder(side, entry, stop_loss, target),
+    )
 
     can_enter = True
     skip_reason = None
@@ -182,6 +181,6 @@ def build_intraday_trade_plan(
 def discipline_intro() -> str:
     return (
         "**Exits before entries:** know your stop and target before you buy or sell. "
-        "At target, book partial profit and move the stop to breakeven on the rest. "
+        "At T1/T2/T3 book **40% / 30% / 30%** and ratchet stop (breakeven → T1 → T2). "
         "Skip the trade if the stop is too wide for your risk budget."
     )

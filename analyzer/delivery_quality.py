@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import csv
+import io
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -10,7 +12,7 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 
 from analyzer.cache_utils import cached_compute
-from analyzer.nse_session import is_nse_available, nse_fetch_json
+from analyzer.nse_session import is_nse_available, nse_fetch_json, nse_fetch_text
 
 IST = ZoneInfo("Asia/Kolkata")
 DELIVERY_CACHE_TTL = 21_600  # 6h — EOD delivery updates once daily
@@ -51,23 +53,51 @@ def fetch_nse_delivery_trade_info(nse_symbol: str) -> dict | None:
     return data.get("securityWiseDP") or data
 
 
+def _parse_delivery_csv(text: str) -> list[dict]:
+    """Parse NSE generateSecurityWiseHistoricalData CSV into row dicts."""
+    raw = (text or "").lstrip("\ufeff").strip()
+    if not raw:
+        return []
+    reader = csv.DictReader(io.StringIO(raw))
+    rows: list[dict] = []
+    for row in reader:
+        cleaned = {str(k).strip(): str(v).strip() for k, v in row.items() if k}
+        pct_raw = (
+            cleaned.get("% Dly Qt to Traded Qty")
+            or cleaned.get("deliveryToTradedQuantity")
+            or cleaned.get("COP_DELIV_PERC")
+            or ""
+        )
+        pct_raw = pct_raw.replace("%", "").replace(",", "")
+        try:
+            pct = float(pct_raw) if pct_raw else None
+        except ValueError:
+            pct = None
+        rows.append({
+            "Date": cleaned.get("Date", ""),
+            "DELIV_PER": pct,
+            "deliveryToTradedQuantity": pct,
+            "DELIV_QTY": cleaned.get("Deliverable Qty") or cleaned.get("COP_DELIV_QTY"),
+        })
+    return rows
+
+
 def fetch_delivery_history(nse_symbol: str, days: int = 15) -> list[dict]:
-    """Historical delivery rows (best-effort)."""
+    """Historical delivery rows via NSE generateSecurityWiseHistoricalData."""
     if not is_nse_available():
         return []
     sym = nse_symbol.upper().replace(".NS", "").replace(".BO", "")
     end = datetime.now(IST).date()
     start = end - timedelta(days=max(days, 5) + 10)
     path = (
-        f"historicalOR/delivery/volume?symbol={sym}&series=EQ"
-        f"&from={start.strftime('%d-%m-%Y')}&to={end.strftime('%d-%m-%Y')}"
+        "historicalOR/generateSecurityWiseHistoricalData?"
+        f"from={start.strftime('%d-%m-%Y')}&to={end.strftime('%d-%m-%Y')}"
+        f"&symbol={sym}&type=priceVolumeDeliverable&series=EQ&csv=false"
     )
-    payload = nse_fetch_json(path)
-    if not payload:
+    text = nse_fetch_text(path)
+    if not text:
         return []
-    rows = payload if isinstance(payload, list) else payload.get("data", [])
-    if not isinstance(rows, list):
-        return []
+    rows = _parse_delivery_csv(text)
     return rows[-days:]
 
 

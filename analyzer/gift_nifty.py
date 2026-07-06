@@ -88,3 +88,12 @@ def fetch_gift_nifty_cue() -> MacroQuote | None:
             fut.name = "Gift Nifty proxy (Nifty Fut)"
         return fut
     return _nifty_gap_from_yahoo()
+
+
+def format_gift_nifty_telegram_line() -> str:
+    """One-line gap cue for Telegram prep / open reminders."""
+    cue = fetch_gift_nifty_cue()
+    if not cue:
+        return "_Gap cue unavailable — check Global Markets._"
+    chg = f"{cue.change_1d_pct:+.2f}%" if cue.change_1d_pct is not None else "—"
+    return f"*Gap cue:* {cue.name} · **{chg}** · ₹{cue.price:,.0f}"

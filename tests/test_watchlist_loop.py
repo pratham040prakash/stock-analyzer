@@ -8,10 +8,12 @@ from unittest.mock import patch
 from analyzer.watchlist_eod import score_session_plan
 from analyzer.watchlist_plan_tracker import assess_live_plan
 from analyzer.watchlist_pins import (
+    TOP_TOMORROW_PICKS,
     clear_pins,
     is_pinned,
     load_pinned_plans,
     pin_pick,
+    sync_auto_top_picks,
     toggle_pin,
     unpin_pick,
 )
@@ -52,11 +54,30 @@ class TestWatchlistPins(unittest.TestCase):
         pinned, _ = toggle_pin("TCS", entry=4000, stop_loss=3950, target=4100)
         self.assertFalse(pinned)
 
+    def test_sync_auto_top_picks(self):
+        class _Pick:
+            def __init__(self, sym, entry, stop, target):
+                self.nse_symbol = sym
+                self.entry = entry
+                self.stop_loss = stop
+                self.target = target
+
+        picks = [
+            _Pick("RELIANCE", 2850, 2820, 2920),
+            _Pick("TCS", 4000, 3950, 4100),
+            _Pick("INFY", 1800, 1780, 1850),
+        ]
+        synced = sync_auto_top_picks(picks, limit=TOP_TOMORROW_PICKS)
+        self.assertEqual(len(synced), 3)
+        self.assertTrue(is_pinned("RELIANCE"))
+        raw = self.path.read_text(encoding="utf-8")
+        self.assertIn('"auto": true', raw)
+
 
 class TestLivePlan(unittest.TestCase):
     def test_near_target(self):
         s = assess_live_plan(2918, entry=2850, stop_loss=2820, target=2920, symbol="REL")
-        self.assertIn(s.label, ("Near target", "At/above target"))
+        self.assertIn(s.label, ("Near T1", "Near target", "At/above target", "T1 hit — book 40%"))
 
     def test_below_entry(self):
         s = assess_live_plan(2835, entry=2850, stop_loss=2820, target=2920, symbol="REL")

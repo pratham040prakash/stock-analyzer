@@ -19,8 +19,8 @@ class TestIntradayTradePlan(unittest.TestCase):
         self.assertTrue(plan.can_enter)
         self.assertEqual(plan.risk_reward_ratio, 1.5)
         self.assertEqual(plan.suggested_shares, 50)
-        self.assertTrue(any("50%" in r or "50" in r for r in plan.exit_rules))
-        self.assertTrue(any("breakeven" in r.lower() for r in plan.exit_rules))
+        self.assertTrue(any("T1" in r for r in plan.exit_rules))
+        self.assertTrue(any("breakeven" in r.lower() or "40%" in r for r in plan.exit_rules))
 
     def test_skip_when_rr_too_low(self):
         plan = build_intraday_trade_plan(

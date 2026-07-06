@@ -4,13 +4,8 @@ from __future__ import annotations
 
 import sqlite3
 from dataclasses import dataclass
-from datetime import datetime
-from zoneinfo import ZoneInfo
 
 from analyzer.suggestion_journal import journal_db_path
-from analyzer.watchlist_pins import PinnedPlan, load_pinned_plans
-
-IST = ZoneInfo("Asia/Kolkata")
 
 
 @dataclass
@@ -60,22 +55,6 @@ def init_watchlist_outcomes() -> None:
         )
 
 
-def _session_ohlc(symbol: str, market: str = "india") -> tuple[float, float, float] | None:
-    from analyzer.providers import fetch_intraday_bars
-
-    try:
-        df, _ = fetch_intraday_bars(symbol, interval="5m", market=market)
-        if df is None or df.empty:
-            return None
-        return (
-            float(df["High"].max()),
-            float(df["Low"].min()),
-            float(df["Close"].iloc[-1]),
-        )
-    except Exception:
-        return None
-
-
 def score_session_plan(
     *,
     entry: float,
@@ -105,68 +84,10 @@ def score_pinned_plans(
     trade_date: str | None = None,
     market: str = "india",
 ) -> list[WatchlistOutcome]:
-    """Score today's pinned picks against session OHLC."""
-    init_watchlist_outcomes()
-    trade_date = trade_date or datetime.now(IST).strftime("%Y-%m-%d")
-    pins = load_pinned_plans()
-    if not pins:
-        return []
+    """Score watchlist picks for the session (all snapshot picks, incl. pinned)."""
+    from analyzer.watchlist_history import score_daily_watchlist
 
-    results: list[WatchlistOutcome] = []
-    now = datetime.now(IST).strftime("%Y-%m-%d %H:%M IST")
-
-    with _connect() as conn:
-        for p in pins:
-            oid = f"wo_{trade_date}_{p.symbol}"
-            existing = conn.execute(
-                "SELECT id FROM watchlist_outcomes WHERE id = ?", (oid,)
-            ).fetchone()
-            if existing:
-                continue
-
-            ohlc = _session_ohlc(p.symbol, market=market)
-            if not ohlc:
-                outcome, note = "no_data", "Could not fetch session candles."
-                high = low = close = None
-            else:
-                high, low, close = ohlc
-                outcome, note = score_session_plan(
-                    entry=p.entry,
-                    stop_loss=p.stop_loss,
-                    target=p.target,
-                    session_high=high,
-                    session_low=low,
-                    session_close=close,
-                )
-
-            conn.execute(
-                """
-                INSERT OR REPLACE INTO watchlist_outcomes (
-                    id, trade_date, symbol, entry, stop_loss, target,
-                    session_high, session_low, session_close, outcome, note, scored_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    oid, trade_date, p.symbol, p.entry, p.stop_loss, p.target,
-                    high, low, close, outcome, note, now,
-                ),
-            )
-            results.append(
-                WatchlistOutcome(
-                    trade_date=trade_date,
-                    symbol=p.symbol,
-                    entry=p.entry,
-                    stop_loss=p.stop_loss,
-                    target=p.target,
-                    session_high=high,
-                    session_low=low,
-                    session_close=close,
-                    outcome=outcome,
-                    note=note,
-                    scored_at=now,
-                )
-            )
-    return results
+    return score_daily_watchlist(trade_date=trade_date, market=market)
 
 
 def fetch_watchlist_outcomes(*, limit: int = 30) -> list[WatchlistOutcome]:

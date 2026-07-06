@@ -5,6 +5,7 @@ import unittest
 from analyzer.delivery_quality import (
     DeliverySnapshot,
     _classify_quality,
+    _parse_delivery_csv,
     should_downgrade_for_delivery,
 )
 
@@ -32,6 +33,15 @@ class TestDeliveryQuality(unittest.TestCase):
         self.assertTrue(
             should_downgrade_for_delivery(snap, "short", filter_weak_delivery=True)
         )
+
+    def test_parse_delivery_csv(self):
+        sample = (
+            '"Symbol  ","Series  ","Date  ","% Dly Qt to Traded Qty  "\n'
+            '"RELIANCE","EQ","03-Jul-2026","66.10"\n'
+        )
+        rows = _parse_delivery_csv(sample)
+        self.assertEqual(len(rows), 1)
+        self.assertAlmostEqual(rows[0]["DELIV_PER"], 66.1)
 
 
 if __name__ == "__main__":

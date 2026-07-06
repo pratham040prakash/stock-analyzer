@@ -418,6 +418,25 @@ def format_affordable_leg(leg: NSEOptionLeg, spot: float) -> str:
     )
 
 
+def fetch_option_leg_ltp(
+    fno_symbol: str,
+    option_type: str,
+    strike: float,
+    *,
+    expiry: str | None = None,
+) -> float | None:
+    """Live premium for one CE/PE leg (NSE chain)."""
+    try:
+        chain = fetch_option_chain(fno_symbol, expiry=expiry)
+    except Exception:
+        return None
+    opt = option_type.upper()
+    for leg in chain.legs:
+        if leg.option_type == opt and abs(leg.strike - strike) < 0.01:
+            return leg.ltp
+    return None
+
+
 def enrich_with_nse_chain(
     action: str,
     ticker: str,

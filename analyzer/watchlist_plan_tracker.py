@@ -1,10 +1,18 @@
-"""Live LTP vs written entry/stop/target plan."""
+"""Live LTP vs written entry/stop/target plan (T1/T2/T3 ladder)."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-NEAR_PCT = 0.35  # % of price — within this band = "near" a level
+from analyzer.trade_ladder import (
+    TradeLadder,
+    assess_equity_ladder,
+    assess_options_ladder,
+    build_equity_ladder,
+    build_options_ladder,
+)
+
+NEAR_PCT = 0.35  # kept for backward-compatible imports
 
 
 @dataclass
@@ -17,12 +25,22 @@ class LivePlanStatus:
     label: str
     emoji: str
     detail: str
+    target2: float | None = None
+    target3: float | None = None
+    active_stop: float | None = None
+    ladder_stage: int = 0
+    ladder_note: str = ""
 
 
-def _near(ltp: float, level: float) -> bool:
-    if level <= 0:
-        return False
-    return abs(ltp - level) / level * 100 <= NEAR_PCT
+def equity_ladder_for_plan(
+    entry: float,
+    stop_loss: float,
+    target: float,
+    *,
+    side: str = "LONG",
+    pivot_r2: float | None = None,
+) -> TradeLadder:
+    return build_equity_ladder(side, entry, stop_loss, target, pivot_r2=pivot_r2)
 
 
 def assess_live_plan(
@@ -32,51 +50,59 @@ def assess_live_plan(
     stop_loss: float,
     target: float,
     symbol: str = "",
+    side: str = "LONG",
+    pivot_r2: float | None = None,
 ) -> LivePlanStatus:
-    """Long-biased MIS plan status vs current LTP."""
-    sym = symbol or "—"
-    if ltp is None or ltp <= 0:
-        return LivePlanStatus(
-            sym, None, entry, stop_loss, target,
-            "LTP unavailable", "⚪", "Refresh or connect Kite for live price.",
-        )
-
-    if ltp <= stop_loss:
-        return LivePlanStatus(
-            sym, ltp, entry, stop_loss, target,
-            "At/below stop", "🔴", f"LTP ₹{ltp:,.2f} — stop ₹{stop_loss:,.2f}. Do not add.",
-        )
-    if _near(ltp, stop_loss):
-        return LivePlanStatus(
-            sym, ltp, entry, stop_loss, target,
-            "Near stop", "🟠", f"LTP ₹{ltp:,.2f} approaching stop ₹{stop_loss:,.2f}.",
-        )
-    if ltp >= target:
-        return LivePlanStatus(
-            sym, ltp, entry, stop_loss, target,
-            "At/above target", "🟢", f"LTP ₹{ltp:,.2f} — target ₹{target:,.2f}. Book per plan.",
-        )
-    if _near(ltp, target):
-        return LivePlanStatus(
-            sym, ltp, entry, stop_loss, target,
-            "Near target", "🟢", f"LTP ₹{ltp:,.2f} approaching target ₹{target:,.2f}.",
-        )
-    if ltp < entry:
-        if _near(ltp, entry):
-            return LivePlanStatus(
-                sym, ltp, entry, stop_loss, target,
-                "Near entry", "🟡", f"LTP ₹{ltp:,.2f} — watch for entry ₹{entry:,.2f}.",
-            )
-        return LivePlanStatus(
-            sym, ltp, entry, stop_loss, target,
-            "Below entry", "⚪", f"Wait — LTP ₹{ltp:,.2f} below entry ₹{entry:,.2f}.",
-        )
-    if _near(ltp, entry):
-        return LivePlanStatus(
-            sym, ltp, entry, stop_loss, target,
-            "At entry", "🟡", f"LTP ₹{ltp:,.2f} at entry zone ₹{entry:,.2f}.",
-        )
+    """Long-biased MIS plan status vs current LTP with T1/T2/T3 ladder."""
+    ladder = build_equity_ladder(side, entry, stop_loss, target, pivot_r2=pivot_r2)
+    status = assess_equity_ladder(ltp, ladder, symbol=symbol)
     return LivePlanStatus(
-        sym, ltp, entry, stop_loss, target,
-        "In trade zone", "🔵", f"LTP ₹{ltp:,.2f} between entry ₹{entry:,.2f} and target ₹{target:,.2f}.",
+        symbol=status.symbol,
+        ltp=status.ltp,
+        entry=entry,
+        stop_loss=stop_loss,
+        target=target,
+        label=status.label,
+        emoji=status.emoji,
+        detail=status.detail,
+        target2=ladder.target2,
+        target3=ladder.target3,
+        active_stop=status.active_stop,
+        ladder_stage=status.stage,
+        ladder_note=status.ladder_note,
+    )
+
+
+def assess_options_live_plan(
+    premium: float | None,
+    *,
+    entry: float,
+    stop_loss: float,
+    target: float,
+    label: str = "",
+) -> LivePlanStatus:
+    if entry > 0 and target > entry:
+        mults = (
+            target / entry,
+            max(target / entry + 0.5, 2.0),
+            max(target / entry + 1.0, 2.5),
+        )
+        ladder = build_options_ladder(entry, target_mults=mults)
+    else:
+        ladder = build_options_ladder(entry)
+    status = assess_options_ladder(premium, ladder, label=label)
+    return LivePlanStatus(
+        symbol=label,
+        ltp=premium,
+        entry=entry,
+        stop_loss=stop_loss,
+        target=target,
+        label=status.label,
+        emoji=status.emoji,
+        detail=status.detail,
+        target2=ladder.target2,
+        target3=ladder.target3,
+        active_stop=status.active_stop,
+        ladder_stage=status.stage,
+        ladder_note=status.ladder_note,
     )

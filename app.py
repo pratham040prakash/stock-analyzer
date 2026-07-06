@@ -51,7 +51,7 @@ def _maybe_validate_suggestions_eod() -> None:
     if st.session_state.get("_suggestions_validated_session"):
         return
     session = market_session_status()
-    if session.get("market_open"):
+    if session.get("is_open"):
         return
     try:
         from analyzer.suggestion_journal import count_pending_validation
@@ -66,6 +66,63 @@ def _maybe_validate_suggestions_eod() -> None:
         pass
 
 
+def _maybe_score_watchlist_eod() -> None:
+    """After close, auto-score today's full watchlist snapshot once per session."""
+    if st.session_state.get("_watchlist_scored_session"):
+        return
+    session = market_session_status()
+    if session.get("is_open"):
+        return
+    try:
+        from analyzer.watchlist_history import prune_old_watchlist_data
+        from analyzer.watchlist_learning import run_watchlist_learning_cycle
+
+        run_watchlist_learning_cycle()
+        prune_old_watchlist_data()
+        try:
+            from analyzer.options_watchlist_history import prune_old_options_data
+
+            prune_old_options_data()
+        except Exception:
+            pass
+        try:
+            from analyzer.mis_eod_summary import maybe_send_mis_eod_summary
+
+            maybe_send_mis_eod_summary()
+        except Exception:
+            pass
+        st.session_state["_watchlist_scored_session"] = True
+    except Exception:
+        pass
+
+
+def _maybe_session_reminders() -> None:
+    try:
+        from analyzer.session_reminders import maybe_send_session_reminders
+
+        maybe_send_session_reminders()
+    except Exception:
+        pass
+
+
+def _maybe_prep_morning_nag() -> None:
+    try:
+        from analyzer.prep_morning_nag import maybe_send_prep_morning_nag
+
+        maybe_send_prep_morning_nag()
+    except Exception:
+        pass
+
+
+def _maybe_watchlist_live_alerts() -> None:
+    try:
+        from analyzer.watchlist_live_alerts import maybe_send_watchlist_live_alerts
+
+        maybe_send_watchlist_live_alerts()
+    except Exception:
+        pass
+
+
 def main() -> None:
     load_app_env()
     st.set_page_config(page_title="Stock Analyzer", page_icon="📈", layout="wide")
@@ -75,7 +132,11 @@ def main() -> None:
 
     start_kite_ticker_on_app_start()
     _hydrate_saved_portfolio()
+    _maybe_prep_morning_nag()
+    _maybe_session_reminders()
+    _maybe_watchlist_live_alerts()
     _maybe_validate_suggestions_eod()
+    _maybe_score_watchlist_eod()
 
     with st.sidebar:
         st.header("Market")
@@ -136,7 +197,11 @@ def main() -> None:
                         st.success(msg)
                     else:
                         st.error(msg)
-        st.caption("Schedule: `bash scripts/install_morning_schedule.sh` (8:30 AM)")
+        st.caption("All schedules: `bash scripts/install_all_schedules.sh`")
+        st.caption(
+            "· Morning 8:30 · Prep nag 8:45 · Nightly 9:00 · Auto-pick 9:10 · "
+            "Open 9:15 / square-off 3:15–3:20 · Live alerts 5m · EOD 3:35 PM"
+        )
 
         if is_india_market(market):
             st.divider()

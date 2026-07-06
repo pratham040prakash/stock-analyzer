@@ -54,6 +54,7 @@ class TelegramSubscriber:
     alerts_eod: bool = True
     alerts_pulse: bool = False
     alerts_sip: bool = False
+    alerts_intraday: bool = True
     active: bool = True
 
 
@@ -96,6 +97,10 @@ def _migrate_subscriptions(conn: sqlite3.Connection) -> None:
         conn.execute(
             "ALTER TABLE telegram_subscribers ADD COLUMN alerts_sip INTEGER DEFAULT 0"
         )
+    if "alerts_intraday" not in cols:
+        conn.execute(
+            "ALTER TABLE telegram_subscribers ADD COLUMN alerts_intraday INTEGER DEFAULT 1"
+        )
 
 
 def _row_to_subscriber(row: sqlite3.Row) -> TelegramSubscriber:
@@ -109,6 +114,7 @@ def _row_to_subscriber(row: sqlite3.Row) -> TelegramSubscriber:
         alerts_eod=bool(row["alerts_eod"]),
         alerts_pulse=bool(row["alerts_pulse"]),
         alerts_sip=bool(row["alerts_sip"]) if "alerts_sip" in row.keys() else False,
+        alerts_intraday=bool(row["alerts_intraday"]) if "alerts_intraday" in row.keys() else True,
         active=bool(row["active"]),
     )
 
@@ -194,6 +200,7 @@ def list_active_subscribers(alert_type: str | None = None) -> list[TelegramSubsc
                 alerts_eod=True,
                 alerts_pulse=True,
                 alerts_sip=True,
+                alerts_intraday=True,
                 active=True,
             )
         )
@@ -206,6 +213,8 @@ def list_active_subscribers(alert_type: str | None = None) -> list[TelegramSubsc
         return [s for s in subs if s.alerts_pulse]
     if alert_type == "sip":
         return [s for s in subs if s.alerts_sip]
+    if alert_type == "intraday":
+        return [s for s in subs if s.alerts_intraday]
     return subs
 
 
@@ -220,6 +229,7 @@ def update_alert_preferences(
     alerts_eod: bool | None = None,
     alerts_pulse: bool | None = None,
     alerts_sip: bool | None = None,
+    alerts_intraday: bool | None = None,
 ) -> bool:
     init_subscriptions_db()
     fields: list[str] = []
@@ -236,6 +246,9 @@ def update_alert_preferences(
     if alerts_sip is not None:
         fields.append("alerts_sip = ?")
         values.append(int(alerts_sip))
+    if alerts_intraday is not None:
+        fields.append("alerts_intraday = ?")
+        values.append(int(alerts_intraday))
     if not fields:
         return False
     values.append(subscribe_token)

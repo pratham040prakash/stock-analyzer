@@ -21,13 +21,37 @@ Open http://127.0.0.1:8501 — sidebar **India (Auto)**.
 | **Daily Advisor** | Holdings briefing + swing/long ideas |
 | **Global Markets** | World indices → Nifty bias (30s refresh) |
 | **Single Stock** | TA + fundamentals + position sizing |
-| **Intraday** | 5m chart + candle stories (30s); **Kite live** when configured |
+| **Intraday** | MIS workflow — **Prep all**, top 5 equity, Nifty/Bank Nifty CE/PE, track record, learning |
 | **Live Charts** | All Nifty stocks — 1m narratives + buy/sell grid (60s) |
 | **NSE Options** | Live CE/PE chain, PCR, max pain |
 | **Watchlist** | Parallel batch scanner |
 | **Zerodha Portfolio** | Holdings + **portfolio risk** (β, sectors, concentration) |
-| **Backtest** | Long-only strategy vs buy-hold and Nifty |
+| **Backtest** | Long-only strategy vs buy-hold and Nifty; options premium history (experimental) |
 | **Varsity TA** | 22 cached Zerodha chapters |
+
+## Intraday MIS workflow
+
+1. **Intraday** tab → **Prep all tonight** (Quick scan + CE/PE + Telegram in one click)
+2. Or step-by-step: **Quick scan** → **Load CE/PE** → **Send MIS prep to Telegram**
+3. Bedtime **prep checklist**: equity ✓ · options ✓ · telegram ✓ · **2 trades** ✓ · MIS checklist
+4. **9:15** / **3:15** / **3:20** Telegram session reminders (if subscribed)
+5. After close → **EOD summary** Telegram (~3:35 PM) + **Score watchlist** in app
+6. **Scheduled jobs** (macOS, system time = IST):
+
+```bash
+bash scripts/install_all_schedules.sh        # one-shot: all jobs below
+bash scripts/install_nightly_schedule.sh   # 9:00 PM — Prep all + Telegram
+bash scripts/install_trade_selection_auto.sh  # 9:10 PM — auto-pick top 2 if not starred
+bash scripts/install_prep_morning_nag.sh   # 8:45 AM — nag if prep incomplete
+bash scripts/install_session_reminders.sh  # 9:15 / 3:15 / 3:20 — open & square-off
+bash scripts/install_live_alerts_schedule.sh  # every 5m — entry/stop/target on your 2
+bash scripts/install_eod_schedule.sh       # 3:35 PM — MIS EOD summary
+bash scripts/install_morning_schedule.sh   # 8:30 AM — morning briefing
+```
+
+Learning tightens screening when stops dominate; it **does not guarantee 100% wins**.
+
+**Position sizing:** Top 5 table shows **Shares** and **Risk ₹** using **per-trade budget** (MIS pool ÷ 2) capped by your risk %. Telegram prep includes share counts. **Star 2** names on Intraday so reminders, live alerts & EOD focus on those only.
 
 ## Configuration (`.env`)
 

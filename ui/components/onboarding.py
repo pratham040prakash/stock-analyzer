@@ -16,7 +16,7 @@ def _step_done(done: bool) -> str:
 
 
 def render_start_here_onboarding(market: str, *, force_show: bool = False) -> None:
-    """4-step guide: Kite → Quick scan → Pick 3 → Morning checklist."""
+    """4-step guide: Kite → Quick scan → Top 5 → Morning checklist."""
     if not force_show and is_onboarding_dismissed():
         return
 
@@ -53,8 +53,8 @@ def render_start_here_onboarding(market: str, *, force_show: bool = False) -> No
                 request_nav_tab("Intraday", intraday_focus_watchlist=True)
 
         st.markdown(
-            f"{_step_done(picks_ok)} **3. Pin 2–3 names** — "
-            "Tap **Pin ⭐** on watchlist cards — locks Entry · Stop · Target for tomorrow."
+            f"{_step_done(picks_ok)} **3. Review top 5 picks** — "
+            "After **Quick scan**, the app auto-selects **5 names** with Entry · Stop · Target."
         )
         if scan_ok:
             if st.button("Open watchlist", key="onboard_watchlist"):

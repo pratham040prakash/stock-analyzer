@@ -12,7 +12,47 @@ from analyzer.markets import format_price, is_india_market
 from ui.charts import equity_chart
 
 
+def _render_options_premium_backtest_section() -> None:
+    from analyzer.options_backtest import run_options_premium_proxy_backtest
+
+    with st.expander("📅 Options premium track record (experimental)", expanded=False):
+        st.caption(
+            "Win rate on **★ signal-aligned** CE/PE picks from your watchlist history "
+            "(scored via Kite or NSE premium OHLC). Not a full options walk-forward."
+        )
+        if st.button("Run options history backtest", key="opt_bt_run"):
+            with st.spinner("Aggregating scored options outcomes…"):
+                report = run_options_premium_proxy_backtest([])
+            if not report.rows:
+                st.info("No scored ★ options picks yet — load CE/PE nightly and score after close.")
+            else:
+                c1, c2, c3 = st.columns(3)
+                wr = (
+                    f"{report.win_rate_pct:.0f}%"
+                    if report.win_rate_pct is not None
+                    else "—"
+                )
+                c1.metric("★ contracts scored", len(report.rows))
+                c2.metric("Premium targets", report.wins)
+                c3.metric("Win rate", wr)
+                st.caption(report.disclaimer)
+                rows = [
+                    {
+                        "Date": r.trade_date,
+                        "Contract": f"{r.fno_symbol} {r.option_type}",
+                        "Entry": f"₹{r.entry_premium:.2f}",
+                        "Target": f"₹{r.target_premium:.2f}",
+                        "Outcome": r.outcome,
+                    }
+                    for r in report.rows
+                ]
+                st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+
 def render_backtest(market: str, period: str) -> None:
+    if is_india_market(market):
+        _render_options_premium_backtest_section()
+
     default = "RELIANCE" if is_india_market(market) else "AAPL"
     if "bt_ticker" not in st.session_state:
         st.session_state["bt_ticker"] = default
