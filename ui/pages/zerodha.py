@@ -27,7 +27,6 @@ from analyzer.zerodha import (
     parse_holdings_csv,
     parse_kite_symbol_list,
 )
-from ui.components.kite_auth import handle_kite_redirect
 from ui.components.kite_connect import render_kite_connect
 from ui.navigation import request_nav_tab
 
@@ -58,8 +57,6 @@ def render_zerodha(period: str) -> None:
     saved = load_saved_portfolio(profile=prof)
     if saved and not st.session_state.get("zd_import"):
         st.session_state["zd_import"] = saved
-
-    handle_kite_redirect()
 
     mode = st.radio(
         "How to add holdings",

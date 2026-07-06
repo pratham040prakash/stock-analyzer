@@ -55,6 +55,11 @@ def render_kite_connect(*, compact: bool = False, key_prefix: str = "kite") -> b
                     clear_kite_status_caches()
                     st.success("Saved to `.env` — now click **Login with Zerodha** below.")
                     st.rerun()
+        existing = load_env_credentials()
+        if existing.get("api_key"):
+            hint = existing["api_key"]
+            masked = f"{hint[:4]}…{hint[-4:]}" if len(hint) > 8 else "(saved)"
+            st.caption(f"API key on file: **{masked}** — must match the app at developers.kite.trade")
         return False
 
     login_url = get_kite_login_url(creds["api_key"])

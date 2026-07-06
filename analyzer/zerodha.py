@@ -177,19 +177,24 @@ def _env_path() -> Path:
     return Path(__file__).resolve().parent.parent / ".env"
 
 
+def _normalize_credential(value: str) -> str:
+    """Strip whitespace and optional quotes from .env / form values."""
+    return value.strip().strip('"').strip("'").strip()
+
+
 def load_env_credentials() -> dict[str, str]:
     """Load Zerodha API credentials from environment or .env file."""
     try:
         from dotenv import load_dotenv
 
-        load_dotenv(_env_path())
+        load_dotenv(_env_path(), override=True)
     except ImportError:
         pass
 
     return {
-        "api_key": os.getenv("ZERODHA_API_KEY", ""),
-        "api_secret": os.getenv("ZERODHA_API_SECRET", ""),
-        "access_token": os.getenv("ZERODHA_ACCESS_TOKEN", ""),
+        "api_key": _normalize_credential(os.getenv("ZERODHA_API_KEY", "")),
+        "api_secret": _normalize_credential(os.getenv("ZERODHA_API_SECRET", "")),
+        "access_token": _normalize_credential(os.getenv("ZERODHA_ACCESS_TOKEN", "")),
     }
 
 
@@ -204,10 +209,13 @@ def save_zerodha_api_credentials_to_env(
     api_secret: str | None = None,
 ) -> None:
     """Persist API key/secret to .env (one-time Kite Connect app setup)."""
+    from analyzer.env_loader import reload_app_env
+
     if api_key is not None:
-        _save_env_value("ZERODHA_API_KEY", api_key.strip())
+        _save_env_value("ZERODHA_API_KEY", _normalize_credential(api_key))
     if api_secret is not None:
-        _save_env_value("ZERODHA_API_SECRET", api_secret.strip())
+        _save_env_value("ZERODHA_API_SECRET", _normalize_credential(api_secret))
+    reload_app_env()
 
 
 def _save_env_value(key: str, value: str) -> None:
@@ -239,6 +247,12 @@ def exchange_request_token(api_key: str, api_secret: str, request_token: str) ->
         from kiteconnect import KiteConnect
     except ImportError as exc:
         raise ImportError("Install kiteconnect: pip install kiteconnect") from exc
+
+    api_key = _normalize_credential(api_key)
+    api_secret = _normalize_credential(api_secret)
+    request_token = _normalize_credential(request_token)
+    if not api_key or not api_secret or not request_token:
+        raise ValueError("API key, secret, and request token are all required.")
 
     kite = KiteConnect(api_key=api_key)
     data = kite.generate_session(request_token, api_secret=api_secret)

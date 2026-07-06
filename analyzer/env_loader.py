@@ -11,6 +11,16 @@ import requests
 _ENV_LOADED = False
 
 
+def reload_app_env() -> None:
+    """Re-read `.env` into os.environ (after UI saves credentials)."""
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv(env_path(), override=True)
+    except ImportError:
+        pass
+
+
 def env_path() -> Path:
     return Path(__file__).resolve().parent.parent / ".env"
 

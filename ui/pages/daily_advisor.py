@@ -20,7 +20,6 @@ from analyzer.zerodha import (
     parse_holdings_csv,
     zerodha_setup_help,
 )
-from ui.components.kite_auth import handle_kite_redirect
 from ui.navigation import request_nav_tab
 
 
@@ -139,8 +138,6 @@ def render_daily_advisor(period: str) -> None:
         saved = load_saved_portfolio(profile=portfolio_profile_key())
         if saved:
             st.session_state["zd_import"] = saved
-
-    handle_kite_redirect()
 
     c1, c2, c3 = st.columns(3)
 
