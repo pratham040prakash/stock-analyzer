@@ -9,6 +9,8 @@ from analyzer.symbol_track_record import symbol_rolling_stats
 def format_pick_why(p: IntradayWatchlistPick) -> str:
     """Compact reason string for table column."""
     parts: list[str] = []
+    if p.confidence_pct is not None:
+        parts.append(f"Conf {p.confidence_pct:.0f}%")
     if p.atr_pct is not None:
         parts.append(f"ATR {p.atr_pct:.1f}%")
     if p.volume_ratio is not None:

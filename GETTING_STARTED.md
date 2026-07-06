@@ -62,3 +62,13 @@ Re-login sidebar → Zerodha. Token resets ~6 AM IST daily.
 3. Redirect URL `http://127.0.0.1:8501` — add API key/secret to `.env`
 4. Sidebar → Login with Zerodha
 5. **📡 Data health** should show Kite: **ok** and intraday source **Kite**
+
+## Suggestion intelligence (6-month patterns)
+
+Once after setup (and optionally monthly):
+
+- **Track Record** → **6mo pattern research**, or  
+- `python scripts/strategy_research.py`
+
+This mines Nifty 50 daily + session patterns and updates live pick ranking weights.  
+Quick scan then shows **Conf.** % on each suggestion. Daily journal learning still runs after close.

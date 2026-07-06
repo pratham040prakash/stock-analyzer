@@ -379,6 +379,7 @@ def render_intraday_watchlist_section(
             "RSI": f"{p.rsi:.0f}" if p.rsi else "—",
             "Checks": checks,
             "Why": format_pick_why(p),
+            "Conf.": f"{p.confidence_pct:.0f}%" if p.confidence_pct is not None else "—",
             "30d hit rate": format_pick_history(p),
             "Entry": f"₹{p.entry:,.0f}",
             "Stop (start)": f"₹{ladder.initial_stop:,.0f}",

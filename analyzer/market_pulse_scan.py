@@ -288,6 +288,7 @@ def scan_stock(
     *,
     charts: bool = True,
     skip_intraday: bool | None = None,
+    prior_session_intraday: bool = False,
     nifty_daily_df: pd.DataFrame | None = None,
 ) -> StockPulseEntry:
     nse = symbol.replace(".NS", "").replace(".BO", "")
@@ -315,7 +316,7 @@ def scan_stock(
         intraday_verdict = None
         intraday_df = None
         if skip_intraday is None:
-            skip_intraday = not market_session_status().get("is_open")
+            skip_intraday = not market_session_status().get("is_open") and not prior_session_intraday
 
         if not skip_intraday:
             try:
@@ -520,6 +521,8 @@ def _scan_all_stocks(
     period: str,
     market: str,
     nifty_daily_df: pd.DataFrame | None = None,
+    *,
+    prior_session_intraday: bool = False,
 ) -> list[StockPulseEntry]:
     kite_syms = [f"NSE:{s}-EQ" for s in universe]
     kite_ltp = get_kite_ltp_cached(kite_syms)
@@ -539,7 +542,8 @@ def _scan_all_stocks(
                     market,
                     kite_ltp,
                     charts=full_charts,
-                    skip_intraday=not market_open,
+                    skip_intraday=not market_open and not prior_session_intraday,
+                    prior_session_intraday=prior_session_intraday,
                     nifty_daily_df=nifty_daily_df,
                 )
             )
@@ -578,6 +582,7 @@ def run_market_pulse_scan(
     include_index_options: bool = False,
     skip_earnings_week: bool = True,
     filter_weak_delivery: bool = True,
+    prior_session_intraday: bool = False,
 ) -> MarketPulseReport:
     from analyzer.pulse_cache import load_pulse_cache_with_stale, save_pulse_cache
 
@@ -602,7 +607,12 @@ def run_market_pulse_scan(
         f_macro = pool.submit(build_india_macro_snapshot)
         f_indices = pool.submit(india_market_pulse, period)
         f_stocks = pool.submit(
-            _scan_all_stocks, MARKET_PULSE_SCAN_UNIVERSE, period, market, nifty_daily_df,
+            _scan_all_stocks,
+            MARKET_PULSE_SCAN_UNIVERSE,
+            period,
+            market,
+            nifty_daily_df,
+            prior_session_intraday=prior_session_intraday,
         )
         f_earnings = pool.submit(fetch_nifty50_earnings, MARKET_PULSE_SCAN_UNIVERSE, market)
         f_delivery = pool.submit(fetch_delivery_batch, MARKET_PULSE_SCAN_UNIVERSE)

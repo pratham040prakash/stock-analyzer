@@ -38,4 +38,6 @@ def run_quick_watchlist_scan(
     use_cache: bool = True,
 ):
     """Full Nifty 50 scan for intraday watchlist (1–2 min without cache)."""
-    return run_market_pulse_scan(period, market, use_cache=use_cache)
+    return run_market_pulse_scan(
+        period, market, use_cache=use_cache, prior_session_intraday=True,
+    )

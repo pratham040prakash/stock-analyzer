@@ -380,11 +380,23 @@ def render_watchlist_learning_panel() -> None:
     g4.metric("Max picks", gates["max_watchlist"])
     g5.metric("RSI+MACD", "Yes" if gates["require_rsi_macd"] else "No")
 
+    weights = gates.get("feature_weights") or {}
+    baseline = gates.get("baseline_hit_rate")
+    if weights:
+        st.caption(
+            f"**Suggestion intelligence** · baseline hit **{float(baseline or 0.52) * 100:.0f}%** "
+            f"· research v{gates.get('research_version', 0)} "
+            f"({gates.get('research_samples', 0)} setups)"
+        )
+        wcols = st.columns(min(len(weights), 5))
+        for i, (k, v) in enumerate(sorted(weights.items(), key=lambda x: -x[1])[:5]):
+            wcols[i % len(wcols)].caption(f"{k}: **{float(v):.0%}**")
+
     learn = build_watchlist_learning_report()
     for line in learn.insights:
         st.markdown(f"- {line}")
 
-    b1, b2 = st.columns(2)
+    b1, b2, b3 = st.columns(3)
     with b1:
         if st.button("Run learning now", key="wl_learn_now"):
             with st.spinner("Scoring + tuning from target hits…"):
@@ -395,6 +407,22 @@ def render_watchlist_learning_panel() -> None:
                 st.info("No gate changes (need more scored picks or win rate OK).")
             st.rerun()
     with b2:
+        if st.button("6mo pattern research", key="wl_strategy_research"):
+            with st.spinner("Mining Nifty 50 patterns (6 months)…"):
+                from analyzer.strategy_research import run_strategy_research
+
+                report = run_strategy_research(period="6mo", market="india", apply=True)
+            if report.applied:
+                st.success(
+                    f"Updated weights from **{report.samples}** setups "
+                    f"({report.win_rate_pct:.0f}% simulated hit rate)."
+                )
+            else:
+                st.info(report.insights[0] if report.insights else "Research complete.")
+            for line in report.insights[1:4]:
+                st.caption(line)
+            st.rerun()
+    with b3:
         if st.button("Reset strategy defaults", key="wl_reset_strategy"):
             reset_watchlist_strategy()
             st.success("Watchlist gates reset.")

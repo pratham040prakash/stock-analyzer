@@ -76,6 +76,8 @@ class IntradayWatchlistPick:
     can_enter: bool
     plan_summary: str
     side: str = "LONG"
+    confidence_pct: float | None = None
+    intelligence_score: float = 0.0
 
 
 @dataclass
@@ -469,7 +471,9 @@ def build_intraday_watchlist(report, *, limit: int | None = None) -> IntradayWat
             + (10 if tailwind else 0)
             + (stock.combined_score * 0.15 if stock.combined_score else 0)
         )
+        intraday_action = None
         if stock.intraday:
+            intraday_action = stock.intraday.action
             if bearish_day and stock.intraday.action in ("STRONG SELL", "SELL"):
                 prep_score += 8
             elif not bearish_day and stock.intraday.action in ("STRONG BUY", "BUY"):
@@ -478,6 +482,27 @@ def build_intraday_watchlist(report, *, limit: int | None = None) -> IntradayWat
             continue
         if (metrics.get("atr_pct") or 0) < min_atr:
             continue
+
+        from analyzer.suggestion_features import (
+            build_session_profile,
+            build_suggestion_features,
+            score_suggestion,
+        )
+
+        session_prof = build_session_profile(getattr(stock, "intraday_df", None))
+        feats = build_suggestion_features(
+            metrics=metrics,
+            checklist=checklist,
+            sector_tailwind=tailwind,
+            market_bias=market_bias,
+            combined_score=float(stock.combined_score or 0),
+            volume_ratio=stock.volume_ratio,
+            intraday_action=intraday_action,
+            session=session_prof,
+            prep_score_base=prep_score,
+        )
+        intel_score, confidence = score_suggestion(feats)
+        rank_score = prep_score * 0.4 + intel_score * 0.6
 
         news_note, _ = _news_note(event)
         pick = IntradayWatchlistPick(
@@ -505,8 +530,10 @@ def build_intraday_watchlist(report, *, limit: int | None = None) -> IntradayWat
             can_enter=plan.can_enter,
             plan_summary=plan.summary,
             side=side,
+            confidence_pct=confidence,
+            intelligence_score=intel_score,
         )
-        candidates.append((prep_score, pick))
+        candidates.append((rank_score, pick))
 
     candidates.sort(key=lambda x: -x[0])
     picks = []

@@ -29,6 +29,11 @@ DEFAULT_STRATEGY = {
     "require_rsi_macd": False,
     "require_sector_tailwind": False,
     "max_watchlist": 5,
+    "feature_weights": None,
+    "baseline_hit_rate": 0.52,
+    "research_version": 0,
+    "research_samples": 0,
+    "research_at": None,
 }
 
 BOUNDS = {
@@ -126,6 +131,10 @@ def get_watchlist_strategy() -> dict:
     strat["max_watchlist"] = _clamp_int(
         "max_watchlist", int(strat.get("max_watchlist", DEFAULT_STRATEGY["max_watchlist"]))
     )
+    if not strat.get("feature_weights"):
+        from analyzer.suggestion_features import DEFAULT_FEATURE_WEIGHTS
+
+        strat["feature_weights"] = dict(DEFAULT_FEATURE_WEIGHTS)
     return strat
 
 
