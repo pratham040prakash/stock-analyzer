@@ -6,6 +6,7 @@ from datetime import timedelta
 
 import streamlit as st
 
+from analyzer.data_health import build_data_health
 from analyzer.gift_nifty import fetch_gift_nifty_cue
 from analyzer.kite_status import kite_connection_status
 from analyzer.market_session import market_session_status
@@ -83,6 +84,7 @@ def _kite_summary() -> tuple[str, str]:
 
 def _render_cockpit_body(market: str) -> None:
     session = market_session_status()
+    health = build_data_health()
     stars = load_selected_symbols()
     gift_chg, gift_px = _gift_nifty_text()
     kite_main, kite_sub = _kite_summary()
@@ -90,6 +92,8 @@ def _render_cockpit_body(market: str) -> None:
     st.markdown(
         f"##### ☀️ {'Live session — your picks' if session.get('is_open') else 'Morning cockpit'}"
     )
+    if session.get("is_open") and health.warning:
+        st.warning(health.warning)
     st.caption(
         f"{session.get('status', '—')} · {session.get('time_ist', '')} · "
         f"{selection_status_line()} · {option_selection_status_line()}"

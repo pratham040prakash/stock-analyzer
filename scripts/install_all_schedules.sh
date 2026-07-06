@@ -14,6 +14,7 @@ bash "$ROOT/scripts/install_nightly_schedule.sh"
 bash "$ROOT/scripts/install_trade_selection_auto.sh"
 bash "$ROOT/scripts/install_session_reminders.sh"
 bash "$ROOT/scripts/install_live_alerts_schedule.sh"
+bash "$ROOT/scripts/install_autopilot_health.sh"
 
 echo ""
 echo "All schedules installed. Set Mac timezone to Asia/Kolkata for IST."

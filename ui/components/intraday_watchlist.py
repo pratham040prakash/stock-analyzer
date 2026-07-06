@@ -44,7 +44,7 @@ from analyzer.trade_selection import (
     toggle_selected,
 )
 from analyzer.prep_status import sync_selection_prep_step
-from analyzer.watchlist_sector import sector_concentration_warning
+from analyzer.watchlist_pick_display import format_pick_history, format_pick_why
 from ui.components.prep_all import send_combined_telegram_from_session
 
 
@@ -377,6 +377,8 @@ def render_intraday_watchlist_section(
             "Vol×": f"{p.volume_ratio:.1f}" if p.volume_ratio else "—",
             "RSI": f"{p.rsi:.0f}" if p.rsi else "—",
             "Checks": checks,
+            "Why": format_pick_why(p),
+            "30d hit rate": format_pick_history(p),
             "Entry": f"₹{p.entry:,.0f}",
             "Stop (start)": f"₹{ladder.initial_stop:,.0f}",
             "Stop@T1": f"₹{ladder.stops_after[0]:,.0f}",

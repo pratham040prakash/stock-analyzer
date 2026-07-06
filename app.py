@@ -6,14 +6,15 @@ import streamlit as st
 
 from analyzer.env_loader import load_app_env
 from analyzer.india import indian_ticker_help, search_indian_stocks
-from analyzer.kite_stream import start_kite_ticker_on_app_start, ws_subscription_status
+from analyzer.kite_stream import start_kite_ticker_on_app_start
 from analyzer.market_session import market_session_status
 from analyzer.markets import MARKETS, is_india_market
 from analyzer.app_mode import is_simple_cloud_mode
 from analyzer.portfolio_store import load_saved_portfolio, portfolio_profile_key
-from analyzer.providers import data_source_status
 from analyzer.telegram_notify import send_telegram_broadcast, telegram_configured
 from analyzer.varsity_knowledge import VARSITY_MODULE_URL
+from ui.components.setup_wizard import render_setup_wizard_sidebar
+from ui.components.data_health_panel import render_data_health_sidebar
 from ui.components.autopilot import render_autopilot_sidebar
 from ui.components.onboarding import render_sidebar_onboarding_button, render_start_here_onboarding
 from ui.components.nse import render_nse_error_banner
@@ -158,6 +159,15 @@ def _maybe_post_close_scan() -> None:
     _run_background_task("Post-close Quick scan", _run)
 
 
+def _maybe_autopilot_health_alert() -> None:
+    def _run() -> None:
+        from analyzer.autopilot_alerts import maybe_send_autopilot_failure_alert
+
+        maybe_send_autopilot_failure_alert()
+
+    _run_background_task("Autopilot health", _run)
+
+
 def main() -> None:
     load_app_env()
     st.set_page_config(page_title="Stock Analyzer", page_icon="📈", layout="wide")
@@ -177,6 +187,7 @@ def main() -> None:
     _maybe_validate_suggestions_eod()
     _maybe_score_watchlist_eod()
     _maybe_post_close_scan()
+    _maybe_autopilot_health_alert()
 
     with st.sidebar:
         st.header("Market")
@@ -223,6 +234,8 @@ def main() -> None:
                     request_nav_tab("Varsity TA")
 
         st.divider()
+        render_setup_wizard_sidebar()
+        render_data_health_sidebar()
         render_autopilot_sidebar()
         render_kite_connect_sidebar()
         render_sidebar_onboarding_button()
@@ -241,26 +254,11 @@ def main() -> None:
                     else:
                         st.error(msg)
             st.caption(
-                "Telegram: morning list + EOD hit summary · "
-                "Mac schedules: `bash scripts/install_all_schedules.sh`"
+                "Telegram: morning list + EOD hit summary · configured in **⚙️ Setup**"
             )
 
         if is_india_market(market):
-            with st.expander("Data feeds", expanded=False):
-                ds = data_source_status()
-                if ds.get("kite_live_data"):
-                    ws = ws_subscription_status()
-                    if ws["nifty50_mode"]:
-                        st.success(
-                            f"Live: **{ds['primary_intraday']}** · "
-                            f"WebSocket **Nifty 50** ({ws['subscribed_tokens']} tokens)"
-                        )
-                    else:
-                        st.success(f"Live: **{ds['primary_intraday']}**")
-                elif ds.get("kite_configured"):
-                    st.info(ds.get("upgrade_hint", "Kite login OK — using Yahoo/NSE for prices."))
-                else:
-                    st.caption(ds["upgrade_hint"])
+            pass  # data health in render_data_health_sidebar()
 
     st.info(DISCLAIMER)
     render_nse_error_banner()

@@ -143,6 +143,12 @@ def run_post_close_scan(
         equity_count=len(wl.picks),
         telegram_sent=telegram_sent,
     )
+    try:
+        from analyzer.structured_log import log_event
+
+        log_event("post_close_scan", ok=True, picks=len(wl.picks), prep_for=prep_for)
+    except Exception:
+        pass
     parts = [f"Saved **{len(wl.picks)}** picks for **{prep_for}**"]
     if telegram_sent:
         parts.append("Telegram sent")

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from analyzer.autopilot_status import count_installed_schedules, is_macos
 from analyzer.intraday_pulse_source import load_pulse_for_watchlist
 from analyzer.onboarding_state import dismiss_onboarding, is_onboarding_dismissed
 from analyzer.watchlist_history import build_watchlist_success_report
@@ -27,6 +28,7 @@ def render_start_here_onboarding(market: str, *, force_show: bool = False) -> No
     scan_ok = report is not None and scan_status in ("session", "cache_fresh", "cache_stale")
     picks_ok = len(load_pinned_plans()) > 0
     scored_ok = build_watchlist_success_report(7).scored_picks > 0
+    autopilot_ok = count_installed_schedules()[0] >= 4 if is_macos() else False
 
     with st.expander("🚀 Start here — suggestions workflow", expanded=not is_onboarding_dismissed()):
         st.markdown(
@@ -57,9 +59,14 @@ def render_start_here_onboarding(market: str, *, force_show: bool = False) -> No
         if st.button("Open Track Record", key="onboard_track"):
             request_nav_tab("Track Record")
 
+        st.markdown(
+            f"{_step_done(autopilot_ok)} **4. Enable Autopilot (Mac)** — "
+            "Sidebar → **🤖 Autopilot** → one-click install for daily scan + scoring."
+        )
+
         st.caption(
-            "Kite login, options CE/PE, and Telegram are **optional** — "
-            "see sidebar **Zerodha Kite** and **Advanced** expanders on Suggestions."
+            "Complete **⚙️ Setup** in the sidebar (.env + Telegram). "
+            "Kite and options are optional."
         )
 
         c1, c2 = st.columns(2)

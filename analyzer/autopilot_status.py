@@ -34,6 +34,7 @@ AUTOPILOT_JOBS: list[tuple[str, str, str]] = [
     ("session_open", "com.stockanalyzer.sessionreminders.plist", "9:15 AM — session open"),
     ("auto_star_2", "com.stockanalyzer.autoselect.plist", "9:10 PM — auto star top 2"),
     ("nightly_prep", "com.stockanalyzer.nightlyprep.plist", "9:00 PM — options prep"),
+    ("autopilot_health", "com.stockanalyzer.autopilothealth.plist", "4:30 PM — gap alert"),
 ]
 
 
