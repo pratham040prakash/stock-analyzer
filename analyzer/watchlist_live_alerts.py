@@ -15,6 +15,8 @@ from analyzer.providers import get_live_ltp
 from analyzer.options_trade_selection import load_selected_option, snap_matches_pick
 from analyzer.trade_selection import effective_trade_plans, load_selected_symbols
 from analyzer.watchlist_history import session_target_date
+from analyzer.watchlist_pins import infer_trade_side
+from analyzer.trade_ladder import format_stop_trail_telegram
 from analyzer.watchlist_plan_tracker import assess_live_plan, assess_options_live_plan
 
 IST = ZoneInfo("Asia/Kolkata")
@@ -35,6 +37,7 @@ ALERT_LABELS = {
     "Near T3": "t3_near",
     "T3 hit — exit rest": "t3_hit",
     "Below entry": "below_entry",
+    "Above entry": "above_entry",
 }
 
 
@@ -74,6 +77,7 @@ def _mark_alert_sent(trade_date: str, symbol: str, kind: str) -> None:
 
 
 def format_live_alert(status, *, plan, ladder_line: str = "") -> str:
+    trade_side = infer_trade_side(plan.entry, plan.stop_loss, explicit=getattr(plan, "side", None))
     extra = ""
     if status.target2 and status.target3:
         extra = (
@@ -85,7 +89,7 @@ def format_live_alert(status, *, plan, ladder_line: str = "") -> str:
     if ladder_line:
         extra += f"\n{ladder_line}"
     return (
-        f"*{status.emoji} {plan.symbol} — {status.label}*\n"
+        f"*{status.emoji} {plan.symbol} ({trade_side}) — {status.label}*\n"
         f"{status.detail}{extra}\n"
         f"Plan: entry ₹{plan.entry:,.0f} · stop ₹{plan.stop_loss:,.0f}"
     )
@@ -120,17 +124,25 @@ def check_watchlist_live_alerts(
     if load_selected_symbols(trade_date):
         for plan in effective_trade_plans(trade_date):
             ltp, _src = get_live_ltp(plan.symbol, market=market)
+            trade_side = infer_trade_side(plan.entry, plan.stop_loss, explicit=plan.side)
             status = assess_live_plan(
                 ltp,
                 entry=plan.entry,
                 stop_loss=plan.stop_loss,
                 target=plan.target,
                 symbol=plan.symbol,
+                side=trade_side,
             )
             kind = ALERT_LABELS.get(status.label)
-            if not kind or kind in ("in_zone", "below_entry") or _was_alert_sent(trade_date, plan.symbol, kind):
+            if not kind or kind in ("in_zone", "below_entry", "above_entry") or _was_alert_sent(trade_date, plan.symbol, kind):
                 continue
-            messages.append(format_live_alert(status, plan=plan))
+            from analyzer.trade_ladder import build_equity_ladder
+
+            ladder = build_equity_ladder(
+                trade_side, plan.entry, plan.stop_loss, plan.target,
+            )
+            ladder_line = format_stop_trail_telegram(ladder)
+            messages.append(format_live_alert(status, plan=plan, ladder_line=ladder_line))
             _mark_alert_sent(trade_date, plan.symbol, kind)
 
     selected_opt = load_selected_option(trade_date)

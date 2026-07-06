@@ -17,7 +17,7 @@ from analyzer.watchlist_eod import (
     outcome_label,
     score_session_plan,
 )
-from analyzer.watchlist_pins import load_pinned_plans, pinned_symbols
+from analyzer.watchlist_pins import infer_trade_side, load_pinned_plans, pinned_symbols
 
 IST = ZoneInfo("Asia/Kolkata")
 MIN_RETENTION_DAYS = 7
@@ -36,6 +36,7 @@ class WatchlistSnapshot:
     prep_score: float
     market_bias: str
     saved_at: str
+    side: str = "LONG"
 
 
 @dataclass
@@ -116,6 +117,7 @@ def init_watchlist_history() -> None:
             "volume_ratio": "REAL",
             "sector_tailwind": "INTEGER DEFAULT 0",
             "macd_bullish": "INTEGER DEFAULT 0",
+            "side": "TEXT DEFAULT 'LONG'",
         }.items():
             if col not in snap_cols:
                 conn.execute(f"ALTER TABLE watchlist_daily_snapshots ADD COLUMN {col} {typ}")
@@ -326,8 +328,8 @@ def save_watchlist_snapshot(
                     id, trade_date, prep_date, symbol, rank, entry, stop_loss,
                     target, prep_score, market_bias, saved_at,
                     checklist_passed, atr_pct, rsi, volume_ratio,
-                    sector_tailwind, macd_bullish
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    sector_tailwind, macd_bullish, side
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     f"snap_{trade_date}_{sym}",
@@ -347,6 +349,7 @@ def save_watchlist_snapshot(
                     p.volume_ratio,
                     int(p.sector_tailwind),
                     int(p.macd_bullish),
+                    getattr(p, "side", "LONG") or "LONG",
                 ),
             )
     return len(picks)
@@ -374,6 +377,11 @@ def fetch_snapshots_for_date(trade_date: str) -> list[WatchlistSnapshot]:
             prep_score=float(r["prep_score"] or 0),
             market_bias=r["market_bias"] or "",
             saved_at=r["saved_at"],
+            side=infer_trade_side(
+                float(r["entry"]),
+                float(r["stop_loss"]),
+                explicit=r["side"] if "side" in r.keys() else None,
+            ),
         )
         for r in rows
     ]
@@ -421,6 +429,7 @@ def score_daily_watchlist(
                 prep_score=0,
                 market_bias="",
                 saved_at="",
+                side=p.side,
             )
             for p in pins
         ]
@@ -454,6 +463,7 @@ def score_daily_watchlist(
                     session_high=high,
                     session_low=low,
                     session_close=close,
+                    side=s.side,
                 )
 
             was_pinned = 1 if s.symbol in pinned else 0

@@ -214,6 +214,7 @@ def _render_pick_detail_expander(p: IntradayWatchlistPick) -> None:
             max_risk_pct=prefs.max_risk_pct,
             max_concurrent_trades=prefs.max_trades,
             per_trade_budget_inr=budget.per_trade_budget_inr,
+            side=_pick_side(p),
         )
         if hint.suggested_shares:
             st.caption(
@@ -358,6 +359,7 @@ def render_intraday_watchlist_section(
             max_risk_pct=prefs.max_risk_pct,
             max_concurrent_trades=prefs.max_trades,
             per_trade_budget_inr=budget.per_trade_budget_inr,
+            side=_pick_side(p),
         )
         ladder = build_equity_ladder(
             _pick_side(p), p.entry, p.stop_loss, p.target,
@@ -386,7 +388,9 @@ def render_intraday_watchlist_section(
             "Status": format_entry_status(p, hint),
             "Risk ₹": format_risk_cell(hint),
             "Exp. profit (1 sh)": format_expected_profit(
-                equity_target_profit_one_share(p.entry, p.target)
+                equity_target_profit_one_share(
+                    p.entry, p.target, side=_pick_side(p),
+                )
             ),
         })
     st.dataframe(pd.DataFrame(table), use_container_width=True, hide_index=True)

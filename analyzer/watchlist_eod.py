@@ -6,6 +6,7 @@ import sqlite3
 from dataclasses import dataclass
 
 from analyzer.suggestion_journal import journal_db_path
+from analyzer.watchlist_pins import infer_trade_side
 
 
 @dataclass
@@ -63,8 +64,24 @@ def score_session_plan(
     session_high: float,
     session_low: float,
     session_close: float,
+    side: str | None = None,
 ) -> tuple[str, str]:
-    """Conservative long plan: stop checked before target if both touched."""
+    """Score MIS plan vs session OHLC. Stop checked before target if both touched."""
+    trade_side = infer_trade_side(entry, stop_loss, explicit=side)
+
+    if trade_side == "SHORT":
+        stop_hit = session_high >= stop_loss
+        target_hit = session_low <= target
+        if stop_hit and not target_hit:
+            return "stop_hit", f"High ₹{session_high:,.2f} ≥ stop ₹{stop_loss:,.2f}."
+        if target_hit and not stop_hit:
+            return "target_hit", f"Low ₹{session_low:,.2f} ≤ target ₹{target:,.2f}."
+        if stop_hit and target_hit:
+            return "mixed", "Both stop and target touched — assume stop first (conservative)."
+        if session_close <= entry:
+            return "flat_positive", f"Close ₹{session_close:,.2f} held below entry ₹{entry:,.2f}."
+        return "flat", f"No stop/target hit. Close ₹{session_close:,.2f}."
+
     stop_hit = session_low <= stop_loss
     target_hit = session_high >= target
 

@@ -3,9 +3,20 @@
 from __future__ import annotations
 
 
-def equity_target_profit_one_share(entry: float, target: float) -> float | None:
-    """Profit in ₹ if 1 share hits target (long MIS)."""
-    if entry > 0 and target > entry:
+def equity_target_profit_one_share(
+    entry: float,
+    target: float,
+    *,
+    side: str | None = None,
+) -> float | None:
+    """Profit in ₹ if 1 share hits target (long or short MIS)."""
+    if entry <= 0:
+        return None
+    if side == "SHORT" or (side is None and target < entry):
+        if target < entry:
+            return round(entry - target, 2)
+        return None
+    if target > entry:
         return round(target - entry, 2)
     return None
 

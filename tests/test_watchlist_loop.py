@@ -106,6 +106,47 @@ class TestEodScore(unittest.TestCase):
         )
         self.assertEqual(outcome, "stop_hit")
 
+    def test_short_target_hit(self):
+        outcome, note = score_session_plan(
+            entry=100, stop_loss=105, target=90,
+            session_high=103, session_low=88, session_close=92,
+            side="SHORT",
+        )
+        self.assertEqual(outcome, "target_hit")
+        self.assertIn("Low", note)
+
+    def test_short_stop_hit(self):
+        outcome, _ = score_session_plan(
+            entry=100, stop_loss=105, target=90,
+            session_high=106, session_low=95, session_close=104,
+            side="SHORT",
+        )
+        self.assertEqual(outcome, "stop_hit")
+
+    def test_short_live_near_stop(self):
+        s = assess_live_plan(
+            1009, entry=1000, stop_loss=1010, target=990,
+            symbol="X", side="SHORT",
+        )
+        self.assertEqual(s.label, "Near stop")
+
+    def test_short_position_hint(self):
+        from analyzer.watchlist_position_size import equity_position_hint
+
+        hint = equity_position_hint(
+            "HDFCBANK",
+            entry=1000,
+            stop_loss=1015,
+            target=970,
+            allocated_inr=50_000,
+            max_risk_pct=1.0,
+            max_concurrent_trades=2,
+            per_trade_budget_inr=25_000,
+            side="SHORT",
+        )
+        self.assertTrue(hint.suggested_shares and hint.suggested_shares > 0)
+        self.assertTrue(hint.can_enter)
+
 
 class TestWatchlistTelegram(unittest.TestCase):
     def test_format(self):
@@ -116,6 +157,18 @@ class TestWatchlistTelegram(unittest.TestCase):
         ], market_bias="BULLISH")
         self.assertIn("RELIANCE", msg)
         self.assertIn("2,850", msg)
+        self.assertIn("LONG", msg)
+
+    def test_format_short(self):
+        from analyzer.watchlist_pins import PinnedPlan
+
+        msg = format_pinned_watchlist_telegram([
+            PinnedPlan(
+                "HDFCBANK", 1000, 1010, 990, "2026-07-01", side="SHORT",
+            ),
+        ], market_bias="BEARISH")
+        self.assertIn("SHORT", msg)
+        self.assertIn("HDFCBANK", msg)
 
 
 if __name__ == "__main__":

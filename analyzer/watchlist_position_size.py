@@ -29,17 +29,22 @@ def equity_position_hint(
     max_risk_pct: float = 1.0,
     max_concurrent_trades: int = 2,
     per_trade_budget_inr: float | None = None,
+    side: str | None = None,
 ) -> EquityPositionHint:
     """
     Shares sized by risk budget (% of MIS pool) and capped by per-trade capital slot.
     """
+    from analyzer.watchlist_pins import infer_trade_side
+
+    trade_side = infer_trade_side(entry, stop_loss, explicit=side)
+    action = "SELL" if trade_side == "SHORT" else "BUY"
     slots = max(1, max_concurrent_trades)
     per_trade = per_trade_budget_inr
     if per_trade is None:
         per_trade = round(allocated_inr / slots, 0)
 
     plan = build_intraday_trade_plan(
-        "BUY",
+        action,
         entry,
         stop_loss,
         target,
@@ -91,6 +96,8 @@ def equity_hint_from_budget(
     stop_loss: float,
     target: float,
     budget,
+    *,
+    side: str | None = None,
 ) -> EquityPositionHint:
     """Build hint from IntradayCapitalBudget + prefs-like object."""
     return equity_position_hint(
@@ -102,6 +109,7 @@ def equity_hint_from_budget(
         max_risk_pct=budget.max_risk_pct,
         max_concurrent_trades=budget.max_concurrent_trades,
         per_trade_budget_inr=budget.per_trade_budget_inr,
+        side=side,
     )
 
 

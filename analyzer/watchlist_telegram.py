@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from analyzer.trade_ladder import build_equity_ladder, build_options_ladder, format_equity_ladder_telegram, format_options_ladder_telegram
-from analyzer.watchlist_pins import PinnedPlan
+from analyzer.watchlist_pins import PinnedPlan, infer_trade_side
 
 if TYPE_CHECKING:
     from analyzer.options_expiry_watchlist import OptionsExpiryPick
@@ -42,6 +42,7 @@ def _format_equity_pick_line(
     from analyzer.watchlist_position_size import equity_position_hint
 
     mark = "⭐ " if (selected or is_selected(p.symbol)) else ""
+    trade_side = infer_trade_side(p.entry, p.stop_loss, explicit=p.side)
     size_bit = ""
     if with_shares:
         allocated, per_trade, max_risk, max_trades = _equity_sizing_context()
@@ -54,14 +55,16 @@ def _format_equity_pick_line(
             max_risk_pct=max_risk,
             max_concurrent_trades=max_trades,
             per_trade_budget_inr=per_trade,
+            side=trade_side,
         )
         if hint.suggested_shares:
             size_bit = f" · **{hint.suggested_shares} sh**"
         elif hint.skip_reason:
             size_bit = " · _skip size_"
-    ladder = build_equity_ladder("LONG", p.entry, p.stop_loss, p.target)
+    ladder = build_equity_ladder(trade_side, p.entry, p.stop_loss, p.target)
+    side_tag = "SHORT" if trade_side == "SHORT" else "LONG"
     return (
-        f"*{index}. {mark}{p.symbol}*{size_bit}\n"
+        f"*{index}. {mark}{p.symbol}* ({side_tag}){size_bit}\n"
         f"Entry ₹{p.entry:,.0f} · Stop ₹{p.stop_loss:,.0f}\n"
         f"{format_equity_ladder_telegram(ladder)}"
     )
