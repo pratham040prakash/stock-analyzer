@@ -18,6 +18,10 @@ from analyzer.india_enrichment import enrich_india_fundamentals, format_enriched
 from analyzer.macro_cache import format_macro_summary, get_daily_india_macro
 from analyzer.news_feed import fetch_stock_news, format_news_markdown
 from analyzer.peer_comparison import build_peer_comparison, format_peer_markdown
+from analyzer.alpha_ai_prompts import detect_report_mode, mode_framing
+from analyzer.alpha_monte_carlo import monte_carlo_scenarios
+from analyzer.alpha_red_flags import detect_red_flags
+from analyzer.alpha_portfolio_mode import analyze_portfolio_impact, format_portfolio_impact_block
 from analyzer.fundamentals import extract_raw_fundamentals
 from analyzer.indicators import add_indicators
 from analyzer.market_pulse import india_market_pulse, overall_market_verdict
@@ -132,6 +136,9 @@ class AlphaAIReport:
     action_plan: str = ""
     score_breakdown: str = ""
     entry_strategy: str = ""  # legacy markdown block
+    report_mode: str = "mid_cap"
+    section_sources: dict[str, list[str]] = field(default_factory=dict)
+    llm_narrative: str | None = None
 
 
 def _rating_from_signal(score: float | None, *, higher_is_better: bool = True) -> str:
@@ -466,9 +473,14 @@ def build_alpha_ai_report(
     *,
     market: str = "india",
     period: str = "2y",
+    portfolio_mode: bool = False,
 ) -> AlphaAIReport:
     """Assemble Alpha AI v3.0 report from available data sources."""
     gaps: list[str] = []
+    section_sources: dict[str, list[str]] = {
+        "price_technical": ["Yahoo Finance", "internal model"],
+        "fundamentals": ["Yahoo Finance"],
+    }
     now = datetime.now(IST).strftime("%Y-%m-%d %H:%M IST")
     currency = "₹" if is_india_market(market) else "$"
 
@@ -500,12 +512,16 @@ def build_alpha_ai_report(
     sector = info.get("sector", "N/A")
     industry = info.get("industry", "N/A")
     price = info.get("nse_last_price") or tech.current_price
+    report_mode = detect_report_mode(info["symbol"], info, float(price) if price else None, market)
+    framing = mode_framing(report_mode)
+    enriched_obj = None
     summary = info.get("longBusinessSummary") or info.get("description") or ""
     if not summary:
         gaps.append("Business description not available from data feed.")
         summary = f"{name} operates in {sector} / {industry}. Pull annual report for moat detail."
 
     business = (
+        f"{framing['business']}\n\n"
         f"**Business model (FACT/feed):** {summary[:1200]}{'…' if len(summary) > 1200 else ''}\n\n"
         f"**Revenue sources / products (ASSUMPTION):** Validate segment mix in latest AR.\n\n"
         f"**Customers & industry position (ASSUMPTION):** {industry} · {sector} — confirm share from filings.\n\n"
@@ -541,37 +557,38 @@ def build_alpha_ai_report(
     enriched_block = ""
     if is_india_market(market) and not is_etf:
         try:
-            enriched = enrich_india_fundamentals(info["symbol"], info)
-            enriched_block = format_enriched_markdown(enriched)
-            gaps.extend(enriched.gaps)
-            if enriched.roce is not None:
-                v = enriched.roce * 100 if enriched.roce <= 1 else enriched.roce
+            enriched_obj = enrich_india_fundamentals(info["symbol"], info)
+            enriched_block = format_enriched_markdown(enriched_obj)
+            gaps.extend(enriched_obj.gaps)
+            section_sources["fundamentals"].extend(["NSE India", "Screener.in"])
+            if enriched_obj.roce is not None:
+                v = enriched_obj.roce * 100 if enriched_obj.roce <= 1 else enriched_obj.roce
                 fin_rows.append(MetricRating("ROCE", f"{v:.1f}%", _rating_from_signal(0.5 if v >= 15 else 0)))
-            if enriched.current_ratio is not None:
+            if enriched_obj.current_ratio is not None:
                 fin_rows.append(
                     MetricRating(
                         "Current Ratio",
-                        f"{enriched.current_ratio:.2f}",
-                        "Good" if enriched.current_ratio >= 1.2 else "Average",
+                        f"{enriched_obj.current_ratio:.2f}",
+                        "Good" if enriched_obj.current_ratio >= 1.2 else "Average",
                     )
                 )
-            if enriched.interest_coverage is not None:
+            if enriched_obj.interest_coverage is not None:
                 fin_rows.append(
                     MetricRating(
                         "Interest Coverage",
-                        f"{enriched.interest_coverage:.1f}x",
-                        "Good" if enriched.interest_coverage >= 3 else "Average",
+                        f"{enriched_obj.interest_coverage:.1f}x",
+                        "Good" if enriched_obj.interest_coverage >= 3 else "Average",
                     )
                 )
-            if enriched.cash_conversion_pct is not None:
+            if enriched_obj.cash_conversion_pct is not None:
                 fin_rows.append(
                     MetricRating(
                         "Cash Conversion",
-                        f"{enriched.cash_conversion_pct:.0f}%",
-                        "Good" if enriched.cash_conversion_pct >= 80 else "Average",
+                        f"{enriched_obj.cash_conversion_pct:.0f}%",
+                        "Good" if enriched_obj.cash_conversion_pct >= 80 else "Average",
                     )
                 )
-            sh = enriched.shareholding
+            sh = enriched_obj.shareholding
             if sh and sh.fii_pct is not None:
                 fin_rows.append(MetricRating("FII (NSE)", f"{sh.fii_pct:.1f}%", "Good" if sh.fii_pct > 15 else "Average"))
             if sh and sh.dii_pct is not None:
@@ -595,6 +612,7 @@ def build_alpha_ai_report(
 
     val_verdict, val_detail = _valuation_label(raw.get("pe_trailing"), fund.composite_score)
     val_lines = [
+        framing["valuation"],
         f"**P/E (trailing):** {raw.get('pe_trailing') or 'N/A'}",
         f"**Forward P/E:** {raw.get('pe_forward') or 'N/A'}",
         f"**PEG:** {raw.get('peg') or 'N/A'}",
@@ -653,6 +671,7 @@ def build_alpha_ai_report(
     )
 
     moat, moat_detail = _moat_estimate(raw, fund.composite_score, info)
+    moat_detail = f"{framing['moat']}\n\n{moat_detail}"
     moat_dims = _moat_dimensions(moat, raw, fund.composite_score)
 
     risks: list[RiskItem] = []
@@ -680,6 +699,7 @@ def build_alpha_ai_report(
     try:
         news_bundle = fetch_stock_news(info["symbol"], market=market)
         news_sentiment = format_news_markdown(news_bundle)
+        section_sources["news"] = [news_bundle.data_source or "Yahoo/NSE"]
     except Exception as exc:
         gaps.append(f"News feed: {exc}")
         news_sentiment = "**News:** Feed unavailable — check NSE filings manually."
@@ -699,19 +719,13 @@ def build_alpha_ai_report(
         f"**Lump sum:** {entry_obj.lump_sum_entry}"
     )
 
-    red_flags: list[str] = []
-    if raw.get("profit_margin") is not None and raw["profit_margin"] < 0:
-        red_flags.append("Weak cash flow proxy: negative profit margin.")
-    if raw.get("debt_to_equity") and raw["debt_to_equity"] > 2:
-        red_flags.append("High debt — balance sheet stress risk.")
-    if raw.get("roe") is not None and raw["roe"] < 0.08:
-        red_flags.append("Falling ROE / weak returns on equity.")
-    if tech.composite_score < -25 and fund.composite_score < -15:
-        red_flags.append("Technical and fundamental scores both weak.")
-    if promo is not None and promo < 0.25:
-        red_flags.append("Low promoter holding — governance check warranted.")
-    if not red_flags:
-        red_flags.append("No automated red flags — review governance and AR manually.")
+    red_flags = detect_red_flags(
+        raw,
+        tech_score=tech.composite_score,
+        fund_score=fund.composite_score,
+        enriched=enriched_obj,
+        promoter_pct=promo,
+    )
 
     q_business = max(0, min(100, 50 + fund.composite_score * 0.4))
     q_fin = max(0, min(100, 50 + fund.composite_score * 0.5))
@@ -748,18 +762,38 @@ def build_alpha_ai_report(
         alloc_opts = [0.0]
 
     portfolio = (
+        f"{framing['risk']}\n\n"
         f"**Sector exposure:** Adds **{sector}** — check concentration.\n"
         f"**Suggested max weight (ESTIMATE):** {weight}%" if weight is not None else "**Allocation:** Avoid new adds."
     )
     portfolio += "\n**Diversification:** Prefer ≤25% per sector; ≤10% per single name unless high conviction."
 
-    scenarios = _scenario_prices(
+    if portfolio_mode:
+        try:
+            pia = analyze_portfolio_impact(info["symbol"], sector)
+            portfolio += "\n\n" + format_portfolio_impact_block(pia)
+            section_sources["portfolio"] = ["saved portfolio JSON", "internal model"]
+        except Exception as exc:
+            gaps.append(f"Portfolio mode: {exc}")
+
+    mc_scenarios = monte_carlo_scenarios(
+        df,
+        float(price) if price else 0,
+        currency,
+        earnings_growth=raw.get("earnings_growth"),
+    )
+    scenarios = mc_scenarios if mc_scenarios else _scenario_prices(
         float(price) if price else None,
         tech.support,
         tech.resistance,
         currency,
         raw,
     )
+    scenarios = [
+        ScenarioCase(s.name, s.description, s.probability_pct, s.target_price, s.expected_cagr)
+        for s in scenarios
+    ]
+    section_sources["scenarios"] = ["Monte Carlo (historical returns)", "internal model"]
 
     cagr_dict = _expected_cagr_dict(raw)
     cagr = (
@@ -778,12 +812,20 @@ def build_alpha_ai_report(
         "AVOID": "Avoid",
     }
     recommendation = verdict_map.get(advice.final_action, "Hold")
-    verdict = recommendation
+    if len(gaps) > 8:
+        recommendation = "Insufficient Data"
+        verdict = "Insufficient Data"
+        gaps.append("Verdict capped — more than 8 data gaps; verify manually before investing.")
+        buy = "WAIT"
+        buy_why = "**Insufficient data** — too many missing fields for a confident equity verdict."
+    else:
+        verdict = recommendation
+        buy, buy_why = _buy_decision(
+            advice.final_action, tech.composite_score, fund.composite_score, advice.conviction
+        )
+
     stars = _stars_from_score(overall)
     risk_level = _overall_risk_level(tech_risk, red_flags, risks)
-    buy, buy_why = _buy_decision(
-        advice.final_action, tech.composite_score, fund.composite_score, advice.conviction
-    )
 
     horizons = {
         "Swing": advice.final_action if tech.confidence != "low" else "Wait",
@@ -846,7 +888,10 @@ def build_alpha_ai_report(
         f"Momentum {q_momentum:.0f}×0.05 + Risk {q_risk:.0f}×0.08 + Moat {q_moat:.0f}×0.05 + Mgmt {q_mgmt:.0f}×0.02"
     )
 
-    return AlphaAIReport(
+    for key in section_sources:
+        section_sources[key] = list(dict.fromkeys(section_sources[key]))
+
+    report = AlphaAIReport(
         symbol=info["symbol"],
         name=name,
         sector=sector,
@@ -900,7 +945,17 @@ def build_alpha_ai_report(
         action_plan=action,
         score_breakdown=breakdown,
         entry_strategy=entry,
+        report_mode=report_mode,
+        section_sources=section_sources,
+        llm_narrative=None,
     )
+    try:
+        from analyzer.alpha_ai_llm import synthesize_narrative
+
+        report.llm_narrative = synthesize_narrative(report)
+    except Exception:
+        pass
+    return report
 
 
 def compare_alpha_reports(reports: list[AlphaAIReport]) -> list[tuple[str, int, str]]:

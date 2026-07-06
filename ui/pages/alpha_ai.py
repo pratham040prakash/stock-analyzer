@@ -6,6 +6,8 @@ import streamlit as st
 import plotly.graph_objects as go
 
 from analyzer.alpha_ai_report import build_alpha_ai_report, compare_alpha_reports
+from analyzer.alpha_ai_export import report_to_markdown, report_to_pdf_bytes
+from analyzer.alpha_ai_llm import llm_enabled
 from analyzer.india import indian_ticker_help
 from analyzer.markets import format_price, is_india_market
 from ui.theme import MOBILE_CSS, REC_COLORS
@@ -107,7 +109,42 @@ def _render_entry(report) -> None:
     c2.markdown(f"**Lump sum:** {e.lump_sum_entry}")
 
 
+def _render_export_buttons(report) -> None:
+    md = report_to_markdown(report)
+    st.download_button(
+        "Download Markdown",
+        md,
+        file_name=f"alpha_ai_{report.symbol.replace('.', '_')}.md",
+        mime="text/markdown",
+        key=f"dl_md_{report.symbol}",
+    )
+    try:
+        pdf = report_to_pdf_bytes(report)
+        st.download_button(
+            "Download PDF",
+            pdf,
+            file_name=f"alpha_ai_{report.symbol.replace('.', '_')}.pdf",
+            mime="application/pdf",
+            key=f"dl_pdf_{report.symbol}",
+        )
+    except RuntimeError as exc:
+        st.caption(str(exc))
+
+
 def _render_report_body(report) -> None:
+    st.caption(f"Report mode: **{getattr(report, 'report_mode', 'equity')}**")
+    if getattr(report, "section_sources", None):
+        with st.expander("Data sources by section", expanded=False):
+            for sec, srcs in report.section_sources.items():
+                st.markdown(f"- **{sec}:** {', '.join(srcs)}")
+    if llm_enabled():
+        st.caption("LLM narrative: enabled (OPENAI_API_KEY)")
+    if report.llm_narrative:
+        st.markdown("### AI Narrative")
+        st.markdown(report.llm_narrative)
+
+    _render_export_buttons(report)
+
     if report.data_gaps:
         with st.expander("Data gaps (not fabricated)", expanded=False):
             for g in report.data_gaps:
@@ -205,13 +242,23 @@ def render_alpha_ai(market: str, period: str) -> None:
     if "alpha_ai_ticker" not in st.session_state:
         st.session_state["alpha_ai_ticker"] = default
 
-    mode = st.radio("Mode", ["Single Stock", "Compare"], horizontal=True, key="alpha_ai_mode")
+    mode = st.radio(
+        "Mode",
+        ["Single Stock", "Compare", "Portfolio"],
+        horizontal=True,
+        key="alpha_ai_mode",
+    )
 
     c1, c2 = st.columns([3, 1])
     with c1:
-        if mode == "Single Stock":
+        if mode == "Portfolio":
+            ticker = st.text_input("Analyze vs your portfolio", key="alpha_ai_ticker", value=default).strip()
+            compare_raw = ""
+            portfolio_mode = True
+        elif mode == "Single Stock":
             ticker = st.text_input("NSE / ticker", key="alpha_ai_ticker").strip()
             compare_raw = ""
+            portfolio_mode = False
         else:
             compare_raw = st.text_input(
                 "Compare tickers (comma-separated, max 4)",
@@ -219,6 +266,7 @@ def render_alpha_ai(market: str, period: str) -> None:
                 key="alpha_ai_compare",
             ).strip()
             ticker = ""
+            portfolio_mode = False
     with c2:
         horizon = st.selectbox("Horizon focus", ["Swing", "6 Months", "1 Year", "3 Years", "5 Years", "10 Years"], index=3)
         st.session_state["alpha_ai_horizon"] = horizon
@@ -263,7 +311,9 @@ def render_alpha_ai(market: str, period: str) -> None:
 
     with st.spinner(f"Building Alpha AI v3.0 report for {ticker}…"):
         try:
-            report = build_alpha_ai_report(ticker, market=market, period=period)
+            report = build_alpha_ai_report(
+                ticker, market=market, period=period, portfolio_mode=portfolio_mode
+            )
         except Exception as exc:
             st.error(f"Report failed: {exc}")
             return
