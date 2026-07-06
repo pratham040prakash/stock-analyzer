@@ -138,15 +138,33 @@ def _f(val) -> float | None:
 
 
 def fetch_contract_info(symbol: str) -> dict:
-    """Available expiries and strikes from NSE."""
-    if not is_nse_available():
-        raise ValueError("NSE temporarily unavailable — check network or wait a few minutes")
+    """Available expiries and strikes — Kite NFO when logged in, else NSE."""
+    from analyzer.kite_options_chain import fetch_contract_info_from_kite, kite_options_available
+
+    if kite_options_available():
+        kite_info = fetch_contract_info_from_kite(symbol)
+        if kite_info:
+            return kite_info
+
     nse_sym, kind = normalize_fno_symbol(symbol)
     instrument = "OPTIDX" if kind == "index" else "OPTSTK"
-    data = nse_fetch_json(f"option-chain-contract-info?symbol={nse_sym}&instrument={instrument}")
-    if not data:
-        raise ValueError(f"NSE contract info unavailable for {nse_sym}")
-    return data
+
+    if is_nse_available():
+        data = nse_fetch_json(
+            f"option-chain-contract-info?symbol={nse_sym}&instrument={instrument}",
+        )
+        if data:
+            return data
+
+    if kite_options_available():
+        raise ValueError(
+            f"Kite could not load F&O instruments for {nse_sym}. "
+            "Re-login via sidebar **Zerodha Kite**."
+        )
+    raise ValueError(
+        "Options data needs **Zerodha Kite** login (sidebar) or NSE access. "
+        "Log in with Zerodha for live NFO quotes."
+    )
 
 
 def get_fno_lot_size(symbol: str) -> int:
@@ -206,10 +224,8 @@ def compute_max_pain(chain: NSEOptionChain) -> float | None:
     return best_strike
 
 
-def fetch_option_chain(symbol: str, expiry: str | None = None) -> NSEOptionChain:
-    """
-    Full option chain from NSE v3 API for nearest or chosen expiry.
-    """
+def _fetch_option_chain_nse(symbol: str, expiry: str | None = None) -> NSEOptionChain:
+    """Full option chain from NSE v3 API for nearest or chosen expiry."""
     nse_sym, kind = normalize_fno_symbol(symbol)
     chain_type = "Indices" if kind == "index" else "Equities"
 
@@ -267,9 +283,39 @@ def fetch_option_chain(symbol: str, expiry: str | None = None) -> NSEOptionChain
         total_pe_volume=total_pe_vol,
         pcr_oi=round(pcr, 2) if pcr else None,
         timestamp=ts,
+        source="NSE India",
     )
     chain.max_pain = compute_max_pain(chain)
     return chain
+
+
+def fetch_option_chain(symbol: str, expiry: str | None = None) -> NSEOptionChain:
+    """Option chain — Kite NFO when logged in, NSE as secondary source."""
+    from analyzer.kite_options_chain import fetch_option_chain_from_kite, kite_options_available
+
+    kite_error: str | None = None
+    if kite_options_available():
+        kite_chain = fetch_option_chain_from_kite(symbol, expiry=expiry)
+        if kite_chain:
+            kite_chain.max_pain = compute_max_pain(kite_chain)
+            return kite_chain
+        kite_error = "Kite NFO quote fetch failed — try re-login in sidebar"
+
+    nse_error: Exception | None = None
+    if is_nse_available():
+        try:
+            return _fetch_option_chain_nse(symbol, expiry=expiry)
+        except Exception as exc:
+            nse_error = exc
+
+    if kite_error and kite_options_available():
+        raise ValueError(kite_error)
+    if nse_error:
+        raise nse_error
+    raise ValueError(
+        f"Option chain unavailable for {symbol}. "
+        "Log in via sidebar **Zerodha Kite** for live NFO data."
+    )
 
 
 def fetch_market_status() -> dict:

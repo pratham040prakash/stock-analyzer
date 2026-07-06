@@ -240,17 +240,20 @@ def build_options_expiry_watchlist(
     market: str = "india",
 ) -> OptionsExpiryWatchlist:
     """Build Nifty + Bank Nifty expiry CE/PE picks with strike and premium levels."""
+    from analyzer.kite_options_chain import kite_options_available
     from analyzer.nse_session import is_nse_available, nse_status_message
 
-    if not is_nse_available():
+    kite_ok = kite_options_available()
+    nse_ok = is_nse_available()
+    if not kite_ok and not nse_ok:
         return OptionsExpiryWatchlist(
             picks=[],
             routine_note=(
-                "NSE options chain unavailable (market hours / session). "
-                "Tap **Load CE/PE** when NSE is reachable."
+                "Options need **Zerodha Kite** login (sidebar → Login with Zerodha) "
+                "or NSE access. Kite is the recommended source on cloud deployments."
             ),
             nse_available=False,
-            errors=[nse_status_message() or "NSE circuit open"],
+            errors=[nse_status_message() or "Connect Zerodha Kite for NFO quotes"],
         )
 
     picks: list[OptionsExpiryPick] = []
@@ -287,5 +290,8 @@ def build_options_expiry_watchlist(
         note += " " + " · ".join(errors[:2])
 
     return OptionsExpiryWatchlist(
-        picks=picks, routine_note=note, nse_available=True, errors=errors,
+        picks=picks,
+        routine_note=note,
+        nse_available=nse_ok or kite_ok,
+        errors=errors,
     )

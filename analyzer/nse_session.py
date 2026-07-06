@@ -312,7 +312,7 @@ def nse_fetch_json(path: str, timeout: int = 20) -> dict | list | None:
                 if attempt == 0:
                     _invalidate_session()
                     continue
-                if "quote-equity" in path:
+                if "quote-equity" in path or "option-chain" in path:
                     return None
                 _trip_circuit(f"NSE API HTTP {resp.status_code}")
                 return None

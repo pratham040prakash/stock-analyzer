@@ -13,8 +13,9 @@ from analyzer.zerodha import (
 
 
 def clear_kite_status_caches() -> None:
+    """Clear cached Kite probe results; keep OAuth access token in session."""
     for key in list(st.session_state.keys()):
-        if "kite_status" in str(key).lower() or key == "kite_access_token":
+        if "kite_status" in str(key).lower():
             st.session_state.pop(key, None)
 
 
@@ -92,6 +93,10 @@ def render_kite_connect(*, compact: bool = False, key_prefix: str = "kite") -> b
             try:
                 token = exchange_request_token(creds["api_key"], creds["api_secret"], rt.strip())
                 save_access_token_to_env(token)
+                st.session_state["kite_access_token"] = token
+                from analyzer.zerodha import hydrate_kite_access_token
+
+                hydrate_kite_access_token()
                 clear_kite_status_caches()
                 st.success("Token saved — reload complete.")
                 st.rerun()

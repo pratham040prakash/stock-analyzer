@@ -183,7 +183,7 @@ def _normalize_credential(value: str) -> str:
 
 
 def load_env_credentials() -> dict[str, str]:
-    """Load Zerodha API credentials from environment or .env file."""
+    """Load Zerodha API credentials from environment, `.env`, or active Streamlit session."""
     try:
         from dotenv import load_dotenv
 
@@ -191,16 +191,39 @@ def load_env_credentials() -> dict[str, str]:
     except ImportError:
         pass
 
+    access_token = _normalize_credential(os.getenv("ZERODHA_ACCESS_TOKEN", ""))
+    if not access_token:
+        access_token = _access_token_from_streamlit_session()
+
     return {
         "api_key": _normalize_credential(os.getenv("ZERODHA_API_KEY", "")),
         "api_secret": _normalize_credential(os.getenv("ZERODHA_API_SECRET", "")),
-        "access_token": _normalize_credential(os.getenv("ZERODHA_ACCESS_TOKEN", "")),
+        "access_token": access_token,
     }
 
 
+def _access_token_from_streamlit_session() -> str:
+    """Use in-memory token after OAuth (Streamlit Cloud cannot rely on `.env` writes)."""
+    try:
+        import streamlit as st
+
+        return _normalize_credential(st.session_state.get("kite_access_token", ""))
+    except Exception:
+        return ""
+
+
+def hydrate_kite_access_token() -> None:
+    """Push session OAuth token into os.environ for this process."""
+    token = _access_token_from_streamlit_session()
+    if token:
+        os.environ["ZERODHA_ACCESS_TOKEN"] = token
+
+
 def save_access_token_to_env(access_token: str) -> None:
-    """Persist access token to .env (create or update ZERODHA_ACCESS_TOKEN line)."""
+    """Persist access token to `.env` and activate it for the current process."""
+    access_token = _normalize_credential(access_token)
     _save_env_value("ZERODHA_ACCESS_TOKEN", access_token)
+    os.environ["ZERODHA_ACCESS_TOKEN"] = access_token
 
 
 def save_zerodha_api_credentials_to_env(
@@ -317,6 +340,7 @@ def fetch_holdings_from_kite(
 
 def get_kite_client():
     """Return authenticated KiteConnect client or None."""
+    hydrate_kite_access_token()
     creds = load_env_credentials()
     if not creds["api_key"] or not creds["access_token"]:
         return None

@@ -154,6 +154,9 @@ def main() -> None:
     st.set_page_config(page_title="Stock Analyzer", page_icon="📈", layout="wide")
     st.markdown(MOBILE_CSS, unsafe_allow_html=True)
     handle_kite_redirect()
+    from analyzer.zerodha import hydrate_kite_access_token
+
+    hydrate_kite_access_token()
     st.title("📈 Stock Analyzer")
     st.caption("Multi-indicator technical analysis · Watchlist scanner · Backtesting")
 

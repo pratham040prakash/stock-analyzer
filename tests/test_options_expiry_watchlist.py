@@ -25,8 +25,9 @@ class TestOptionsExpiryWatchlist(unittest.TestCase):
         self.assertEqual(_recommended_side("STRONG PE"), "PE")
         self.assertIsNone(_recommended_side("NO TRADE"))
 
+    @patch("analyzer.zerodha.get_kite_client", return_value=None)
     @patch("analyzer.nse_session.is_nse_available", return_value=False)
-    def test_nse_unavailable(self, _mock):
+    def test_nse_unavailable(self, _mock, _kite):
         wl = build_options_expiry_watchlist()
         self.assertFalse(wl.nse_available)
         self.assertEqual(wl.picks, [])

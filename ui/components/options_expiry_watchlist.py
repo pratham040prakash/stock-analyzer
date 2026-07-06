@@ -237,10 +237,12 @@ def render_options_expiry_watchlist_section(wl: OptionsExpiryWatchlist, *, marke
     st.markdown("#### 📅 Options expiry watchlist (Nifty & Bank Nifty)")
     st.caption(wl.routine_note)
 
-    if not wl.nse_available:
-        status = nse_status_message()
-        st.warning(status or "Could not reach NSE options API.")
-        for err in get_recent_nse_errors()[:3]:
+    if not wl.nse_available and not wl.picks:
+        st.warning(
+            "Options data unavailable — log in via sidebar **Zerodha Kite** "
+            "(Login with Zerodha)."
+        )
+        for err in wl.errors:
             st.caption(f"· {err}")
         c1, c2 = st.columns(2)
         with c1:

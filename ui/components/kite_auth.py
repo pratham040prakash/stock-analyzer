@@ -68,6 +68,9 @@ def handle_kite_redirect() -> bool:
         save_access_token_to_env(access_token)
         st.session_state["kite_token_exchanged"] = request_token
         st.session_state["kite_access_token"] = access_token
+        from analyzer.zerodha import hydrate_kite_access_token
+
+        hydrate_kite_access_token()
         clear_kite_status_caches()
         st.query_params.clear()
         st.success("Zerodha connected! Access token saved to `.env` (valid until ~6 AM IST).")
