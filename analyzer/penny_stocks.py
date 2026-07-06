@@ -11,14 +11,12 @@ from analyzer.screener import ScreenerCriteria, ScreenerRow, _scan_one
 # NSE names often in the ₹5–₹50 band (prices change — runtime filter applies).
 PENNY_CANDIDATE_SYMBOLS: list[str] = [
     "IDBI", "SUZLON", "RPOWER", "YESBANK", "IDEA", "DISHTV",
-    "JPPOWER", "RTNPOWER", "GTLINFRA", "PCJEWELLER", "DHANI",
-    "MANAKSIA", "HCC", "UCOBANK", "CENTRALBK", "IOB", "J&KBANK",
-    "NHPC", "SJVN", "GSFC", "GNFC", "RAIN", "MOREPENLAB", "TRIDENT",
+    "JPPOWER", "RTNPOWER", "MANAKSIA", "HCC", "UCOBANK", "CENTRALBK", "IOB", "J&KBANK",
+    "NHPC", "SJVN", "GSFC", "GNFC", "RAIN", "TRIDENT",
     "SAIL", "NMDC", "BANKINDIA", "MAHABANK", "PNB", "ZEEL",
     "NETWORK18", "MRPL", "CHENNPETRO", "GMDCLTD", "RVNL", "IRCON",
     "RAILTEL", "ALOKINDS", "WOCKPHARMA", "SUNTV", "TATAPOWER",
-    "IFCI", "RELCAPITAL", "JPASSOCIAT", "GAYAPROJ", "HLVLTD",
-    "FILATEX", "TITAGARH", "JISLJALEQS", "SOUTHBANK", "FEDERALBNK",
+    "IFCI", "FILATEX", "TITAGARH", "JISLJALEQS", "SOUTHBANK", "FEDERALBNK",
 ]
 
 DEFAULT_MAX_PRICE_INR = 20.0

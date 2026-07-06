@@ -9,11 +9,16 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 
 from analyzer.advisor import generate_advice
+from analyzer.asset_class import classify_asset
 from analyzer.combined import analyze_combined
 from analyzer.data import fetch_benchmark, fetch_stock_data
-from analyzer.earnings_calendar import fetch_corporate_event
+from analyzer.dcf_model import build_dcf, format_dcf_markdown
+from analyzer.etf_analyzer import build_etf_profile, format_etf_markdown
+from analyzer.india_enrichment import enrich_india_fundamentals, format_enriched_markdown
+from analyzer.macro_cache import format_macro_summary, get_daily_india_macro
+from analyzer.news_feed import fetch_stock_news, format_news_markdown
+from analyzer.peer_comparison import build_peer_comparison, format_peer_markdown
 from analyzer.fundamentals import extract_raw_fundamentals
-from analyzer.global_impact import build_india_impact_report
 from analyzer.indicators import add_indicators
 from analyzer.market_pulse import india_market_pulse, overall_market_verdict
 from analyzer.markets import is_india_market
@@ -271,15 +276,35 @@ def _weight_suggestion(overall: int, verdict: str) -> float | None:
     return None
 
 
-def _buy_decision(action: str, tech_score: float, fund_score: float) -> tuple[str, str]:
+def _buy_decision(
+    action: str,
+    tech_score: float,
+    fund_score: float,
+    conviction: str = "medium",
+) -> tuple[str, str]:
     action = action.upper()
+    conv = conviction.lower()
     if action in ("SELL", "STRONG SELL", "AVOID", "REDUCE"):
         return "NO", f"Model action is **{action}** — preserve capital; do not add."
-    if action in ("STRONG BUY", "BUY") and tech_score > 5 and fund_score > 0:
-        return "YES", f"**{action}** with aligned fundamentals and technicals — size per risk budget."
+    if action == "STRONG BUY" and conv == "high" and fund_score > 0:
+        return "YES", "**STRONG BUY** with high conviction — aligned thesis; size within risk budget."
+    if action == "STRONG BUY" and tech_score > 8 and fund_score > -5:
+        return "YES", "**STRONG BUY** — technical and fundamental scores support entry."
+    if action == "BUY" and conv in ("high", "medium") and tech_score > 5 and fund_score > 5:
+        return "YES", f"**{action}** — fundamentals and timing acceptable for a starter position."
     if action in ("STRONG BUY", "BUY", "ACCUMULATE"):
-        return "WAIT", f"**{action}** thesis but timing/technicals mixed — stagger entry or SIP."
-    return "WAIT", "**HOLD** — no edge to add aggressively; monitor triggers."
+        return "WAIT", f"**{action}** thesis but timing mixed — stagger via SIP or wait for ideal zone."
+    return "WAIT", "**HOLD** — no clear edge to add; monitor triggers."
+
+
+def _confidence_pct(combined_score: float, gaps: list[str], conviction: str) -> float:
+    base = min(85.0, max(35.0, 50 + combined_score * 0.8))
+    base -= min(25.0, len(gaps) * 3.0)
+    if conviction.lower() == "high":
+        base += 4.0
+    elif conviction.lower() == "low":
+        base -= 6.0
+    return round(max(22.0, min(88.0, base)), 1)
 
 
 def _overall_risk_level(tech_risk: str, red_flags: list[str], risks: list[RiskItem]) -> str:
@@ -448,6 +473,8 @@ def build_alpha_ai_report(
     currency = "₹" if is_india_market(market) else "$"
 
     df, info = fetch_stock_data(ticker, period=period, market=market)
+    asset = classify_asset(info["symbol"], info)
+    is_etf = asset.asset_class == "etf"
     df = add_indicators(df)
     combined = analyze_combined(df, info["symbol"], yf_info=info)
     tech = combined.technical
@@ -508,17 +535,61 @@ def build_alpha_ai_report(
     promo = info.get("heldPercentInsiders")
     if inst is not None:
         fin_rows.append(MetricRating("FII / Institutional", f"{inst*100:.1f}%", "Good" if inst > 0.2 else "Average"))
-    else:
-        gaps.append("FII / institutional holding % unavailable.")
     if promo is not None:
         fin_rows.append(MetricRating("Promoter Holding", f"{promo*100:.1f}%", "Good" if promo > 0.4 else "Average"))
-    else:
-        gaps.append("Promoter holding % unavailable.")
-    gaps.append("DII holding trend not in feed — check NSE shareholding pattern.")
+
+    enriched_block = ""
+    if is_india_market(market) and not is_etf:
+        try:
+            enriched = enrich_india_fundamentals(info["symbol"], info)
+            enriched_block = format_enriched_markdown(enriched)
+            gaps.extend(enriched.gaps)
+            if enriched.roce is not None:
+                v = enriched.roce * 100 if enriched.roce <= 1 else enriched.roce
+                fin_rows.append(MetricRating("ROCE", f"{v:.1f}%", _rating_from_signal(0.5 if v >= 15 else 0)))
+            if enriched.current_ratio is not None:
+                fin_rows.append(
+                    MetricRating(
+                        "Current Ratio",
+                        f"{enriched.current_ratio:.2f}",
+                        "Good" if enriched.current_ratio >= 1.2 else "Average",
+                    )
+                )
+            if enriched.interest_coverage is not None:
+                fin_rows.append(
+                    MetricRating(
+                        "Interest Coverage",
+                        f"{enriched.interest_coverage:.1f}x",
+                        "Good" if enriched.interest_coverage >= 3 else "Average",
+                    )
+                )
+            if enriched.cash_conversion_pct is not None:
+                fin_rows.append(
+                    MetricRating(
+                        "Cash Conversion",
+                        f"{enriched.cash_conversion_pct:.0f}%",
+                        "Good" if enriched.cash_conversion_pct >= 80 else "Average",
+                    )
+                )
+            sh = enriched.shareholding
+            if sh and sh.fii_pct is not None:
+                fin_rows.append(MetricRating("FII (NSE)", f"{sh.fii_pct:.1f}%", "Good" if sh.fii_pct > 15 else "Average"))
+            if sh and sh.dii_pct is not None:
+                fin_rows.append(MetricRating("DII (NSE)", f"{sh.dii_pct:.1f}%", "Average"))
+        except Exception as exc:
+            gaps.append(f"India enrichment: {exc}")
+    elif inst is None:
+        gaps.append("FII / institutional holding % unavailable.")
+    if promo is None and not is_india_market(market):
+        gaps.append("Insider holding % unavailable.")
 
     fin_analysis = (
-        "**Strengths / weaknesses** from scored metrics above. "
-        "ROCE, current ratio, interest coverage: **N/A** in automated feed — verify AR.\n\n"
+        "**Strengths / weaknesses** from scored metrics above.\n\n"
+        f"{enriched_block}\n\n"
+        "_Cash flow quality: cross-check FCF vs net income in annual report._"
+        if enriched_block
+        else "**Strengths / weaknesses** from scored metrics above. "
+        "Extended India metrics loaded when available.\n\n"
         "_Cash flow quality: cross-check FCF vs net income in annual report._"
     )
 
@@ -530,9 +601,36 @@ def build_alpha_ai_report(
         f"**P/B:** {raw.get('price_to_book') or 'N/A'}",
         f"**Verdict:** {val_verdict}",
         f"**Detail:** {val_detail}",
-        "**EV/EBITDA, Price/Sales, DCF intrinsic value:** not computed — insufficient line items.",
-        "**Margin of safety (ESTIMATE):** Higher when undervalued + strong balance sheet.",
     ]
+
+    etf_profile = build_etf_profile(info["symbol"], info) if is_etf else None
+    if etf_profile:
+        val_lines.append(format_etf_markdown(etf_profile))
+        business = format_etf_markdown(etf_profile) + "\n\n" + business
+    else:
+        try:
+            peer = build_peer_comparison(
+                info["symbol"],
+                sector,
+                target_pe=raw.get("pe_trailing"),
+                target_roe=raw.get("roe"),
+            )
+            val_lines.append(format_peer_markdown(peer))
+        except Exception as exc:
+            gaps.append(f"Peer comparison: {exc}")
+        try:
+            dcf = build_dcf(
+                info["symbol"],
+                free_cashflow=raw.get("free_cashflow"),
+                shares_outstanding=info.get("shares_outstanding"),
+                earnings_growth=raw.get("earnings_growth"),
+                current_price=float(price) if price else None,
+            )
+            val_lines.append(format_dcf_markdown(dcf, currency))
+        except Exception as exc:
+            gaps.append(f"DCF: {exc}")
+
+    val_lines.append("**Margin of safety (ESTIMATE):** Higher when undervalued + strong balance sheet.")
 
     row = df.iloc[-1]
     tech_summary = _technical_deep_dive(df, row, tech, advice, currency)
@@ -572,37 +670,23 @@ def build_alpha_ai_report(
     macro = "Macro data unavailable."
     if is_india_market(market):
         try:
-            impact = build_india_impact_report()
-            macro = (
-                f"**Nifty bias (model):** {impact.predicted_nifty_bias} · "
-                f"**Global tone:** {impact.narrative[:300]}"
-            )
+            impact = get_daily_india_macro()
+            macro = format_macro_summary(impact)
             if market_pulse:
                 macro += f"\n**India indices:** {overall_market_verdict(market_pulse)}"
         except Exception as exc:
             gaps.append(f"Macro: {exc}")
 
-    news_facts = ""
     try:
-        nse_sym = info.get("nse_symbol") or ticker.replace(".NS", "")
-        ev = fetch_corporate_event(nse_sym, market=market)
-        if ev:
-            news_facts = f"{ev.event_type} — {ev.detail} ({ev.risk_band})"
-        else:
-            news_facts = "No flagged corporate event in next 2 weeks."
-    except Exception:
-        news_facts = "Earnings calendar unavailable."
-
-    news_sentiment = (
-        f"**Facts:** {news_facts}\n\n"
-        "**Rumors / social:** Ignore unverified tips.\n\n"
-        "**Market sentiment (ESTIMATE):** Derived from technical score + index bias.\n\n"
-        "**Catalysts:** Results, guidance, sector policy — verify on exchange filings."
-    )
+        news_bundle = fetch_stock_news(info["symbol"], market=market)
+        news_sentiment = format_news_markdown(news_bundle)
+    except Exception as exc:
+        gaps.append(f"News feed: {exc}")
+        news_sentiment = "**News:** Feed unavailable — check NSE filings manually."
     news = news_sentiment
 
     probs = _probabilities_from_scores(combined.combined_score, tech.composite_score, fund.composite_score)
-    pred_conf = min(85.0, max(35.0, 50 + combined.combined_score * 0.8))
+    pred_conf = _confidence_pct(combined.combined_score, gaps, advice.conviction)
 
     entry_obj = _build_entry_strategy(advice, tech, float(price) if price else None, currency)
     entry = (
@@ -697,7 +781,9 @@ def build_alpha_ai_report(
     verdict = recommendation
     stars = _stars_from_score(overall)
     risk_level = _overall_risk_level(tech_risk, red_flags, risks)
-    buy, buy_why = _buy_decision(advice.final_action, tech.composite_score, fund.composite_score)
+    buy, buy_why = _buy_decision(
+        advice.final_action, tech.composite_score, fund.composite_score, advice.conviction
+    )
 
     horizons = {
         "Swing": advice.final_action if tech.confidence != "low" else "Wait",

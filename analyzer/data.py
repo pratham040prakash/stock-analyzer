@@ -8,6 +8,7 @@ import pandas as pd
 from analyzer.fundamentals import extract_raw_fundamentals
 from analyzer.markets import currency_for_ticker, is_india_market, resolve_ticker
 from analyzer.nse_data import enrich_info_with_nse
+from analyzer.asset_class import assert_supported_equity
 
 BENCHMARK_SYMBOLS = {"india": "^NSEI", "us": "^GSPC"}
 
@@ -56,6 +57,12 @@ def _fetch_single(symbol: str, period: str, enrich_nse: bool = True) -> tuple[pd
     if symbol.endswith(".NS") and enrich_nse:
         info = enrich_info_with_nse(info)
     info["current_price"] = float(df["Close"].iloc[-1])
+    info["quoteType"] = raw_info.get("quoteType")
+    info["shares_outstanding"] = raw_info.get("sharesOutstanding")
+    info["longName"] = raw_info.get("longName")
+    info["shortName"] = raw_info.get("shortName")
+    info["description"] = raw_info.get("longBusinessSummary")
+    assert_supported_equity(symbol, raw_info)
     return df, info
 
 
