@@ -55,10 +55,15 @@ def render_kite_connect(*, compact: bool = False, key_prefix: str = "kite") -> b
             st.success(f"**Kite connected** — {status.get('detail', 'live data active')}")
         return True
     if level == "limited":
+        market = status.get("market_data", "")
         if not compact:
             st.success("**Kite logged in** — holdings & margins OK")
-            st.info(status.get("detail", ""))
-        return True
+            if market == "personal_app":
+                st.error("**Personal API app** — live quotes blocked by Zerodha")
+                st.markdown(status.get("detail", ""))
+            else:
+                st.info(status.get("detail", ""))
+        return market != "personal_app"
 
     if not creds.get("api_key") or not creds.get("api_secret"):
         if compact:
@@ -67,8 +72,10 @@ def render_kite_connect(*, compact: bool = False, key_prefix: str = "kite") -> b
         st.markdown("#### Connect Zerodha Kite")
         _render_kite_redirect_setup()
         st.caption(
-            "**One-time:** Create a free app at [developers.kite.trade](https://developers.kite.trade/) "
-            "→ copy **API Key** & **API Secret**. Set **Redirect URL** to the value shown above."
+            "**One-time:** Create a **Connect** app (₹500/mo) at "
+            "[developers.kite.trade](https://developers.kite.trade/) "
+            "→ copy **API Key** & **API Secret**. **Personal** apps cannot fetch live quotes. "
+            "Set **Redirect URL** to the value shown above."
         )
         with st.form(f"{key_prefix}_creds_form"):
             api_key = st.text_input("API Key", type="password", placeholder="From Kite Connect app")
@@ -148,8 +155,13 @@ def render_kite_connect_sidebar() -> None:
                 st.rerun()
             return
         if level == "limited":
-            st.success("Logged in (no market data API)")
-            st.caption("Prices use Yahoo/NSE · see banner for details")
+            market = status.get("market_data", "")
+            if market == "personal_app":
+                st.error("Personal app — no live quotes")
+                st.caption("Create a **Connect** app at developers.kite.trade")
+            else:
+                st.warning("Logged in — no quote API yet")
+                st.caption("Prices use Yahoo · re-login after Connect subscription")
             if st.button("Re-check Kite", key="sidebar_kite_recheck_lim", use_container_width=True):
                 clear_kite_status_caches()
                 st.rerun()

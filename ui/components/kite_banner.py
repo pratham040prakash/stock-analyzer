@@ -20,7 +20,12 @@ def render_kite_banner(*, cache_key: str = "_kite_status_cache") -> None:
     if level == "ok":
         return
     if level == "limited":
-        st.info(f"**{cached.get('headline', 'Kite')}** — {cached.get('detail', '')}")
+        market = cached.get("market_data", "")
+        if market == "personal_app":
+            st.error(f"**{cached.get('headline', 'Personal API app')}**")
+            st.markdown(cached.get("detail", ""))
+        else:
+            st.info(f"**{cached.get('headline', 'Kite')}** — {cached.get('detail', '')}")
         return
 
     creds = load_env_credentials()

@@ -57,7 +57,8 @@ Re-login sidebar → Zerodha. Token resets ~6 AM IST daily.
 
 ## Optional: Kite live data
 
-1. [developers.kite.trade](https://developers.kite.trade/) — redirect URL `http://127.0.0.1:8501`
-2. Add API key/secret to `.env`
-3. Sidebar → Login with Zerodha
-4. Subscribe to **market data API** on Zerodha for real-time cockpit
+1. [developers.kite.trade](https://developers.kite.trade/) — create app type **Connect** (not Personal)
+2. Add credits (₹500/mo) — Personal apps cannot use quote/historical APIs even with credits
+3. Redirect URL `http://127.0.0.1:8501` — add API key/secret to `.env`
+4. Sidebar → Login with Zerodha
+5. **📡 Data health** should show Kite: **ok** and intraday source **Kite**

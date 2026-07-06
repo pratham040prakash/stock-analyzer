@@ -10,17 +10,33 @@ _MARKET_PROBE_CACHE: tuple[float, str] | None = None
 _PROBE_TTL = 300  # seconds
 
 _MARKET_DATA_HINT = (
-    "Login works, but **live quotes/candles** need the Kite Connect **market data** "
-    "subscription (₹500/mo at developers.kite.trade). Until then the app uses "
-    "**NSE** (local) or **Yahoo Finance** for prices."
+    "Login works, but **live quotes/candles** need a paid **Connect** app "
+    "(₹500/mo at developers.kite.trade). Until then the app uses "
+    "**Yahoo Finance** for prices."
 )
+
+_PERSONAL_APP_HINT = (
+    "Your Kite app is type **Personal** (free). Personal apps can log in and "
+    "fetch holdings, but **cannot** call quote/LTP/historical APIs — even if you "
+    "added ₹500 credits. Create a **new Connect app** at "
+    "[developers.kite.trade](https://developers.kite.trade) → **Create app** → "
+    "type **Connect** → update `.env` with the new API key/secret → **Login with Zerodha**."
+)
+
+
+def _kite_basic_session_ok(kite) -> bool:
+    try:
+        kite.profile()
+        return True
+    except Exception:
+        return False
 
 
 def probe_kite_market_data(*, force: bool = False) -> str:
     """
     Probe whether quote API works (not just login).
 
-    Returns: ok | no_permission | expired | not_logged_in | not_configured
+    Returns: ok | personal_app | no_permission | expired | not_logged_in | not_configured
     """
     global _MARKET_PROBE_CACHE
     now = time.time()
@@ -43,13 +59,15 @@ def probe_kite_market_data(*, force: bool = False) -> str:
             except Exception as exc:
                 msg = str(exc).lower()
                 if "insufficient permission" in msg:
-                    status = "no_permission"
+                    status = (
+                        "personal_app"
+                        if _kite_basic_session_ok(kite)
+                        else "no_permission"
+                    )
                 elif "token" in msg or "session" in msg or "api_key" in msg:
                     status = "expired"
                 else:
-                    # Fallback: try REST helper used elsewhere
-                    ltp = fetch_kite_ltp(["NSE:NIFTY 50"])
-                    status = "ok" if ltp else "no_permission"
+                    status = "no_permission"
 
     _MARKET_PROBE_CACHE = (now, status)
     return status
@@ -111,11 +129,22 @@ def kite_connection_status(*, probe: bool = True) -> dict:
         }
 
     market = probe_kite_market_data()
+    if market == "personal_app":
+        return {
+            "level": "limited",
+            "headline": "Personal API app — no live quotes",
+            "detail": _PERSONAL_APP_HINT,
+            "nfo_ok": False,
+            "market_data": market,
+        }
     if market == "no_permission":
         return {
             "level": "limited",
             "headline": "Kite logged in — no market data API",
-            "detail": _MARKET_DATA_HINT,
+            "detail": (
+                f"{_MARKET_DATA_HINT} If you already paid, **re-login** after subscribing "
+                "or confirm the API key is from a **Connect** app (not Personal)."
+            ),
             "nfo_ok": False,
             "market_data": market,
         }

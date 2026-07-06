@@ -21,13 +21,23 @@ class SetupStep:
 
 def build_setup_status() -> list[SetupStep]:
     creds = load_env_credentials()
-    kite = kite_connection_status(probe=False)
+    kite = kite_connection_status(probe=bool(creds.get("access_token")))
     installed, total = count_installed_schedules()
 
     env_ok = bool(creds.get("api_key") or os.getenv("TELEGRAM_BOT_TOKEN", "").strip())
     tg_ok = telegram_configured()
-    kite_ok = kite.get("level") in ("ok", "limited")
+    kite_live = kite.get("level") == "ok"
+    kite_logged = kite.get("level") in ("ok", "limited")
     autopilot_ok = installed >= 4 if is_macos() else False
+
+    if kite_live:
+        kite_detail = "Live quotes active"
+    elif kite.get("market_data") == "personal_app":
+        kite_detail = "Personal app — create **Connect** app for live LTP"
+    elif kite_logged:
+        kite_detail = kite.get("headline", "Logged in — quotes not active")
+    else:
+        kite_detail = "Sidebar → Zerodha Kite → Connect app + login"
 
     return [
         SetupStep(
@@ -45,8 +55,8 @@ def build_setup_status() -> list[SetupStep]:
         SetupStep(
             key="kite",
             label="Zerodha Kite (optional)",
-            done=kite_ok,
-            detail=kite.get("message", "Login in sidebar for live LTP"),
+            done=kite_live,
+            detail=kite_detail,
         ),
         SetupStep(
             key="autopilot",

@@ -13,10 +13,14 @@ def render_data_health_sidebar(*, probe_kite: bool = False) -> None:
         st.caption(f"Intraday source: **{health.primary}**")
         if health.kite_logged_in:
             st.caption(f"Kite: **{health.kite_market_data}**")
-        if health.warning:
+        if health.kite_market_data == "personal_app":
+            st.error("Personal app — create a **Connect** app for live quotes")
+        elif health.warning:
             st.warning(health.warning)
         elif health.ok_for_live_cockpit:
             st.success("Live cockpit data OK")
+        elif health.kite_logged_in:
+            st.info("Using Yahoo until Kite Connect quotes are active")
         st.caption(health.detail)
         if st.button("Refresh Kite check", key="data_health_probe"):
             h2 = build_data_health(probe_kite=True)

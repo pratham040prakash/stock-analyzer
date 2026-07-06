@@ -65,5 +65,23 @@ class TestSetupStatus(unittest.TestCase):
         self.assertTrue(steps[0].done)
 
 
+class TestDataHealth(unittest.TestCase):
+    @patch("analyzer.data_health.kite_connection_status", return_value={"level": "limited", "detail": "Connect app needed"})
+    @patch("analyzer.data_health.probe_kite_market_data", return_value="personal_app")
+    @patch(
+        "analyzer.data_health.data_source_status",
+        return_value={"primary_intraday": "Yahoo Finance", "kite_configured": True, "kite_live_data": False},
+    )
+    @patch("analyzer.data_health.market_session_status", return_value={"is_open": False})
+    @patch("analyzer.data_health.load_env_credentials", return_value={"access_token": "t"})
+    def test_personal_app_not_ok_for_cockpit(self, *_mocks):
+        from analyzer.data_health import build_data_health
+
+        health = build_data_health()
+        self.assertFalse(health.ok_for_live_cockpit)
+        self.assertEqual(health.kite_market_data, "personal_app")
+        self.assertIn("Connect", health.warning)
+
+
 if __name__ == "__main__":
     unittest.main()
