@@ -272,8 +272,8 @@ def main() -> None:
 
     if is_simple_cloud_mode():
         st.info(
-            "**Cloud mode** — equity suggestions work here. For reliable NSE options (CE/PE), "
-            "run locally: `streamlit run app.py` on your Mac. "
+            "**Cloud mode** — **Suggestions**, **Track Record**, and **Alpha AI** are available. "
+            "For MIS autopilot and NSE options, run locally: `streamlit run app.py`. "
             "Set `SIMPLE_CLOUD_MODE=0` in secrets to show all tabs."
         )
 

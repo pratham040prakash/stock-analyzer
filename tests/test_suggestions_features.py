@@ -78,6 +78,12 @@ class TestAppMode(unittest.TestCase):
         with patch.dict(os.environ, {"SIMPLE_CLOUD_MODE": "0"}):
             self.assertFalse(is_simple_cloud_mode())
 
+    def test_simple_nav_includes_alpha_ai(self):
+        from ui.theme import SIMPLE_NAV_GROUPS, nav_group_for_tab
+
+        self.assertIn("Alpha AI", SIMPLE_NAV_GROUPS["🔍 Research"])
+        self.assertEqual(nav_group_for_tab("Alpha AI"), "🔍 Research")
+
 
 if __name__ == "__main__":
     unittest.main()

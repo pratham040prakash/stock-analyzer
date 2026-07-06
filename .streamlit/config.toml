@@ -1,9 +1,6 @@
+# Streamlit Cloud: do not bind to 127.0.0.1 (breaks hosted deploy).
 [server]
 headless = true
-address = "127.0.0.1"
-port = 8501
-enableCORS = false
-enableXsrfProtection = false
 
 [browser]
 gatherUsageStats = false

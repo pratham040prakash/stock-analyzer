@@ -65,6 +65,9 @@ SIMPLE_NAV_GROUPS: dict[str, list[str]] = {
         "Suggestions",
         "Track Record",
     ],
+    "🔍 Research": [
+        "Alpha AI",
+    ],
 }
 
 DEFAULT_NAV_GROUP = "🎯 Suggestions"
@@ -72,7 +75,7 @@ DEFAULT_NAV_TAB = "Suggestions"
 
 
 def active_nav_groups() -> dict[str, list[str]]:
-    """Full nav locally; Suggestions + Track Record only on Streamlit Cloud."""
+    """Full nav locally; Suggestions + Track Record + Alpha AI on Streamlit Cloud."""
     if is_simple_cloud_mode():
         return SIMPLE_NAV_GROUPS
     return NAV_GROUPS
