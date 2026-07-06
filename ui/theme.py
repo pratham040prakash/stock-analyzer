@@ -15,6 +15,7 @@ NAV_TABS = [
     "Daily Advisor",
     "Global Markets",
     "Single Stock",
+    "Alpha AI",
     "Compare",
     "Live Charts",
     "NSE Options",
@@ -37,6 +38,7 @@ NAV_GROUPS: dict[str, list[str]] = {
         "NSE Options",
     ],
     "🔍 Research": [
+        "Alpha AI",
         "Single Stock",
         "Compare",
         "Batch Scanner",

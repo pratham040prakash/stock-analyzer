@@ -22,6 +22,7 @@ from ui.components.kite_auth import handle_kite_redirect
 from ui.components.kite_connect import render_kite_connect_sidebar
 from ui.components.telegram_subscribe import render_telegram_subscribe_sidebar
 from ui.pages.beginner_risk import render_beginner_risk
+from ui.pages.alpha_ai import render_alpha_ai
 from ui.pages.backtest import render_backtest
 from ui.pages.compare import render_compare
 from ui.pages.daily_advisor import render_daily_advisor
@@ -314,6 +315,8 @@ def main() -> None:
         render_global_markets()
     elif selected == "Single Stock":
         render_single_stock(market, period)
+    elif selected == "Alpha AI":
+        render_alpha_ai(market, period=period)
     elif selected == "Compare":
         render_compare(market, period)
     elif selected == "Suggestions":
