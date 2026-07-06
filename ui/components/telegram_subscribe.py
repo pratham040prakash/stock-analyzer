@@ -60,7 +60,7 @@ def render_telegram_subscribe_sidebar() -> None:
         st.caption("After saving the token, subscribe buttons appear below on refresh.")
         return
 
-    process_bot_updates()
+    process_bot_updates(retries=4, pause_sec=1.5)
     token = get_or_create_subscribe_token()
     sub = get_subscriber_by_token(token)
     bot_user = get_bot_username()
@@ -80,7 +80,7 @@ def render_telegram_subscribe_sidebar() -> None:
             key="tg_pref_eod",
         )
         pulse = st.checkbox(
-            "Market pulse (manual send only)",
+            "MIS prep & nightly pulse (auto when Prep all runs)",
             value=sub.alerts_pulse,
             key="tg_pref_pulse",
         )

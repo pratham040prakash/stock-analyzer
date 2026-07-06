@@ -37,7 +37,7 @@ from analyzer.trade_ladder import format_stop_trail_guide
 from analyzer.watchlist_plan_tracker import assess_options_live_plan
 from analyzer.telegram_notify import telegram_configured
 from analyzer.watchlist_profit import format_expected_profit, options_target_profit_one_lot
-from ui.components.prep_all import send_combined_telegram_from_session
+from analyzer.prep_status import mark_prep_step
 from ui.navigation import request_nav_tab
 from ui.theme import OPTIONS_COLORS
 
@@ -227,17 +227,10 @@ def _render_telegram_export(wl: OptionsExpiryWatchlist, *, market_bias: str = ""
     if not wl.picks:
         return
     if telegram_configured():
-        if st.button("Send MIS prep to Telegram", key="opt_wl_tg", type="secondary"):
-            ok, err = send_combined_telegram_from_session(
-                options_picks=wl.picks,
-                market_bias=market_bias,
-            )
-            if ok:
-                st.success("Equity + options sent to Telegram.")
-            else:
-                st.error(err)
-    else:
-        st.caption("Subscribe to Telegram in sidebar to export picks.")
+        st.caption(
+            "Telegram: use **Send MIS prep to Telegram** in the equity section above "
+            "(sends equity + options together)."
+        )
 
 
 def render_options_expiry_watchlist_section(wl: OptionsExpiryWatchlist, *, market: str = "india") -> None:

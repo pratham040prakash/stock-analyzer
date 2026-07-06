@@ -9,7 +9,7 @@ import streamlit as st
 from analyzer.gift_nifty import fetch_gift_nifty_cue
 from analyzer.kite_status import kite_connection_status
 from analyzer.market_session import market_session_status
-from analyzer.opening_range_confirm import confirm_or_long_entry, fetch_symbol_opening_range
+from analyzer.opening_range_confirm import confirm_or_entry, fetch_symbol_opening_range
 from analyzer.options_trade_selection import load_selected_option, option_selection_status_line
 from analyzer.providers import get_live_ltp
 from analyzer.trade_selection import effective_trade_plans, load_selected_symbols, selection_status_line
@@ -42,7 +42,10 @@ def _or_summary(symbol: str, market: str) -> str:
     pins = {p.symbol.upper(): p for p in load_pinned_plans()}
     plan = pins.get(symbol.upper())
     entry = float(plan.entry) if plan else ltp
-    status = confirm_or_long_entry(ltp, entry=entry, or_high=or_high, or_low=or_low)
+    side = plan.side if plan else "LONG"
+    status = confirm_or_entry(
+        ltp, entry=entry, or_high=or_high, or_low=or_low, side=side,
+    )
     return f"{status.emoji} {status.label}"
 
 
@@ -58,6 +61,7 @@ def _ladder_summary(symbol: str, market: str) -> str:
         stop_loss=plan.stop_loss,
         target=plan.target,
         symbol=symbol,
+        side=plan.side,
     )
     stage = _LADDER_STAGE_LABEL.get(status.ladder_stage, "—")
     ltp_s = f"₹{ltp:,.0f}" if ltp else "—"

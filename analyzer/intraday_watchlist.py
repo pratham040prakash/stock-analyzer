@@ -17,6 +17,8 @@ MIN_ATR_PCT = 1.5
 MIN_VOLUME_RATIO = 1.0
 RSI_BULL_MIN = 55.0
 RSI_BULL_MAX = 65.0
+RSI_BEAR_MIN = 35.0
+RSI_BEAR_MAX = 45.0
 MAX_WATCHLIST = 8
 
 
@@ -73,6 +75,7 @@ class IntradayWatchlistPick:
     news_note: str
     can_enter: bool
     plan_summary: str
+    side: str = "LONG"
 
 
 @dataclass
@@ -110,8 +113,36 @@ def _macd_columns(df: pd.DataFrame) -> tuple[str | None, str | None]:
     return macd_line, signal_line
 
 
-def macd_bullish_cross(df: pd.DataFrame) -> bool:
-    """MACD line above signal on latest bar, or fresh bullish cross."""
+def macd_bearish_aligned(df: pd.DataFrame) -> bool:
+    """MACD line below signal on latest bar."""
+    if len(df) < 2:
+        return False
+    macd_col, sig_col = _macd_columns(df)
+    if not macd_col or not sig_col:
+        return False
+    cur_m = df[macd_col].iloc[-1]
+    cur_s = df[sig_col].iloc[-1]
+    if pd.isna(cur_m) or pd.isna(cur_s):
+        return False
+    return float(cur_m) < float(cur_s)
+
+
+def macd_bullish_aligned(df: pd.DataFrame) -> bool:
+    """MACD line above signal on latest bar."""
+    if len(df) < 2:
+        return False
+    macd_col, sig_col = _macd_columns(df)
+    if not macd_col or not sig_col:
+        return False
+    cur_m = df[macd_col].iloc[-1]
+    cur_s = df[sig_col].iloc[-1]
+    if pd.isna(cur_m) or pd.isna(cur_s):
+        return False
+    return float(cur_m) > float(cur_s)
+
+
+def macd_bearish_cross(df: pd.DataFrame) -> bool:
+    """Fresh bearish cross: MACD crossed below signal on latest bar."""
     if len(df) < 3:
         return False
     macd_col, sig_col = _macd_columns(df)
@@ -123,9 +154,23 @@ def macd_bullish_cross(df: pd.DataFrame) -> bool:
     prev_s = df[sig_col].iloc[-2]
     if pd.isna(cur_m) or pd.isna(cur_s):
         return False
-    if float(cur_m) > float(cur_s):
-        if float(prev_m) <= float(prev_s):
-            return True
+    return float(cur_m) < float(cur_s) and float(prev_m) >= float(prev_s)
+
+
+def macd_bullish_cross(df: pd.DataFrame) -> bool:
+    """Fresh bullish cross: MACD crossed above signal on latest bar."""
+    if len(df) < 3:
+        return False
+    macd_col, sig_col = _macd_columns(df)
+    if not macd_col or not sig_col:
+        return False
+    cur_m = df[macd_col].iloc[-1]
+    cur_s = df[sig_col].iloc[-1]
+    prev_m = df[macd_col].iloc[-2]
+    prev_s = df[sig_col].iloc[-2]
+    if pd.isna(cur_m) or pd.isna(cur_s):
+        return False
+    if float(cur_m) > float(cur_s) and float(prev_m) <= float(prev_s):
         return True
     return False
 
@@ -151,7 +196,10 @@ def compute_prep_metrics(df: pd.DataFrame) -> dict:
     return {
         "atr_pct": atr_pct,
         "rsi": rsi,
-        "macd_bullish": macd_bullish_cross(df),
+        "macd_bullish": macd_bullish_aligned(df),
+        "macd_bullish_cross": macd_bullish_cross(df),
+        "macd_bearish": macd_bearish_aligned(df),
+        "macd_bearish_cross": macd_bearish_cross(df),
         "pivot": pivots,
         "support": support,
         "resistance": resistance,
@@ -231,12 +279,12 @@ def _build_checklist(
     metrics: dict,
     event,
     sector_tailwind: bool,
+    *,
+    market_bias: str = "NEUTRAL",
 ) -> ProChecklist:
     gates = _gates()
     min_vol = float(gates["min_volume_ratio"])
     min_atr = float(gates["min_atr_pct"])
-    rsi_min = float(gates["rsi_bull_min"])
-    rsi_max = float(gates["rsi_bull_max"])
     notes: list[str] = []
     vol_ratio = getattr(stock, "volume_ratio", None)
     volume_ok = vol_ratio is not None and vol_ratio >= min_vol
@@ -253,15 +301,45 @@ def _build_checklist(
         notes.append(f"✘ ATR too low ({atr_pct or '—'}%) — flat stock")
 
     rsi = metrics.get("rsi") or getattr(stock, "rsi_14", None)
-    macd_ok = metrics.get("macd_bullish", getattr(stock, "macd_bullish", False))
-    rsi_ok = rsi is not None and rsi_min <= rsi <= rsi_max
-    rsi_macd_ok = rsi_ok and macd_ok
-    if rsi_macd_ok:
-        notes.append(f"✔ RSI **{rsi:.0f}** + MACD bullish")
-    elif rsi_ok:
-        notes.append(f"◐ RSI **{rsi:.0f}** in zone; MACD not confirmed")
+    bearish_day = market_bias == "BEARISH"
+    if bearish_day:
+        macd_cross = metrics.get("macd_bearish_cross")
+        macd_aligned = metrics.get("macd_bearish")
+        if macd_aligned is None:
+            macd_aligned = macd_bearish_aligned(stock.short_chart_df) if getattr(
+                stock, "short_chart_df", None
+            ) is not None else not metrics.get("macd_bullish", getattr(stock, "macd_bullish", False))
+        rsi_min = RSI_BEAR_MIN
+        rsi_max = RSI_BEAR_MAX
+        rsi_ok = rsi is not None and rsi_min <= rsi <= rsi_max
+        macd_ok = bool(macd_cross or macd_aligned)
+        rsi_macd_ok = rsi_ok and macd_ok
+        if rsi_macd_ok:
+            if macd_cross:
+                notes.append(f"✔ RSI **{rsi:.0f}** + MACD bearish cross")
+            else:
+                notes.append(f"✔ RSI **{rsi:.0f}** + MACD bearish (below signal)")
+        elif rsi_ok:
+            notes.append(f"◐ RSI **{rsi:.0f}** in zone; MACD not confirmed bearish")
+        else:
+            notes.append(f"✘ RSI/MACD not aligned for short (RSI {rsi or '—'})")
     else:
-        notes.append(f"✘ RSI/MACD not aligned (RSI {rsi or '—'})")
+        macd_cross = metrics.get("macd_bullish_cross")
+        macd_aligned = metrics.get("macd_bullish", getattr(stock, "macd_bullish", False))
+        rsi_min = float(gates["rsi_bull_min"])
+        rsi_max = float(gates["rsi_bull_max"])
+        rsi_ok = rsi is not None and rsi_min <= rsi <= rsi_max
+        macd_ok = bool(macd_cross or macd_aligned)
+        rsi_macd_ok = rsi_ok and macd_ok
+        if rsi_macd_ok:
+            if macd_cross:
+                notes.append(f"✔ RSI **{rsi:.0f}** + MACD bullish cross")
+            else:
+                notes.append(f"✔ RSI **{rsi:.0f}** + MACD bullish (above signal)")
+        elif rsi_ok:
+            notes.append(f"◐ RSI **{rsi:.0f}** in zone; MACD not confirmed")
+        else:
+            notes.append(f"✘ RSI/MACD not aligned (RSI {rsi or '—'})")
 
     pivots = metrics.get("pivot")
     if pivots is None and getattr(stock, "pivot_p", None):
@@ -282,7 +360,10 @@ def _build_checklist(
     notes.append(f"{'✔' if news_ok else '✘'} {news_note}")
 
     if sector_tailwind:
-        notes.append("✔ Sector tailwind — leading sector yesterday")
+        if market_bias == "BEARISH":
+            notes.append("✔ Sector tailwind — weak/lagging sector for shorts")
+        else:
+            notes.append("✔ Sector tailwind — leading sector yesterday")
 
     passed = sum([volume_ok, atr_ok, rsi_macd_ok, levels_ok, news_ok])
     return ProChecklist(
@@ -353,9 +434,10 @@ def build_intraday_watchlist(report, *, limit: int | None = None) -> IntradayWat
 
         pivots = metrics.get("pivot")
         sector = getattr(stock, "sector", "") or ""
-        tailwind = _sector_tailwind(sector, sector_leader)
+        sector_ref = sector_laggard if market_bias == "BEARISH" else sector_leader
+        tailwind = _sector_tailwind(sector, sector_ref)
         event = earn_map.get(stock.nse_symbol.upper())
-        checklist = _build_checklist(stock, metrics, event, tailwind)
+        checklist = _build_checklist(stock, metrics, event, tailwind, market_bias=market_bias)
 
         if checklist.passed < min_passed or not checklist.atr_ok:
             continue
@@ -378,6 +460,8 @@ def build_intraday_watchlist(report, *, limit: int | None = None) -> IntradayWat
             market_bias,
         )
         action = "BUY" if market_bias != "BEARISH" else "SELL"
+        side = "SHORT" if action == "SELL" else "LONG"
+        bearish_day = market_bias == "BEARISH"
         plan = build_intraday_trade_plan(action, entry, stop, target)
 
         prep_score = (
@@ -385,8 +469,11 @@ def build_intraday_watchlist(report, *, limit: int | None = None) -> IntradayWat
             + (10 if tailwind else 0)
             + (stock.combined_score * 0.15 if stock.combined_score else 0)
         )
-        if stock.intraday and stock.intraday.action in ("STRONG BUY", "BUY"):
-            prep_score += 8
+        if stock.intraday:
+            if bearish_day and stock.intraday.action in ("STRONG SELL", "SELL"):
+                prep_score += 8
+            elif not bearish_day and stock.intraday.action in ("STRONG BUY", "BUY"):
+                prep_score += 8
         if prep_score < min_prep:
             continue
         if (metrics.get("atr_pct") or 0) < min_atr:
@@ -417,6 +504,7 @@ def build_intraday_watchlist(report, *, limit: int | None = None) -> IntradayWat
             news_note=news_note,
             can_enter=plan.can_enter,
             plan_summary=plan.summary,
+            side=side,
         )
         candidates.append((prep_score, pick))
 

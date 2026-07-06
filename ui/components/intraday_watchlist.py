@@ -19,7 +19,7 @@ from analyzer.intraday_pulse_source import (
 )
 from analyzer.intraday_watchlist import IntradayWatchlistPick, build_intraday_watchlist
 from analyzer.market_session import market_session_status
-from analyzer.opening_range_confirm import confirm_or_long_entry, fetch_symbol_opening_range
+from analyzer.opening_range_confirm import confirm_or_entry, fetch_symbol_opening_range
 from analyzer.providers import data_source_status, get_live_ltp
 from analyzer.telegram_notify import telegram_configured
 from analyzer.watchlist_profit import (
@@ -27,13 +27,12 @@ from analyzer.watchlist_profit import (
     format_expected_profit,
     options_target_profit_one_lot,
 )
-from analyzer.watchlist_history import save_watchlist_snapshot
-from analyzer.prep_status import mark_prep_step
-from analyzer.watchlist_pins import TOP_TOMORROW_PICKS, sync_auto_top_picks
+from analyzer.watchlist_persist import persist_watchlist_state
 from analyzer.trade_ladder import build_equity_ladder, format_stop_trail_guide
 from analyzer.watchlist_plan_tracker import assess_live_plan
 from analyzer.watchlist_position_size import (
     equity_position_hint,
+    format_entry_status,
     format_risk_cell,
     format_shares_cell,
 )
@@ -53,11 +52,21 @@ def _watchlist_ticker(nse_symbol: str, market: str) -> str:
     return f"{sym}.NS" if market == "india" else sym
 
 
+def _chart_legend_caption(side: str) -> str:
+    if side == "SHORT":
+        return (
+            "Yellow = entry · Red = stop (above) · "
+            "Green dashed = T1/T2/T3 (below, profit direction)"
+        )
+    return "Yellow = entry · Red = stop · Green dashed = T1/T2/T3"
+
+
 def _render_watchlist_plan_chart(p: IntradayWatchlistPick, market: str, interval: str) -> None:
     """Intraday candle chart with entry, stop, T1/T2/T3 lines."""
     ticker = _watchlist_ticker(p.nse_symbol, market)
+    side = _pick_side(p)
     ladder = build_equity_ladder(
-        "LONG", p.entry, p.stop_loss, p.target,
+        side, p.entry, p.stop_loss, p.target,
         pivot_r2=p.pivot.r2 if p.pivot else None,
     )
     try:
@@ -120,10 +129,14 @@ def _render_watchlist_plan_charts(
         return
     st.markdown("##### 📈 Live charts — entry · stop · T1/T2/T3")
     ds = data_source_status()
-    st.caption(
-        f"Candles: **{ds['primary_intraday']}** · "
-        "Yellow = entry · Red = stop · Green dashed = T1/T2/T3"
-    )
+    sides = {_pick_side(p) for p in picks}
+    if sides == {"SHORT"}:
+        legend = _chart_legend_caption("SHORT")
+    elif sides == {"LONG"}:
+        legend = _chart_legend_caption("LONG")
+    else:
+        legend = "Yellow = entry · Red = stop · Green dashed = T1/T2/T3 (LONG & SHORT picks)"
+    st.caption(f"Candles: **{ds['primary_intraday']}** · {legend}")
     interval_label = st.selectbox(
         "Chart interval",
         list(INTERVAL_OPTIONS.keys()),
@@ -137,6 +150,10 @@ def _render_watchlist_plan_charts(
         _render_watchlist_plan_charts_body(picks, market, interval)
 
 
+def _pick_side(p: IntradayWatchlistPick) -> str:
+    return getattr(p, "side", "LONG") or "LONG"
+
+
 def _render_live_status(p: IntradayWatchlistPick | object, market: str) -> None:
     sym = getattr(p, "nse_symbol", None) or getattr(p, "symbol", "")
     entry = float(getattr(p, "entry"))
@@ -144,8 +161,10 @@ def _render_live_status(p: IntradayWatchlistPick | object, market: str) -> None:
     target = float(getattr(p, "target"))
     ltp, src = get_live_ltp(sym, market=market)
     pivot_r2 = getattr(getattr(p, "pivot", None), "r2", None)
+    side = _pick_side(p) if hasattr(p, "nse_symbol") else "LONG"
     status = assess_live_plan(
         ltp, entry=entry, stop_loss=stop, target=target, symbol=sym, pivot_r2=pivot_r2,
+        side=side,
     )
     st.caption(f"{status.emoji} **{status.label}** — {status.detail} ({src})")
     if status.ladder_note:
@@ -153,8 +172,8 @@ def _render_live_status(p: IntradayWatchlistPick | object, market: str) -> None:
     or_rng = fetch_symbol_opening_range(sym, market=market)
     if or_rng and ltp:
         or_high, or_low = or_rng
-        or_status = confirm_or_long_entry(
-            ltp, entry=entry, or_high=or_high, or_low=or_low,
+        or_status = confirm_or_entry(
+            ltp, entry=entry, or_high=or_high, or_low=or_low, side=side,
         )
         st.caption(f"{or_status.emoji} **OR:** {or_status.label} — {or_status.detail}")
 
@@ -175,7 +194,7 @@ def _render_pick_detail_expander(p: IntradayWatchlistPick) -> None:
         )
         st.markdown(f"**Plan:** {p.plan_summary}")
         ladder = build_equity_ladder(
-            "LONG", p.entry, p.stop_loss, p.target,
+            _pick_side(p), p.entry, p.stop_loss, p.target,
             pivot_r2=p.pivot.r2 if p.pivot else None,
         )
         st.caption(format_stop_trail_guide(ladder))
@@ -256,13 +275,11 @@ def render_intraday_watchlist_section(
     )
 
     if wl.picks:
-        sync_auto_top_picks(wl.picks, limit=TOP_TOMORROW_PICKS)
-        save_watchlist_snapshot(
-            wl.picks,
-            market_bias=wl.market_bias,
+        persist_watchlist_state(
+            wl,
             prep_date=prep_date,
+            session_store=st.session_state,
         )
-        mark_prep_step("equity")
 
     c1, c2, c3 = st.columns(3)
     c1.metric("Market bias", wl.market_bias)
@@ -343,12 +360,13 @@ def render_intraday_watchlist_section(
             per_trade_budget_inr=budget.per_trade_budget_inr,
         )
         ladder = build_equity_ladder(
-            "LONG", p.entry, p.stop_loss, p.target,
+            _pick_side(p), p.entry, p.stop_loss, p.target,
             pivot_r2=p.pivot.r2 if p.pivot else None,
         )
         table.append({
             "Rank": p.rank,
             "Stock": p.nse_symbol,
+            "Side": _pick_side(p),
             "Trade": "⭐" if is_selected(p.nse_symbol) else "",
             "Sector": p.sector[:12],
             "Price": f"₹{p.price:,.0f}",
@@ -365,6 +383,7 @@ def render_intraday_watchlist_section(
             "T2": f"₹{ladder.target2:,.0f}",
             "T3": f"₹{ladder.target3:,.0f}",
             "Shares": format_shares_cell(hint),
+            "Status": format_entry_status(p, hint),
             "Risk ₹": format_risk_cell(hint),
             "Exp. profit (1 sh)": format_expected_profit(
                 equity_target_profit_one_share(p.entry, p.target)
@@ -415,7 +434,10 @@ def _render_watchlist_body(
         "cache_stale": "Loaded from **cached scan** (>15 min old) — Quick scan for latest.",
         "missing": "No scan data yet — tap **Quick scan** (1–2 min).",
     }
-    st.caption(status_msgs.get(status, ""))
+    st.caption(
+        f"Scan history: **{period}** · {status_msgs.get(status, '')}"
+        if status_msgs.get(status) else f"Scan history: **{period}**"
+    )
 
     _, c2 = st.columns([3, 1])
     with c2:
@@ -423,6 +445,14 @@ def _render_watchlist_body(
             with st.spinner("Scanning Nifty 50 for watchlist… usually **1–2 min**."):
                 report = run_quick_watchlist_scan(market, period, use_cache=False)
                 st.session_state["market_pulse_full"] = report
+                if report and getattr(report, "stock_map", None):
+                    wl = build_intraday_watchlist(report, limit=TOP_TOMORROW_PICKS)
+                    persist_watchlist_state(
+                        wl,
+                        prep_date=market_session_status().get("date", ""),
+                        force=True,
+                        session_store=st.session_state,
+                    )
             st.rerun()
 
     if report and getattr(report, "stock_map", None):

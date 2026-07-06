@@ -11,7 +11,7 @@ import streamlit as st
 from analyzer.global_impact import build_india_impact_report
 from analyzer.global_markets import WORLD_INDICES, build_global_heatmap_df, fetch_intraday_5m
 from analyzer.india_macro import build_india_macro_snapshot
-from analyzer.intraday_data import market_session_status
+from analyzer.market_session import market_session_status
 from ui.charts import global_normalized_chart
 from ui.components.india_macro import render_india_macro_strip
 from ui.theme import GLOBAL_BIAS_COLORS

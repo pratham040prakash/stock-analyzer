@@ -11,9 +11,18 @@ from zoneinfo import ZoneInfo
 from analyzer.market_session import market_session_status
 
 IST = ZoneInfo("Asia/Kolkata")
-MAX_PINNED = 3
 TOP_TOMORROW_PICKS = 5
+MAX_PINNED = TOP_TOMORROW_PICKS  # legacy manual pin; MIS workflow uses sync_auto_top_picks
 PINS_PATH = Path(__file__).resolve().parent.parent / "data" / "intraday" / "pinned_watchlist.json"
+
+
+def infer_trade_side(entry: float, stop_loss: float, *, explicit: str | None = None) -> str:
+    """LONG | SHORT from explicit side or stop vs entry geometry."""
+    if explicit:
+        side = explicit.upper()
+        if side in ("LONG", "SHORT"):
+            return side
+    return "SHORT" if stop_loss > entry else "LONG"
 
 
 @dataclass
@@ -25,6 +34,7 @@ class PinnedPlan:
     prep_date: str
     pinned_at: str = ""
     sector: str = ""
+    side: str = "LONG"
 
 
 def _ensure_dir() -> None:
@@ -54,15 +64,18 @@ def load_pinned_plans() -> list[PinnedPlan]:
     raw = _load_raw()
     picks = []
     for p in raw.get("picks", []):
+        entry = float(p["entry"])
+        stop = float(p["stop_loss"])
         picks.append(
             PinnedPlan(
                 symbol=p["symbol"],
-                entry=float(p["entry"]),
-                stop_loss=float(p["stop_loss"]),
+                entry=entry,
+                stop_loss=stop,
                 target=float(p["target"]),
                 prep_date=raw.get("prep_date", ""),
                 pinned_at=p.get("pinned_at", ""),
                 sector=p.get("sector", ""),
+                side=infer_trade_side(entry, stop, explicit=p.get("side")),
             )
         )
     return picks
@@ -96,9 +109,10 @@ def pin_pick(
     entry: float,
     stop_loss: float,
     target: float,
+    side: str | None = None,
     max_pins: int = MAX_PINNED,
 ) -> tuple[bool, str]:
-    """Pin a symbol. Returns (success, message)."""
+    """Pin a symbol manually (legacy). MIS workflow uses sync_auto_top_picks instead."""
     sym = symbol.upper().replace(".NS", "")
     raw = _load_raw()
     prep = current_prep_date()
@@ -115,6 +129,7 @@ def pin_pick(
         "entry": entry,
         "stop_loss": stop_loss,
         "target": target,
+        "side": infer_trade_side(entry, stop_loss, explicit=side),
         "pinned_at": now,
     })
     raw["picks"] = picks
@@ -136,6 +151,7 @@ def toggle_pin(
     entry: float,
     stop_loss: float,
     target: float,
+    side: str | None = None,
     max_pins: int = MAX_PINNED,
 ) -> tuple[bool, str]:
     """Toggle pin; returns (now_pinned, message)."""
@@ -143,7 +159,12 @@ def toggle_pin(
         unpin_pick(symbol)
         return False, f"Unpinned **{symbol}**."
     ok, msg = pin_pick(
-        symbol, entry=entry, stop_loss=stop_loss, target=target, max_pins=max_pins
+        symbol,
+        entry=entry,
+        stop_loss=stop_loss,
+        target=target,
+        side=side,
+        max_pins=max_pins,
     )
     return ok, msg
 
@@ -173,11 +194,18 @@ def sync_auto_top_picks(
         sym = (
             getattr(p, "nse_symbol", None) or getattr(p, "symbol", "")
         ).upper().replace(".NS", "")
+        entry = float(getattr(p, "entry"))
+        stop = float(getattr(p, "stop_loss"))
         rows.append({
             "symbol": sym,
-            "entry": float(getattr(p, "entry")),
-            "stop_loss": float(getattr(p, "stop_loss")),
+            "entry": entry,
+            "stop_loss": stop,
             "target": float(getattr(p, "target")),
+            "side": infer_trade_side(
+                entry,
+                stop,
+                explicit=getattr(p, "side", None),
+            ),
             "pinned_at": now,
             "sector": (getattr(p, "sector", "") or "").strip(),
         })

@@ -26,10 +26,14 @@ KITE_INTERVAL = {
     "15m": "15minute",
 }
 
+# Long-option premium: buying CE/PE is always a long-premium position (not equity SHORT).
+PREMIUM_LADDER_SIDE = "LONG"
+
 
 def _ladder_as_trade(ladder: OptionsLadder) -> TradeLadder:
+    """Map options premium ladder to TradeLadder for shared chart helpers."""
     return TradeLadder(
-        side="LONG",
+        side=PREMIUM_LADDER_SIDE,
         entry=ladder.entry,
         initial_stop=ladder.initial_stop,
         targets=ladder.targets,

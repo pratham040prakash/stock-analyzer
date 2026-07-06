@@ -11,9 +11,13 @@ from analyzer.watchlist import scan_watchlist
 
 def render_watchlist(market: str, period: str) -> None:
     st.subheader("Batch Scanner")
+    st.info(
+        "**Batch Scanner** = scan any ticker list for signals. "
+        "**Intraday tab → Top MIS picks** = your nightly top-5 with entry/stop/target for tomorrow."
+    )
     st.caption(
-        "Scan multiple tickers in parallel — not your MIS top-5. "
-        "For tonight's **2 equity picks**, use the **Intraday** tab."
+        "Parallel scan of multiple symbols — not your MIS workflow. "
+        "For **2 equity trades tomorrow**, use **Intraday → Top MIS picks**."
     )
     if is_india_market(market):
         preset_options = {

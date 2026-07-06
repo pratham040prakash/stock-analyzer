@@ -150,7 +150,7 @@ def scan_small_trader_portfolio(
     from datetime import datetime
     from zoneinfo import ZoneInfo
 
-    from analyzer.intraday_data import market_session_status
+    from analyzer.market_session import market_session_status
 
     session = market_session_status()
     rows: list[SmallTraderHoldingRow] = []

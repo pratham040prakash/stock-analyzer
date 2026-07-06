@@ -8,7 +8,7 @@ import pandas as pd
 import streamlit as st
 
 from analyzer.intraday_chart import intraday_chart
-from analyzer.intraday_data import market_session_status
+from analyzer.market_session import market_session_status
 from analyzer.pulse_cache import load_pulse_cache_with_stale
 from analyzer.market_pulse_scan import (
     CACHE_TTL as PULSE_CACHE_TTL,

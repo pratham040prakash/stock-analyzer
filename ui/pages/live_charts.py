@@ -8,7 +8,8 @@ import pandas as pd
 import streamlit as st
 
 from analyzer.intraday_chart import intraday_chart
-from analyzer.intraday_data import INTERVAL_OPTIONS, market_session_status
+from analyzer.intraday_data import INTERVAL_OPTIONS, fetch_intraday
+from analyzer.market_session import market_session_status
 from analyzer.live_charts_grid import LiveChartRow, clear_live_charts_cache, fetch_live_charts_grid
 from analyzer.providers import data_source_status
 from ui.theme import INTRADAY_SETUP_COLORS

@@ -301,6 +301,12 @@ def assess_equity_ladder(
             f"LTP ₹{ltp:,.2f} approaching stop ₹{active_stop:,.2f}.",
             ladder_note=_ladder_note(ladder, stage),
         )
+    if not long_bias and _near(ltp, active_stop):
+        return LadderStatus(
+            sym, ltp, stage, active_stop, nxt, "Near stop", "🟠",
+            f"LTP ₹{ltp:,.2f} approaching stop ₹{active_stop:,.2f} (above entry for short).",
+            ladder_note=_ladder_note(ladder, stage),
+        )
 
     if stage == 3 or (long_bias and ltp >= t3) or (not long_bias and ltp <= t3):
         trail = ladder.stops_after[2]
@@ -318,6 +324,13 @@ def assess_equity_ladder(
                 f"Hold stop **₹{active_stop:,.2f}** (T1) until T3 books.",
                 ladder_note=_ladder_note(ladder, 2),
             )
+        if not long_bias and _near(ltp, t3):
+            return LadderStatus(
+                sym, ltp, 2, active_stop, t3, "Near T3", "🟢",
+                f"LTP ₹{ltp:,.2f} approaching T3 ₹{t3:,.2f} (short). "
+                f"Hold stop **₹{active_stop:,.2f}** (T1) until T3 books.",
+                ladder_note=_ladder_note(ladder, 2),
+            )
         return LadderStatus(
             sym, ltp, 2, active_stop, t3, "T2 hit — trail to T3", "🟢",
             f"T2 ₹{t2:,.2f} hit — book **30%**. "
@@ -329,6 +342,12 @@ def assess_equity_ladder(
             return LadderStatus(
                 sym, ltp, 1, active_stop, t2, "Near T2", "🟢",
                 f"LTP ₹{ltp:,.2f} approaching T2 ₹{t2:,.2f}.",
+                ladder_note=_ladder_note(ladder, 1),
+            )
+        if not long_bias and _near(ltp, t2):
+            return LadderStatus(
+                sym, ltp, 1, active_stop, t2, "Near T2", "🟢",
+                f"LTP ₹{ltp:,.2f} approaching T2 ₹{t2:,.2f} (short).",
                 ladder_note=_ladder_note(ladder, 1),
             )
         return LadderStatus(
@@ -344,11 +363,24 @@ def assess_equity_ladder(
             f"LTP ₹{ltp:,.2f} approaching T1 ₹{t1:,.2f}.",
             ladder_note=_ladder_note(ladder, 0),
         )
+    if not long_bias and _near(ltp, t1):
+        return LadderStatus(
+            sym, ltp, 0, active_stop, t1, "Near T1", "🟢",
+            f"LTP ₹{ltp:,.2f} approaching T1 ₹{t1:,.2f} (short).",
+            ladder_note=_ladder_note(ladder, 0),
+        )
     if long_bias and ltp >= t1:
         return LadderStatus(
             sym, ltp, 1, active_stop, t2, "T1 hit — book 40%", "🟢",
             f"T1 ₹{t1:,.2f} hit — book **40%**. "
             f"Move stop to **₹{active_stop:,.2f}** (breakeven). Next T2 **₹{t2:,.2f}**.",
+            ladder_note=_ladder_note(ladder, 1),
+        )
+    if not long_bias and ltp <= t1:
+        return LadderStatus(
+            sym, ltp, 1, active_stop, t2, "T1 hit — book 40%", "🟢",
+            f"T1 ₹{t1:,.2f} hit — book **40%**. "
+            f"Move stop to **₹{active_stop:,.2f}** (entry). Next T2 **₹{t2:,.2f}**.",
             ladder_note=_ladder_note(ladder, 1),
         )
 
@@ -363,6 +395,12 @@ def assess_equity_ladder(
         return LadderStatus(
             sym, ltp, 0, active_stop, t1, "Below entry", "⚪",
             f"Wait — LTP ₹{ltp:,.2f} below entry ₹{ladder.entry:,.2f}.",
+            ladder_note=_ladder_note(ladder, 0),
+        )
+    if not long_bias and ltp > ladder.entry and not _near(ltp, ladder.entry):
+        return LadderStatus(
+            sym, ltp, 0, active_stop, t1, "Above entry", "⚪",
+            f"Wait — LTP ₹{ltp:,.2f} above entry ₹{ladder.entry:,.2f} (short).",
             ladder_note=_ladder_note(ladder, 0),
         )
 

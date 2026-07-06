@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 
 from analyzer.global_impact import IndiaImpactReport, build_india_impact_report
 from analyzer.india_macro import IndiaMacroSnapshot, build_india_macro_snapshot
-from analyzer.intraday_data import market_session_status
+from analyzer.market_session import market_session_status
 from analyzer.market_pulse import IndexPulse, india_market_pulse, overall_market_verdict
 from analyzer.market_regime import MarketRegime, detect_nifty_regime
 

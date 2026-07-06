@@ -11,8 +11,8 @@ from analyzer.market_session import market_session_status
 from analyzer.options_expiry_watchlist import build_options_expiry_watchlist
 from analyzer.options_watchlist_history import save_options_watchlist_snapshot
 from analyzer.prep_status import mark_prep_step
-from analyzer.watchlist_history import save_watchlist_snapshot
-from analyzer.watchlist_pins import TOP_TOMORROW_PICKS, sync_auto_top_picks
+from analyzer.watchlist_persist import persist_watchlist_state
+from analyzer.watchlist_pins import TOP_TOMORROW_PICKS
 from analyzer.watchlist_telegram import format_combined_prep_telegram
 
 
@@ -52,13 +52,11 @@ def run_nightly_prep(
         result.market_bias = wl.market_bias
         result.equity_count = len(wl.picks)
         if wl.picks:
-            sync_auto_top_picks(wl.picks, limit=TOP_TOMORROW_PICKS)
-            save_watchlist_snapshot(
-                wl.picks,
-                market_bias=wl.market_bias,
+            persist_watchlist_state(
+                wl,
                 prep_date=prep_date,
+                force=True,
             )
-            mark_prep_step("equity")
 
     opt_picks = []
     try:

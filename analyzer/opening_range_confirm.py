@@ -30,6 +30,89 @@ def _past_or_window(now: datetime) -> bool:
     return now >= cutoff
 
 
+def confirm_or_short_entry(
+    ltp: float | None,
+    *,
+    entry: float,
+    or_high: float,
+    or_low: float,
+    now: datetime | None = None,
+) -> OrConfirmResult:
+    """
+    Short MIS rule after 9:45:
+    - Observe until OR window ends
+    - Confirmed if LTP <= entry AND LTP <= OR low (breakdown)
+    - Cautious if below entry but above OR low
+    """
+    now = now or datetime.now(IST)
+    if now.weekday() >= 5:
+        return OrConfirmResult(
+            "observe", "Weekend", "⚪", "Market closed.", False,
+        )
+    if ltp is None or ltp <= 0:
+        return OrConfirmResult(
+            "wait", "No LTP", "⚪", "Live price unavailable.", False,
+        )
+    if not _past_or_window(now):
+        return OrConfirmResult(
+            "observe",
+            "Observe OR",
+            "🟡",
+            f"Wait until 9:45 — note OR High ₹{or_high:,.0f} · OR Low ₹{or_low:,.0f}.",
+            False,
+        )
+    if ltp > or_high:
+        return OrConfirmResult(
+            "invalid",
+            "Above OR high",
+            "🔴",
+            f"LTP ₹{ltp:,.2f} above OR high ₹{or_high:,.0f} — skip short.",
+            False,
+        )
+    if ltp <= entry and ltp <= or_low:
+        return OrConfirmResult(
+            "confirmed",
+            "OR breakdown confirmed",
+            "🟢",
+            f"LTP ₹{ltp:,.2f} ≤ entry ₹{entry:,.0f} and OR low ₹{or_low:,.0f}.",
+            True,
+        )
+    if ltp <= entry:
+        return OrConfirmResult(
+            "wait",
+            "Below entry, above OR low",
+            "🟡",
+            f"LTP ₹{ltp:,.2f} ≤ entry but above OR low ₹{or_low:,.0f} — wait for breakdown.",
+            False,
+        )
+    return OrConfirmResult(
+        "wait",
+        "Above entry",
+        "⚪",
+        f"LTP ₹{ltp:,.2f} above entry ₹{entry:,.0f}.",
+        False,
+    )
+
+
+def confirm_or_entry(
+    ltp: float | None,
+    *,
+    entry: float,
+    or_high: float,
+    or_low: float,
+    side: str = "LONG",
+    now: datetime | None = None,
+) -> OrConfirmResult:
+    """Opening-range confirmation for long or short MIS plans."""
+    if side.upper() == "SHORT":
+        return confirm_or_short_entry(
+            ltp, entry=entry, or_high=or_high, or_low=or_low, now=now,
+        )
+    return confirm_or_long_entry(
+        ltp, entry=entry, or_high=or_high, or_low=or_low, now=now,
+    )
+
+
 def confirm_or_long_entry(
     ltp: float | None,
     *,

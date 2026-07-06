@@ -56,20 +56,23 @@ class TestWatchlistPins(unittest.TestCase):
 
     def test_sync_auto_top_picks(self):
         class _Pick:
-            def __init__(self, sym, entry, stop, target):
+            def __init__(self, sym, entry, stop, target, side="LONG"):
                 self.nse_symbol = sym
                 self.entry = entry
                 self.stop_loss = stop
                 self.target = target
+                self.side = side
 
         picks = [
             _Pick("RELIANCE", 2850, 2820, 2920),
-            _Pick("TCS", 4000, 3950, 4100),
+            _Pick("TCS", 4000, 4100, 3900, side="SHORT"),
             _Pick("INFY", 1800, 1780, 1850),
         ]
         synced = sync_auto_top_picks(picks, limit=TOP_TOMORROW_PICKS)
         self.assertEqual(len(synced), 3)
         self.assertTrue(is_pinned("RELIANCE"))
+        short = [p for p in synced if p.symbol == "TCS"][0]
+        self.assertEqual(short.side, "SHORT")
         raw = self.path.read_text(encoding="utf-8")
         self.assertIn('"auto": true', raw)
 

@@ -8,7 +8,8 @@ import streamlit as st
 
 from analyzer.candle_narrative import analyze_live_chart
 from analyzer.intraday_chart import intraday_chart
-from analyzer.intraday_data import INTERVAL_OPTIONS, fetch_intraday, market_session_status
+from analyzer.intraday_data import INTERVAL_OPTIONS, fetch_intraday
+from analyzer.market_session import market_session_status
 from analyzer.intraday_prefs import load_intraday_prefs, save_intraday_prefs, session_to_prefs
 from analyzer.intraday_signals import add_intraday_indicators
 from analyzer.intraday_beginner_tips import (
@@ -166,10 +167,14 @@ def small_trader_portfolio_panel(market: str, interval_key: str) -> None:
     render_small_trader_portfolio_intraday(market, interval_key)
 
 
-def render_intraday(market: str) -> None:
+def render_intraday(market: str, *, period: str = "1y") -> None:
     st.markdown(MOBILE_CSS, unsafe_allow_html=True)
     st.subheader("Intraday — MIS workflow")
     st.caption(discipline_intro())
+    st.caption(
+        "Tonight's **Top MIS picks** live here. For ad-hoc multi-ticker scans, "
+        "use **Batch Scanner** in the Watchlists category."
+    )
 
     _hydrate_intraday_prefs()
     max_trades = int(st.session_state.get("intraday_max_trades", DEFAULT_MAX_CONCURRENT_TRADES))
@@ -179,16 +184,70 @@ def render_intraday(market: str) -> None:
     render_morning_cockpit(market)
     render_daily_mis_checklist(timing)
 
-    render_prep_all_bar(market)
+    capital_focus = st.session_state.pop("intraday_focus_capital", False)
+    with st.expander("💰 Capital & risk settings", expanded=capital_focus):
+        r1, r2, r3, r4 = st.columns(4)
+        with r1:
+            st.number_input(
+                "Total capital (₹)",
+                min_value=5_000,
+                max_value=10_000_000,
+                step=5_000,
+                key="intraday_capital",
+                help="Tip #2: not all of this goes to MIS.",
+                on_change=_persist_intraday_prefs,
+            )
+        with r2:
+            st.slider(
+                "MIS allocation today (%)",
+                min_value=10,
+                max_value=80,
+                step=5,
+                key="intraday_allocation_pct",
+                help="Tip #2–3: keep the rest for delivery / next day.",
+                on_change=_persist_intraday_prefs,
+            )
+        with r3:
+            st.slider(
+                "Max risk per trade (%)",
+                min_value=0.5,
+                max_value=3.0,
+                step=0.25,
+                key="intraday_max_risk_pct",
+                on_change=_persist_intraday_prefs,
+            )
+        with r4:
+            _mt_opts = [1, 2, 3]
+            _mt_default = int(st.session_state.get("intraday_max_trades", DEFAULT_MAX_CONCURRENT_TRADES))
+            st.selectbox(
+                "Max trades today",
+                options=_mt_opts,
+                index=_mt_opts.index(_mt_default) if _mt_default in _mt_opts else 1,
+                key="intraday_max_trades",
+                help="Tip #8: few instruments, focused attention.",
+                on_change=_persist_intraday_prefs,
+            )
+        st.caption("Settings are **saved automatically** for your next session.")
+
+        allocated = render_capital_budget_panel(
+            float(st.session_state["intraday_capital"]),
+            float(st.session_state["intraday_allocation_pct"]),
+            float(st.session_state["intraday_max_risk_pct"]),
+            int(st.session_state["intraday_max_trades"]),
+        )
+        st.session_state["intraday_allocated_pool"] = allocated
+
+    render_prep_all_bar(market, period=period)
     st.divider()
     render_intraday_watchlist_block(
         market,
+        period=period,
         max_concurrent_trades=max_trades,
         as_top_section=True,
     )
 
     st.divider()
-    render_options_expiry_watchlist_block(market)
+    render_options_expiry_watchlist_block(market, period=period)
 
     st.divider()
     render_intraday_track_record(days=7, market=market, max_trades=max_trades)
@@ -199,59 +258,6 @@ def render_intraday(market: str) -> None:
             "Candle stories, entry/exit plans, and portfolio scan. "
             "With **≤10 stocks** in **My Portfolio**, you get a full strip below."
         )
-
-        capital_focus = st.session_state.pop("intraday_focus_capital", False)
-        with st.expander("💰 Capital & risk settings", expanded=capital_focus):
-            r1, r2, r3, r4 = st.columns(4)
-            with r1:
-                st.number_input(
-                    "Total capital (₹)",
-                    min_value=5_000,
-                    max_value=10_000_000,
-                    step=5_000,
-                    key="intraday_capital",
-                    help="Tip #2: not all of this goes to MIS.",
-                    on_change=_persist_intraday_prefs,
-                )
-            with r2:
-                st.slider(
-                    "MIS allocation today (%)",
-                    min_value=10,
-                    max_value=80,
-                    step=5,
-                    key="intraday_allocation_pct",
-                    help="Tip #2–3: keep the rest for delivery / next day.",
-                    on_change=_persist_intraday_prefs,
-                )
-            with r3:
-                st.slider(
-                    "Max risk per trade (%)",
-                    min_value=0.5,
-                    max_value=3.0,
-                    step=0.25,
-                    key="intraday_max_risk_pct",
-                    on_change=_persist_intraday_prefs,
-                )
-            with r4:
-                _mt_opts = [1, 2, 3]
-                _mt_default = int(st.session_state.get("intraday_max_trades", DEFAULT_MAX_CONCURRENT_TRADES))
-                st.selectbox(
-                    "Max trades today",
-                    options=_mt_opts,
-                    index=_mt_opts.index(_mt_default) if _mt_default in _mt_opts else 1,
-                    key="intraday_max_trades",
-                    help="Tip #8: few instruments, focused attention.",
-                    on_change=_persist_intraday_prefs,
-                )
-            st.caption("Settings are **saved automatically** for your next session.")
-
-            allocated = render_capital_budget_panel(
-                float(st.session_state["intraday_capital"]),
-                float(st.session_state["intraday_allocation_pct"]),
-                float(st.session_state["intraday_max_risk_pct"]),
-                int(st.session_state["intraday_max_trades"]),
-            )
-            st.session_state["intraday_allocated_pool"] = allocated
 
         render_ten_tips_expander()
 

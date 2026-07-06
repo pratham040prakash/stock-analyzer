@@ -49,6 +49,29 @@ def _hydrate_saved_portfolio() -> None:
         st.session_state["zd_import"] = saved
 
 
+def _run_background_task(task_name: str, fn) -> None:
+    """Run a background hook; surface failures once per session."""
+    try:
+        fn()
+    except Exception as exc:
+        errors: list[str] = st.session_state.setdefault("_background_task_errors", [])
+        msg = f"{task_name}: {exc}"
+        if msg not in errors:
+            errors.append(msg)
+
+
+def _render_background_task_errors() -> None:
+    errors = st.session_state.get("_background_task_errors") or []
+    if not errors:
+        return
+    with st.expander("⚠️ Background task issues", expanded=True):
+        for err in errors:
+            st.warning(err)
+        if st.button("Dismiss", key="dismiss_bg_errors"):
+            st.session_state["_background_task_errors"] = []
+            st.rerun()
+
+
 def _maybe_validate_suggestions_eod() -> None:
     """Once per app session after close, score pending picks vs market."""
     if st.session_state.get("_suggestions_validated_session"):
@@ -56,7 +79,7 @@ def _maybe_validate_suggestions_eod() -> None:
     session = market_session_status()
     if session.get("is_open"):
         return
-    try:
+    def _run() -> None:
         from analyzer.suggestion_journal import count_pending_validation
         from analyzer.eod_learning import run_eod_learning_cycle
 
@@ -65,8 +88,8 @@ def _maybe_validate_suggestions_eod() -> None:
             return
         run_eod_learning_cycle(send_telegram_alert=True)
         st.session_state["_suggestions_validated_session"] = True
-    except Exception:
-        pass
+
+    _run_background_task("EOD suggestion learning", _run)
 
 
 def _maybe_score_watchlist_eod() -> None:
@@ -76,7 +99,7 @@ def _maybe_score_watchlist_eod() -> None:
     session = market_session_status()
     if session.get("is_open"):
         return
-    try:
+    def _run() -> None:
         from analyzer.watchlist_history import prune_old_watchlist_data
         from analyzer.watchlist_learning import run_watchlist_learning_cycle
 
@@ -86,44 +109,44 @@ def _maybe_score_watchlist_eod() -> None:
             from analyzer.options_watchlist_history import prune_old_options_data
 
             prune_old_options_data()
-        except Exception:
-            pass
+        except Exception as exc:
+            raise RuntimeError(f"options history prune: {exc}") from exc
         try:
             from analyzer.mis_eod_summary import maybe_send_mis_eod_summary
 
             maybe_send_mis_eod_summary()
-        except Exception:
-            pass
+        except Exception as exc:
+            raise RuntimeError(f"MIS EOD summary: {exc}") from exc
         st.session_state["_watchlist_scored_session"] = True
-    except Exception:
-        pass
+
+    _run_background_task("Watchlist EOD scoring", _run)
 
 
 def _maybe_session_reminders() -> None:
-    try:
+    def _run() -> None:
         from analyzer.session_reminders import maybe_send_session_reminders
 
         maybe_send_session_reminders()
-    except Exception:
-        pass
+
+    _run_background_task("Session reminders", _run)
 
 
 def _maybe_prep_morning_nag() -> None:
-    try:
+    def _run() -> None:
         from analyzer.prep_morning_nag import maybe_send_prep_morning_nag
 
         maybe_send_prep_morning_nag()
-    except Exception:
-        pass
+
+    _run_background_task("Prep morning nag", _run)
 
 
 def _maybe_watchlist_live_alerts() -> None:
-    try:
+    def _run() -> None:
         from analyzer.watchlist_live_alerts import maybe_send_watchlist_live_alerts
 
         maybe_send_watchlist_live_alerts()
-    except Exception:
-        pass
+
+    _run_background_task("Watchlist live alerts", _run)
 
 
 def main() -> None:
@@ -228,6 +251,7 @@ def main() -> None:
 
     st.info(DISCLAIMER)
     render_nse_error_banner()
+    _render_background_task_errors()
     if is_india_market(market):
         render_kite_banner(cache_key="_app_kite_status")
 
@@ -276,7 +300,7 @@ def main() -> None:
     elif selected == "Compare":
         render_compare(market, period)
     elif selected == "Intraday":
-        render_intraday(market)
+        render_intraday(market, period=period)
     elif selected == "Live Charts":
         render_live_charts_grid(market)
     elif selected == "NSE Options":

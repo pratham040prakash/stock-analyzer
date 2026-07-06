@@ -19,7 +19,8 @@ from analyzer.data import fetch_stock_data
 from analyzer.india import NIFTY_50
 from analyzer.india_macro import IndiaMacroSnapshot, build_india_macro_snapshot
 from analyzer.indicators import add_indicators
-from analyzer.intraday_data import fetch_intraday, market_session_status
+from analyzer.intraday_data import fetch_intraday
+from analyzer.market_session import market_session_status
 from analyzer.intraday_signals import add_intraday_indicators
 from analyzer.market_pulse import IndexPulse, india_market_pulse, overall_market_verdict
 from analyzer.market_regime import MarketRegime, apply_regime_to_action, detect_nifty_regime

@@ -105,6 +105,25 @@ def equity_hint_from_budget(
     )
 
 
+def format_entry_status(
+    pick,
+    hint: EquityPositionHint,
+) -> str:
+    """Human-readable enter/skip status for the watchlist table."""
+    if hint.can_enter and getattr(pick, "can_enter", True):
+        return "✅ OK"
+    reason = hint.skip_reason
+    if not reason and not getattr(pick, "can_enter", True):
+        summary = getattr(pick, "plan_summary", "") or ""
+        reason = summary.replace("**Do not enter** — ", "").replace("**", "")
+    if reason:
+        clean = reason.replace("**", "").strip()
+        if len(clean) > 72:
+            clean = clean[:69] + "…"
+        return f"Skip: {clean}"
+    return "Skip"
+
+
 def format_shares_cell(hint: EquityPositionHint) -> str:
     if hint.suggested_shares and hint.suggested_shares > 0:
         return str(hint.suggested_shares)

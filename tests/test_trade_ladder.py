@@ -50,6 +50,23 @@ class TestTradeLadder(unittest.TestCase):
         status = assess_options_ladder(151.0, ladder, label="NIFTY CE")
         self.assertIn("T1", status.label)
 
+    def test_equity_short_ladder_levels(self):
+        ladder = build_equity_ladder("SHORT", 1000.0, 1010.0, 990.0, pivot_r2=980.0)
+        self.assertEqual(ladder.target, 990.0)
+        self.assertGreater(ladder.initial_stop, ladder.entry)
+        self.assertLess(ladder.target, ladder.entry)
+
+    def test_short_near_stop(self):
+        ladder = build_equity_ladder("SHORT", 1000.0, 1010.0, 990.0)
+        status = assess_equity_ladder(1009.0, ladder, symbol="X")
+        self.assertEqual(status.label, "Near stop")
+
+    def test_short_t1_hit(self):
+        ladder = build_equity_ladder("SHORT", 1000.0, 1010.0, 990.0)
+        status = assess_equity_ladder(989.0, ladder, symbol="X")
+        self.assertEqual(status.label, "T1 hit — book 40%")
+        self.assertEqual(status.stage, 1)
+
 
 if __name__ == "__main__":
     unittest.main()
