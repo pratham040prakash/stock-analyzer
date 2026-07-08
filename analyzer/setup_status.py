@@ -69,5 +69,5 @@ def build_setup_status() -> list[SetupStep]:
 
 def setup_complete() -> bool:
     steps = build_setup_status()
-    required = [s for s in steps if s.key in ("env", "telegram")]
+    required = [s for s in steps if s.key == "env"]
     return all(s.done for s in required)

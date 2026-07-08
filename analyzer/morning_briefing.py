@@ -43,10 +43,21 @@ class MorningBriefing:
     errors: list[str] = field(default_factory=list)
 
 
-def _load_holdings(holdings_csv: str | None) -> ZerodhaImportResult | None:
+def _kite_sdk_available() -> bool:
+    try:
+        import kiteconnect  # noqa: F401
+
+        return True
+    except ImportError:
+        return False
+
+
+def _load_holdings(holdings_csv: str | None) -> tuple[ZerodhaImportResult | None, str]:
+    """Return holdings import and a user-facing hint when nothing could be loaded."""
     csv_path = holdings_csv or ""
     if not csv_path:
         import os
+
         csv_path = os.getenv("HOLDINGS_CSV", "")
 
     if csv_path and Path(csv_path).is_file():
@@ -54,26 +65,52 @@ def _load_holdings(holdings_csv: str | None) -> ZerodhaImportResult | None:
             content = Path(csv_path).read_text(encoding="utf-8")
             imp = parse_holdings_csv(content)
             if imp.holdings:
-                return imp
-        except Exception:
-            pass
+                return imp, ""
+            if imp.errors:
+                return None, imp.errors[0]
+        except Exception as exc:
+            return None, f"Holdings CSV: {exc}"
 
     creds = load_env_credentials()
     if creds.get("api_key") and creds.get("access_token"):
+        if not _kite_sdk_available():
+            return None, (
+                "Kite SDK missing — run with project venv: "
+                f"{Path(__file__).resolve().parent.parent / '.venv/bin/python3'} "
+                "scripts/morning_briefing.py (or pip install kiteconnect)"
+            )
         try:
             imp = fetch_holdings_from_kite(creds["api_key"], creds["access_token"])
             if imp.holdings:
-                return imp
-        except Exception:
-            pass
+                return imp, ""
+            if imp.errors:
+                err = imp.errors[0]
+                low = err.lower()
+                if "access_token" in low or "incorrect" in low or "token" in low:
+                    return None, (
+                        "Kite token expired or invalid — open the app → sidebar "
+                        "**Zerodha Kite** → **Login with Zerodha**"
+                    )
+                return None, err
+        except Exception as exc:
+            return None, f"Kite API: {exc}"
+    elif creds.get("api_key"):
+        return None, (
+            "Kite login required — open the app → sidebar **Zerodha Kite** → "
+            "**Login with Zerodha** (token valid until ~6 AM IST)"
+        )
 
     try:
         imp = load_saved_portfolio()
         if imp and imp.holdings:
-            return imp
-    except Exception:
-        pass
-    return None
+            return imp, ""
+    except Exception as exc:
+        return None, f"Saved portfolio: {exc}"
+
+    return None, (
+        "No holdings — set HOLDINGS_CSV in .env, connect Kite in the app, "
+        "or save a portfolio under **My Portfolio**"
+    )
 
 
 def build_morning_briefing(
@@ -126,14 +163,14 @@ def build_morning_briefing(
 
     holdings_brief: DailyBriefing | None = None
     if include_holdings:
-        imp = _load_holdings(holdings_csv)
+        imp, holdings_hint = _load_holdings(holdings_csv)
         if imp and imp.holdings:
             try:
                 holdings_brief = build_daily_briefing(imp, period=period, include_market_picks=False)
             except Exception as exc:
                 errors.append(f"Holdings: {exc}")
-        elif include_holdings:
-            errors.append("No holdings (set HOLDINGS_CSV or Kite token in .env)")
+        elif holdings_hint:
+            errors.append(holdings_hint)
 
     return MorningBriefing(
         generated_at=now.strftime("%Y-%m-%d %H:%M IST"),

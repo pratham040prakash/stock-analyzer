@@ -20,6 +20,7 @@ from analyzer.prep_status import (
 from analyzer.telegram_notify import send_telegram_broadcast, telegram_configured
 from analyzer.trade_selection import is_selection_complete, load_selected_symbols
 from analyzer.watchlist_pins import load_pinned_plans
+from analyzer.mis_printable_checklist import format_printable_mis_checklist
 from analyzer.watchlist_telegram import format_combined_prep_telegram
 
 
@@ -97,6 +98,48 @@ def render_prep_all_bar(market: str, *, period: str = DEFAULT_INTRADAY_PULSE_PER
             st.rerun()
 
     render_prep_checklist()
+    render_printable_checklist_block()
+
+
+def render_printable_checklist_block(*, market_bias: str = "") -> None:
+    """Copy / download full MIS checklist auto-filled from last prep."""
+    cache = st.session_state.get("options_expiry_watchlist_cache")
+    options_picks = getattr(cache, "picks", None) if cache else None
+    if not market_bias:
+        pulse = st.session_state.get("market_pulse_full")
+        market_bias = getattr(pulse, "market_bias", "") if pulse else ""
+
+    text = format_printable_mis_checklist(
+        options_picks=options_picks,
+        market_bias=market_bias,
+        include_live_cues=True,
+    )
+    trade_date = market_session_status().get("date", "checklist")
+
+    with st.expander("📋 Copy tonight's checklist (phone)", expanded=False):
+        st.caption(
+            "Auto-filled from your last **Quick scan** / **Prep all** — "
+            "paste into Notes, Telegram Saved Messages, or WhatsApp."
+        )
+        st.code(text, language=None)
+        c1, c2 = st.columns(2)
+        with c1:
+            st.download_button(
+                "Download .txt",
+                data=text.encode("utf-8"),
+                file_name=f"mis-checklist-{trade_date}.txt",
+                mime="text/plain",
+                key="prep_checklist_download",
+                use_container_width=True,
+            )
+        with c2:
+            from analyzer.whatsapp_export import whatsapp_share_url
+
+            st.link_button(
+                "Share on WhatsApp",
+                whatsapp_share_url(text),
+                use_container_width=True,
+            )
 
 
 def _show_prep_result(result: NightlyPrepResult) -> None:

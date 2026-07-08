@@ -21,4 +21,4 @@ def render_setup_wizard_sidebar() -> None:
         if setup_complete():
             st.success("Core setup complete — Autopilot will fill data daily.")
         else:
-            st.caption("Complete **.env** + **Telegram** to receive picks and hit summaries.")
+            st.caption("Copy `.env.example` → `.env` and add your Kite API key. Telegram is optional.")

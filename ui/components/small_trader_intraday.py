@@ -7,6 +7,7 @@ import streamlit as st
 
 from analyzer.intraday_chart import intraday_chart
 from analyzer.intraday_data import INTERVAL_OPTIONS
+from analyzer.portfolio_live import load_tracked_portfolio
 from analyzer.portfolio_store import load_saved_portfolio, portfolio_profile_key
 from analyzer.small_trader_intraday import (
     MAX_SMALL_TRADER_STOCKS,
@@ -19,9 +20,9 @@ from ui.theme import INTRADAY_SETUP_COLORS
 
 def _load_portfolio():
     imp = st.session_state.get("zd_import")
-    if imp and imp.holdings:
-        return imp
-    return load_saved_portfolio(profile=portfolio_profile_key())
+    if not imp or not imp.holdings:
+        imp = load_saved_portfolio(profile=portfolio_profile_key())
+    return load_tracked_portfolio(imp, profile=portfolio_profile_key())
 
 
 def render_small_trader_portfolio_intraday(market: str, interval_key: str) -> bool:
@@ -33,7 +34,7 @@ def render_small_trader_portfolio_intraday(market: str, interval_key: str) -> bo
     if not imp or not imp.holdings:
         st.info(
             f"**Small trader mode:** Save up to **{MAX_SMALL_TRADER_STOCKS} stocks** in "
-            "**My Portfolio** to see intraday action on all your holdings here."
+            "**My Portfolio** (holdings or Kite watchlist) to see intraday action here."
         )
         return False
 

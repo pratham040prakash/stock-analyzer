@@ -13,6 +13,7 @@ from analyzer.daily_advisor import (
     load_today_briefing,
     save_briefing,
 )
+from analyzer.portfolio_live import load_tracked_portfolio
 from analyzer.portfolio_store import load_saved_portfolio, portfolio_profile_key, save_portfolio
 from analyzer.zerodha import (
     fetch_holdings_from_kite,
@@ -24,8 +25,9 @@ from ui.navigation import request_nav_tab
 
 
 def run_and_show_briefing(import_result, period: str) -> None:
-    with st.spinner("Building daily briefing (holdings + short/long picks)..."):
-        briefing = build_daily_briefing(import_result, period=period)
+    tracked = load_tracked_portfolio(import_result, profile=portfolio_profile_key())
+    with st.spinner("Building daily briefing (holdings + watchlist + short/long picks)..."):
+        briefing = build_daily_briefing(tracked, period=period)
         save_briefing(briefing)
     display_daily_briefing(briefing)
 
@@ -35,8 +37,9 @@ def daily_briefing_auto(period: str) -> None:
     import_result = st.session_state.get("zd_import")
     if not import_result or not import_result.holdings:
         return
+    tracked = load_tracked_portfolio(import_result, profile=portfolio_profile_key())
     with st.spinner("Refreshing daily briefing..."):
-        briefing = build_daily_briefing(import_result, period=period)
+        briefing = build_daily_briefing(tracked, period=period)
         save_briefing(briefing)
     display_daily_briefing(briefing)
 

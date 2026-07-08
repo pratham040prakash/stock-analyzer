@@ -49,10 +49,21 @@ from ui.theme import DISCLAIMER, MOBILE_CSS
 
 def _hydrate_saved_portfolio() -> None:
     if st.session_state.get("zd_import"):
+        _ensure_portfolio_streaming()
         return
     saved = load_saved_portfolio(profile=portfolio_profile_key())
     if saved and saved.holdings:
         st.session_state["zd_import"] = saved
+    _ensure_portfolio_streaming()
+
+
+def _ensure_portfolio_streaming() -> None:
+    from analyzer.portfolio_live import ensure_kite_stream_for_tracked
+
+    ensure_kite_stream_for_tracked(
+        st.session_state.get("zd_import"),
+        profile=portfolio_profile_key(),
+    )
 
 
 def _run_background_task(task_name: str, fn) -> None:

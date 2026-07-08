@@ -29,8 +29,16 @@ class PortfolioRow:
 def analyze_portfolio(
     import_result,
     period: str = "1y",
+    *,
+    use_live_ltp: bool = True,
 ) -> list[PortfolioRow]:
     """Run combined analysis on each Zerodha holding."""
+    from analyzer.portfolio_live import refresh_holdings_ltp
+    from analyzer.providers.router import get_live_ltp, is_kite_live
+
+    if use_live_ltp and import_result.holdings and is_kite_live():
+        import_result = refresh_holdings_ltp(import_result)
+
     rows: list[PortfolioRow] = []
 
     for h in import_result.holdings:
@@ -39,6 +47,13 @@ def analyze_portfolio(
             df = add_indicators(df)
             combined = analyze_combined(df, info["symbol"], yf_info=info)
             last = combined.technical.current_price
+            live_price = h.last_price
+            if live_price is None and use_live_ltp and is_kite_live():
+                live_price, _ = get_live_ltp(h.yahoo_symbol, market="india")
+            display_price = live_price or last
+            pnl = h.pnl
+            if pnl is None and display_price is not None and h.average_price is not None and h.quantity:
+                pnl = (display_price - h.average_price) * h.quantity
             rows.append(
                 PortfolioRow(
                     kite_symbol=h.kite_symbol,
@@ -46,8 +61,8 @@ def analyze_portfolio(
                     name=info["name"],
                     quantity=h.quantity,
                     avg_price=h.average_price,
-                    last_price=h.last_price or last,
-                    pnl=h.pnl,
+                    last_price=display_price,
+                    pnl=pnl,
                     recommendation=combined.combined_recommendation,
                     score=combined.combined_score,
                     technical_score=combined.technical.composite_score,

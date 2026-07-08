@@ -65,8 +65,8 @@ def render_start_here_onboarding(market: str, *, force_show: bool = False) -> No
         )
 
         st.caption(
-            "Complete **⚙️ Setup** in the sidebar (.env + Telegram). "
-            "Kite and options are optional."
+            "Complete **⚙️ Setup** in the sidebar (.env + Kite login). "
+            "Telegram and options are optional."
         )
 
         c1, c2 = st.columns(2)

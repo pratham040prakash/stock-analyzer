@@ -10,25 +10,28 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from analyzer.env_loader import load_app_env
 from analyzer.morning_briefing import build_morning_briefing, format_morning_markdown
 from analyzer.telegram_notify import (
     format_morning_telegram,
     send_telegram_broadcast,
     telegram_configured,
 )
-from analyzer.zerodha import load_env_credentials
 
 
 def main() -> int:
-    load_env_credentials()
+    load_app_env()
 
     parser = argparse.ArgumentParser(description="Stock Analyzer morning briefing")
     parser.add_argument("--period", default="6mo")
     parser.add_argument("--holdings-csv", default=None, help="Path to Zerodha holdings CSV")
     parser.add_argument("--no-cache", action="store_true", help="Force fresh pulse scan")
     parser.add_argument("--no-holdings", action="store_true")
-    parser.add_argument("--send-telegram", action="store_true", default=True)
-    parser.add_argument("--no-telegram", action="store_true")
+    parser.add_argument(
+        "--send-telegram",
+        action="store_true",
+        help="Send briefing to Telegram (optional; requires TELEGRAM_BOT_TOKEN)",
+    )
     parser.add_argument("--save", metavar="FILE", help="Save markdown to file")
     args = parser.parse_args()
 
@@ -45,13 +48,13 @@ def main() -> int:
         Path(args.save).write_text(text, encoding="utf-8")
         print(f"\nSaved: {args.save}")
 
-    if args.send_telegram and not args.no_telegram:
+    if args.send_telegram:
         if not telegram_configured():
             print(
-                "\nTelegram: set TELEGRAM_BOT_TOKEN in .env and subscribe in the app sidebar",
+                "\nTelegram skipped — set TELEGRAM_BOT_TOKEN in .env and subscribe in the app sidebar.",
                 file=sys.stderr,
             )
-            return 1
+            return 0
         ok, msg = send_telegram_broadcast(
             format_morning_telegram(briefing),
             alert_type="morning",
