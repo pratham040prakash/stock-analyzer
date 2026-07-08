@@ -10,7 +10,7 @@ from analyzer.kite_stream import start_kite_ticker_on_app_start
 from analyzer.market_session import market_session_status
 from analyzer.markets import MARKETS, is_india_market
 from analyzer.app_mode import is_simple_cloud_mode
-from analyzer.portfolio_store import load_saved_portfolio, portfolio_profile_key
+from analyzer.portfolio_store import load_saved_portfolio, portfolio_profile_key, save_portfolio
 from analyzer.telegram_notify import send_telegram_broadcast, telegram_configured
 from analyzer.varsity_knowledge import VARSITY_MODULE_URL
 from ui.components.setup_wizard import render_setup_wizard_sidebar
@@ -51,9 +51,30 @@ def _hydrate_saved_portfolio() -> None:
     if st.session_state.get("zd_import"):
         _ensure_portfolio_streaming()
         return
-    saved = load_saved_portfolio(profile=portfolio_profile_key())
+    prof = portfolio_profile_key()
+    saved = load_saved_portfolio(profile=prof)
     if saved and saved.holdings:
         st.session_state["zd_import"] = saved
+        _ensure_portfolio_streaming()
+        return
+
+    if not st.session_state.get("_kite_portfolio_sync_attempted"):
+        st.session_state["_kite_portfolio_sync_attempted"] = True
+        from analyzer.portfolio_live import hydrate_portfolio_from_kite
+        from analyzer.zerodha import load_env_credentials
+
+        if load_env_credentials().get("access_token"):
+            imp, err = hydrate_portfolio_from_kite(profile=prof)
+            if imp and imp.holdings:
+                st.session_state["zd_import"] = imp
+                note = (
+                    f"Auto-synced **{len(imp.holdings)}** holding(s) from Kite."
+                    + (f" {imp.notes[0]}" if imp.notes else "")
+                )
+                st.session_state["_portfolio_auto_sync_msg"] = note
+            elif err:
+                st.session_state["_kite_sync_error"] = err
+
     _ensure_portfolio_streaming()
 
 

@@ -76,7 +76,7 @@ class TestZerodhaHoldings(unittest.TestCase):
 
         self.assertEqual(len(result.holdings), 1)
         self.assertEqual(result.holdings[0].tradingsymbol, "JIOFIN")
-        self.assertTrue(any("same-day CNC" in e for e in result.errors))
+        self.assertTrue(any("same-day CNC" in n for n in result.notes))
 
 
 if __name__ == "__main__":

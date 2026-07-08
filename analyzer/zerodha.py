@@ -32,6 +32,7 @@ class ZerodhaHolding:
 class ZerodhaImportResult:
     holdings: list[ZerodhaHolding] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
     source: str = ""
 
 
@@ -418,7 +419,7 @@ def fetch_holdings_from_kite(
             "Intraday (MIS) positions are not counted as holdings."
         )
     elif same_day and not raw_holdings:
-        result.errors.append(
+        result.notes.append(
             f"Included {same_day} same-day CNC position(s) from Kite positions "
             "(not yet in holdings after T+1 settlement)."
         )

@@ -112,13 +112,23 @@ def sync_holdings_from_kite() -> tuple[ZerodhaImportResult | None, str]:
     """Fetch delivery holdings from Kite API."""
     creds = load_env_credentials()
     if not creds.get("api_key") or not creds.get("access_token"):
-        return None, "Connect Kite in the sidebar first."
+        return None, "Connect Kite in the sidebar first — click **Login with Zerodha**."
     imp = fetch_holdings_from_kite(creds["api_key"], creds["access_token"])
     if imp.errors and not imp.holdings:
         return None, imp.errors[0]
     imp = refresh_holdings_ltp(imp)
     imp.source = "kite"
     return imp, ""
+
+
+def hydrate_portfolio_from_kite(profile: str | None = None) -> tuple[ZerodhaImportResult | None, str]:
+    """Fetch holdings from Kite and persist when logged in."""
+    prof = profile or portfolio_profile_key()
+    imp, err = sync_holdings_from_kite()
+    if imp and imp.holdings:
+        save_portfolio(imp, profile=prof)
+        return imp, ""
+    return None, err or "No holdings returned from Kite."
 
 
 def watchlist_as_holdings(profile: str | None = None) -> list[ZerodhaHolding]:
@@ -189,6 +199,6 @@ def load_tracked_portfolio(
     """Merged holdings + watchlist with optional live LTP."""
     prof = profile or portfolio_profile_key()
     merged = merge_holdings_and_watchlist(imp, profile=prof)
-    if refresh_ltp and merged.holdings and is_kite_live():
+    if refresh_ltp and merged.holdings:
         merged = refresh_holdings_ltp(merged)
     return merged

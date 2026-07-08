@@ -156,6 +156,18 @@ def render_zerodha(period: str) -> None:
         "**Connect Kite** for live sync + real-time LTP."
     )
 
+    if msg := st.session_state.pop("_portfolio_auto_sync_msg", None):
+        st.success(msg)
+    if err := st.session_state.get("_kite_sync_error"):
+        st.warning(f"Could not load holdings from Kite: {err}")
+
+    creds = load_env_credentials()
+    if creds.get("access_token") and not st.session_state.get("zd_import"):
+        st.info(
+            "Kite is logged in — holdings sync on app load. "
+            "If nothing appears below, click **Sync from Kite now**."
+        )
+
     profile = st.text_input(
         "Your profile name (use your initials on shared app)",
         value=st.session_state.get("portfolio_profile", ""),
