@@ -5,7 +5,7 @@ from __future__ import annotations
 from analyzer.kite_stream import get_kite_ltp_cached, start_kite_ticker_for_holdings
 from analyzer.kite_watchlist_store import load_kite_watchlist, merge_kite_watchlist
 from analyzer.portfolio_store import enrich_holding_pnl, portfolio_profile_key, save_portfolio
-from analyzer.providers.router import is_kite_live
+from analyzer.providers.router import get_live_ltp, is_kite_live
 from analyzer.zerodha import (
     ZerodhaHolding,
     ZerodhaImportResult,
@@ -33,7 +33,9 @@ def refresh_holdings_ltp(
     enriched: list[ZerodhaHolding] = []
     for h in imp.holdings:
         key = _holding_key(h)
-        ltp = ltps.get(key)
+        ltp = ltps.get(key) or h.last_price
+        if ltp is None and h.yahoo_symbol:
+            ltp, _ = get_live_ltp(h.yahoo_symbol, market="india")
         enriched.append(enrich_holding_pnl(h, ltp))
     return ZerodhaImportResult(
         holdings=enriched,

@@ -14,6 +14,14 @@ from analyzer.zerodha import (
 )
 
 
+_CONNECT_UPGRADE_STEPS = (
+    "1. [developers.kite.trade](https://developers.kite.trade/) → **Create app** → type **Connect** (₹500/mo)\n"
+    "2. Copy new **API Key** + **Secret** into the form below → Save\n"
+    "3. **Login with Zerodha** again\n"
+    "4. Redirect URL = your app URL (`http://127.0.0.1:8501` when running locally)"
+)
+
+
 def clear_kite_status_caches() -> None:
     """Clear cached Kite probe results; keep OAuth access token in session."""
     clear_kite_probe_cache()
@@ -57,10 +65,18 @@ def render_kite_connect(*, compact: bool = False, key_prefix: str = "kite") -> b
     if level == "limited":
         market = status.get("market_data", "")
         if not compact:
-            st.success("**Kite logged in** — holdings & margins OK")
+            st.success("**Kite logged in** — holdings, positions & sync OK")
             if market == "personal_app":
-                st.error("**Personal API app** — live quotes blocked by Zerodha")
-                st.markdown(status.get("detail", ""))
+                st.warning(
+                    "**Personal API app** — Zerodha blocks live quote/LTP/WebSocket APIs on free apps."
+                )
+                st.caption(
+                    "You can still use **My Portfolio** and **Daily Advisor** — prices come from "
+                    "**Yahoo Finance** (and position data when available). "
+                    "Upgrade to a **Connect** app only if you need tick-by-tick Kite LTP."
+                )
+                with st.expander("Optional: upgrade to Connect app (₹500/mo)"):
+                    st.markdown(_CONNECT_UPGRADE_STEPS)
             else:
                 st.info(status.get("detail", ""))
         return market != "personal_app"
@@ -165,8 +181,10 @@ def render_kite_connect_sidebar() -> None:
         if level == "limited":
             market = status.get("market_data", "")
             if market == "personal_app":
-                st.error("Personal app — no live quotes")
-                st.caption("Create a **Connect** app at developers.kite.trade")
+                st.success("Logged in — holdings OK")
+                st.caption("Personal app: prices via **Yahoo** · Connect app for live Kite LTP")
+                with st.expander("Upgrade to Connect (optional)"):
+                    st.markdown(_CONNECT_UPGRADE_STEPS)
             else:
                 st.warning("Logged in — no quote API yet")
                 st.caption("Prices use Yahoo · re-login after Connect subscription")

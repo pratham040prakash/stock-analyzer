@@ -15,6 +15,11 @@ def is_kite_live() -> bool:
     return is_kite_configured() and kite_market_data_ok()
 
 
+def is_kite_logged_in() -> bool:
+    """True when access token works (holdings/positions), even on Personal app."""
+    return is_kite_configured()
+
+
 def data_source_status() -> dict:
     creds = load_env_credentials()
     logged_in = is_kite_configured()
@@ -34,7 +39,11 @@ def data_source_status() -> dict:
             else (
                 "Kite live quotes active."
                 if live
-                else "Kite login OK — prices use Yahoo/NSE (market data API not subscribed)."
+                else (
+                    "Personal app: holdings sync OK · prices use Yahoo (not real-time Kite LTP)."
+                    if market == "personal_app"
+                    else "Kite login OK — prices use Yahoo/NSE (market data API not subscribed)."
+                )
             )
         ),
     }

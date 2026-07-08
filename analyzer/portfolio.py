@@ -34,9 +34,9 @@ def analyze_portfolio(
 ) -> list[PortfolioRow]:
     """Run combined analysis on each Zerodha holding."""
     from analyzer.portfolio_live import refresh_holdings_ltp
-    from analyzer.providers.router import get_live_ltp, is_kite_live
+    from analyzer.providers.router import get_live_ltp
 
-    if use_live_ltp and import_result.holdings and is_kite_live():
+    if use_live_ltp and import_result.holdings:
         import_result = refresh_holdings_ltp(import_result)
 
     rows: list[PortfolioRow] = []
@@ -48,7 +48,7 @@ def analyze_portfolio(
             combined = analyze_combined(df, info["symbol"], yf_info=info)
             last = combined.technical.current_price
             live_price = h.last_price
-            if live_price is None and use_live_ltp and is_kite_live():
+            if live_price is None and use_live_ltp:
                 live_price, _ = get_live_ltp(h.yahoo_symbol, market="india")
             display_price = live_price or last
             pnl = h.pnl
