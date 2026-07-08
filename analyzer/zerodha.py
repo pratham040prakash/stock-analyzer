@@ -307,11 +307,78 @@ def exchange_request_token(api_key: str, api_secret: str, request_token: str) ->
     return data["access_token"]
 
 
+def _holding_from_kite_holdings_row(row: dict) -> ZerodhaHolding | None:
+    qty = float(row.get("quantity", 0) or 0) + float(row.get("t1_quantity", 0) or 0)
+    if qty <= 0:
+        return None
+    exchange = str(row.get("exchange") or "NSE").upper()
+    tradingsymbol = str(row.get("tradingsymbol") or "").strip()
+    if not tradingsymbol:
+        return None
+    kite_sym = f"{exchange}:{tradingsymbol}"
+    return ZerodhaHolding(
+        kite_symbol=kite_sym,
+        tradingsymbol=tradingsymbol,
+        exchange=exchange,
+        quantity=qty,
+        average_price=float(row.get("average_price") or 0) or None,
+        last_price=float(row.get("last_price") or 0) or None,
+        pnl=float(row.get("pnl") or 0) or None,
+        yahoo_symbol=kite_to_yahoo(kite_sym),
+    )
+
+
+def _holding_from_cnc_position(row: dict) -> ZerodhaHolding | None:
+    """Same-day CNC buys often appear in positions before T+1 holdings update."""
+    product = str(row.get("product") or "").upper()
+    if product != "CNC":
+        return None
+    qty = float(row.get("quantity") or 0)
+    if qty <= 0:
+        return None
+    exchange = str(row.get("exchange") or "NSE").upper()
+    tradingsymbol = str(row.get("tradingsymbol") or "").strip()
+    if not tradingsymbol:
+        return None
+    kite_sym = f"{exchange}:{tradingsymbol}"
+    avg = float(row.get("average_price") or row.get("buy_price") or 0) or None
+    ltp = float(row.get("last_price") or 0) or None
+    pnl = row.get("pnl")
+    return ZerodhaHolding(
+        kite_symbol=kite_sym,
+        tradingsymbol=tradingsymbol,
+        exchange=exchange,
+        quantity=qty,
+        average_price=avg,
+        last_price=ltp,
+        pnl=float(pnl) if pnl is not None else None,
+        yahoo_symbol=kite_to_yahoo(kite_sym),
+    )
+
+
+def _merge_cnc_positions(kite, result: ZerodhaImportResult) -> int:
+    """Add delivery (CNC) positions missing from holdings — e.g. bought today."""
+    existing = {h.kite_symbol.upper() for h in result.holdings}
+    added = 0
+    try:
+        positions = kite.positions()
+    except Exception:
+        return 0
+    for row in positions.get("net") or []:
+        holding = _holding_from_cnc_position(row)
+        if not holding or holding.kite_symbol.upper() in existing:
+            continue
+        result.holdings.append(holding)
+        existing.add(holding.kite_symbol.upper())
+        added += 1
+    return added
+
+
 def fetch_holdings_from_kite(
     api_key: str | None = None,
     access_token: str | None = None,
 ) -> ZerodhaImportResult:
-    """Fetch live equity holdings from Zerodha Kite Connect API."""
+    """Fetch delivery equity from Kite holdings + same-day CNC positions."""
     result = ZerodhaImportResult(source="kite_api")
     creds = load_env_credentials()
     api_key = api_key or creds["api_key"]
@@ -338,28 +405,23 @@ def fetch_holdings_from_kite(
         result.errors.append(f"Kite API error: {exc}")
         return result
 
-    for h in raw_holdings:
-        qty = float(h.get("quantity", 0) or 0) + float(h.get("t1_quantity", 0) or 0)
-        if qty <= 0:
-            continue
-        exchange = h.get("exchange", "NSE")
-        tradingsymbol = h.get("tradingsymbol", "")
-        kite_sym = f"{exchange}:{tradingsymbol}"
-        result.holdings.append(
-            ZerodhaHolding(
-                kite_symbol=kite_sym,
-                tradingsymbol=tradingsymbol,
-                exchange=exchange,
-                quantity=qty,
-                average_price=float(h.get("average_price") or 0) or None,
-                last_price=float(h.get("last_price") or 0) or None,
-                pnl=float(h.get("pnl") or 0) or None,
-                yahoo_symbol=kite_to_yahoo(kite_sym),
-            )
-        )
+    for row in raw_holdings:
+        holding = _holding_from_kite_holdings_row(row)
+        if holding:
+            result.holdings.append(holding)
+
+    same_day = _merge_cnc_positions(kite, result)
 
     if not result.holdings:
-        result.errors.append("No equity holdings returned from Kite (portfolio may be empty).")
+        result.errors.append(
+            "No delivery holdings or CNC positions found in Kite. "
+            "Intraday (MIS) positions are not counted as holdings."
+        )
+    elif same_day and not raw_holdings:
+        result.errors.append(
+            f"Included {same_day} same-day CNC position(s) from Kite positions "
+            "(not yet in holdings after T+1 settlement)."
+        )
     return result
 
 
