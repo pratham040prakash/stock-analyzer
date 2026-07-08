@@ -381,6 +381,65 @@ def get_kite_client():
         return None
 
 
+def fetch_kite_profile() -> dict | None:
+    """Logged-in Zerodha user profile (name, email, broker). None if not connected."""
+    kite = get_kite_client()
+    if kite is None:
+        return None
+    try:
+        return kite.profile()
+    except Exception:
+        return None
+
+
+def _position_to_kite_symbol(position: dict) -> str | None:
+    ts = str(position.get("tradingsymbol") or "").strip()
+    if not ts:
+        return None
+    exchange = str(position.get("exchange") or "NSE").upper()
+    return f"{exchange}:{ts}"
+
+
+def fetch_kite_activity_symbols() -> tuple[list[str], list[str]]:
+    """
+    Symbols the user is actively trading — open positions + recent orders.
+    Kite Connect has no marketwatch API; this is the closest automated proxy.
+    """
+    kite = get_kite_client()
+    if kite is None:
+        return [], ["Kite not logged in"]
+
+    symbols: list[str] = []
+    errors: list[str] = []
+    seen: set[str] = set()
+
+    def _add(sym: str | None) -> None:
+        if not sym:
+            return
+        key = sym.upper().strip()
+        if key not in seen:
+            seen.add(key)
+            symbols.append(key)
+
+    try:
+        positions = kite.positions()
+        for bucket in ("net", "day"):
+            for row in positions.get(bucket) or []:
+                qty = float(row.get("quantity") or 0)
+                if qty != 0:
+                    _add(_position_to_kite_symbol(row))
+    except Exception as exc:
+        errors.append(f"positions: {exc}")
+
+    try:
+        for order in kite.orders() or []:
+            _add(_position_to_kite_symbol(order))
+    except Exception as exc:
+        errors.append(f"orders: {exc}")
+
+    return symbols, errors
+
+
 def fetch_kite_ltp(kite_symbols: list[str]) -> dict[str, float]:
     """Live LTP from Kite for NSE:SYMBOL-EQ keys. Returns {symbol: ltp}."""
     kite = get_kite_client()

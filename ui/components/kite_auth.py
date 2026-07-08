@@ -73,7 +73,48 @@ def handle_kite_redirect() -> bool:
         hydrate_kite_access_token()
         clear_kite_status_caches()
         st.query_params.clear()
-        st.success("Zerodha connected! Access token saved to `.env` (valid until ~6 AM IST).")
+
+        from analyzer.portfolio_live import post_kite_login_sync
+        from analyzer.portfolio_store import portfolio_profile_key
+
+        sync = post_kite_login_sync(profile=portfolio_profile_key())
+        if sync.get("holdings"):
+            st.session_state["zd_import"] = sync["holdings"]
+
+        name = sync.get("user_name") or sync.get("user_id") or "your account"
+        n = sync.get("holdings_count", 0)
+        if sync.get("error") and not n:
+            st.warning(
+                f"Zerodha logged in as **{name}**, but holdings could not be loaded: "
+                f"{sync['error']}"
+            )
+        elif n:
+            wl = sync.get("watchlist_added", 0)
+            wl_note = (
+                f" Synced **{wl}** symbols from Kite positions/orders into watchlist."
+                if wl
+                else ""
+            )
+            st.success(
+                f"Zerodha connected as **{name}** — fetched **{n} holdings** from Kite.{wl_note} "
+                "Open **My Portfolio** or **Daily Advisor** for insights. "
+                "*(Kite marketwatch has no API — paste extra symbols in My Portfolio if needed.)*"
+            )
+        else:
+            wl_total = sync.get("watchlist_total", 0)
+            wl_note = (
+                f" **{wl_total}** watchlist symbols from Kite activity."
+                if wl_total
+                else " Paste watchlist symbols under **My Portfolio → Kite watchlist mirror**."
+            )
+            st.success(
+                f"Zerodha connected as **{name}**. "
+                f"No delivery holdings in Kite.{wl_note}"
+            )
+        st.caption(
+            "Redirect to `127.0.0.1` is normal — Zerodha returns here once so the app "
+            "can save your login token, then fetches profile & holdings via API."
+        )
         return True
     except Exception as exc:
         st.session_state[failed_key] = True

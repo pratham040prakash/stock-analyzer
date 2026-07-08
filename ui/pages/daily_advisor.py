@@ -35,9 +35,9 @@ def run_and_show_briefing(import_result, period: str) -> None:
 @st.fragment(run_every=timedelta(hours=6))
 def daily_briefing_auto(period: str) -> None:
     import_result = st.session_state.get("zd_import")
-    if not import_result or not import_result.holdings:
-        return
     tracked = load_tracked_portfolio(import_result, profile=portfolio_profile_key())
+    if not tracked.holdings:
+        return
     with st.spinner("Refreshing daily briefing..."):
         briefing = build_daily_briefing(tracked, period=period)
         save_briefing(briefing)
@@ -47,11 +47,12 @@ def daily_briefing_auto(period: str) -> None:
 def display_daily_briefing(briefing: DailyBriefing) -> None:
     st.caption(f"Generated: **{briefing.generated_at}**")
 
-    m1, m2, m3, m4 = st.columns(4)
+    m1, m2, m3, m4, m5 = st.columns(5)
     m1.metric("Holdings reviewed", briefing.holdings_count)
-    m2.metric("Market", briefing.market_verdict[:24])
-    m3.metric("Global bias", briefing.global_bias)
-    m4.metric("Short-term ideas", len(briefing.short_term_picks))
+    m2.metric("Watchlist", briefing.watchlist_count)
+    m3.metric("Market", briefing.market_verdict[:24])
+    m4.metric("Global bias", briefing.global_bias)
+    m5.metric("Short-term ideas", len(briefing.short_term_picks))
 
     st.markdown(briefing.summary)
 
@@ -61,22 +62,43 @@ def display_daily_briefing(briefing: DailyBriefing) -> None:
             st.markdown(f"- {action}")
 
     st.divider()
-    st.subheader("Your holdings — what to do")
+    held = [h for h in briefing.holdings if h.quantity > 0]
+    watch = [h for h in briefing.holdings if h.quantity <= 0]
 
-    rows = []
-    for holding in briefing.holdings:
-        rows.append({
-            "Stock": holding.name[:30],
-            "Kite": holding.kite_symbol,
-            "Qty": int(holding.quantity),
-            "P&L %": f"{holding.pnl_pct:+.1f}" if holding.pnl_pct is not None else "—",
-            "Weight %": f"{holding.portfolio_weight_pct:.1f}" if holding.portfolio_weight_pct else "—",
-            "Today": holding.today_action,
-            "Short-term": holding.short_term,
-            "Long-term": holding.long_term,
-            "Score": f"{holding.combined_score:+.0f}",
-        })
-    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+    st.subheader("Your holdings — what to do")
+    if held:
+        rows = []
+        for holding in held:
+            rows.append({
+                "Stock": holding.name[:30],
+                "Kite": holding.kite_symbol,
+                "Qty": int(holding.quantity),
+                "P&L %": f"{holding.pnl_pct:+.1f}" if holding.pnl_pct is not None else "—",
+                "Weight %": f"{holding.portfolio_weight_pct:.1f}" if holding.portfolio_weight_pct else "—",
+                "Today": holding.today_action,
+                "Short-term": holding.short_term,
+                "Long-term": holding.long_term,
+                "Score": f"{holding.combined_score:+.0f}",
+            })
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+    else:
+        st.caption("No delivery holdings — see watchlist insights below.")
+
+    if watch:
+        st.subheader("Watchlist insights — what to watch today")
+        wrows = []
+        for holding in watch:
+            wrows.append({
+                "Stock": holding.name[:30],
+                "Kite": holding.kite_symbol,
+                "LTP": f"₹{holding.last_price:,.2f}" if holding.last_price else "—",
+                "Today": holding.today_action,
+                "Short-term": holding.short_term,
+                "Long-term": holding.long_term,
+                "Score": f"{holding.combined_score:+.0f}",
+                "Reason": holding.today_reason[:60],
+            })
+        st.dataframe(pd.DataFrame(wrows), use_container_width=True, hide_index=True)
 
     with st.expander("Detailed reasons per holding"):
         for holding in briefing.holdings:
@@ -174,16 +196,23 @@ def render_daily_advisor(period: str) -> None:
         st.caption("Or add holdings in **My Portfolio** (manual entry — no broker needed)")
 
     import_result = st.session_state.get("zd_import")
-    if not import_result or not import_result.holdings:
+    tracked = load_tracked_portfolio(import_result, profile=portfolio_profile_key())
+    if not tracked.holdings:
         st.info(
             "Add holdings in **My Portfolio** (manual entry works without Zerodha), "
-            "or import via **Kite** / **CSV** above. Then click **Generate today's briefing**."
+            "sync from **Kite**, or paste **watchlist symbols**. Then click **Generate today's briefing**."
         )
         with st.expander("Kite Connect setup"):
             st.markdown(zerodha_setup_help())
         return
 
-    st.caption(f"**{len(import_result.holdings)} holdings** loaded · source: {import_result.source}")
+    held_n = sum(1 for h in tracked.holdings if h.quantity > 0)
+    watch_n = sum(1 for h in tracked.holdings if h.quantity <= 0)
+    st.caption(
+        f"**{held_n} holdings**"
+        + (f" + **{watch_n} watchlist**" if watch_n else "")
+        + f" · source: {import_result.source if import_result else 'watchlist'}"
+    )
 
     auto = st.checkbox("Auto-refresh briefing (every 6 hours)", value=True, key="daily_auto")
     if st.button("Generate today's briefing", type="primary", key="daily_run"):
@@ -199,4 +228,4 @@ def render_daily_advisor(period: str) -> None:
             if st.button("Regenerate full briefing", key="daily_regen"):
                 run_and_show_briefing(import_result, period)
         else:
-            st.info("Click **Generate today's briefing** to analyze holdings and market picks.")
+            st.info("Click **Generate today's briefing** to analyze holdings, watchlist, and market picks.")

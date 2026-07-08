@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 from analyzer.kite_stream import get_kite_ltp_cached, start_kite_ticker_for_holdings
-from analyzer.kite_watchlist_store import load_kite_watchlist
-from analyzer.portfolio_store import enrich_holding_pnl, portfolio_profile_key
+from analyzer.kite_watchlist_store import load_kite_watchlist, merge_kite_watchlist
+from analyzer.portfolio_store import enrich_holding_pnl, portfolio_profile_key, save_portfolio
 from analyzer.providers.router import is_kite_live
 from analyzer.zerodha import (
     ZerodhaHolding,
     ZerodhaImportResult,
     fetch_holdings_from_kite,
+    fetch_kite_activity_symbols,
     kite_to_yahoo,
     load_env_credentials,
 )
@@ -39,6 +40,70 @@ def refresh_holdings_ltp(
         errors=list(imp.errors),
         source=imp.source,
     )
+
+
+def sync_watchlist_from_kite_activity(
+    *,
+    profile: str | None = None,
+    holdings: ZerodhaImportResult | None = None,
+) -> tuple[int, int, list[str]]:
+    """
+    Pull symbols from Kite positions/orders into the saved watchlist mirror.
+    Skips symbols already in delivery holdings.
+    """
+    prof = profile or portfolio_profile_key()
+    activity, errors = fetch_kite_activity_symbols()
+    held = set()
+    if holdings and holdings.holdings:
+        held = {_holding_key(h) for h in holdings.holdings if h.quantity > 0}
+    elif holdings is None:
+        imp, _ = sync_holdings_from_kite()
+        if imp and imp.holdings:
+            held = {_holding_key(h) for h in imp.holdings if h.quantity > 0}
+
+    new_symbols = [s for s in activity if s.upper().strip() not in held]
+    added, total = merge_kite_watchlist(new_symbols, profile=prof)
+    return added, total, errors
+
+
+def post_kite_login_sync(*, profile: str | None = None) -> dict:
+    """
+    After OAuth redirect — verify profile and pull delivery holdings.
+    Watchlist is not available via Kite API; use watchlist mirror in My Portfolio.
+    """
+    from analyzer.zerodha import fetch_kite_profile
+
+    prof = profile or portfolio_profile_key()
+    result: dict = {
+        "user_name": "",
+        "user_id": "",
+        "holdings_count": 0,
+        "holdings": None,
+        "watchlist_added": 0,
+        "watchlist_total": 0,
+        "error": "",
+        "watchlist_errors": [],
+    }
+    profile_data = fetch_kite_profile()
+    if profile_data:
+        result["user_name"] = str(profile_data.get("user_name") or "")
+        result["user_id"] = str(profile_data.get("user_id") or "")
+    elif load_env_credentials().get("access_token"):
+        result["error"] = "Could not read Kite profile — token may be invalid."
+
+    imp, err = sync_holdings_from_kite()
+    if err and not imp:
+        result["error"] = err if not result["error"] else f"{result['error']} {err}"
+    elif imp:
+        result["holdings"] = imp
+        result["holdings_count"] = len(imp.holdings)
+        if imp.holdings:
+            save_portfolio(imp, profile=prof)
+        added, total, wl_errors = sync_watchlist_from_kite_activity(profile=prof, holdings=imp)
+        result["watchlist_added"] = added
+        result["watchlist_total"] = total
+        result["watchlist_errors"] = wl_errors
+    return result
 
 
 def sync_holdings_from_kite() -> tuple[ZerodhaImportResult | None, str]:

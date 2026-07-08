@@ -68,6 +68,7 @@ class DailyBriefing:
     market_verdict: str
     global_bias: str
     holdings_count: int
+    watchlist_count: int = 0
     priority_actions: list[str] = field(default_factory=list)
     holdings: list[HoldingDailyAdvice] = field(default_factory=list)
     short_term_picks: list[StockPick] = field(default_factory=list)
@@ -172,6 +173,35 @@ def _today_action(
     return "HOLD — no urgency", "Mixed signals; wait for clearer edge", 5
 
 
+def _watchlist_today_action(
+    combined_rec: str,
+    tech: float,
+    fund: float,
+    intraday_action: str | None,
+    session_bias: str | None,
+) -> tuple[str, str, int]:
+    """Return (action, reason, priority) for watchlist-only symbols (qty 0)."""
+    if combined_rec in ("STRONG SELL", "SELL") or tech < -20:
+        return "AVOID", "Bearish combined/technical signal — not a buy candidate", 2
+
+    if combined_rec in ("STRONG BUY", "BUY") and tech > 15 and fund > 5:
+        return "BUY WATCH — setup ready", "Bullish trend + quality — wait for entry trigger", 1
+
+    if intraday_action in ("BUY", "STRONG BUY") and tech > 8:
+        return "INTRADAY WATCH", "Live session buy setup — consider small starter", 1
+
+    if fund > 12 and tech > 5:
+        return "ACCUMULATE WATCH", "Strong fundamentals; buy on dips near support", 2
+
+    if session_bias == "BEARISH" and tech < 0:
+        return "WAIT — weak session", "Do not initiate longs until session stabilizes", 3
+
+    if tech > 10:
+        return "MONITOR — bullish bias", "Trend positive but no urgent trigger today", 4
+
+    return "MONITOR — neutral", "No clear edge; keep on radar", 5
+
+
 def analyze_holding(
     h: ZerodhaHolding,
     period: str = "1y",
@@ -197,15 +227,24 @@ def analyze_holding(
             pass
 
         pnl = _pnl_pct(h)
-        today, reason, priority = _today_action(
-            combined.combined_recommendation,
-            tech,
-            fund,
-            pnl,
-            weight_pct,
-            intraday_action,
-            session_bias,
-        )
+        if h.quantity <= 0:
+            today, reason, priority = _watchlist_today_action(
+                combined.combined_recommendation,
+                tech,
+                fund,
+                intraday_action,
+                session_bias,
+            )
+        else:
+            today, reason, priority = _today_action(
+                combined.combined_recommendation,
+                tech,
+                fund,
+                pnl,
+                weight_pct,
+                intraday_action,
+                session_bias,
+            )
 
         return HoldingDailyAdvice(
             kite_symbol=h.kite_symbol,
@@ -339,21 +378,25 @@ def build_daily_briefing(
     period: str = "1y",
     include_market_picks: bool = True,
 ) -> DailyBriefing:
-    """Full daily report for portfolio + market ideas."""
+    """Full daily report for portfolio + watchlist + market ideas."""
     now = _now_ist()
-    holdings = import_result.holdings
-    weights = _portfolio_weights(holdings)
+    all_rows = import_result.holdings
+    held_rows = [h for h in all_rows if h.quantity > 0]
+    watch_rows = [h for h in all_rows if h.quantity <= 0]
+    weights = _portfolio_weights(held_rows)
     errors: list[str] = list(import_result.errors)
 
     holding_advices: list[HoldingDailyAdvice] = []
-    for h in holdings:
+    for h in held_rows:
         w = weights.get(h.yahoo_symbol or h.kite_symbol)
         holding_advices.append(analyze_holding(h, period=period, weight_pct=w))
+    for h in watch_rows:
+        holding_advices.append(analyze_holding(h, period=period, weight_pct=None))
 
     holding_advices.sort(key=lambda x: (x.priority, -abs(x.combined_score)))
 
-    owned = {h.yahoo_symbol.replace(".NS", "").replace(".BO", "") for h in holdings}
-    owned |= {h.tradingsymbol.upper() for h in holdings}
+    owned = {h.yahoo_symbol.replace(".NS", "").replace(".BO", "") for h in all_rows}
+    owned |= {h.tradingsymbol.upper() for h in all_rows}
 
     short_picks: list[StockPick] = []
     long_picks: list[StockPick] = []
@@ -384,24 +427,37 @@ def build_daily_briefing(
     for h in holding_advices:
         if h.error or h.priority > 2:
             continue
-        pnl_s = f" (P&L {h.pnl_pct:+.1f}%)" if h.pnl_pct is not None else ""
-        priority.append(f"**{h.kite_symbol}** — {h.today_action}{pnl_s}: {h.today_reason}")
+        label = f"Watchlist **{h.kite_symbol}**" if h.quantity <= 0 else f"**{h.kite_symbol}**"
+        if h.quantity > 0:
+            pnl_s = f" (P&L {h.pnl_pct:+.1f}%)" if h.pnl_pct is not None else ""
+            priority.append(f"{label} — {h.today_action}{pnl_s}: {h.today_reason}")
+        else:
+            priority.append(f"{label} — {h.today_action}: {h.today_reason}")
 
     if not priority and holding_advices:
         priority.append("No urgent actions — maintain discipline and review at close.")
 
     valid = [h for h in holding_advices if not h.error]
-    trim = [h for h in valid if "TRIM" in h.today_action or "EXIT" in h.today_action]
-    add = [h for h in valid if "ADD" in h.today_action]
+    held_valid = [h for h in valid if h.quantity > 0]
+    watch_valid = [h for h in valid if h.quantity <= 0]
+    trim = [h for h in held_valid if "TRIM" in h.today_action or "EXIT" in h.today_action]
+    add = [h for h in held_valid if "ADD" in h.today_action]
+    watch_hot = [h for h in watch_valid if h.priority <= 2]
 
     summary_parts = [
-        f"**{now.strftime('%A, %d %b %Y')}** — {len(valid)} holdings reviewed.",
+        f"**{now.strftime('%A, %d %b %Y')}** — {len(held_valid)} holdings"
+        + (f", {len(watch_valid)} watchlist" if watch_valid else "")
+        + " reviewed.",
         f"Market: **{market_verdict}** · Global bias: **{global_bias}**.",
     ]
     if trim:
         summary_parts.append(f"**Review today:** {', '.join(h.kite_symbol for h in trim[:5])}.")
     if add:
         summary_parts.append(f"**Add candidates (in portfolio):** {', '.join(h.kite_symbol for h in add[:3])}.")
+    if watch_hot:
+        summary_parts.append(
+            f"**Watchlist alerts:** {', '.join(h.kite_symbol for h in watch_hot[:5])}."
+        )
     if short_picks:
         summary_parts.append(
             f"**Short-term ideas (not in portfolio):** {', '.join(p.symbol.replace('.NS', '') for p in short_picks[:3])}."
@@ -416,7 +472,8 @@ def build_daily_briefing(
         generated_at=now.strftime("%Y-%m-%d %H:%M IST"),
         market_verdict=market_verdict,
         global_bias=global_bias,
-        holdings_count=len(holdings),
+        holdings_count=len(held_rows),
+        watchlist_count=len(watch_rows),
         priority_actions=priority[:8],
         holdings=holding_advices,
         short_term_picks=short_picks,

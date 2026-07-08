@@ -124,8 +124,10 @@ def render_kite_connect(*, compact: bool = False, key_prefix: str = "kite") -> b
         use_container_width=True,
     )
     st.caption(
-        "Click → log in on Zerodha → you return here with token saved automatically "
-        "(valid until ~6 AM IST). No copy-paste needed."
+        "Click → log in on Zerodha → browser returns to **this app** (localhost or cloud URL) "
+        "so the token can be saved. Holdings sync automatically; "
+        "**marketwatch must be pasted once** (Kite API limitation). "
+        "Token valid until ~6 AM IST."
     )
     with st.expander("Manual fallback (if redirect fails)"):
         rt = st.text_input("Paste request_token", key=f"{key_prefix}_request_token")

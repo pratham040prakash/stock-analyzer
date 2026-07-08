@@ -14,6 +14,7 @@ from analyzer.portfolio_live import (
     load_tracked_portfolio,
     refresh_holdings_ltp,
     sync_holdings_from_kite,
+    sync_watchlist_from_kite_activity,
 )
 from analyzer.kite_watchlist_store import (
     load_kite_watchlist,
@@ -100,10 +101,25 @@ def _render_live_portfolio_panel(profile: str) -> None:
 def _render_kite_watchlist_panel(profile: str) -> None:
     st.markdown("#### Kite watchlist mirror")
     st.caption(
-        "Kite has **no API** for your app marketwatch — paste symbols from Kite here once. "
-        "They are analyzed alongside holdings with **live LTP** when connected."
+        "Kite **marketwatch has no API**. We auto-sync symbols from your **open positions "
+        "and recent orders** after login. Paste any extra symbols from Kite marketwatch below."
     )
     existing = load_kite_watchlist(profile)
+    creds = load_env_credentials()
+    if creds.get("access_token"):
+        if st.button("Sync watchlist from Kite activity", key="kite_wl_sync", use_container_width=True):
+            with st.spinner("Reading positions & orders from Kite…"):
+                added, total, errs = sync_watchlist_from_kite_activity(profile=profile)
+                ensure_kite_stream_for_tracked(st.session_state.get("zd_import"), profile=profile)
+                if added:
+                    st.success(f"Added **{added}** symbols — **{total}** total in watchlist")
+                elif total:
+                    st.info(f"Watchlist up to date — **{total}** symbols")
+                else:
+                    st.warning("No symbols from Kite positions/orders yet.")
+                for err in errs:
+                    st.caption(err)
+                st.rerun()
     if existing:
         st.caption(f"**{len(existing)}** watchlist symbols saved: {', '.join(s.replace('NSE:', '').replace('-EQ', '') for s in existing[:8])}"
                    + ("…" if len(existing) > 8 else ""))

@@ -54,6 +54,16 @@ def save_kite_watchlist(symbols: list[str], profile: str | None = None) -> None:
     watchlist_path(profile).write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
+def merge_kite_watchlist(symbols: list[str], profile: str | None = None) -> tuple[int, int]:
+    """Append new symbols to saved watchlist. Returns (added_count, total_count)."""
+    existing = load_kite_watchlist(profile)
+    merged = list(dict.fromkeys([*existing, *(s.strip().upper() for s in symbols if s.strip())]))
+    added = len(merged) - len(existing)
+    if added > 0:
+        save_kite_watchlist(merged, profile=profile)
+    return added, len(merged)
+
+
 def load_kite_watchlist(profile: str | None = None) -> list[str]:
     path = watchlist_path(profile)
     if not path.exists():
