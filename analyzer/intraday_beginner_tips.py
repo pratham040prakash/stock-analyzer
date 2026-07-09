@@ -293,7 +293,21 @@ def daily_mis_checklist_items() -> list[DailyChecklistItem]:
             focus_key="intraday_focus_journal",
         ),
         DailyChecklistItem(
-            "post_review", "after_close", 10,
+            "options_or_gate", "during_session", 9,
+            "Options: check 🚦 Entry gate before CE/PE",
+            "PE only if spot ≤ OR low · CE only if spot ≥ OR high · after 9:45",
+            link_tab="Suggestions",
+            link_label="Options CE/PE",
+        ),
+        DailyChecklistItem(
+            "options_journal", "after_close", 10,
+            "Log mistake + fix in Track Record journal",
+            "One line: what went wrong and rule for tomorrow",
+            link_tab="Track Record",
+            link_label="Trade journal",
+        ),
+        DailyChecklistItem(
+            "post_review", "after_close", 11,
             "Review Track Record & refresh watchlist tonight",
             "What worked → scan for tomorrow",
             link_tab="Track Record",

@@ -21,6 +21,7 @@ from ui.components.watchlist_stats import (
     render_hit_rate_dashboard,
     render_watchlist_success_panel,
 )
+from ui.components.trade_journal import render_trade_journal_panel
 
 
 def _render_journal_validation_panel() -> None:
@@ -130,6 +131,9 @@ def render_track_record() -> None:
             mime="text/csv",
             key="tr_export_csv",
         )
+
+    st.divider()
+    render_trade_journal_panel()
 
     st.divider()
     _render_journal_validation_panel()

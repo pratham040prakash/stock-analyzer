@@ -40,6 +40,7 @@ from analyzer.watchlist_profit import format_expected_profit, options_target_pro
 from analyzer.prep_status import mark_prep_step
 from ui.navigation import request_nav_tab
 from ui.theme import OPTIONS_COLORS
+from ui.components.options_entry_gate import gate_table_cell, render_starred_option_gate
 
 _CACHE_KEY = "options_expiry_watchlist_cache"
 _CACHE_BUDGET_KEY = "options_expiry_watchlist_budget"
@@ -51,6 +52,9 @@ def _render_options_live_status(p, market: str) -> None:
     from analyzer.options_trade_selection import is_option_selected
 
     if is_option_selected(p.fno_symbol, p.option_type, p.strike) or p.recommended:
+        from ui.components.options_entry_gate import render_options_entry_gate_banner
+
+        render_options_entry_gate_banner(p, market=market)
         rev = assess_pick_index_reversal(p, market=market)
         if rev:
             if rev.phase == "invalidated":
@@ -288,9 +292,11 @@ def render_options_expiry_watchlist_section(wl: OptionsExpiryWatchlist, *, marke
     pick_pool = [p for p in wl.picks if p.recommended] or wl.picks
     st.markdown("##### Pick your 1 option leg")
     st.caption(
-        f"{option_selection_status_line()} · Live alerts & EOD focus on starred leg only. "
-        "**Index reversal** Telegram fires once if spot breaks OR vs your ★ CE/PE."
+        f"{option_selection_status_line()} · **9:45 OR gate** on each row. "
+        "Index reversal Telegram once if spot breaks OR. Star one leg only."
     )
+
+    render_starred_option_gate(market)
     opt_cols = st.columns(min(len(pick_pool), 4))
     for i, p in enumerate(pick_pool):
         with opt_cols[i % len(opt_cols)]:
@@ -318,6 +324,7 @@ def render_options_expiry_watchlist_section(wl: OptionsExpiryWatchlist, *, marke
         sel = "⭐ " if is_option_selected(p.fno_symbol, p.option_type, p.strike) else ""
         table.append({
             "Rank": p.rank,
+            "Gate": gate_table_cell(p, market=market),
             "Index": p.fno_symbol,
             "Expiry": p.expiry,
             "Signal": p.signal,
@@ -373,9 +380,35 @@ def render_options_expiry_watchlist_block(
     """Options expiry section on Intraday tab — lazy-load on user action."""
     st.markdown("### 📅 Options expiry watchlist")
     st.caption(
-        "Nifty & Bank Nifty **CE/PE** — strike, premium, stop & target for nearest expiry. "
-        "Tap **Load CE/PE** when ready (~15s NSE fetch)."
+        "Nifty & Bank Nifty **CE/PE** — **9:45 OR gate** on each row. "
+        "After 9:46 tap **Re-scan after OR** for fresh ★."
     )
+
+    session = market_session_status()
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    now = datetime.now(ZoneInfo("Asia/Kolkata"))
+    if session.get("is_open") and ((now.hour == 9 and now.minute >= 45) or now.hour == 10):
+        r1, r2 = st.columns([2, 1])
+        with r1:
+            st.info(
+                "**9:45+** — Opening range is set. Re-scan CE/PE before entering; "
+                "check **Gate** column (🔴 = do not enter)."
+            )
+        with r2:
+            if st.button("Re-scan after OR", type="primary", key="opt_morning_rescan"):
+                from analyzer.morning_options_rescan import run_morning_options_rescan
+
+                with st.spinner("Re-scanning Nifty & Bank Nifty CE/PE…"):
+                    result = run_morning_options_rescan(send_telegram=False, market=market)
+                    st.session_state.pop(_CACHE_KEY, None)
+                    st.session_state.pop(_CACHE_BUDGET_KEY, None)
+                if result.pick_count:
+                    st.success(f"Updated **{result.pick_count}** rows ({result.recommended_count} ★)")
+                else:
+                    st.warning("No picks — check Kite/NSE connection.")
+                st.rerun()
 
     budget_opts = [int(x) for x in OPTION_LOT_BUDGET_OPTIONS]
     default_budget = int(
