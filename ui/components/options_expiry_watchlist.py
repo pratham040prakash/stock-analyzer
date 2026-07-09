@@ -228,12 +228,33 @@ def _fetch_watchlist(
     if cached is not None and cached_budget == max_lot_cost:
         return cached
 
+    wl = None
     with st.spinner("Fetching Nifty & Bank Nifty option chains… ~15s"):
-        wl = build_options_expiry_watchlist(
-            report,
-            max_lot_cost=max_lot_cost,
-            period=period,
-            market=market,
+        try:
+            wl = build_options_expiry_watchlist(
+                report,
+                max_lot_cost=max_lot_cost,
+                period=period,
+                market=market,
+            )
+        except Exception:
+            wl = None
+
+    if wl is None or not wl.picks:
+        from analyzer.nse_session import is_nse_available
+        from analyzer.options_watchlist_history import load_stale_options_watchlist
+
+        if not is_nse_available() or (wl is not None and not wl.picks):
+            stale = load_stale_options_watchlist(max_lot_cost=max_lot_cost)
+            if stale and stale.picks:
+                st.session_state[_CACHE_KEY] = stale
+                st.session_state[_CACHE_BUDGET_KEY] = max_lot_cost
+                return stale
+
+    if wl is None:
+        wl = OptionsExpiryWatchlist(
+            errors=["Options fetch failed — connect Kite or retry when NSE recovers."],
+            nse_available=False,
         )
     st.session_state[_CACHE_KEY] = wl
     st.session_state[_CACHE_BUDGET_KEY] = max_lot_cost
@@ -260,6 +281,11 @@ def _render_telegram_export(wl: OptionsExpiryWatchlist, *, market_bias: str = ""
 
 def render_options_expiry_watchlist_section(wl: OptionsExpiryWatchlist, *, market: str = "india") -> None:
     st.markdown("#### 📅 Options expiry watchlist (Nifty & Bank Nifty)")
+    if not wl.nse_available and wl.picks:
+        st.warning(
+            "**Stale snapshot** — premiums from last save. Live gate/OR need Kite + NSE. "
+            "Tap **Refresh CE/PE** when NSE recovers."
+        )
     st.caption(wl.routine_note)
 
     if not wl.nse_available and not wl.picks:

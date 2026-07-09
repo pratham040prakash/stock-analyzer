@@ -73,6 +73,11 @@ def run_morning_options_rescan(
         tg_err = err or ""
 
     rec = sum(1 for p in wl.picks if p.recommended)
+    if wl.picks:
+        mark_morning_options_rescan_sent(
+            market_session_status().get("date", session_target_date()),
+            pick_count=len(wl.picks),
+        )
     return MorningOptionsRescanResult(
         pick_count=len(wl.picks),
         recommended_count=rec,
@@ -103,3 +108,37 @@ def run_morning_options_rescan_job() -> tuple[int, str]:
     elif result.telegram_error:
         msg += f" · Telegram: {result.telegram_error}"
     return result.pick_count, msg
+
+
+def was_morning_options_rescan_sent(trade_date: str) -> bool:
+    from pathlib import Path
+    import json
+
+    path = Path(__file__).resolve().parent.parent / "data" / "intraday" / "morning_options_rescan.json"
+    if not path.exists():
+        return False
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return bool(data.get(trade_date, {}).get("sent"))
+    except (json.JSONDecodeError, OSError):
+        return False
+
+
+def mark_morning_options_rescan_sent(trade_date: str, *, pick_count: int = 0) -> None:
+    from pathlib import Path
+    import json
+
+    path = Path(__file__).resolve().parent.parent / "data" / "intraday" / "morning_options_rescan.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    data = {}
+    if path.exists():
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            data = {}
+    data[trade_date] = {
+        "sent": True,
+        "at": datetime.now(IST).strftime("%Y-%m-%d %H:%M IST"),
+        "pick_count": pick_count,
+    }
+    path.write_text(json.dumps(data, indent=2), encoding="utf-8")

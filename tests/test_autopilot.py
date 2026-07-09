@@ -65,7 +65,8 @@ class TestAutopilotStatus(unittest.TestCase):
 
         status = build_autopilot_status()
         self.assertEqual(status.trade_date, "2026-07-07")
-        self.assertEqual(len(status.steps), 5)
+        self.assertEqual(len(status.steps), 8)
+        self.assertEqual(status.schedules_total, 10)
         self.assertEqual(status.schedules_installed, 0)
 
 

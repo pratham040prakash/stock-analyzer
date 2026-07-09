@@ -13,31 +13,58 @@ def render_trade_journal_panel() -> None:
     st.markdown("### MIS trade journal — learn from mistakes")
     st.caption(
         "Log what went wrong and your fix **after each session**. "
-        "Review weekly — patterns beat memory."
+        "From Suggestions → **Add lesson →** on today's trade log pre-fills this form."
     )
 
-    with st.expander("Add today's lesson", expanded=False):
+    prefill = st.session_state.pop("tj_prefill", None) or {}
+    expand = bool(st.session_state.pop("tj_expand", False))
+
+    with st.expander("Add today's lesson", expanded=expand):
         td = session_target_date()
         c1, c2 = st.columns(2)
         with c1:
             symbol = st.text_input(
                 "Symbol / leg",
-                value="BANKNIFTY PE 55000",
+                value=str(prefill.get("symbol") or "BANKNIFTY PE 55000"),
                 key="tj_symbol",
             )
-            entry = st.number_input("Entry (₹)", min_value=0.0, step=1.0, value=0.0, key="tj_entry")
-            exit_p = st.number_input("Exit (₹)", min_value=0.0, step=1.0, value=0.0, key="tj_exit")
+            entry = st.number_input(
+                "Entry (₹)",
+                min_value=0.0,
+                step=1.0,
+                value=float(prefill.get("entry") or 0.0),
+                key="tj_entry",
+            )
+            exit_p = st.number_input(
+                "Exit (₹)",
+                min_value=0.0,
+                step=1.0,
+                value=float(prefill.get("exit") or 0.0),
+                key="tj_exit",
+            )
         with c2:
-            leg = st.text_input("Type", value="options", key="tj_leg", help="options | equity")
-            pnl = st.number_input("P&L (₹)", step=100.0, value=0.0, key="tj_pnl")
+            leg = st.text_input(
+                "Type",
+                value=str(prefill.get("leg") or "options"),
+                key="tj_leg",
+                help="options | equity",
+            )
+            pnl = st.number_input(
+                "P&L (₹)",
+                step=100.0,
+                value=float(prefill.get("pnl_inr") or 0.0),
+                key="tj_pnl",
+            )
             mistake = st.text_area(
                 "What went wrong?",
+                value=str(prefill.get("mistake") or ""),
                 placeholder="Entered before 9:45 OR confirm; OTM PE in chop",
                 key="tj_mistake",
                 height=68,
             )
             fix = st.text_area(
                 "Fix for next time",
+                value=str(prefill.get("fix") or ""),
                 placeholder="Wait OR low for PE; exit at stop; one loss = done",
                 key="tj_fix",
                 height=68,

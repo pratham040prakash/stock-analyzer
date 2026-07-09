@@ -102,9 +102,13 @@ class TestWatchlistHistory(unittest.TestCase):
 
     def test_success_report_win_rate(self):
         from analyzer.watchlist_history import init_watchlist_history
+        from datetime import datetime, timedelta
+        from zoneinfo import ZoneInfo
 
         init_watchlist_history()
-        trade_date = "2026-07-01"
+        trade_date = (
+            datetime.now(ZoneInfo("Asia/Kolkata")).date() - timedelta(days=1)
+        ).isoformat()
         with sqlite3.connect(self.db) as conn:
             conn.execute(
                 """

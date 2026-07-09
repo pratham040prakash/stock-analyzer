@@ -240,6 +240,65 @@ def fetch_options_snapshots_for_date(trade_date: str) -> list[OptionsWatchlistSn
     ]
 
 
+def snapshots_to_expiry_picks(
+    snaps: list[OptionsWatchlistSnapshot],
+    *,
+    max_lot_cost: float | None = None,
+) -> list[OptionsExpiryPick]:
+    """Rebuild OptionsExpiryPick rows from a saved snapshot."""
+    picks: list[OptionsExpiryPick] = []
+    for s in snaps:
+        premium = float(s.entry or 0)
+        lot_cost = premium * int(s.lot_size or 0)
+        if max_lot_cost is not None and lot_cost > max_lot_cost:
+            continue
+        picks.append(
+            OptionsExpiryPick(
+                rank=int(s.rank or 0),
+                fno_symbol=s.fno_symbol,
+                name=s.name or s.fno_symbol,
+                expiry=s.expiry,
+                spot=float(s.spot or 0),
+                signal=s.signal or "",
+                option_type=s.option_type,
+                strike=float(s.strike),
+                premium=premium or None,
+                lot_size=int(s.lot_size or 0),
+                lot_cost=lot_cost or None,
+                stop_premium=float(s.stop_loss) if s.stop_loss else None,
+                target_premium=float(s.target) if s.target else None,
+                iv=None,
+                recommended=bool(s.recommended),
+                reason=f"Saved {s.saved_at} (stale snapshot)",
+            )
+        )
+    return picks
+
+
+def load_stale_options_watchlist(
+    *,
+    max_lot_cost: float | None = None,
+    trade_date: str | None = None,
+):
+    """Last saved CE/PE when NSE fetch fails."""
+    from analyzer.options_expiry_watchlist import OptionsExpiryWatchlist
+
+    td = trade_date or session_target_date()
+    snaps = fetch_options_snapshots_for_date(td)
+    if not snaps:
+        return None
+    picks = snapshots_to_expiry_picks(snaps, max_lot_cost=max_lot_cost)
+    if not picks:
+        return None
+    saved_at = snaps[0].saved_at if snaps else ""
+    return OptionsExpiryWatchlist(
+        picks=picks,
+        routine_note=f"**Stale snapshot** from {saved_at} — NSE live fetch failed.",
+        nse_available=False,
+        errors=["Showing last saved CE/PE — tap Retry when NSE recovers."],
+    )
+
+
 def fetch_options_outcomes_for_date(trade_date: str) -> list[OptionsWatchlistOutcome]:
     init_options_watchlist_history()
     with _connect() as conn:

@@ -1,4 +1,4 @@
-"""Focused home: nightly suggestions + target hit tracking."""
+"""Suggestions home — nightly picks + live session."""
 
 from __future__ import annotations
 
@@ -20,12 +20,14 @@ from analyzer.options_watchlist_history import score_options_daily_watchlist
 from ui.components.intraday_watchlist import render_intraday_watchlist_block
 from ui.components.morning_cockpit import render_morning_cockpit
 from ui.components.autopilot import render_autopilot_home_readonly
+from ui.components.data_mode_banner import render_data_mode_banner
+from ui.components.live_session_strip import render_live_session_strip
+from ui.components.daily_cheat_sheet import render_daily_cheat_sheet
+from ui.navigation import request_nav_tab
 from ui.components.watchlist_stats import (
     render_all_suggested_picks_table,
-    render_hit_rate_dashboard,
     render_selected_vs_all_banner,
     render_todays_track_record,
-    render_watchlist_success_banner,
 )
 
 
@@ -47,15 +49,22 @@ def render_suggestions_hero() -> None:
 
 
 def render_weekly_hero_metric(*, days: int = 7) -> None:
+    """Compact link — full analytics live on Track Record tab."""
     days = max(days, MIN_RETENTION_DAYS)
     report = build_watchlist_success_report(days)
     if report.total_picks == 0:
         return
     wr = f"{report.win_rate_pct:.0f}%" if report.win_rate_pct is not None else "—"
-    st.success(
-        f"This week: **{report.scored_picks}** suggestions, "
-        f"**{report.target_hits}** hit target (**{wr}**)"
-    )
+    c1, c2 = st.columns([4, 1])
+    with c1:
+        st.caption(
+            f"Last {days}d: **{report.target_hits}** targets · **{report.stop_hits}** stops "
+            f"· win **{wr}** — details on **Track Record**"
+        )
+    with c2:
+        if st.button("Track Record →", key="sugg_go_track_record", use_container_width=True):
+            request_nav_tab("Track Record")
+            st.rerun()
 
 
 def _render_score_button(market: str) -> None:
@@ -92,7 +101,10 @@ def render_suggestions_core(
     if banner:
         st.info(banner)
 
-    render_hit_rate_dashboard(market=market)
+    render_data_mode_banner(key_prefix="sugg_data")
+    render_live_session_strip(market=market)
+    render_daily_cheat_sheet(key_prefix="sugg_cheat")
+
     if not is_macos() or is_simple_cloud_mode():
         render_autopilot_home_readonly()
 
@@ -102,8 +114,6 @@ def render_suggestions_core(
     if phase == "live":
         render_morning_cockpit(market, key_prefix="sugg_cockpit")
         st.divider()
-        if report.total_picks > 0:
-            render_watchlist_success_banner(days=days)
         render_todays_track_record(market=market)
         st.divider()
         st.markdown("#### Tonight's stock suggestions")
@@ -113,10 +123,6 @@ def render_suggestions_core(
         _render_score_button(market)
 
     elif phase == "post_close":
-        if report.total_picks > 0:
-            render_watchlist_success_banner(days=days)
-        else:
-            st.info("No scored suggestions yet — run **Quick scan** below, then score tomorrow.")
         render_todays_track_record(market=market)
         _render_score_button(market)
         st.divider()
@@ -126,9 +132,7 @@ def render_suggestions_core(
         )
 
     else:
-        if report.total_picks > 0:
-            render_watchlist_success_banner(days=days)
-        else:
+        if report.total_picks == 0:
             st.info("Run **Quick scan** after close — or enable **Autopilot** in the sidebar.")
         st.markdown("#### Today's stock suggestions")
         render_intraday_watchlist_block(

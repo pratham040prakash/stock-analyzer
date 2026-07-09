@@ -8,6 +8,7 @@ import streamlit as st
 from analyzer.options_trade_selection import load_selected_option
 from analyzer.sideways_options_advisor import (
     advise_sideways_strategy,
+    estimate_strategy_pnl,
     format_legs_table,
     strategy_comparison_rows,
 )
@@ -60,6 +61,31 @@ def _render_advice_card(advice) -> None:
             use_container_width=True,
             hide_index=True,
         )
+        pnl = estimate_strategy_pnl(advice)
+        if pnl:
+            st.markdown("**₹ P&L estimate (1 lot)**")
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Lot size", pnl.lot_size)
+            c2.metric(
+                "Max profit / lot",
+                f"₹{pnl.max_profit_per_lot_inr:,.0f}" if pnl.max_profit_per_lot_inr else "≈ credit",
+            )
+            c3.metric(
+                "Max loss / lot",
+                f"₹{pnl.max_loss_per_lot_inr:,.0f}" if pnl.max_loss_per_lot_inr else "—",
+            )
+            st.caption(pnl.summary)
+            credit = st.number_input(
+                "Net credit per unit (₹) — optional, from Kite quote",
+                min_value=0.0,
+                step=1.0,
+                value=0.0,
+                key=f"soa_credit_{advice.strategy_id}",
+            )
+            if credit > 0:
+                refined = estimate_strategy_pnl(advice, net_credit_per_unit=credit)
+                if refined:
+                    st.info(refined.summary)
 
     if advice.risk_notes:
         st.markdown("**Risk & exit**")

@@ -50,6 +50,7 @@ class SidewaysStrategyAdvice:
     range_high: float | None
     range_low: float | None
     range_pct: float | None
+    fno_symbol: str = "NIFTY"
     legs: list[StrategyLeg] = field(default_factory=list)
     rationale: list[str] = field(default_factory=list)
     risk_notes: list[str] = field(default_factory=list)
@@ -357,6 +358,7 @@ def advise_sideways_strategy(
                     market_view="Sideways to mildly bearish",
                     risk_profile="defined",
                     iv_tier=iv_t,
+                    fno_symbol=fno,
                     spot=spot,
                     range_high=range_high,
                     range_low=range_low,
@@ -382,6 +384,7 @@ def advise_sideways_strategy(
                 market_view="Sideways to mildly bullish",
                 risk_profile="defined",
                 iv_tier=iv_t,
+                fno_symbol=fno,
                 spot=spot,
                 range_high=range_high,
                 range_low=range_low,
@@ -408,6 +411,7 @@ def advise_sideways_strategy(
             market_view="Unknown",
             risk_profile="defined",
             iv_tier=iv_t,
+            fno_symbol=fno,
             spot=spot,
             range_high=range_high,
             range_low=range_low,
@@ -456,6 +460,7 @@ def advise_sideways_strategy(
         market_view="Sideways / range-bound",
         risk_profile=risk_prof,
         iv_tier=iv_t,
+        fno_symbol=fno,
         spot=spot,
         range_high=range_high,
         range_low=range_low,
@@ -550,3 +555,72 @@ def strategy_comparison_rows() -> list[dict[str, str]]:
             "IV": "High",
         },
     ]
+
+
+@dataclass
+class MultiLegPnlEstimate:
+    lot_size: int
+    wing_width_pts: float
+    max_profit_per_lot_inr: float | None
+    max_loss_per_lot_inr: float | None
+    net_credit_per_unit: float | None
+    summary: str
+
+
+LOT_SIZES = {"NIFTY": 75, "BANKNIFTY": 30, "FINNIFTY": 40, "MIDCPNIFTY": 50}
+
+
+def _wing_width_pts(legs: list[StrategyLeg]) -> float:
+    sells = sorted([l.strike for l in legs if l.action == "sell"])
+    buys = sorted([l.strike for l in legs if l.action == "buy"])
+    if not sells or not buys:
+        return 0.0
+    widths = []
+    if len(sells) >= 2:
+        widths.append(abs(sells[-1] - sells[0]))
+    for s in sells:
+        for b in buys:
+            widths.append(abs(b - s))
+    return min(w for w in widths if w > 0) if widths else 0.0
+
+
+def estimate_strategy_pnl(
+    advice: SidewaysStrategyAdvice,
+    *,
+    net_credit_per_unit: float | None = None,
+) -> MultiLegPnlEstimate | None:
+    """Rough ₹ P&L per lot for defined-risk credit strategies (iron condor / butterfly / spreads)."""
+    if not advice.legs or advice.risk_profile != "defined":
+        return None
+    fno = _normalize_fno(advice.fno_symbol or "NIFTY")
+    lot = LOT_SIZES.get(fno, 75)
+    wing = _wing_width_pts(advice.legs)
+    if wing <= 0:
+        step = strike_step(fno)
+        wing = step * 2
+
+    spread_risk_inr = wing * lot
+    credit_inr = (net_credit_per_unit or 0) * lot
+    if net_credit_per_unit is None:
+        max_loss = spread_risk_inr
+        max_profit = None
+        summary = (
+            f"**1 lot ({lot})** · wing **{wing:g} pts** → "
+            f"max loss ≈ **₹{spread_risk_inr:,.0f}** minus net credit received. "
+            "Enter premiums on Kite to see exact max profit."
+        )
+    else:
+        max_loss = max(spread_risk_inr - credit_inr, 0)
+        max_profit = credit_inr
+        summary = (
+            f"**1 lot ({lot})** · credit **₹{credit_inr:,.0f}** · "
+            f"max profit **₹{max_profit:,.0f}** · max loss **₹{max_loss:,.0f}** (defined risk)."
+        )
+    return MultiLegPnlEstimate(
+        lot_size=lot,
+        wing_width_pts=wing,
+        max_profit_per_lot_inr=max_profit,
+        max_loss_per_lot_inr=max_loss if net_credit_per_unit is not None else spread_risk_inr,
+        net_credit_per_unit=net_credit_per_unit,
+        summary=summary,
+    )

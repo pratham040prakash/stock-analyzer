@@ -21,7 +21,7 @@ streamlit run app.py
 
 Sidebar → **🤖 Autopilot** → **Enable autopilot on this Mac**
 
-Confirm **7/7 schedules** and Mac timezone **Asia/Kolkata**.
+Confirm **10/10 schedules** and Mac timezone **Asia/Kolkata**.
 
 ### 4. First Quick scan
 

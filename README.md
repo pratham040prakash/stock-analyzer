@@ -25,8 +25,15 @@ Open http://127.0.0.1:8501
 | **3:45 PM** | Quick scan → saves tomorrow's top 5 |
 | **3:50 PM** | Scores today vs high/low → EOD hit summary Telegram |
 | **4:30 PM** | Autopilot health check (alerts if something missed) |
+| **8:45 AM** | Prep incomplete nag (Telegram if stars missing) |
 | **8:50 AM** | Morning pick list Telegram |
+| **9:15 AM** | Session open reminder |
+| **9:46 AM** | Options re-scan after opening range |
+| **Every 5 min** | Live watchlist alerts (stop / T1 / reversal) |
 | **9:10 PM** | Auto-star top 2 if you didn't pick |
+| **9:00 PM** | Nightly options prep |
+
+**10 launchd schedules** — `bash scripts/install_all_schedules.sh` or sidebar **Enable autopilot**.
 
 Star **2 names** in the app to compare *your* trades vs full top 5.
 
@@ -34,8 +41,8 @@ Star **2 names** in the app to compare *your* trades vs full top 5.
 
 | Tab | Purpose |
 |-----|---------|
-| **Suggestions** | Quick scan, live cockpit (when open), hit tracking |
-| **Track Record** | Win rate, history, CSV export |
+| **Suggestions** | Live strip (OR + gate), data mode banner, cheat sheet, quick scan |
+| **Track Record** | Win rate, history, trade journal, CSV export |
 
 **Local only:** Research tabs (Pulse, Options, Screener, etc.) — hidden on Streamlit Cloud.
 

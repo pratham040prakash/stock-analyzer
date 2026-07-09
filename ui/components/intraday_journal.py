@@ -78,6 +78,9 @@ def render_log_trade_panel(
 
 def render_todays_trade_journal(*, max_trades: int = 3) -> None:
     """Table of trades logged today on the Intraday tab."""
+    from analyzer.trade_journal_link import build_lesson_prefill
+    from ui.navigation import request_nav_tab
+
     today = market_session_status().get("date", "")
     trades = fetch_intraday_trades(trade_date=today, limit=20)
     if not trades:
@@ -85,6 +88,18 @@ def render_todays_trade_journal(*, max_trades: int = 3) -> None:
         return
 
     st.markdown(f"#### Today's trade log ({len(trades)}/{max_trades} slots)")
+    for t in trades:
+        cols = st.columns([3, 1])
+        with cols[0]:
+            entry_s = f"Entry ₹{t.entry:,.2f}" if t.entry else "—"
+            st.caption(f"**{t.created_at}** · {t.action} **{t.symbol}** · {entry_s}")
+        with cols[1]:
+            if st.button("Add lesson →", key=f"log_lesson_{t.id}", use_container_width=True):
+                st.session_state["tj_prefill"] = build_lesson_prefill(t)
+                st.session_state["tj_expand"] = True
+                request_nav_tab("Track Record")
+                st.rerun()
+
     rows = []
     for t in trades:
         rows.append({

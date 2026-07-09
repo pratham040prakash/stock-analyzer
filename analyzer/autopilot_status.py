@@ -13,9 +13,11 @@ from analyzer.morning_suggestions_scheduler import (
     morning_suggestions_meta,
     was_morning_suggestions_sent,
 )
+from analyzer.morning_options_rescan import was_morning_options_rescan_sent
 from analyzer.nightly_prep_scheduler import prep_session_key, was_nightly_prep_sent
 from analyzer.post_close_scan_scheduler import post_close_scan_meta, was_post_close_scan_sent
-from analyzer.prep_status import prep_status_for
+from analyzer.prep_morning_nag import was_prep_nag_sent
+from analyzer.prep_status import is_nightly_prep_complete, prep_status_for
 from analyzer.trade_selection import load_selected_symbols
 from analyzer.trade_selection_scheduler import was_auto_select_run
 from analyzer.watchlist_history import (
@@ -30,11 +32,14 @@ LAUNCH_AGENTS = Path.home() / "Library" / "LaunchAgents"
 AUTOPILOT_JOBS: list[tuple[str, str, str]] = [
     ("post_close_scan", "com.stockanalyzer.postclosescan.plist", "3:45 PM — Quick scan"),
     ("eod_score", "com.stockanalyzer.miseod.plist", "3:50 PM — score + hit summary"),
+    ("autopilot_health", "com.stockanalyzer.autopilothealth.plist", "4:30 PM — gap alert"),
+    ("prep_morning_nag", "com.stockanalyzer.prepmorning.plist", "8:45 AM — prep nag"),
     ("morning_list", "com.stockanalyzer.morning.plist", "8:50 AM — pick list"),
     ("session_open", "com.stockanalyzer.sessionreminders.plist", "9:15 AM — session open"),
+    ("morning_options", "com.stockanalyzer.morning_options.plist", "9:46 AM — options re-scan"),
+    ("live_alerts", "com.stockanalyzer.livealerts.plist", "Every 5 min — live alerts"),
     ("auto_star_2", "com.stockanalyzer.autoselect.plist", "9:10 PM — auto star top 2"),
     ("nightly_prep", "com.stockanalyzer.nightlyprep.plist", "9:00 PM — options prep"),
-    ("autopilot_health", "com.stockanalyzer.autopilothealth.plist", "4:30 PM — gap alert"),
 ]
 
 
@@ -134,6 +139,30 @@ def build_autopilot_status() -> AutopilotStatus:
             installed=launchd_plist_installed("com.stockanalyzer.nightlyprep.plist"),
             done_today=was_nightly_prep_sent(prep_for) or prep.get("options"),
             detail="Optional CE/PE" if not prep.get("options") else "Options saved",
+        ),
+        AutopilotStep(
+            key="prep_morning_nag",
+            label="Prep incomplete nag",
+            schedule="8:45 AM",
+            installed=launchd_plist_installed("com.stockanalyzer.prepmorning.plist"),
+            done_today=was_prep_nag_sent(trade_date) or is_nightly_prep_complete(prep),
+            detail="Telegram if prep missing",
+        ),
+        AutopilotStep(
+            key="morning_options",
+            label="Options re-scan (post-OR)",
+            schedule="9:46 AM",
+            installed=launchd_plist_installed("com.stockanalyzer.morning_options.plist"),
+            done_today=was_morning_options_rescan_sent(trade_date) or prep.get("options"),
+            detail="Fresh CE/PE after opening range",
+        ),
+        AutopilotStep(
+            key="live_alerts",
+            label="Live watchlist alerts",
+            schedule="Every 5 min",
+            installed=launchd_plist_installed("com.stockanalyzer.livealerts.plist"),
+            done_today=launchd_plist_installed("com.stockanalyzer.livealerts.plist"),
+            detail="Stop / T1 / reversal Telegram during session",
         ),
     ]
 
