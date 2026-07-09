@@ -193,6 +193,9 @@ def run_watchlist_live_alerts(
         return 0, "Telegram not configured"
 
     messages = check_watchlist_live_alerts(trade_date=trade_date, market=market)
+    from analyzer.options_reversal_alerts import check_options_reversal_alerts
+
+    messages.extend(check_options_reversal_alerts(trade_date=trade_date, market=market))
     if not messages:
         return 0, "No new live alerts"
 

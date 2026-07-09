@@ -47,6 +47,20 @@ _LOADED_KEY = "options_expiry_loaded"
 
 
 def _render_options_live_status(p, market: str) -> None:
+    from analyzer.options_reversal_alerts import assess_pick_index_reversal
+    from analyzer.options_trade_selection import is_option_selected
+
+    if is_option_selected(p.fno_symbol, p.option_type, p.strike) or p.recommended:
+        rev = assess_pick_index_reversal(p, market=market)
+        if rev:
+            if rev.phase == "invalidated":
+                st.error(f"{rev.emoji} **{rev.label}** — {rev.detail}")
+                st.warning(f"**Action:** {rev.action}")
+            elif rev.phase == "ok":
+                st.success(f"{rev.emoji} **{rev.label}** — {rev.detail}")
+            else:
+                st.info(f"{rev.emoji} **{rev.label}** — {rev.detail}")
+
     prem = fetch_option_leg_ltp(
         p.fno_symbol, p.option_type, p.strike, expiry=p.expiry,
     )
@@ -274,7 +288,8 @@ def render_options_expiry_watchlist_section(wl: OptionsExpiryWatchlist, *, marke
     pick_pool = [p for p in wl.picks if p.recommended] or wl.picks
     st.markdown("##### Pick your 1 option leg")
     st.caption(
-        f"{option_selection_status_line()} · Live alerts & EOD focus on starred leg only."
+        f"{option_selection_status_line()} · Live alerts & EOD focus on starred leg only. "
+        "**Index reversal** Telegram fires once if spot breaks OR vs your ★ CE/PE."
     )
     opt_cols = st.columns(min(len(pick_pool), 4))
     for i, p in enumerate(pick_pool):
