@@ -363,6 +363,7 @@ def format_printable_mis_checklist(
     sections.append("")
     sections.append("OPTIONS")
     sections.append("□ Re-scan CE/PE after 9:46 (post-OR)")
+    sections.append("□ Sideways? Iron condor / butterfly — not naked CE/PE buy")
     sections.append("□ PE only if index ≤ OR low · CE only if ≥ OR high")
     sections.append("□ Skip strike if >3.5% OTM vs spot")
     sections.append("□ Only starred CE/PE from prep")

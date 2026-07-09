@@ -293,6 +293,13 @@ def daily_mis_checklist_items() -> list[DailyChecklistItem]:
             focus_key="intraday_focus_journal",
         ),
         DailyChecklistItem(
+            "options_sideways", "during_session", 9,
+            "Sideways? Use strategy advisor (iron condor / butterfly)",
+            "When entry gate is yellow/red — credit spreads beat buying CE/PE in chop",
+            link_tab="Suggestions",
+            link_label="Sideways advisor",
+        ),
+        DailyChecklistItem(
             "options_or_gate", "during_session", 9,
             "Options: check 🚦 Entry gate before CE/PE",
             "PE only if spot ≤ OR low · CE only if spot ≥ OR high · after 9:45",

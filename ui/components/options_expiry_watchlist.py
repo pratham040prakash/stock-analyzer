@@ -41,6 +41,7 @@ from analyzer.prep_status import mark_prep_step
 from ui.navigation import request_nav_tab
 from ui.theme import OPTIONS_COLORS
 from ui.components.options_entry_gate import gate_table_cell, render_starred_option_gate
+from ui.components.sideways_options_advisor import render_sideways_strategy_advisor_panel
 
 _CACHE_KEY = "options_expiry_watchlist_cache"
 _CACHE_BUDGET_KEY = "options_expiry_watchlist_budget"
@@ -52,9 +53,15 @@ def _render_options_live_status(p, market: str) -> None:
     from analyzer.options_trade_selection import is_option_selected
 
     if is_option_selected(p.fno_symbol, p.option_type, p.strike) or p.recommended:
+        from analyzer.options_entry_gate import assess_pick_entry_gate
         from ui.components.options_entry_gate import render_options_entry_gate_banner
 
         render_options_entry_gate_banner(p, market=market)
+        gate = assess_pick_entry_gate(p, market=market)
+        if gate:
+            from ui.components.sideways_options_advisor import render_auto_sideways_hint
+
+            render_auto_sideways_hint(p, market=market, gate_phase=gate.phase)
         rev = assess_pick_index_reversal(p, market=market)
         if rev:
             if rev.phase == "invalidated":
@@ -297,6 +304,8 @@ def render_options_expiry_watchlist_section(wl: OptionsExpiryWatchlist, *, marke
     )
 
     render_starred_option_gate(market)
+
+    render_sideways_strategy_advisor_panel(market=market, key_prefix="opt_soa")
     opt_cols = st.columns(min(len(pick_pool), 4))
     for i, p in enumerate(pick_pool):
         with opt_cols[i % len(opt_cols)]:
