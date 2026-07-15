@@ -135,20 +135,10 @@ def analyze_intraday(df: pd.DataFrame, ticker: str, interval: str) -> IntradayAn
         session_bias = "NEUTRAL"
         trade_setup = "WAIT"
 
-    # Levels
+    # Levels computed after Decision Engine maps trade_setup
     entry = stop = target = None
-    if trade_setup == "BUY":
-        entry = price
-        stop = min(or_low, vwap) * 0.998
-        risk = entry - stop
-        target = entry + risk * 1.5 if risk > 0 else price * 1.005
-    elif trade_setup == "SELL":
-        entry = price
-        stop = max(or_high, vwap) * 1.002
-        risk = stop - entry
-        target = entry - risk * 1.5 if risk > 0 else price * 0.995
 
-    return IntradayAnalysis(
+    result = IntradayAnalysis(
         ticker=ticker,
         interval=interval,
         last_price=price,
@@ -158,12 +148,33 @@ def analyze_intraday(df: pd.DataFrame, ticker: str, interval: str) -> IntradayAn
         rsi=rsi,
         session_bias=session_bias,
         trade_setup=trade_setup,
-        entry=round(entry, 2) if entry else None,
-        stop_loss=round(stop, 2) if stop else None,
-        target=round(target, 2) if target else None,
+        entry=entry,
+        stop_loss=stop,
+        target=target,
         signals=signals,
         note="Intraday only — square off before 3:20 PM IST. Data may lag 15–20 min via Yahoo.",
     )
+    from analyzer.decision_engine.verdict_bridge import attach_decision_to_intraday
+
+    attach_decision_to_intraday(result)
+    trade_setup = result.trade_setup
+    if trade_setup == "BUY":
+        entry = price
+        stop = min(or_low, vwap) * 0.998
+        risk = entry - stop
+        target = entry + risk * 1.5 if risk > 0 else price * 1.005
+        result.entry = round(entry, 2)
+        result.stop_loss = round(stop, 2)
+        result.target = round(target, 2)
+    elif trade_setup == "SELL":
+        entry = price
+        stop = max(or_high, vwap) * 1.002
+        risk = stop - entry
+        target = entry - risk * 1.5 if risk > 0 else price * 0.995
+        result.entry = round(entry, 2)
+        result.stop_loss = round(stop, 2)
+        result.target = round(target, 2)
+    return result
 
 
 def compute_trade_levels(

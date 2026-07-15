@@ -60,12 +60,25 @@ class TestAutopilotStatus(unittest.TestCase):
     @patch("analyzer.autopilot_status.launchd_plist_installed", return_value=False)
     @patch("analyzer.autopilot_status.session_target_date", return_value="2026-07-07")
     @patch("analyzer.autopilot_status.prep_session_key", return_value="2026-07-07")
+    @patch("analyzer.autopilot_status.prep_status_for", return_value={"options": True, "equity": True})
+    @patch("analyzer.autopilot_status.was_morning_options_rescan_sent", return_value=False)
+    def test_morning_options_not_done_from_nightly_prep(self, _rescan, _prep, _a, _b, _c, _d):
+        from analyzer.autopilot_status import build_autopilot_status
+
+        status = build_autopilot_status()
+        morning = next(s for s in status.steps if s.key == "morning_options")
+        self.assertFalse(morning.done_today)
+
+    @patch("analyzer.autopilot_status.is_macos", return_value=True)
+    @patch("analyzer.autopilot_status.launchd_plist_installed", return_value=False)
+    @patch("analyzer.autopilot_status.session_target_date", return_value="2026-07-07")
+    @patch("analyzer.autopilot_status.prep_session_key", return_value="2026-07-07")
     def test_build_status(self, _a, _b, _c, _d):
         from analyzer.autopilot_status import build_autopilot_status
 
         status = build_autopilot_status()
         self.assertEqual(status.trade_date, "2026-07-07")
-        self.assertEqual(len(status.steps), 8)
+        self.assertEqual(len(status.steps), 10)
         self.assertEqual(status.schedules_total, 10)
         self.assertEqual(status.schedules_installed, 0)
 

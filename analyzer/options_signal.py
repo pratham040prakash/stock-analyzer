@@ -197,7 +197,8 @@ def suggest_options(
     if sym in ("NIFTY50", "NIFTY", "BANKNIFTY", "NIFTY BANK", "^NSEBANK", "^NSEI"):
         risk_notes.append("Index options: check **lot size** and **weekly expiry** on NSE.")
 
-    return OptionsVerdict(
+    hint = "bullish" if score > 0 else ("bearish" if score < 0 else "neutral")
+    result = OptionsVerdict(
         action=action,
         confidence=conf,
         summary=summary,
@@ -206,6 +207,10 @@ def suggest_options(
         reasons=reasons[:8],
         risk_notes=risk_notes,
     )
+    from analyzer.decision_engine.verdict_bridge import attach_decision_to_options_verdict
+
+    attach_decision_to_options_verdict(result, ticker, score=score, directional_hint=hint)
+    return result
 
 
 def suggest_options_daily(

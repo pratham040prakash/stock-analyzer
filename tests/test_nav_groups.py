@@ -29,11 +29,11 @@ class TestNavGroups(unittest.TestCase):
         )
         self.assertEqual(
             ensure_tab_in_group("Varsity TA", "🎯 Suggestions"),
-            "Suggestions",
+            "Home",
         )
 
     def test_default_tab(self):
-        self.assertEqual(DEFAULT_NAV_TAB, "Suggestions")
+        self.assertEqual(DEFAULT_NAV_TAB, "Home")
 
 
 class TestOnboardingState(unittest.TestCase):

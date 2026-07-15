@@ -131,4 +131,43 @@ def option_selection_status_line(trade_date: str | None = None) -> str:
     if not pick:
         return "Star **1** option leg below (optional)."
     label = f"{pick['fno_symbol']} {pick['option_type']} {pick['strike']:g}"
-    return f"Option leg: **{label}** — alerts & EOD focus on this only."
+    auto = is_auto_option_selected(trade_date)
+    suffix = " (auto ★)" if auto else ""
+    return f"Option leg: **{label}**{suffix} — alerts & EOD focus on this only."
+
+
+def is_auto_option_selected(trade_date: str | None = None) -> bool:
+    trade_date = trade_date or session_target_date()
+    raw = _load_raw()
+    if raw.get("trade_date") == trade_date:
+        return bool(raw.get("auto"))
+    hist = raw.get("history", {}).get(trade_date, {})
+    return bool(hist.get("auto"))
+
+
+def auto_select_recommended_option(
+    *,
+    trade_date: str | None = None,
+) -> tuple[bool, str]:
+    """Default to lowest-rank ★ recommended leg from saved options snapshot."""
+    from analyzer.options_watchlist_history import fetch_options_snapshots_for_date
+
+    trade_date = trade_date or session_target_date()
+    if load_selected_option(trade_date):
+        return False, "Option leg already set — skip auto-pick."
+
+    snaps = fetch_options_snapshots_for_date(trade_date)
+    recs = [s for s in snaps if s.recommended]
+    if not recs:
+        return False, "No ★ option in snapshot — run **Prep all** or nightly options prep."
+
+    recs.sort(key=lambda s: (s.rank, s.fno_symbol))
+    best = recs[0]
+    label = f"{best.fno_symbol} {best.option_type} {best.strike:g}"
+    raw = {
+        "trade_date": trade_date,
+        "pick": _pick_dict(best.fno_symbol, best.option_type, best.strike),
+        "auto": True,
+    }
+    _save_raw(raw)
+    return True, f"Auto-picked option **{label}** (★ recommended)."

@@ -122,6 +122,14 @@ def _render_watchlist_plan_charts_body(
         ):
             _render_live_status(p, market)
             _render_watchlist_plan_chart(p, market, interval)
+            if is_selected(p.nse_symbol):
+                from ui.components.strategy_synthesis import render_equity_synthesis_for_symbol
+
+                render_equity_synthesis_for_symbol(
+                    p.nse_symbol,
+                    market=market,
+                    key_prefix=f"eq_syn_{p.nse_symbol}",
+                )
 
 
 def _render_watchlist_plan_charts(

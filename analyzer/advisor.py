@@ -35,6 +35,8 @@ class InvestmentAdvice:
     standards_checklist: list[tuple[str, bool, str]] = field(default_factory=list)
     summary: str = ""
     portfolio_tips: list[str] = field(default_factory=list)
+    evidence_packet: object | None = None  # EvidencePacket
+    decision_artifact: object | None = None  # DecisionArtifact — canonical verdict
 
 
 def _price_fmt(val: float | None, currency: str = "₹") -> str:
@@ -221,7 +223,7 @@ def generate_advice(
             sector_note = f"Bank Nifty: {bank.recommendation} ({bank.score:+.0f})"
 
     conviction = _conviction(combined, rs)
-    action = _resolve_action(combined, conviction, market_bullish)
+    heuristic_action = _resolve_action(combined, conviction, market_bullish)
 
     # Risk/reward
     rr_ratio = 0.0
@@ -230,13 +232,13 @@ def generate_advice(
         reward = tech.take_profit - tech.current_price
         rr_ratio = reward / risk if risk > 0 else 0
 
-    # Override action for severe conflicts or bad R:R
-    if conviction == "low" and action in ("STRONG BUY", "BUY"):
-        action = "ACCUMULATE"
-    if rr_ratio < MIN_RISK_REWARD and action in ("STRONG BUY", "BUY"):
-        action = "ACCUMULATE"
-    if market_bullish is False and action == "STRONG BUY":
-        action = "BUY"
+    # Heuristic overrides feed evidence only — Decision Engine issues final_action
+    if conviction == "low" and heuristic_action in ("STRONG BUY", "BUY"):
+        heuristic_action = "ACCUMULATE"
+    if rr_ratio < MIN_RISK_REWARD and heuristic_action in ("STRONG BUY", "BUY"):
+        heuristic_action = "ACCUMULATE"
+    if market_bullish is False and heuristic_action == "STRONG BUY":
+        heuristic_action = "BUY"
 
     bullish: list[str] = []
     bearish: list[str] = []
@@ -295,34 +297,20 @@ def generate_advice(
     ]
 
     summary_parts = [
-        f"**{info.get('name', combined.ticker)}** — Final suggestion: **{action}** "
+        f"**{info.get('name', combined.ticker)}** — "
         f"({conviction} conviction, {combined.combined_score:+.0f} combined score).",
         f"Technical {tech.composite_score:+.0f} + Fundamental {fund.composite_score:+.0f}. "
         f"Standards checklist: **{passed}/{total}** passed. "
         f"Methodology: [Zerodha Varsity TA]({VARSITY_MODULE_URL}).",
     ]
 
-    if action in ("STRONG BUY", "BUY", "ACCUMULATE"):
-        summary_parts.append(
-            f"Entry zone: {entry_zone}. Stop: {_price_fmt(tech.stop_loss, currency)}. "
-            f"Target: {_price_fmt(tech.take_profit, currency)} (R:R {rr_ratio:.1f}:1)."
-        )
-    elif action in ("SELL", "REDUCE"):
-        summary_parts.append(
-            "Consider exiting on rallies toward resistance or using a trailing stop below SMA-20."
-        )
-    else:
-        summary_parts.append(
-            "No clear edge now. Monitor for breakout above resistance or breakdown below support."
-        )
-
-    return InvestmentAdvice(
+    advice = InvestmentAdvice(
         ticker=combined.ticker,
         name=info.get("name", combined.ticker),
-        final_action=action,
+        final_action="HOLD",
         conviction=conviction,
         time_horizon=_time_horizon(combined, fund.composite_score),
-        position_hint=_position_hint(action, conviction),
+        position_hint=_position_hint(heuristic_action, conviction),
         entry_zone=entry_zone,
         stop_loss=_price_fmt(tech.stop_loss, currency),
         target=_price_fmt(tech.take_profit, currency),
@@ -335,6 +323,67 @@ def generate_advice(
         summary="\n\n".join(summary_parts),
         portfolio_tips=portfolio_tips,
     )
+    try:
+        from analyzer.decision_engine.migration import (
+            attach_decision_to_advice,
+            evidence_items_from_advisor_signals,
+        )
+        from analyzer.evidence_engine.engine import default_engine
+        from analyzer.evidence_engine.migration import evidence_from_combined
+
+        eng = default_engine()
+        items = evidence_from_combined(combined) + evidence_items_from_advisor_signals(
+            heuristic_action=heuristic_action,
+            conviction=conviction,
+            bullish=bullish,
+            bearish=bearish,
+            risks=risks,
+        )
+        advice.evidence_packet = eng.build_packet(
+            subject=combined.ticker,
+            subject_type="equity",
+            items=items,
+            metadata={"origin": "advisor"},
+        )
+        attach_decision_to_advice(advice, market_pulse=market_pulse)
+    except Exception:
+        advice.final_action = "HOLD"
+        advice.decision_artifact = None
+        if heuristic_action in ("STRONG BUY", "BUY", "ACCUMULATE"):
+            advice.summary += (
+                f"\n\nEntry zone: {entry_zone}. Stop: {_price_fmt(tech.stop_loss, currency)}. "
+                f"Target: {_price_fmt(tech.take_profit, currency)} (R:R {rr_ratio:.1f}:1)."
+            )
+        elif heuristic_action in ("SELL", "REDUCE"):
+            advice.summary += (
+                "\n\nConsider exiting on rallies toward resistance or using a trailing stop below SMA-20."
+            )
+        else:
+            advice.summary += (
+                "\n\nNo clear edge now. Monitor for breakout above resistance or breakdown below support."
+            )
+        return advice
+
+    action = advice.final_action
+    advice.summary = (
+        f"**{info.get('name', combined.ticker)}** — Final suggestion: **{action}** "
+        f"({conviction} conviction, {combined.combined_score:+.0f} combined score).\n\n"
+        + advice.summary.split("\n\n", 1)[-1]
+    )
+    if action in ("STRONG BUY", "BUY", "ACCUMULATE"):
+        advice.summary += (
+            f"\n\nEntry zone: {entry_zone}. Stop: {_price_fmt(tech.stop_loss, currency)}. "
+            f"Target: {_price_fmt(tech.take_profit, currency)} (R:R {rr_ratio:.1f}:1)."
+        )
+    elif action in ("SELL", "REDUCE"):
+        advice.summary += (
+            "\n\nConsider exiting on rallies toward resistance or using a trailing stop below SMA-20."
+        )
+    else:
+        advice.summary += (
+            "\n\nNo clear edge now. Monitor for breakout above resistance or breakdown below support."
+        )
+    return advice
 
 
 def generate_portfolio_advice(rows: list) -> str:

@@ -21,6 +21,13 @@ class SearchHit:
 
 
 TAB_ALIASES: dict[str, str] = {
+    "unified": "Home",
+    "home": "Home",
+    "hub": "Home",
+    "wealth": "Home",
+    "10cr": "Home",
+    "crore": "Home",
+    "playbook": "Home",
     "suggestions": "Suggestions",
     "sugg": "Suggestions",
     "mis": "Suggestions",
@@ -35,6 +42,9 @@ TAB_ALIASES: dict[str, str] = {
     "compare": "Compare",
     "pulse": "Market Pulse",
     "options": "NSE Options",
+    "liveopt": "Live Options Coach",
+    "coach": "Live Options Coach",
+    "cepe": "Live Options Coach",
     "portfolio": "My Portfolio",
     "kite": "My Portfolio",
     "zerodha": "My Portfolio",

@@ -7,12 +7,10 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from analyzer.context_engine import build_context_snapshot
+from analyzer.context_engine.migration import macro_from_snapshot
 from analyzer.daily_advisor import DailyBriefing, build_daily_briefing
-from analyzer.global_impact import build_india_impact_report
-from analyzer.india_macro import build_india_macro_snapshot
-from analyzer.market_session import market_session_status
 from analyzer.market_pulse_scan import run_market_pulse_scan
-from analyzer.market_regime import detect_nifty_regime
 from analyzer.portfolio_store import load_saved_portfolio
 from analyzer.zerodha import (
     ZerodhaImportResult,
@@ -41,6 +39,7 @@ class MorningBriefing:
     long_picks: list[str] = field(default_factory=list)
     holdings_briefing: DailyBriefing | None = None
     errors: list[str] = field(default_factory=list)
+    context_snapshot_id: str = ""
 
 
 def _kite_sdk_available() -> bool:
@@ -120,35 +119,28 @@ def build_morning_briefing(
     include_holdings: bool = True,
 ) -> MorningBriefing:
     now = datetime.now(IST)
-    errors: list[str] = []
-    session = market_session_status()
+    ctx = build_context_snapshot(period=period, use_cache=True)
+    errors: list[str] = list(dict.fromkeys(ctx.metadata.get("errors", [])))
+    session = dict(ctx.market_session)
+    global_state = dict(ctx.global_market_state)
+    macro_view = macro_from_snapshot(ctx)
 
-    global_bias, spillover, move = "NEUTRAL", 0.0, 0.0
-    try:
-        g = build_india_impact_report()
-        global_bias = g.predicted_nifty_bias
-        spillover = g.spillover_score
-        move = g.predicted_move_pct
-    except Exception as exc:
-        errors.append(f"Global: {exc}")
+    global_bias = str(global_state.get("bias", "NEUTRAL"))
+    spillover = float(global_state.get("spillover_score") or 0.0)
+    move = float(global_state.get("predicted_move_pct") or 0.0)
 
-    vix_regime, fii = "—", "—"
-    try:
-        macro = build_india_macro_snapshot()
-        vix_regime = macro.vix_regime
-        if macro.fii_dii:
-            fii = macro.fii_dii.summary.replace("**", "")
-        if macro.premarket_note:
-            fii = f"{fii} · {macro.premarket_note}" if fii != "—" else macro.premarket_note
-    except Exception as exc:
-        errors.append(f"Macro: {exc}")
+    vix_regime = macro_view.vix_regime if macro_view else str(ctx.macro_state.get("vix_regime", "—"))
+    fii = "—"
+    if macro_view and macro_view.fii_dii:
+        fii = macro_view.fii_dii.summary.replace("**", "")
+        if macro_view.premarket_note:
+            fii = f"{fii} · {macro_view.premarket_note}" if fii != "—" else macro_view.premarket_note
 
-    regime_s = "—"
-    try:
-        regime = detect_nifty_regime(period)
-        regime_s = f"{regime.regime} (ADX {regime.adx:.0f})"
-    except Exception as exc:
-        errors.append(f"Regime: {exc}")
+    regime_detail = dict(ctx.metadata.get("regime_detail", {}) or {})
+    adx = regime_detail.get("adx")
+    regime_s = ctx.market_regime
+    if adx is not None:
+        regime_s = f"{ctx.market_regime} (ADX {float(adx):.0f})"
 
     pulse = None
     try:
@@ -174,7 +166,7 @@ def build_morning_briefing(
 
     return MorningBriefing(
         generated_at=now.strftime("%Y-%m-%d %H:%M IST"),
-        session_status=session["status"],
+        session_status=session.get("status", "Unknown"),
         next_session=session.get("next_session", ""),
         global_bias=global_bias,
         spillover_score=spillover,
@@ -188,6 +180,7 @@ def build_morning_briefing(
         long_picks=long_,
         holdings_briefing=holdings_brief,
         errors=errors,
+        context_snapshot_id=ctx.snapshot_id,
     )
 
 

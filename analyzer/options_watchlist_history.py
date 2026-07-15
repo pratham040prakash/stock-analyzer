@@ -340,16 +340,13 @@ def resolve_kite_nfo_option(
     option_type: str,
 ) -> tuple[str, int] | None:
     """Return (tradingsymbol, instrument_token) for an index option."""
-    from analyzer.zerodha import get_kite_client
+    from analyzer.kite_options_chain import load_nfo_instruments
 
-    kite = get_kite_client()
-    if kite is None:
-        return None
     try:
         exp_date = _parse_nse_expiry(expiry)
     except ValueError:
         return None
-    for row in kite.instruments("NFO"):
+    for row in load_nfo_instruments():
         if (
             row.get("name") == fno_symbol
             and row.get("instrument_type") == option_type

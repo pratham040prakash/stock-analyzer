@@ -124,12 +124,13 @@ def init_watchlist_history() -> None:
             if col not in snap_cols:
                 conn.execute(f"ALTER TABLE watchlist_daily_snapshots ADD COLUMN {col} {typ}")
         cols = {r[1] for r in conn.execute("PRAGMA table_info(watchlist_outcomes)").fetchall()}
-        if "was_pinned" not in cols:
-            conn.execute(
-                "ALTER TABLE watchlist_outcomes ADD COLUMN was_pinned INTEGER DEFAULT 0"
-            )
-        if "rank" not in cols:
-            conn.execute("ALTER TABLE watchlist_outcomes ADD COLUMN rank INTEGER")
+        if cols:
+            if "was_pinned" not in cols:
+                conn.execute(
+                    "ALTER TABLE watchlist_outcomes ADD COLUMN was_pinned INTEGER DEFAULT 0"
+                )
+            if "rank" not in cols:
+                conn.execute("ALTER TABLE watchlist_outcomes ADD COLUMN rank INTEGER")
 
 
 @dataclass

@@ -169,42 +169,25 @@ def init_watchlist_features() -> None:
 
 
 def fetch_pick_features(*, days: int = 14) -> list[PickFeatureRow]:
-    """Join scored outcomes with snapshot features for learning."""
-    init_watchlist_history()
-    cutoff = (datetime.now(IST).date() - timedelta(days=days)).isoformat()
-    with _connect() as conn:
-        rows = conn.execute(
-            """
-            SELECT
-                o.trade_date, o.symbol, o.outcome,
-                COALESCE(s.prep_score, 0) AS prep_score,
-                COALESCE(s.checklist_passed, 0) AS checklist_passed,
-                s.atr_pct, s.rsi, s.volume_ratio,
-                COALESCE(s.sector_tailwind, 0) AS sector_tailwind,
-                COALESCE(s.macd_bullish, 0) AS macd_bullish
-            FROM watchlist_outcomes o
-            LEFT JOIN watchlist_daily_snapshots s
-              ON s.trade_date = o.trade_date AND s.symbol = o.symbol
-            WHERE o.trade_date >= ?
-              AND o.outcome NOT IN ('no_data', 'pending')
-            ORDER BY o.trade_date DESC
-            """,
-            (cutoff,),
-        ).fetchall()
+    """Join outcomes with snapshot features — broker truth primary, coach EOD fallback."""
+    from analyzer.broker_truth.learning import resolve_learning_outcomes
+
+    rows = resolve_learning_outcomes(days=days)
     return [
         PickFeatureRow(
-            trade_date=r["trade_date"],
-            symbol=r["symbol"],
-            outcome=r["outcome"],
-            prep_score=float(r["prep_score"] or 0),
-            checklist_passed=int(r["checklist_passed"] or 0),
-            atr_pct=float(r["atr_pct"]) if r["atr_pct"] is not None else None,
-            rsi=float(r["rsi"]) if r["rsi"] is not None else None,
-            volume_ratio=float(r["volume_ratio"]) if r["volume_ratio"] is not None else None,
-            sector_tailwind=bool(r["sector_tailwind"]),
-            macd_bullish=bool(r["macd_bullish"]),
+            trade_date=r.trade_date,
+            symbol=r.symbol,
+            outcome=r.outcome,
+            prep_score=r.prep_score,
+            checklist_passed=r.checklist_passed,
+            atr_pct=r.atr_pct,
+            rsi=r.rsi,
+            volume_ratio=r.volume_ratio,
+            sector_tailwind=r.sector_tailwind,
+            macd_bullish=r.macd_bullish,
         )
         for r in rows
+        if r.outcome not in ("no_data", "pending")
     ]
 
 
@@ -221,6 +204,22 @@ def build_watchlist_learning_report(*, days: int = 14) -> WatchlistLearningRepor
     wr = (100.0 * len(wins) / len(decided)) if decided else None
 
     insights: list[str] = []
+    try:
+        from analyzer.broker_truth.learning import learning_source_stats
+
+        stats = learning_source_stats(days=days)
+        if stats["broker"]:
+            insights.append(
+                f"**{stats['broker']}** broker-verified outcomes "
+                f"({stats['broker_pct']:.0f}% of learning sample)."
+            )
+        if stats["coach_fallback"]:
+            insights.append(
+                f"**{stats['coach_fallback']}** coach/EOD fallbacks (no broker match)."
+            )
+    except Exception:
+        pass
+
     if len(decided) < MIN_SAMPLES:
         insights.append(
             f"**{len(decided)}/{MIN_SAMPLES}** scored picks — need more days before auto-tuning."
@@ -382,7 +381,13 @@ def score_pending_watchlist_sessions(*, market: str = "india") -> int:
 
 
 def run_watchlist_learning_cycle(*, market: str = "india") -> WatchlistLearningReport:
-    """Post-close: score outcomes → analyze winners → tune screening gates."""
+    """Post-close: broker sync → score outcomes → analyze winners → tune screening gates."""
+    try:
+        from analyzer.broker_truth.learning import sync_broker_truth_for_learning
+
+        sync_broker_truth_for_learning()
+    except Exception:
+        pass
     score_pending_watchlist_sessions(market=market)
     try:
         from analyzer.options_watchlist_history import score_pending_options_sessions

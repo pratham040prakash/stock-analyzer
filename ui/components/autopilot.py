@@ -20,6 +20,30 @@ from analyzer.post_close_scan_scheduler import run_post_close_scan
 from analyzer.structured_log import tail_log_lines
 
 
+def render_autopilot_loop_strip() -> None:
+    """Compact today's loop progress — all 10 autopilot steps."""
+    status = build_autopilot_status()
+    done = sum(1 for s in status.steps if s.done_today)
+    total = len(status.steps)
+    st.caption(f"**Autopilot loop** — **{done}/{total}** steps done today")
+    cols = st.columns(total)
+    for col, step in zip(cols, status.steps):
+        icon = "✅" if step.done_today else ("⏳" if step.installed else "○")
+        short = {
+            "post_close_scan": "Scan",
+            "eod_score": "EOD",
+            "autopilot_health": "Health",
+            "nightly_prep": "Prep",
+            "auto_star_2": "Stars",
+            "prep_morning_nag": "Nag",
+            "morning_list": "AM TG",
+            "session_open": "9:15",
+            "morning_options": "9:46",
+            "live_alerts": "Live",
+        }.get(step.key, step.label[:6])
+        col.caption(f"{icon} {short}")
+
+
 def render_autopilot_home_readonly() -> None:
     """Read-only autopilot loop status for Cloud / non-Mac viewers."""
     status = build_autopilot_status()

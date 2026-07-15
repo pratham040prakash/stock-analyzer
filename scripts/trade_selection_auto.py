@@ -16,9 +16,13 @@ from analyzer.trade_selection_scheduler import run_auto_trade_selection
 def main() -> int:
     load_app_env()
     force = "--force" in sys.argv
-    count, status = run_auto_trade_selection(force=force)
-    print(status)
-    return 0 if count >= 0 else 1
+    eq_count, eq_status = run_auto_trade_selection(force=force)
+    print(eq_status)
+    from analyzer.options_trade_selection_scheduler import run_auto_option_selection
+
+    opt_count, opt_status = run_auto_option_selection(force=force)
+    print(opt_status)
+    return 0 if eq_count >= 0 and opt_count >= 0 else 1
 
 
 if __name__ == "__main__":

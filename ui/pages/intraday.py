@@ -29,8 +29,6 @@ from ui.components.intraday_tips import (
     render_session_timing_banner,
     render_ten_tips_expander,
 )
-from ui.components.options_expiry_watchlist import render_options_expiry_watchlist_block
-from ui.components.prep_all import render_prep_all_bar
 from ui.components.small_trader_intraday import render_small_trader_portfolio_intraday
 from ui.components.suggestions_home import render_suggestions_core, render_suggestions_hero
 from ui.components.watchlist_stats import (
@@ -177,10 +175,9 @@ def render_intraday(market: str, *, period: str = "1y") -> None:
     render_suggestions_hero()
     render_suggestions_core(market, period=period, max_trades=max_trades)
 
-    with st.expander("⚙️ Evening prep, capital & morning checklist", expanded=False):
+    with st.expander("⚙️ Capital & morning checklist", expanded=False):
         timing = render_session_timing_banner()
         render_daily_mis_checklist(timing)
-        render_prep_all_bar(market, period=period)
         capital_focus = st.session_state.pop("intraday_focus_capital", False)
         with st.expander("Capital & risk settings", expanded=capital_focus):
             r1, r2, r3, r4 = st.columns(4)
@@ -228,10 +225,6 @@ def render_intraday(market: str, *, period: str = "1y") -> None:
                 int(st.session_state["intraday_max_trades"]),
             )
             st.session_state["intraday_allocated_pool"] = allocated
-
-    with st.expander("📅 Options CE/PE — Nifty & Bank Nifty (advanced)", expanded=False):
-        st.caption("Optional — equity suggestions above work without Kite or NSE options.")
-        render_options_expiry_watchlist_block(market, period=period)
 
     with st.expander("🧠 Auto-learning & strategy tuning", expanded=False):
         render_learning_honesty_banner()

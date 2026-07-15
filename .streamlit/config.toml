@@ -1,6 +1,10 @@
 # Streamlit Cloud: do not bind to 127.0.0.1 (breaks hosted deploy).
+# Local preview: use Chrome/Safari at http://localhost:8501 (Cursor preview often blocks WebSocket).
 [server]
 headless = true
+enableXsrfProtection = false
+enableCORS = false
 
 [browser]
 gatherUsageStats = false
+serverAddress = "localhost"

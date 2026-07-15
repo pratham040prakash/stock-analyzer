@@ -31,30 +31,39 @@ class ConfidenceBucket:
 
 
 def build_confidence_calibration(days: int = 90) -> list[ConfidenceBucket]:
-    """Join saved confidence with EOD outcomes by bucket."""
+    """Join saved confidence with outcomes by bucket — broker truth when available."""
     days = max(days, MIN_RETENTION_DAYS)
-    cutoff = (datetime.now(IST).date() - timedelta(days=max(days - 1, 0))).isoformat()
     init_watchlist_history()
 
     import sqlite3
 
+    from analyzer.broker_truth.learning import resolve_learning_outcomes
+
+    outcomes = resolve_learning_outcomes(days=days)
+    outcome_by_key = {(r.trade_date, r.symbol.upper()): r.outcome for r in outcomes}
+
+    cutoff = (datetime.now(IST).date() - timedelta(days=max(days - 1, 0))).isoformat()
     conn = sqlite3.connect(journal_db_path())
     conn.row_factory = sqlite3.Row
     try:
-        rows = conn.execute(
+        snap_rows = conn.execute(
             """
-            SELECT s.confidence_pct, o.outcome
-            FROM watchlist_daily_snapshots s
-            JOIN watchlist_outcomes o
-              ON s.trade_date = o.trade_date AND s.symbol = o.symbol
-            WHERE s.trade_date >= ?
-              AND s.confidence_pct IS NOT NULL
-              AND o.outcome NOT IN ('no_data', 'pending')
+            SELECT trade_date, symbol, confidence_pct
+            FROM watchlist_daily_snapshots
+            WHERE trade_date >= ?
+              AND confidence_pct IS NOT NULL
             """,
             (cutoff,),
         ).fetchall()
     finally:
         conn.close()
+
+    rows = []
+    for s in snap_rows:
+        key = (s["trade_date"], s["symbol"].upper())
+        outcome = outcome_by_key.get(key)
+        if outcome and outcome not in ("no_data", "pending"):
+            rows.append({"confidence_pct": s["confidence_pct"], "outcome": outcome})
 
     results: list[ConfidenceBucket] = []
     for lo, hi, label in BUCKETS:

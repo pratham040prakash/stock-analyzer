@@ -8,7 +8,6 @@ import pandas as pd
 import streamlit as st
 
 from analyzer.intraday_chart import intraday_chart
-from analyzer.market_session import market_session_status
 from analyzer.pulse_cache import load_pulse_cache_with_stale
 from analyzer.market_pulse_scan import (
     CACHE_TTL as PULSE_CACHE_TTL,
@@ -257,7 +256,9 @@ def render_market_pulse(market: str, period: str) -> None:
     st.divider()
 
     stock_map = getattr(report, "stock_map", {}) or {s.nse_symbol: s for s in report.top_stocks}
-    session = market_session_status()
+    from analyzer.context_engine import build_context_snapshot
+
+    session = dict(build_context_snapshot(use_cache=True).market_session)
 
     earnings_events = getattr(report, "earnings_events", None) or []
     if not earnings_events and is_india_market(market):

@@ -177,10 +177,14 @@ def analyze_fundamentals(ticker: str, info: dict | None = None) -> FundamentalRe
     total_w = sum(weights.get(m.name, 1.0) for m in metrics)
     score = sum(m.score * weights.get(m.name, 1.0) for m in metrics) / total_w * 100
 
-    return FundamentalResult(
+    result = FundamentalResult(
         ticker=ticker,
-        recommendation=_score_to_rec(score),
+        recommendation="HOLD",
         composite_score=round(score, 1),
         metrics=metrics,
         raw=raw,
     )
+    from analyzer.decision_engine.verdict_bridge import attach_decision_to_fundamental
+
+    attach_decision_to_fundamental(result)
+    return result

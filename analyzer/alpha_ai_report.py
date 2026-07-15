@@ -140,6 +140,9 @@ class AlphaAIReport:
     report_mode: str = "mid_cap"
     section_sources: dict[str, list[str]] = field(default_factory=dict)
     llm_narrative: str | None = None
+    evidence_packet: object | None = None  # EvidencePacket
+    evidence_summary: str = ""
+    decision_artifact: object | None = None  # DecisionArtifact — canonical verdict
 
 
 def _rating_from_signal(score: float | None, *, higher_is_better: bool = True) -> str:
@@ -856,6 +859,10 @@ def build_alpha_ai_report(
         "AVOID": "Avoid",
     }
     recommendation = verdict_map.get(advice.final_action, "Hold")
+    if getattr(advice, "decision_artifact", None) is not None:
+        from analyzer.decision_engine.migration import legacy_alpha_recommendation, legacy_buy_decision
+
+        recommendation = legacy_alpha_recommendation(advice.decision_artifact)
     if len(gaps) > 8:
         recommendation = "Insufficient Data"
         verdict = "Insufficient Data"
@@ -867,6 +874,10 @@ def build_alpha_ai_report(
         buy, buy_why = _buy_decision(
             advice.final_action, tech.composite_score, fund.composite_score, advice.conviction
         )
+        if getattr(advice, "decision_artifact", None) is not None:
+            from analyzer.decision_engine.migration import legacy_buy_decision
+
+            buy, buy_why = legacy_buy_decision(advice.decision_artifact)
 
     stars = _stars_from_score(overall)
     risk_level = _overall_risk_level(tech_risk, red_flags, risks)
@@ -999,6 +1010,33 @@ def build_alpha_ai_report(
         report.llm_narrative = synthesize_narrative(report)
     except Exception:
         pass
+
+    try:
+        from analyzer.evidence_engine.migration import build_equity_research_packet
+        from analyzer.evidence_engine.render import format_evidence_report
+
+        packet = build_equity_research_packet(
+            info["symbol"],
+            combined=combined,
+            advice=advice,
+            gaps=gaps,
+            rs=rs,
+            market_pulse=market_pulse,
+        )
+        report.evidence_packet = packet
+        report.evidence_summary = format_evidence_report(packet)
+        from analyzer.decision_engine.migration import attach_decision_to_alpha_report
+
+        attach_decision_to_alpha_report(report)
+        if report.decision_artifact is not None:
+            from analyzer.decision_engine.migration import legacy_alpha_recommendation, legacy_buy_decision
+
+            report.recommendation = legacy_alpha_recommendation(report.decision_artifact)
+            report.verdict = report.recommendation
+            report.buy_decision, report.buy_decision_why = legacy_buy_decision(report.decision_artifact)
+    except Exception:
+        pass
+
     return report
 
 

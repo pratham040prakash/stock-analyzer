@@ -8,7 +8,11 @@ import streamlit as st
 from analyzer.eod_learning import run_eod_learning_cycle
 from analyzer.suggestion_journal import count_pending_validation, fetch_suggestions
 from analyzer.suggestion_learning import build_learning_report
-from analyzer.suggestions_export import build_suggestions_csv
+from analyzer.suggestions_export import (
+    build_combined_suggestions_csv,
+    build_options_csv,
+    build_suggestions_csv,
+)
 from analyzer.telegram_notify import (
     send_telegram_broadcast,
     telegram_configured,
@@ -123,14 +127,39 @@ def render_track_record() -> None:
     render_confidence_calibration_panel(days=90)
 
     csv_data = build_suggestions_csv(days=30, market="india")
-    if csv_data.strip().count("\n") > 0:
-        st.download_button(
-            "Export CSV — all suggestions + hit/miss (30 days)",
-            data=csv_data,
-            file_name="suggestions_30d.csv",
-            mime="text/csv",
-            key="tr_export_csv",
-        )
+    opt_csv = build_options_csv(days=30, market="india")
+    combined_csv = build_combined_suggestions_csv(days=30, market="india")
+    exp_cols = st.columns(3)
+    with exp_cols[0]:
+        if csv_data.strip().count("\n") > 0:
+            st.download_button(
+                "Export CSV — stocks (30d)",
+                data=csv_data,
+                file_name="suggestions_30d.csv",
+                mime="text/csv",
+                key="tr_export_csv",
+                use_container_width=True,
+            )
+    with exp_cols[1]:
+        if opt_csv.strip().count("\n") > 0:
+            st.download_button(
+                "Export CSV — options (30d)",
+                data=opt_csv,
+                file_name="options_30d.csv",
+                mime="text/csv",
+                key="tr_export_opt_csv",
+                use_container_width=True,
+            )
+    with exp_cols[2]:
+        if combined_csv.strip().count("\n") > 0:
+            st.download_button(
+                "Export CSV — combined (30d)",
+                data=combined_csv,
+                file_name="mis_combined_30d.csv",
+                mime="text/csv",
+                key="tr_export_combined_csv",
+                use_container_width=True,
+            )
 
     st.divider()
     render_trade_journal_panel()

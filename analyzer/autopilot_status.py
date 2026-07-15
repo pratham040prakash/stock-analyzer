@@ -18,6 +18,8 @@ from analyzer.nightly_prep_scheduler import prep_session_key, was_nightly_prep_s
 from analyzer.post_close_scan_scheduler import post_close_scan_meta, was_post_close_scan_sent
 from analyzer.prep_morning_nag import was_prep_nag_sent
 from analyzer.prep_status import is_nightly_prep_complete, prep_status_for
+from analyzer.options_trade_selection import load_selected_option
+from analyzer.options_trade_selection_scheduler import was_auto_option_select_run
 from analyzer.trade_selection import load_selected_symbols
 from analyzer.trade_selection_scheduler import was_auto_select_run
 from analyzer.watchlist_history import (
@@ -78,6 +80,28 @@ def count_installed_schedules() -> tuple[int, int]:
     return installed, total
 
 
+def _session_open_reminder_done(trade_date: str) -> bool:
+    from analyzer.session_reminders import was_session_open_reminder_sent
+
+    return was_session_open_reminder_sent(trade_date)
+
+
+def _autopilot_health_done_today(trade_date: str) -> bool:
+    from analyzer.autopilot_alerts import was_autopilot_health_run_today
+
+    return was_autopilot_health_run_today(trade_date)
+
+
+def _auto_star_detail(prep_for: str, selected: list[str]) -> str:
+    opt = load_selected_option(prep_for)
+    eq = ", ".join(selected) if selected else "—"
+    if opt:
+        leg = f"{opt['fno_symbol']} {opt['option_type']} {opt['strike']:g}"
+    else:
+        leg = "—"
+    return f"Stocks: {eq} · Option: {leg}"
+
+
 def build_autopilot_status() -> AutopilotStatus:
     trade_date = session_target_date()
     prep_for = prep_session_key()
@@ -105,22 +129,6 @@ def build_autopilot_status() -> AutopilotStatus:
             ),
         ),
         AutopilotStep(
-            key="auto_star_2",
-            label="Star 2 picks",
-            schedule="9:10 PM",
-            installed=launchd_plist_installed("com.stockanalyzer.autoselect.plist"),
-            done_today=bool(selected) or was_auto_select_run(prep_for),
-            detail=", ".join(selected) if selected else "Star manually or wait for auto top 2",
-        ),
-        AutopilotStep(
-            key="morning_list",
-            label="Morning Telegram",
-            schedule="8:50 AM",
-            installed=launchd_plist_installed("com.stockanalyzer.morning.plist"),
-            done_today=was_morning_suggestions_sent(trade_date),
-            detail=morning_meta.get("at", "Not sent yet"),
-        ),
-        AutopilotStep(
             key="eod_score",
             label="EOD hit summary",
             schedule="3:50 PM",
@@ -133,12 +141,31 @@ def build_autopilot_status() -> AutopilotStatus:
             ),
         ),
         AutopilotStep(
+            key="autopilot_health",
+            label="Autopilot gap alert",
+            schedule="4:30 PM",
+            installed=launchd_plist_installed("com.stockanalyzer.autopilothealth.plist"),
+            done_today=_autopilot_health_done_today(trade_date),
+            detail="Telegram if scan/score missed",
+        ),
+        AutopilotStep(
             key="nightly_prep",
             label="Nightly options prep",
             schedule="9:00 PM",
             installed=launchd_plist_installed("com.stockanalyzer.nightlyprep.plist"),
             done_today=was_nightly_prep_sent(prep_for) or prep.get("options"),
-            detail="Optional CE/PE" if not prep.get("options") else "Options saved",
+            detail="CE/PE snapshot saved" if prep.get("options") else "Optional CE/PE",
+        ),
+        AutopilotStep(
+            key="auto_star_2",
+            label="Star 2 stocks + 1 option",
+            schedule="9:10 PM",
+            installed=launchd_plist_installed("com.stockanalyzer.autoselect.plist"),
+            done_today=(
+                (bool(selected) or was_auto_select_run(prep_for))
+                and (bool(load_selected_option(prep_for)) or was_auto_option_select_run(prep_for))
+            ),
+            detail=_auto_star_detail(prep_for, selected),
         ),
         AutopilotStep(
             key="prep_morning_nag",
@@ -149,11 +176,27 @@ def build_autopilot_status() -> AutopilotStatus:
             detail="Telegram if prep missing",
         ),
         AutopilotStep(
+            key="morning_list",
+            label="Morning Telegram",
+            schedule="8:50 AM",
+            installed=launchd_plist_installed("com.stockanalyzer.morning.plist"),
+            done_today=was_morning_suggestions_sent(trade_date),
+            detail=morning_meta.get("at", "Not sent yet"),
+        ),
+        AutopilotStep(
+            key="session_open",
+            label="Session open reminder",
+            schedule="9:15 AM",
+            installed=launchd_plist_installed("com.stockanalyzer.sessionreminders.plist"),
+            done_today=_session_open_reminder_done(trade_date),
+            detail="9:15 observe-only checklist",
+        ),
+        AutopilotStep(
             key="morning_options",
             label="Options re-scan (post-OR)",
             schedule="9:46 AM",
             installed=launchd_plist_installed("com.stockanalyzer.morning_options.plist"),
-            done_today=was_morning_options_rescan_sent(trade_date) or prep.get("options"),
+            done_today=was_morning_options_rescan_sent(trade_date),
             detail="Fresh CE/PE after opening range",
         ),
         AutopilotStep(

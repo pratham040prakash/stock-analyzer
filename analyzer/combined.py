@@ -43,12 +43,16 @@ def analyze_combined(
     fundamental = analyze_fundamentals(ticker, yf_info)
 
     combined = technical.composite_score * tech_weight + fundamental.composite_score * fund_weight
-    return CombinedResult(
+    result = CombinedResult(
         ticker=ticker,
         technical=technical,
         fundamental=fundamental,
         combined_score=round(combined, 1),
-        combined_recommendation=_score_to_rec(combined),
+        combined_recommendation="HOLD",
         technical_weight=tech_weight,
         fundamental_weight=fund_weight,
     )
+    from analyzer.decision_engine.verdict_bridge import attach_decision_to_combined
+
+    attach_decision_to_combined(result)
+    return result

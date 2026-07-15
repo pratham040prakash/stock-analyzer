@@ -227,5 +227,11 @@ def apply_options_strategy_tuning(report: OptionsLearningReport) -> OptionsLearn
 
 
 def run_options_learning_cycle() -> OptionsLearningReport:
+    try:
+        from analyzer.broker_truth.learning import sync_broker_truth_for_learning
+
+        sync_broker_truth_for_learning()
+    except Exception:
+        pass
     report = build_options_learning_report()
     return apply_options_strategy_tuning(report)

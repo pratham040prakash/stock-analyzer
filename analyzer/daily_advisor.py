@@ -12,7 +12,6 @@ from analyzer.candle_narrative import analyze_live_chart
 from analyzer.chart_horizon import analyze_long_term_chart, analyze_short_term_chart
 from analyzer.combined import analyze_combined
 from analyzer.data import fetch_stock_data
-from analyzer.global_impact import build_india_impact_report
 from analyzer.indicators import add_indicators
 from analyzer.intraday_data import fetch_intraday
 from analyzer.market_pulse import india_market_pulse, overall_market_verdict
@@ -128,78 +127,58 @@ def _long_term_label(fund: float, combined_rec: str) -> str:
     return "Under review — mixed fundamentals"
 
 
-def _today_action(
-    combined_rec: str,
-    tech: float,
-    fund: float,
-    pnl: float | None,
-    weight: float | None,
-    intraday_action: str | None,
-    session_bias: str | None,
-) -> tuple[str, str, int]:
-    """Return (action, reason, priority 1-5)."""
-    overweight = weight is not None and weight > 12
-
-    if combined_rec in ("STRONG SELL", "SELL"):
-        reason = "Bearish combined signal"
-        if pnl is not None and pnl > 15:
-            return "TRIM — book profits", f"{reason}; you're up {pnl:+.1f}%", 1
-        if pnl is not None and pnl < -10:
-            return "EXIT — cut loss", f"{reason}; down {pnl:.1f}% — protect capital", 1
-        return "REDUCE position", reason, 2
-
-    if overweight and tech < 0:
-        return "TRIM — overweight", f"Position ~{weight:.0f}% of portfolio with weak momentum", 2
-
-    if session_bias == "BEARISH" and tech < -15:
-        if pnl is not None and pnl < -8:
-            return "REVIEW stop-loss", "Intraday + swing bearish while in loss", 1
-        return "DO NOT add today", "Weak session — hold core only if long-term strong", 3
-
-    if combined_rec in ("STRONG BUY", "BUY") and tech > 15:
-        if pnl is not None and pnl < -8 and fund > 10:
-            return "ADD in tranches", f"Quality name in pullback ({pnl:+.1f}% vs avg)", 2
-        return "HOLD / add small", "Bullish momentum — trail stop below SMA-20", 4
-
-    if fund > 15 and tech < 5:
-        return "HOLD — long view", "Strong fundamentals; ignore short-term noise", 5
-
-    if intraday_action == "BUY" and tech > 5:
-        return "OK to add (small)", "Intraday buy setup with positive trend", 3
-
-    if pnl is not None and pnl > 25 and tech < 10:
-        return "PARTIAL book profit", f"Large gain ({pnl:+.1f}%) — momentum fading", 2
-
-    return "HOLD — no urgency", "Mixed signals; wait for clearer edge", 5
+def _holding_reason(action: str, combined, tech: float, pnl: float | None, weight: float | None, session_bias: str | None) -> str:
+    if "EXIT" in action or "TRIM" in action:
+        return f"Bearish combined signal ({combined.combined_recommendation})"
+    if "REDUCE" in action:
+        return "Bearish combined signal"
+    if "ADD" in action:
+        return f"Quality name in pullback ({pnl:+.1f}% vs avg)" if pnl is not None else "Bullish momentum"
+    if "overweight" in action.lower():
+        return f"Position ~{weight:.0f}% of portfolio with weak momentum" if weight else "Overweight"
+    if "DO NOT" in action:
+        return "Weak session — hold core only if long-term strong"
+    if "PARTIAL" in action:
+        return f"Large gain ({pnl:+.1f}%) — momentum fading" if pnl is not None else "Book profits"
+    return "Mixed signals; wait for clearer edge"
 
 
-def _watchlist_today_action(
-    combined_rec: str,
-    tech: float,
-    fund: float,
-    intraday_action: str | None,
-    session_bias: str | None,
-) -> tuple[str, str, int]:
-    """Return (action, reason, priority) for watchlist-only symbols (qty 0)."""
-    if combined_rec in ("STRONG SELL", "SELL") or tech < -20:
-        return "AVOID", "Bearish combined/technical signal — not a buy candidate", 2
+def _holding_priority(action: str) -> int:
+    if any(x in action for x in ("EXIT", "TRIM", "REVIEW")):
+        return 1
+    if "REDUCE" in action or "PARTIAL" in action:
+        return 2
+    if "ADD" in action or "OK to add" in action:
+        return 3
+    if "DO NOT" in action:
+        return 3
+    return 5
 
-    if combined_rec in ("STRONG BUY", "BUY") and tech > 15 and fund > 5:
-        return "BUY WATCH — setup ready", "Bullish trend + quality — wait for entry trigger", 1
 
-    if intraday_action in ("BUY", "STRONG BUY") and tech > 8:
-        return "INTRADAY WATCH", "Live session buy setup — consider small starter", 1
+def _watchlist_reason(action: str, combined, tech: float, fund: float, intraday_action: str | None, session_bias: str | None) -> str:
+    if "AVOID" in action:
+        return "Bearish combined/technical signal — not a buy candidate"
+    if "BUY WATCH" in action:
+        return "Bullish trend + quality — wait for entry trigger"
+    if "INTRADAY" in action:
+        return "Live session buy setup — consider small starter"
+    if "ACCUMULATE" in action:
+        return "Strong fundamentals; buy on dips near support"
+    if "WAIT" in action:
+        return "Do not initiate longs until session stabilizes"
+    if "MONITOR" in action and tech > 10:
+        return "Trend positive but no urgent trigger today"
+    return "No clear edge; keep on radar"
 
-    if fund > 12 and tech > 5:
-        return "ACCUMULATE WATCH", "Strong fundamentals; buy on dips near support", 2
 
-    if session_bias == "BEARISH" and tech < 0:
-        return "WAIT — weak session", "Do not initiate longs until session stabilizes", 3
-
-    if tech > 10:
-        return "MONITOR — bullish bias", "Trend positive but no urgent trigger today", 4
-
-    return "MONITOR — neutral", "No clear edge; keep on radar", 5
+def _watchlist_priority(action: str) -> int:
+    if "BUY WATCH" in action or "INTRADAY" in action:
+        return 1
+    if "AVOID" in action or "ACCUMULATE" in action:
+        return 2
+    if "WAIT" in action:
+        return 3
+    return 4
 
 
 def analyze_holding(
@@ -228,25 +207,40 @@ def analyze_holding(
 
         pnl = _pnl_pct(h)
         if h.quantity <= 0:
-            today, reason, priority = _watchlist_today_action(
-                combined.combined_recommendation,
-                tech,
-                fund,
-                intraday_action,
-                session_bias,
+            advice = HoldingDailyAdvice(
+                kite_symbol=h.kite_symbol,
+                name=info.get("name", h.tradingsymbol),
+                yahoo_symbol=info["symbol"],
+                quantity=h.quantity,
+                last_price=last,
+                avg_price=h.average_price,
+                pnl_pct=pnl,
+                portfolio_weight_pct=weight_pct,
+                today_action="MONITOR — neutral",
+                today_reason="",
+                short_term=_short_term_label(tech, intraday_action, session_bias),
+                long_term=_long_term_label(fund, combined.combined_recommendation),
+                combined_score=combined.combined_score,
+                technical_score=tech,
+                fundamental_score=fund,
+                priority=5,
             )
-        else:
-            today, reason, priority = _today_action(
-                combined.combined_recommendation,
-                tech,
-                fund,
-                pnl,
-                weight_pct,
-                intraday_action,
-                session_bias,
-            )
+            from analyzer.decision_engine.verdict_bridge import attach_decision_to_holding_advice
 
-        return HoldingDailyAdvice(
+            attach_decision_to_holding_advice(
+                advice,
+                combined_rec=combined.combined_recommendation,
+                tech=tech,
+                fund=fund,
+                intraday_action=intraday_action,
+                session_bias=session_bias,
+                is_watchlist=True,
+            )
+            advice.today_reason = _watchlist_reason(advice.today_action, combined, tech, fund, intraday_action, session_bias)
+            advice.priority = _watchlist_priority(advice.today_action)
+            return advice
+
+        advice = HoldingDailyAdvice(
             kite_symbol=h.kite_symbol,
             name=info.get("name", h.tradingsymbol),
             yahoo_symbol=info["symbol"],
@@ -255,15 +249,31 @@ def analyze_holding(
             avg_price=h.average_price,
             pnl_pct=pnl,
             portfolio_weight_pct=weight_pct,
-            today_action=today,
-            today_reason=reason,
+            today_action="HOLD — no urgency",
+            today_reason="",
             short_term=_short_term_label(tech, intraday_action, session_bias),
             long_term=_long_term_label(fund, combined.combined_recommendation),
             combined_score=combined.combined_score,
             technical_score=tech,
             fundamental_score=fund,
-            priority=priority,
+            priority=5,
         )
+        from analyzer.decision_engine.verdict_bridge import attach_decision_to_holding_advice
+
+        attach_decision_to_holding_advice(
+            advice,
+            combined_rec=combined.combined_recommendation,
+            tech=tech,
+            fund=fund,
+            pnl=pnl,
+            weight=weight_pct,
+            intraday_action=intraday_action,
+            session_bias=session_bias,
+            is_watchlist=False,
+        )
+        advice.today_reason = _holding_reason(advice.today_action, combined, tech, pnl, weight_pct, session_bias)
+        advice.priority = _holding_priority(advice.today_action)
+        return advice
     except Exception as exc:
         return HoldingDailyAdvice(
             kite_symbol=h.kite_symbol,
@@ -416,12 +426,10 @@ def build_daily_briefing(
     except Exception:
         market_verdict = "Unknown"
 
-    global_bias = "NEUTRAL"
-    try:
-        impact = build_india_impact_report()
-        global_bias = impact.predicted_nifty_bias
-    except Exception:
-        pass
+    from analyzer.context_engine import build_context_snapshot
+
+    ctx = build_context_snapshot(period=period, use_cache=True)
+    global_bias = str(ctx.global_market_state.get("bias", "NEUTRAL"))
 
     priority: list[str] = []
     for h in holding_advices:

@@ -8,20 +8,25 @@ import plotly.graph_objects as go
 import pandas as pd
 import streamlit as st
 
-from analyzer.global_impact import build_india_impact_report
 from analyzer.global_markets import WORLD_INDICES, build_global_heatmap_df, fetch_intraday_5m
-from analyzer.india_macro import build_india_macro_snapshot
-from analyzer.market_session import market_session_status
 from ui.charts import global_normalized_chart
 from ui.components.india_macro import render_india_macro_strip
 from ui.theme import GLOBAL_BIAS_COLORS
 
 
 def global_markets_live_body() -> None:
-    with st.spinner("Pulling world markets..."):
-        report = build_india_impact_report()
+    from analyzer.context_engine import build_context_snapshot
+    from analyzer.context_engine.migration import global_impact_from_snapshot, macro_from_snapshot
+    from analyzer.global_markets import WORLD_INDICES, build_global_heatmap_df, fetch_global_snapshot
 
-    session = market_session_status()
+    ctx = build_context_snapshot(use_cache=True)
+    session = dict(ctx.market_session)
+    report = global_impact_from_snapshot(ctx)
+    if report is None:
+        with st.spinner("Pulling world markets..."):
+            from analyzer.global_impact import build_india_impact_report
+
+            report = build_india_impact_report()
     s1, s2, s3, s4 = st.columns(4)
     s1.metric("NSE session", session["status"])
     s2.caption(session.get("next_session", ""))
@@ -53,8 +58,9 @@ def global_markets_live_body() -> None:
     st.info(f"**What to do in India:** {report.india_action} · {report.ce_pe_hint}")
 
     try:
-        macro = build_india_macro_snapshot()
-        render_india_macro_strip(macro)
+        macro = macro_from_snapshot(ctx)
+        if macro:
+            render_india_macro_strip(macro)
     except Exception:
         pass
 
@@ -65,7 +71,7 @@ def global_markets_live_body() -> None:
 
     st.divider()
     st.subheader("🌍 World markets snapshot")
-    heat = build_global_heatmap_df(report.global_snapshot.quotes)
+    heat = build_global_heatmap_df(report.global_snapshot.quotes if report.global_snapshot.quotes else fetch_global_snapshot().quotes)
 
     def color_pct(val):
         if val is None or (isinstance(val, float) and pd.isna(val)):

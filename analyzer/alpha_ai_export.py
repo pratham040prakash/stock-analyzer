@@ -103,6 +103,8 @@ def report_to_markdown(report: AlphaAIReport) -> str:
         lines.extend(["## Data gaps"])
         for g in report.data_gaps:
             lines.append(f"- {g}")
+    if getattr(report, "evidence_summary", None):
+        lines.extend(["", "## Evidence Packet", report.evidence_summary, ""])
     lines.append("\n---\n_Not financial advice. Verify in annual reports._")
     return "\n".join(lines)
 

@@ -222,6 +222,10 @@ def _render_report_body(report) -> None:
                 + " · ".join(f"{x:.0f}%" for x in report.portfolio_allocation_options)
             )
 
+    if getattr(report, "evidence_summary", None):
+        with st.expander("Evidence Packet", expanded=False):
+            st.markdown(report.evidence_summary)
+
     st.markdown("## AI Checklist")
     if report.checklist_scores:
         st.plotly_chart(_radar_chart(report.checklist_scores), use_container_width=True)

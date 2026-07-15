@@ -5,7 +5,7 @@ from __future__ import annotations
 import streamlit as st
 
 from ui.navigation import on_nav_group_change
-from ui.theme import DEFAULT_NAV_GROUP, active_nav_groups, ensure_tab_in_group
+from ui.theme import DEFAULT_NAV_GROUP, DEFAULT_NAV_TAB, active_nav_groups, ensure_tab_in_group
 
 
 def render_app_navigation() -> str:
@@ -18,7 +18,7 @@ def render_app_navigation() -> str:
 
     if compact:
         st.caption("Navigation (compact)")
-        selected_tab = st.session_state.get("nav_tab", "Suggestions")
+        selected_tab = st.session_state.get("nav_tab", DEFAULT_NAV_TAB)
         for group, tabs in nav_groups.items():
             expanded = st.session_state.get("nav_group") == group
             with st.expander(group, expanded=expanded):

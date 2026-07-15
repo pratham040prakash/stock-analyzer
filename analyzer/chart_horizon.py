@@ -216,16 +216,19 @@ def analyze_short_term_chart(df: pd.DataFrame) -> HorizonAnalysis:
         + (signals[0] if signals else "Mixed daily signals.")
     )
 
-    return HorizonAnalysis(
-        horizon="short",
-        action=action,
-        score=score,
-        timeframe="2–8 weeks (daily chart)",
-        entry_hint=entry,
-        stop_hint=stop_h,
-        target_hint=target_h,
-        chart_signals=signals[:6],
-        summary=summary,
+    return _finalize_horizon(
+        HorizonAnalysis(
+            horizon="short",
+            action=action,
+            score=score,
+            timeframe="2–8 weeks (daily chart)",
+            entry_hint=entry,
+            stop_hint=stop_h,
+            target_hint=target_h,
+            chart_signals=signals[:6],
+            summary=summary,
+        ),
+        ticker="short_term",
     )
 
 
@@ -367,17 +370,27 @@ def analyze_long_term_chart(df: pd.DataFrame, yf_info: dict | None = None) -> Ho
         + (signals[0] if signals else "Mixed structure.")
     )
 
-    return HorizonAnalysis(
-        horizon="long",
-        action=action,
-        score=score,
-        timeframe="6 months – 3 years (daily chart)",
-        entry_hint=entry,
-        stop_hint=stop_h,
-        target_hint=target_h,
-        chart_signals=signals[:6],
-        summary=summary,
+    return _finalize_horizon(
+        HorizonAnalysis(
+            horizon="long",
+            action=action,
+            score=score,
+            timeframe="6 months – 3 years (daily chart)",
+            entry_hint=entry,
+            stop_hint=stop_h,
+            target_hint=target_h,
+            chart_signals=signals[:6],
+            summary=summary,
+        ),
+        ticker="long_term",
     )
+
+
+def _finalize_horizon(analysis: HorizonAnalysis, ticker: str) -> HorizonAnalysis:
+    from analyzer.decision_engine.verdict_bridge import attach_decision_to_horizon
+
+    attach_decision_to_horizon(analysis, ticker)
+    return analysis
 
 
 def analyze_intraday_horizon(verdict) -> HorizonAnalysis:

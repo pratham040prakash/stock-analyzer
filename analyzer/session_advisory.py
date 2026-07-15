@@ -6,11 +6,10 @@ from dataclasses import dataclass
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from analyzer.global_impact import IndiaImpactReport, build_india_impact_report
-from analyzer.india_macro import IndiaMacroSnapshot, build_india_macro_snapshot
-from analyzer.market_session import market_session_status
+from analyzer.global_impact import IndiaImpactReport
+from analyzer.india_macro import IndiaMacroSnapshot
 from analyzer.market_pulse import IndexPulse, india_market_pulse, overall_market_verdict
-from analyzer.market_regime import MarketRegime, detect_nifty_regime
+from analyzer.market_regime import MarketRegime
 
 IST = ZoneInfo("Asia/Kolkata")
 
@@ -26,6 +25,7 @@ class PulseLiveSnapshot:
     global_impact: IndiaImpactReport | None
     advisory_markdown: str
     focus_horizons: list[str]
+    context_snapshot_id: str = ""
 
 
 def _focus_horizons(session: dict) -> list[str]:
@@ -137,30 +137,25 @@ def fetch_pulse_live_update(
     pulse_report=None,
     include_global: bool = True,
 ) -> PulseLiveSnapshot:
-    """Lightweight refresh for 30s auto-update (indices, macro, regime, global)."""
-    session = market_session_status()
-    indices: list[IndexPulse] = []
-    macro: IndiaMacroSnapshot | None = None
-    regime: MarketRegime | None = None
-    global_r: IndiaImpactReport | None = None
+    """Lightweight refresh for 30s auto-update (indices + canonical context snapshot)."""
+    from analyzer.context_engine import build_context_snapshot
+    from analyzer.context_engine.migration import (
+        global_impact_from_snapshot,
+        macro_from_snapshot,
+        regime_from_snapshot,
+    )
 
+    ctx = build_context_snapshot(include_global=include_global, period=period)
+    session = dict(ctx.market_session)
+    macro = macro_from_snapshot(ctx)
+    regime = regime_from_snapshot(ctx)
+    global_r = global_impact_from_snapshot(ctx) if include_global else None
+
+    indices: list[IndexPulse] = []
     try:
         indices = india_market_pulse(period)
     except Exception:
         pass
-    try:
-        macro = build_india_macro_snapshot()
-    except Exception:
-        pass
-    try:
-        regime = detect_nifty_regime(period)
-    except Exception:
-        pass
-    if include_global:
-        try:
-            global_r = build_india_impact_report()
-        except Exception:
-            pass
 
     verdict = overall_market_verdict(indices) if indices else (
         getattr(pulse_report, "market_verdict", None) or "Unable to assess market"
@@ -177,4 +172,5 @@ def fetch_pulse_live_update(
         global_impact=global_r,
         advisory_markdown=advisory,
         focus_horizons=_focus_horizons(session),
+        context_snapshot_id=ctx.snapshot_id,
     )

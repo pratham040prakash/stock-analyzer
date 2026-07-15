@@ -283,20 +283,29 @@ def analyze_at_index(df: pd.DataFrame, ticker: str, index: int = -1) -> Analysis
 
     atr = float(row["ATR_14"]) if not pd.isna(row.get("ATR_14")) else price * 0.02
 
-    return AnalysisResult(
-        ticker=ticker,
-        recommendation=_score_to_recommendation(composite),
-        composite_score=round(composite, 1),
-        confidence=_score_to_confidence(signals),
-        current_price=price,
-        signals=signals,
-        support=round(recent_lows, 2),
-        resistance=round(recent_highs, 2),
-        stop_loss=round(price - 2 * atr, 2),
-        take_profit=round(price + 3 * atr, 2),
+    return _attach_technical_verdict(
+        AnalysisResult(
+            ticker=ticker,
+            recommendation="HOLD",
+            composite_score=round(composite, 1),
+            confidence=_score_to_confidence(signals),
+            current_price=price,
+            signals=signals,
+            support=round(recent_lows, 2),
+            resistance=round(recent_highs, 2),
+            stop_loss=round(price - 2 * atr, 2),
+            take_profit=round(price + 3 * atr, 2),
+        )
     )
+
+
+def _attach_technical_verdict(result: AnalysisResult) -> AnalysisResult:
+    from analyzer.decision_engine.verdict_bridge import attach_decision_to_analysis
+
+    attach_decision_to_analysis(result)
+    return result
 
 
 def analyze(df: pd.DataFrame, ticker: str) -> AnalysisResult:
     """Run full signal analysis on the latest row."""
-    return analyze_at_index(df, ticker, index=-1)
+    return _attach_technical_verdict(analyze_at_index(df, ticker, index=-1))

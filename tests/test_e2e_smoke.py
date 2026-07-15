@@ -61,19 +61,19 @@ class TestE2ESmoke(unittest.TestCase):
             plan_summary="",
         )
 
-    @patch("analyzer.watchlist_history.market_session_status", return_value={"date": "2026-07-05"})
-    @patch("analyzer.watchlist_history.session_target_date", return_value="2026-07-06")
+    @patch("analyzer.watchlist_history.market_session_status", return_value={"date": "2026-07-10"})
+    @patch("analyzer.watchlist_history.session_target_date", return_value="2026-07-11")
     def test_snapshot_score_export(self, _td, _ms):
         from analyzer.suggestions_export import build_suggestions_csv
         from analyzer.watchlist_history import save_watchlist_snapshot, score_daily_watchlist
 
         wl = IntradayWatchlistReport(market_bias="BULLISH", sector_leader="", sector_laggard="", routine_note="", picks=[self._sample_pick()])
-        n = save_watchlist_snapshot(wl.picks, market_bias="BULLISH", prep_date="2026-07-05")
+        n = save_watchlist_snapshot(wl.picks, market_bias="BULLISH", prep_date="2026-07-10")
         self.assertEqual(n, 1)
 
         with patch("analyzer.watchlist_history.can_score_trade_date", return_value=True):
             with patch("analyzer.watchlist_history._session_ohlc", return_value=(2560.0, 2490.0, 2540.0)):
-                outcomes = score_daily_watchlist(trade_date="2026-07-06", market="india")
+                outcomes = score_daily_watchlist(trade_date="2026-07-11", market="india")
         self.assertTrue(outcomes)
         self.assertEqual(outcomes[0].outcome, "target_hit")
 

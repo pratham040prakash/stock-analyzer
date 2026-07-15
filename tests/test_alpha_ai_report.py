@@ -78,6 +78,8 @@ class TestAlphaAIReport(unittest.TestCase):
 
         self.assertEqual(report.symbol, "TCS.NS")
         self.assertGreater(report.overall_score, 0)
+        if report.evidence_packet is not None:
+            self.assertGreater(len(report.evidence_packet.items), 0)
         self.assertIn(report.recommendation, ("Strong Buy", "Buy", "Accumulate", "Hold", "Reduce", "Sell", "Avoid"))
         self.assertIn(report.buy_decision, ("YES", "NO", "WAIT"))
         self.assertTrue(report.snapshot)

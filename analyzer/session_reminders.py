@@ -153,6 +153,11 @@ def run_session_reminders(*, force: str | None = None) -> tuple[int, str]:
     return 0, err
 
 
+def was_session_open_reminder_sent(day: str | None = None) -> bool:
+    day = day or datetime.now(IST).strftime("%Y-%m-%d")
+    return _was_sent("open", day)
+
+
 def maybe_send_session_reminders() -> None:
     """Called from app when market is open during reminder windows."""
     session = market_session_status()

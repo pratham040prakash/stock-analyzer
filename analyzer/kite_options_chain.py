@@ -36,7 +36,8 @@ def _kite_client():
     return get_kite_client()
 
 
-def _load_nfo_instruments() -> list[dict]:
+def load_nfo_instruments() -> list[dict]:
+    """Cached NFO instrument master (1h TTL) — avoids hammering Kite on every lookup."""
     global _INSTRUMENTS_CACHE
     now = datetime.now(IST).timestamp()
     if _INSTRUMENTS_CACHE and now - _INSTRUMENTS_CACHE[0] < _INSTRUMENTS_TTL:
@@ -47,9 +48,13 @@ def _load_nfo_instruments() -> list[dict]:
     try:
         rows = kite.instruments("NFO")
     except Exception:
-        return []
+        return _INSTRUMENTS_CACHE[1] if _INSTRUMENTS_CACHE else []
     _INSTRUMENTS_CACHE = (now, rows)
     return rows
+
+
+def _load_nfo_instruments() -> list[dict]:
+    return load_nfo_instruments()
 
 
 def _format_nse_expiry(exp: date) -> str:

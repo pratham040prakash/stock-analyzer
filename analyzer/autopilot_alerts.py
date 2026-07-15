@@ -72,12 +72,25 @@ def collect_autopilot_gaps() -> list[str]:
     return gaps
 
 
+def was_autopilot_health_run_today(day: str | None = None) -> bool:
+    day = day or datetime.now(IST).strftime("%Y-%m-%d")
+    return bool(_load_state().get(day, {}).get("_health_run"))
+
+
+def _mark_health_run(day: str) -> None:
+    data = _load_state()
+    row = data.setdefault(day, {})
+    row["_health_run"] = datetime.now(IST).strftime("%H:%M IST")
+    _save_state(data)
+
+
 def maybe_send_autopilot_failure_alert() -> tuple[int, str]:
     """Send one Telegram per gap per day after grace windows."""
     from analyzer.telegram_notify import send_telegram_broadcast, telegram_configured
 
     now = datetime.now(IST)
     day = now.strftime("%Y-%m-%d")
+    _mark_health_run(day)
     gaps = collect_autopilot_gaps()
     if not gaps:
         return 0, "No autopilot gaps"

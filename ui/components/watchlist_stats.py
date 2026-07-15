@@ -262,30 +262,41 @@ def render_selected_vs_all_banner(*, days: int = 7) -> None:
 
 
 def render_hit_rate_dashboard(*, market: str = "india") -> int | None:
-    """30 / 90 / 180-day win-rate summary for Suggestions home."""
+    """30 / 90 / 180-day win-rate summary — equity, options, and combined."""
     st.markdown("#### Hit rate dashboard")
     cols = st.columns(3)
     best_days = None
     best_wr = -1.0
     for col, days in zip(cols, (30, 90, 180)):
         days = max(days, MIN_RETENTION_DAYS)
-        report = build_watchlist_success_report(days)
+        eq = build_watchlist_success_report(days)
+        opt = build_options_success_report(days)
         with col:
-            if report.scored_picks == 0:
-                col.metric(f"{days}d win rate", "—")
+            if eq.scored_picks == 0 and opt.scored_picks == 0:
+                col.metric(f"{days}d combined", "—")
                 col.caption("No scored picks yet")
                 continue
-            wr = report.win_rate_pct
-            wr_s = f"{wr:.0f}%" if wr is not None else "—"
-            col.metric(f"{days}d win rate", wr_s)
-            col.caption(
-                f"{report.target_hits}T · {report.stop_hits}S · {report.scored_picks} scored"
+            eq_wr = eq.win_rate_pct
+            opt_wr = opt.win_rate_pct
+            combined_targets = eq.target_hits + opt.target_hits
+            combined_stops = eq.stop_hits + opt.stop_hits
+            combined_decided = combined_targets + combined_stops
+            combined_wr = (
+                100.0 * combined_targets / combined_decided if combined_decided else None
             )
-            if wr is not None and wr > best_wr:
-                best_wr = wr
+            wr_s = f"{combined_wr:.0f}%" if combined_wr is not None else "—"
+            col.metric(f"{days}d combined", wr_s)
+            eq_s = f"{eq_wr:.0f}%" if eq_wr is not None else "—"
+            opt_s = f"{opt_wr:.0f}%" if opt_wr is not None else "—"
+            col.caption(
+                f"Stocks **{eq_s}** ({eq.target_hits}T·{eq.stop_hits}S) · "
+                f"Options **{opt_s}** ({opt.target_hits}T·{opt.stop_hits}S)"
+            )
+            if combined_wr is not None and combined_wr > best_wr:
+                best_wr = combined_wr
                 best_days = days
     if best_days:
-        st.caption(f"Best window in retention: **{best_days}d** at **{best_wr:.0f}%**")
+        st.caption(f"Best combined window: **{best_days}d** at **{best_wr:.0f}%**")
     return best_days
 
 

@@ -308,20 +308,54 @@ def analyze_live_chart(
 
     entry, stop_loss, target = compute_trade_levels(intraday, action)
 
-    return LiveChartVerdict(
-        ticker=ticker,
-        interval=interval,
-        action=action,
-        confidence=confidence,
-        summary=" ".join(summary_parts),
-        reasons=reasons,
-        current_candle=current,
-        recent_candles=recent,
-        session_story=session_story,
-        entry=entry,
-        stop_loss=stop_loss,
-        target=target,
-        intraday=intraday,
-        directional_score=score,
-        options=options,
+    return _finalize_live_chart(
+        LiveChartVerdict(
+            ticker=ticker,
+            interval=interval,
+            action=action,
+            confidence=confidence,
+            summary=" ".join(summary_parts),
+            reasons=reasons,
+            current_candle=current,
+            recent_candles=recent,
+            session_story=session_story,
+            entry=entry,
+            stop_loss=stop_loss,
+            target=target,
+            intraday=intraday,
+            directional_score=score,
+            options=options,
+        )
     )
+
+
+def _finalize_live_chart(verdict: LiveChartVerdict) -> LiveChartVerdict:
+    from analyzer.decision_engine.verdict_bridge import attach_decision_to_live_chart
+
+    attach_decision_to_live_chart(verdict)
+    action = verdict.action
+    confidence = verdict.confidence
+    summary_parts = [
+        f"**{action}** ({confidence} confidence) based on the **{verdict.current_candle.candle_type}** at {verdict.current_candle.time}."
+        if verdict.current_candle
+        else f"**{action}** ({confidence} confidence).",
+    ]
+    if verdict.intraday:
+        if action in ("STRONG BUY", "BUY"):
+            summary_parts.append(
+                f"Bulls in control if price holds above ₹{verdict.intraday.vwap:,.2f} (VWAP). "
+                f"Invalidation below ₹{verdict.intraday.opening_range_low:,.2f}."
+            )
+        elif action in ("STRONG SELL", "SELL"):
+            summary_parts.append(
+                f"Sellers in control below VWAP ₹{verdict.intraday.vwap:,.2f}. "
+                f"Cover shorts if price reclaims OR high ₹{verdict.intraday.opening_range_high:,.2f}."
+            )
+        else:
+            summary_parts.append("No high-conviction edge on the latest candle — stay flat or reduce size.")
+    verdict.summary = " ".join(summary_parts)
+    entry, stop_loss, target = compute_trade_levels(verdict.intraday, action)
+    verdict.entry = entry
+    verdict.stop_loss = stop_loss
+    verdict.target = target
+    return verdict

@@ -26,20 +26,27 @@ class TestWatchlistLearning(unittest.TestCase):
         self.je = patch("analyzer.watchlist_eod.journal_db_path", return_value=self.db)
         self.jh = patch("analyzer.watchlist_history.journal_db_path", return_value=self.db)
         self.jl = patch("analyzer.watchlist_learning.journal_db_path", return_value=self.db)
+        self.jb = patch("analyzer.broker_truth.learning.journal_db_path", return_value=self.db)
+        self.bts = patch(
+            "analyzer.broker_truth.store.broker_truth_db_path",
+            return_value=Path(self.tmp.name) / "broker.db",
+        )
         self.sp = patch("analyzer.watchlist_learning.strategy_path", return_value=self.strat)
-        for p in (self.jp, self.je, self.jh, self.jl, self.sp):
+        for p in (self.jp, self.je, self.jh, self.jl, self.jb, self.bts, self.sp):
             p.start()
         reset_watchlist_strategy()
         self._seed_outcomes()
 
     def tearDown(self):
-        for p in (self.sp, self.jl, self.jh, self.je, self.jp):
+        for p in (self.bts, self.jb, self.sp, self.jl, self.jh, self.je, self.jp):
             p.stop()
         self.tmp.cleanup()
 
     def _seed_outcomes(self) -> None:
+        from analyzer.watchlist_eod import init_watchlist_outcomes
         from analyzer.watchlist_history import init_watchlist_history
 
+        init_watchlist_outcomes()
         init_watchlist_history()
         with sqlite3.connect(self.db) as conn:
             for sym, outcome, atr in [

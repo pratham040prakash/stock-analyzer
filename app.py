@@ -33,6 +33,7 @@ from ui.pages.daily_advisor import render_daily_advisor
 from ui.pages.global_markets import render_global_markets
 from ui.pages.intraday import render_intraday
 from ui.pages.live_charts import render_live_charts_grid
+from ui.pages.live_options_advisor import render_live_options_advisor
 from ui.pages.market_pulse import render_market_pulse
 from ui.pages.nse_options import render_nse_options
 from ui.pages.penny_picks import render_penny_picks
@@ -40,6 +41,7 @@ from ui.pages.screener import render_screener
 from ui.pages.single_stock import render_single_stock
 from ui.pages.sip_goals import render_sip_goals
 from ui.pages.track_record import render_track_record
+from ui.pages.unified_home import render_unified_home
 from ui.pages.varsity import render_varsity_guide
 from ui.pages.watchlist import render_watchlist
 from ui.pages.zerodha import render_zerodha
@@ -210,22 +212,12 @@ def main() -> None:
     st.set_page_config(page_title="Stock Analyzer", page_icon="📈", layout="wide")
     apply_theme_css()
     st.markdown(MOBILE_CSS, unsafe_allow_html=True)
-    handle_kite_redirect()
-    from analyzer.zerodha import hydrate_kite_access_token
 
-    hydrate_kite_access_token()
-    st.title("📈 Stock Suggestions")
-    st.caption("Nightly picks · Entry / Stop / Target · Hit-rate tracking")
+    init_nav_state()
+    apply_pending_nav_tab()
+    is_home = st.session_state.get("nav_tab") == "Home"
 
-    start_kite_ticker_on_app_start()
-    _hydrate_saved_portfolio()
-    _maybe_prep_morning_nag()
-    _maybe_session_reminders()
-    _maybe_watchlist_live_alerts()
-    _maybe_validate_suggestions_eod()
-    _maybe_score_watchlist_eod()
-    _maybe_post_close_scan()
-    _maybe_autopilot_health_alert()
+    st.title("📈 Stock Analyzer")
 
     with st.sidebar:
         st.header("Market")
@@ -236,55 +228,71 @@ def main() -> None:
             index=1,
         )
         period = st.selectbox("History period", options=["3mo", "6mo", "1y", "2y", "5y"], index=2)
-
-        render_theme_toggle_sidebar()
-        st.checkbox(
-            "Compact navigation (mobile-friendly)",
-            key="compact_nav",
-            help="Collapsible nav groups instead of horizontal tabs",
-        )
-
-        if is_india_market(market):
-            st.caption("Use **⌘ Jump** at the top for symbol, name, ISIN, or tab search.")
-            with st.expander("Indian ticker help"):
-                st.markdown(indian_ticker_help())
-
-            with st.expander("📚 Varsity TA (cached)"):
-                st.markdown(
-                    f"[Full module]({VARSITY_MODULE_URL}) · 22 chapters stored in-app. "
-                    "Open the **Varsity TA** tab for search and details."
-                )
-                if st.button("Open Varsity TA tab", key="go_varsity"):
-                    from ui.navigation import request_nav_tab
-
-                    request_nav_tab("Varsity TA")
-
-        st.divider()
-        render_setup_wizard_sidebar()
-        render_data_health_sidebar()
-        render_autopilot_sidebar()
-        render_kite_connect_sidebar()
-        render_sidebar_onboarding_button()
-        with st.expander("📱 Telegram & schedules (optional)", expanded=False):
-            render_telegram_subscribe_sidebar()
-            if telegram_configured():
-                if st.button("Send morning pick list", key="sidebar_morning_tg"):
-                    from analyzer.suggestions_telegram import format_morning_suggestions_telegram
-
-                    ok, msg = send_telegram_broadcast(
-                        format_morning_suggestions_telegram(),
-                        alert_type="morning",
-                    )
-                    if ok:
-                        st.success(msg)
-                    else:
-                        st.error(msg)
-            st.caption(
-                "Telegram: morning list + EOD hit summary · configured in **⚙️ Setup**"
+        if not is_home:
+            render_theme_toggle_sidebar()
+            st.checkbox(
+                "Compact navigation (mobile-friendly)",
+                key="compact_nav",
+                help="Collapsible nav groups instead of horizontal tabs",
             )
+            if is_india_market(market):
+                st.caption("Use **⌘ Jump** at the top for symbol, name, ISIN, or tab search.")
+                with st.expander("Indian ticker help"):
+                    st.markdown(indian_ticker_help())
+                with st.expander("📚 Varsity TA (cached)"):
+                    st.markdown(
+                        f"[Full module]({VARSITY_MODULE_URL}) · 22 chapters stored in-app. "
+                        "Open the **Varsity TA** tab for search and details."
+                    )
+                    if st.button("Open Varsity TA tab", key="go_varsity"):
+                        from ui.navigation import request_nav_tab
 
-        if is_india_market(market):
-            pass  # data health in render_data_health_sidebar()
+                        request_nav_tab("Varsity TA")
+            st.divider()
+            render_setup_wizard_sidebar()
+            render_data_health_sidebar()
+            render_autopilot_sidebar()
+            render_kite_connect_sidebar()
+            render_sidebar_onboarding_button()
+            with st.expander("📱 Telegram & schedules (optional)", expanded=False):
+                render_telegram_subscribe_sidebar()
+                if telegram_configured():
+                    if st.button("Send morning pick list", key="sidebar_morning_tg"):
+                        from analyzer.suggestions_telegram import format_morning_suggestions_telegram
+
+                        ok, msg = send_telegram_broadcast(
+                            format_morning_suggestions_telegram(),
+                            alert_type="morning",
+                        )
+                        if ok:
+                            st.success(msg)
+                        else:
+                            st.error(msg)
+                st.caption(
+                    "Telegram: morning list + EOD hit summary · configured in **⚙️ Setup**"
+                )
+
+    if is_home:
+        st.session_state.setdefault("compact_nav", True)
+        render_app_navigation()
+        render_unified_home(market, period=period)
+        return
+
+    handle_kite_redirect()
+    from analyzer.zerodha import hydrate_kite_access_token
+
+    hydrate_kite_access_token()
+    st.caption("Home · star stocks · track results")
+
+    start_kite_ticker_on_app_start()
+    _hydrate_saved_portfolio()
+    _maybe_prep_morning_nag()
+    _maybe_session_reminders()
+    _maybe_watchlist_live_alerts()
+    _maybe_validate_suggestions_eod()
+    _maybe_score_watchlist_eod()
+    _maybe_post_close_scan()
+    _maybe_autopilot_health_alert()
 
     st.info(DISCLAIMER)
     render_nse_error_banner()
@@ -316,9 +324,6 @@ def main() -> None:
         except Exception:
             pass
 
-    init_nav_state()
-    apply_pending_nav_tab()
-
     selected = render_app_navigation()
 
     if selected == "Risk & Goals":
@@ -337,10 +342,14 @@ def main() -> None:
         render_alpha_ai(market, period=period)
     elif selected == "Compare":
         render_compare(market, period)
+    elif selected == "Home":
+        render_unified_home(market, period=period)
     elif selected == "Suggestions":
         render_intraday(market, period=period)
     elif selected == "Live Charts":
         render_live_charts_grid(market)
+    elif selected == "Live Options Coach":
+        render_live_options_advisor(market, period=period)
     elif selected == "NSE Options":
         render_nse_options(market)
     elif selected == "Batch Scanner":
@@ -357,6 +366,9 @@ def main() -> None:
         render_track_record()
     elif selected == "Varsity TA":
         render_varsity_guide()
+    else:
+        st.warning(f"Unknown page **{selected}** — pick **Home** from the nav bar above.")
+        render_unified_home(market, period=period)
 
 
 if __name__ == "__main__":

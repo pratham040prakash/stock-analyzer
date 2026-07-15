@@ -25,10 +25,17 @@ def apply_pending_nav_tab() -> None:
         st.session_state["nav_group"] = nav_group_for_tab(pending)
 
 
+_NAV_ALIASES = {"Unified Home": "Home"}
+
+
 def init_nav_state() -> None:
     """Ensure group + tab session keys exist and stay consistent."""
     if "nav_tab" not in st.session_state:
         st.session_state["nav_tab"] = DEFAULT_NAV_TAB
+    else:
+        legacy = _NAV_ALIASES.get(st.session_state["nav_tab"])
+        if legacy:
+            st.session_state["nav_tab"] = legacy
     if "nav_group" not in st.session_state:
         st.session_state["nav_group"] = nav_group_for_tab(st.session_state["nav_tab"])
     else:

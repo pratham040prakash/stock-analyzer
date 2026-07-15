@@ -159,8 +159,10 @@ def kite_connection_status(*, probe: bool = True) -> dict:
 
     nfo_ok = False
     try:
+        from analyzer.kite_options_chain import load_nfo_instruments
+
         rows = [
-            r for r in kite.instruments("NFO")
+            r for r in load_nfo_instruments()
             if r.get("name") == "NIFTY" and r.get("instrument_type") == "FUT"
         ]
         if rows:

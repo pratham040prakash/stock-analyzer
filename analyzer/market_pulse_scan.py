@@ -17,13 +17,10 @@ from analyzer.chart_horizon import (
 from analyzer.combined import analyze_combined
 from analyzer.data import fetch_stock_data
 from analyzer.india import NIFTY_50
-from analyzer.india_macro import IndiaMacroSnapshot, build_india_macro_snapshot
+from analyzer.india_macro import IndiaMacroSnapshot
 from analyzer.indicators import add_indicators
 from analyzer.intraday_data import fetch_intraday
-from analyzer.market_session import market_session_status
-from analyzer.intraday_signals import add_intraday_indicators
-from analyzer.market_pulse import IndexPulse, india_market_pulse, overall_market_verdict
-from analyzer.market_regime import MarketRegime, apply_regime_to_action, detect_nifty_regime
+from analyzer.market_regime import MarketRegime, apply_regime_to_action
 from analyzer.nse_options import (
     NSEOptionChain,
     NSEOptionPick,
@@ -290,6 +287,7 @@ def scan_stock(
     skip_intraday: bool | None = None,
     prior_session_intraday: bool = False,
     nifty_daily_df: pd.DataFrame | None = None,
+    market_open: bool = False,
 ) -> StockPulseEntry:
     nse = symbol.replace(".NS", "").replace(".BO", "")
     name = nse
@@ -316,7 +314,7 @@ def scan_stock(
         intraday_verdict = None
         intraday_df = None
         if skip_intraday is None:
-            skip_intraday = not market_session_status().get("is_open") and not prior_session_intraday
+            skip_intraday = not market_open and not prior_session_intraday
 
         if not skip_intraday:
             try:
@@ -523,10 +521,10 @@ def _scan_all_stocks(
     nifty_daily_df: pd.DataFrame | None = None,
     *,
     prior_session_intraday: bool = False,
+    market_open: bool = False,
 ) -> list[StockPulseEntry]:
     kite_syms = [f"NSE:{s}-EQ" for s in universe]
     kite_ltp = get_kite_ltp_cached(kite_syms)
-    market_open = market_session_status().get("is_open", False)
     top10_set = set(MARKET_PULSE_TOP_10)
 
     results: list[StockPulseEntry] = []
@@ -545,6 +543,7 @@ def _scan_all_stocks(
                     skip_intraday=not market_open and not prior_session_intraday,
                     prior_session_intraday=prior_session_intraday,
                     nifty_daily_df=nifty_daily_df,
+                    market_open=market_open,
                 )
             )
         for fut in as_completed(futures):
@@ -602,9 +601,15 @@ def run_market_pulse_scan(
     except Exception:
         nifty_daily_df = None
 
+    from analyzer.context_engine import build_context_snapshot
+    from analyzer.context_engine.migration import macro_from_snapshot, regime_from_snapshot
+
+    ctx = build_context_snapshot(market=market, period=period, use_cache=True)
+    regime = regime_from_snapshot(ctx)
+    macro = macro_from_snapshot(ctx)
+    market_open = bool(ctx.market_session.get("is_open", False))
+
     with ThreadPoolExecutor(max_workers=4) as pool:
-        f_regime = pool.submit(detect_nifty_regime, period)
-        f_macro = pool.submit(build_india_macro_snapshot)
         f_indices = pool.submit(india_market_pulse, period)
         f_stocks = pool.submit(
             _scan_all_stocks,
@@ -613,17 +618,31 @@ def run_market_pulse_scan(
             market,
             nifty_daily_df,
             prior_session_intraday=prior_session_intraday,
+            market_open=market_open,
         )
         f_earnings = pool.submit(fetch_nifty50_earnings, MARKET_PULSE_SCAN_UNIVERSE, market)
         f_delivery = pool.submit(fetch_delivery_batch, MARKET_PULSE_SCAN_UNIVERSE)
 
-        regime = f_regime.result()
-        macro = f_macro.result()
         indices = f_indices.result()
         all_stocks = f_stocks.result()
         earnings_events = f_earnings.result()
         delivery_raw = f_delivery.result()
         delivery_snapshots = enrich_delivery_with_stocks(delivery_raw, all_stocks)
+
+    if regime is None:
+        from analyzer.market_regime import MarketRegime
+
+        regime = MarketRegime(
+            symbol="^NSEI",
+            adx=None,
+            plus_di=None,
+            minus_di=None,
+            regime="Unknown",
+            allow_aggressive_intraday=True,
+            allow_aggressive_swing=True,
+            message="Regime unavailable",
+            banner="",
+        )
 
     verdict = overall_market_verdict(indices)
 

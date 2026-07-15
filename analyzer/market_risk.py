@@ -10,7 +10,7 @@ from analyzer.earnings_calendar import CorporateEvent
 from analyzer.delivery_quality import DeliverySnapshot
 from analyzer.fundamentals import FundamentalResult
 from analyzer.options_analytics import OptionsAnalytics, should_warn_options_entry
-from analyzer.market_regime import MarketRegime, detect_nifty_regime
+from analyzer.market_regime import MarketRegime
 
 
 @dataclass
@@ -190,7 +190,10 @@ def assess_market_risk(
 
     if regime is None:
         try:
-            regime = detect_nifty_regime()
+            from analyzer.context_engine import build_context_snapshot
+            from analyzer.context_engine.migration import regime_from_snapshot
+
+            regime = regime_from_snapshot(build_context_snapshot(period=period))
         except Exception:
             regime = None
 
@@ -368,7 +371,24 @@ def assess_nifty_market_risk(period: str = "6mo") -> MarketRiskAssessment:
 
     df, _ = _fetch_single("^NSEI", period)
     df = add_indicators(df)
-    regime = detect_nifty_regime(period=period)
+    from analyzer.context_engine import build_context_snapshot
+    from analyzer.context_engine.migration import regime_from_snapshot
+
+    regime = regime_from_snapshot(build_context_snapshot(period=period))
+    if regime is None:
+        from analyzer.market_regime import MarketRegime
+
+        regime = MarketRegime(
+            symbol="^NSEI",
+            adx=None,
+            plus_di=None,
+            minus_di=None,
+            regime="Unknown",
+            allow_aggressive_intraday=True,
+            allow_aggressive_swing=True,
+            message="",
+            banner="",
+        )
     return assess_market_risk(
         df,
         ticker="^NSEI",
