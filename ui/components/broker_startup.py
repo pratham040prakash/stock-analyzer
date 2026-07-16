@@ -53,7 +53,7 @@ def run_broker_startup() -> None:
     )
 
     # OAuth callback path — must finish before broker_bootstrap.
-    if oauth_callback:
+    if oauth_callback and not st.session_state.get("_oauth_early_processed"):
         startup_trace(4, "run_broker_startup.oauth_path", "handle_kite_redirect before bootstrap")
         oauth_ok = False
         try:

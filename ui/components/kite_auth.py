@@ -12,7 +12,7 @@ from analyzer.zerodha import (
     save_access_token_to_env,
 )
 from ui.broker.bootstrap import reset_broker_bootstrap
-from ui.broker.oauth_log import oauth_log, oauth_log_exception, startup_trace
+from ui.broker.oauth_log import fn_trace, oauth_log, oauth_log_exception, startup_trace
 from ui.components.kite_connect import clear_kite_status_caches
 
 _CHECKSUM_HELP = (
@@ -50,29 +50,37 @@ def _query_param_from_context_url(name: str) -> str:
     return ""
 
 
+def _mask_token(token: str) -> str:
+    token = token.strip()
+    if not token:
+        return ""
+    if len(token) <= 8:
+        return "(short)"
+    return f"{token[:4]}…{token[-4:]}"
+
+
 def get_request_token() -> str:
     """Resolve request_token from query_params or context URL."""
-    token = _query_param("request_token")
-    if token:
+    qp_token = _query_param("request_token")
+    ctx_token = _query_param_from_context_url("request_token")
+    fn_trace(
+        "get_request_token",
+        "PROBE",
+        f"query_params={_mask_token(qp_token) or 'empty'} "
+        f"context.url={_mask_token(ctx_token) or 'empty'}",
+    )
+    if qp_token:
         oauth_log("Token source", "st.query_params")
-        return token
-    token = _query_param_from_context_url("request_token")
-    if token:
+        return qp_token
+    if ctx_token:
         oauth_log("Token source", "st.context.url")
-        return token
+        return ctx_token
     return ""
 
 
 def has_kite_oauth_callback() -> bool:
     """True when Zerodha redirected back with a request_token in the URL."""
     return bool(get_request_token())
-
-
-def _mask_token(token: str) -> str:
-    token = token.strip()
-    if len(token) <= 8:
-        return "(short)"
-    return f"{token[:4]}…{token[-4:]}"
 
 
 def _checksum_error_message(exc: Exception) -> str:
@@ -106,10 +114,12 @@ def handle_kite_redirect(*, quiet: bool = False) -> bool:
     Auto-exchange request_token when Zerodha redirects back to Streamlit.
     Returns True if a new token was saved this run.
     """
+    fn_trace("handle_kite_redirect", "ENTER", f"quiet={quiet}")
     startup_trace(4, "handle_kite_redirect.enter")
 
     request_token = get_request_token()
     if not request_token:
+        fn_trace("handle_kite_redirect", "EXIT", "return=False reason=no_request_token")
         startup_trace(4, "handle_kite_redirect.skip", "no request_token")
         return False
 
@@ -120,11 +130,13 @@ def handle_kite_redirect(*, quiet: bool = False) -> bool:
     if st.session_state.get("kite_token_exchanged") == request_token:
         oauth_log("Already exchanged", "skipping duplicate processing")
         _clear_oauth_query_params()
+        fn_trace("handle_kite_redirect", "EXIT", "return=False reason=already_exchanged")
         startup_trace(4, "handle_kite_redirect.skip", "already exchanged")
         return False
     if st.session_state.get(failed_key):
         oauth_log("Skipped", "this request_token previously failed")
         _clear_oauth_query_params()
+        fn_trace("handle_kite_redirect", "EXIT", "return=False reason=previously_failed")
         startup_trace(4, "handle_kite_redirect.skip", "previously failed")
         return False
 
@@ -141,6 +153,7 @@ def handle_kite_redirect(*, quiet: bool = False) -> bool:
             st.session_state["_broker_toast"] = (
                 "Broker setup incomplete. Complete the one-time setup wizard first."
             )
+        fn_trace("handle_kite_redirect", "EXIT", "return=False reason=missing_credentials")
         startup_trace(4, "handle_kite_redirect.blocked", "missing API credentials")
         return False
 
@@ -203,15 +216,79 @@ def handle_kite_redirect(*, quiet: bool = False) -> bool:
             else:
                 st.success(message)
         oauth_log("OAuth complete", "authentication succeeded")
+        fn_trace("handle_kite_redirect", "RETURN", "value=True")
         startup_trace(4, "handle_kite_redirect.done", "success")
         return True
     except Exception as exc:
         st.session_state[failed_key] = True
+        fn_trace("handle_kite_redirect", "EXCEPTION", f"{type(exc).__name__}: {exc}")
         oauth_log_exception("Exchange failed", exc)
         detail = _checksum_error_message(exc)
         if quiet:
             st.session_state["_broker_toast"] = detail
         else:
             st.error(f"Login failed: {detail}")
+        fn_trace("handle_kite_redirect", "RETURN", "value=False")
         startup_trace(4, "handle_kite_redirect.done", "failed")
         return False
+
+
+def process_oauth_callback_if_present() -> None:
+    """
+    Section 9 gate — run before nav init, broker wizard, or startup skip flags.
+    Exchanges request_token, bootstraps broker, strips URL, then reruns.
+    """
+    fn_trace("process_oauth_callback_if_present", "ENTER")
+    startup_trace(2, "process_oauth_callback_if_present")
+
+    try:
+        context_url = str(getattr(st.context, "url", "") or "")
+    except Exception:
+        context_url = ""
+    oauth_log(
+        "Early OAuth probe",
+        f"context.url={context_url[:120] if context_url else 'empty'}",
+    )
+
+    request_token = get_request_token()
+    if not request_token:
+        fn_trace("process_oauth_callback_if_present", "EXIT", "no callback")
+        return
+
+    oauth_log("Early OAuth callback", _mask_token(request_token))
+    oauth_ok = False
+    try:
+        oauth_ok = handle_kite_redirect(quiet=True)
+    except Exception as exc:
+        fn_trace("process_oauth_callback_if_present", "EXCEPTION", f"{type(exc).__name__}: {exc}")
+        oauth_log_exception("Early OAuth handle_kite_redirect failed", exc)
+        st.session_state["_broker_toast"] = "Unable to complete Zerodha sign in. Please try again."
+
+    _clear_oauth_query_params()
+
+    from analyzer.zerodha import hydrate_kite_access_token
+    from ui.broker.bootstrap import broker_bootstrap
+
+    hydrate_kite_access_token()
+    if oauth_ok:
+        reset_broker_bootstrap()
+    try:
+        broker_bootstrap(force_sync=True)
+        oauth_log("Broker bootstrap completed", "after early OAuth callback")
+    except Exception as exc:
+        fn_trace("process_oauth_callback_if_present", "EXCEPTION", f"broker_bootstrap: {exc}")
+        oauth_log_exception("broker_bootstrap failed", exc)
+
+    return_tab = st.session_state.pop("_broker_return_tab", None) or "My Portfolio"
+    if oauth_ok:
+        st.session_state["nav_tab"] = return_tab
+
+    st.session_state["_oauth_early_processed"] = True
+    st.session_state["_broker_startup_done"] = True
+    fn_trace(
+        "process_oauth_callback_if_present",
+        "EXIT",
+        f"oauth_ok={oauth_ok} nav_tab={return_tab} → st.rerun()",
+    )
+    startup_trace(2, "process_oauth_callback_if_present.rerun", "strip OAuth params")
+    st.rerun()

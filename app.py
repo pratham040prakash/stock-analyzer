@@ -23,6 +23,7 @@ from ui.components.theme_toggle import apply_theme_css, render_theme_toggle_side
 from ui.components.nse import render_nse_error_banner
 from ui.components.broker_setup_wizard import ensure_broker_configured
 from ui.components.broker_startup import run_broker_startup
+from ui.components.kite_auth import process_oauth_callback_if_present
 from ui.broker.oauth_log import startup_trace
 from ui.components.telegram_subscribe import render_telegram_subscribe_sidebar
 from ui.pages.beginner_risk import render_beginner_risk
@@ -215,6 +216,9 @@ def main() -> None:
 
     st.set_page_config(page_title="Stock Analyzer", page_icon="📈", layout="wide")
     startup_trace(1, "st.set_page_config")
+
+    # Section 9 — consume OAuth callback before nav, wizard, or startup skip.
+    process_oauth_callback_if_present()
 
     apply_theme_css()
     st.markdown(MOBILE_CSS, unsafe_allow_html=True)

@@ -74,7 +74,9 @@ def post_kite_login_sync(*, profile: str | None = None) -> dict:
     Watchlist is not available via Kite API; use watchlist mirror in My Portfolio.
     """
     from analyzer.zerodha import fetch_kite_profile
+    from ui.broker.oauth_log import fn_trace
 
+    fn_trace("post_kite_login_sync", "ENTER")
     prof = profile or portfolio_profile_key()
     result: dict = {
         "user_name": "",
@@ -86,26 +88,36 @@ def post_kite_login_sync(*, profile: str | None = None) -> dict:
         "error": "",
         "watchlist_errors": [],
     }
-    profile_data = fetch_kite_profile()
-    if profile_data:
-        result["user_name"] = str(profile_data.get("user_name") or "")
-        result["user_id"] = str(profile_data.get("user_id") or "")
-    elif load_env_credentials().get("access_token"):
-        result["error"] = "Could not read Kite profile — token may be invalid."
+    try:
+        profile_data = fetch_kite_profile()
+        if profile_data:
+            result["user_name"] = str(profile_data.get("user_name") or "")
+            result["user_id"] = str(profile_data.get("user_id") or "")
+        elif load_env_credentials().get("access_token"):
+            result["error"] = "Could not read Kite profile — token may be invalid."
 
-    imp, err = sync_holdings_from_kite()
-    if err and not imp:
-        result["error"] = err if not result["error"] else f"{result['error']} {err}"
-    elif imp:
-        result["holdings"] = imp
-        result["holdings_count"] = len(imp.holdings)
-        if imp.holdings:
-            save_portfolio(imp, profile=prof)
-        added, total, wl_errors = sync_watchlist_from_kite_activity(profile=prof, holdings=imp)
-        result["watchlist_added"] = added
-        result["watchlist_total"] = total
-        result["watchlist_errors"] = wl_errors
-    return result
+        imp, err = sync_holdings_from_kite()
+        if err and not imp:
+            result["error"] = err if not result["error"] else f"{result['error']} {err}"
+        elif imp:
+            result["holdings"] = imp
+            result["holdings_count"] = len(imp.holdings)
+            if imp.holdings:
+                save_portfolio(imp, profile=prof)
+            added, total, wl_errors = sync_watchlist_from_kite_activity(profile=prof, holdings=imp)
+            result["watchlist_added"] = added
+            result["watchlist_total"] = total
+            result["watchlist_errors"] = wl_errors
+        fn_trace(
+            "post_kite_login_sync",
+            "RETURN",
+            f"holdings_count={result['holdings_count']} error={result['error'] or 'none'}",
+        )
+        return result
+    except Exception as exc:
+        fn_trace("post_kite_login_sync", "EXCEPTION", f"{type(exc).__name__}: {exc}")
+        result["error"] = str(exc)
+        return result
 
 
 def sync_holdings_from_kite() -> tuple[ZerodhaImportResult | None, str]:

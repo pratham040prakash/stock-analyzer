@@ -8,6 +8,7 @@ from ui.components.kite_auth import (
     get_request_token,
     has_kite_oauth_callback,
     handle_kite_redirect,
+    process_oauth_callback_if_present,
 )
 
 
@@ -97,6 +98,30 @@ class TestHandleKiteRedirect(unittest.TestCase):
 
         self.assertFalse(result)
         mock_exchange.assert_not_called()
+
+
+class TestEarlyOAuthGate(unittest.TestCase):
+    @patch("ui.components.kite_auth.st")
+    @patch("ui.broker.bootstrap.broker_bootstrap")
+    @patch("analyzer.zerodha.hydrate_kite_access_token")
+    @patch("ui.components.kite_auth.handle_kite_redirect", return_value=True)
+    @patch("ui.components.kite_auth.get_request_token", return_value="tok12345678")
+    def test_process_oauth_reruns_before_nav(
+        self,
+        _token,
+        mock_handle,
+        _hydrate,
+        mock_bootstrap,
+        mock_st,
+    ):
+        mock_st.session_state = {}
+
+        process_oauth_callback_if_present()
+
+        mock_handle.assert_called_once_with(quiet=True)
+        mock_bootstrap.assert_called_once_with(force_sync=True)
+        mock_st.rerun.assert_called_once()
+        self.assertEqual(mock_st.session_state["nav_tab"], "My Portfolio")
 
 
 if __name__ == "__main__":

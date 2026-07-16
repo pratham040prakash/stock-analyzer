@@ -63,6 +63,11 @@ def oauth_log_exception(step: str, exc: Exception) -> None:
     oauth_log(step, f"{type(exc).__name__}: {exc}")
 
 
+def fn_trace(function: str, phase: str, detail: str = "") -> None:
+    """Instrument a function: ENTER, EXIT, RETURN, EXCEPTION."""
+    oauth_log(f"{function} — {phase}", detail)
+
+
 def startup_trace(step: int, function_name: str, detail: str = "") -> None:
     """Log exact startup execution order: `[Startup] 03 function_name`."""
     message = f"[Startup] {step:02d} {function_name}"

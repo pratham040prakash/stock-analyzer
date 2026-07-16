@@ -222,9 +222,17 @@ def hydrate_kite_access_token() -> None:
 
 def save_access_token_to_env(access_token: str) -> None:
     """Persist access token to `.env` and activate it for the current process."""
-    access_token = _normalize_credential(access_token)
-    _save_env_value("ZERODHA_ACCESS_TOKEN", access_token)
-    os.environ["ZERODHA_ACCESS_TOKEN"] = access_token
+    from ui.broker.oauth_log import fn_trace
+
+    fn_trace("save_access_token_to_env", "ENTER")
+    try:
+        access_token = _normalize_credential(access_token)
+        _save_env_value("ZERODHA_ACCESS_TOKEN", access_token)
+        os.environ["ZERODHA_ACCESS_TOKEN"] = access_token
+        fn_trace("save_access_token_to_env", "EXIT", f"saved token len={len(access_token)}")
+    except Exception as exc:
+        fn_trace("save_access_token_to_env", "EXCEPTION", f"{type(exc).__name__}: {exc}")
+        raise
 
 
 def save_zerodha_api_credentials_to_env(
@@ -292,30 +300,39 @@ def kite_runs_on_cloud() -> bool:
 
 def exchange_request_token(api_key: str, api_secret: str, request_token: str) -> str:
     """Exchange one-time request_token for access_token. User must save to .env."""
+    from ui.broker.oauth_log import fn_trace, oauth_log
+
+    fn_trace("exchange_request_token", "ENTER")
     try:
         from kiteconnect import KiteConnect
     except ImportError as exc:
+        fn_trace("exchange_request_token", "EXCEPTION", f"ImportError: {exc}")
         raise ImportError("Install kiteconnect: pip install kiteconnect") from exc
 
     api_key = _normalize_credential(api_key)
     api_secret = _normalize_credential(api_secret)
     request_token = _normalize_credential(request_token)
     if not api_key or not api_secret or not request_token:
+        fn_trace("exchange_request_token", "EXCEPTION", "missing required values")
         raise ValueError("API key, secret, and request token are all required.")
 
     try:
-        from ui.broker.oauth_log import oauth_log
-
         oauth_log("generate_session started", f"api_key={api_key[:4]}…")
     except Exception:
         pass
 
-    kite = KiteConnect(api_key=api_key)
-    data = kite.generate_session(request_token, api_secret=api_secret)
-    access_token = data.get("access_token")
-    if not access_token:
-        raise ValueError("Kite generate_session did not return access_token.")
-    return access_token
+    try:
+        kite = KiteConnect(api_key=api_key)
+        data = kite.generate_session(request_token, api_secret=api_secret)
+        access_token = data.get("access_token")
+        if not access_token:
+            fn_trace("exchange_request_token", "EXCEPTION", "no access_token in response")
+            raise ValueError("Kite generate_session did not return access_token.")
+        fn_trace("exchange_request_token", "RETURN", f"access_token len={len(access_token)}")
+        return access_token
+    except Exception as exc:
+        fn_trace("exchange_request_token", "EXCEPTION", f"{type(exc).__name__}: {exc}")
+        raise
 
 
 def _holding_from_kite_holdings_row(row: dict) -> ZerodhaHolding | None:
