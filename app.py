@@ -209,6 +209,7 @@ def _maybe_autopilot_health_alert() -> None:
 
 
 def main() -> None:
+    print(dict(st.query_params))
     startup_trace(1, "app.main.enter")
 
     load_app_env()
