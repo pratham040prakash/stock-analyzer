@@ -214,14 +214,24 @@ def _mentor_one_liner(
             return _trim_words(f"{sym} lines up — one clear plan, sized for your rules.")
         return "One setup is ready — stay within your daily risk limit."
 
+    if state.key == "wait":
+        if decision and decision.reason:
+            return _trim_words(decision.reason)
+        if pins:
+            sym = pins[0].symbol.upper().replace(".NS", "").replace(".BO", "")
+            return _trim_words(f"Watch {sym} — wait for price to confirm before entering.")
+        if snapshot.trading_restrictions:
+            return _trim_words(snapshot.trading_restrictions[0])
+        if os_report.next_step:
+            return _trim_words(os_report.next_step)
+        return "Not your moment yet — wait until price confirms the setup."
+
     if decision and decision.reason:
         return _trim_words(decision.reason)
     if snapshot.trading_restrictions:
         return _trim_words(snapshot.trading_restrictions[0])
     if os_report.next_step:
         return _trim_words(os_report.next_step)
-    if mis.summary:
-        return _trim_words(mis.summary)
     return "Not your moment yet — wait until price confirms the setup."
 
 
@@ -303,8 +313,10 @@ def _render_verdict_canvas(
             if state.key in ("wait", "trade", "pause"):
                 st.caption("I'm fairly sure about this call.")
     with g2:
-        if st.button("See the proof", key="vc_proof", use_container_width=True):
-            from ui.components.proof_canvas import open_proof_overlay
+        from ui.components.proof_runtime import proof_canvas_active
+
+        if proof_canvas_active() and st.button("See the proof", key="vc_proof", use_container_width=True):
+            from ui.components.proof_state import open_proof_overlay
 
             open_proof_overlay(origin="today", proof_mode=state.key)
     st.markdown("</div>", unsafe_allow_html=True)
@@ -345,6 +357,15 @@ def _render_today_canvas(
         why_bullets=why,
         built_at=str(cached["built_at"]),
         broker=broker,
+    )
+
+    from ui.components.today_intelligence import render_today_command_center
+
+    render_today_command_center(
+        state=state,
+        market=market,
+        cached={**cached, "snapshot": snapshot},
+        broker_connected=broker.connected(),
     )
 
 

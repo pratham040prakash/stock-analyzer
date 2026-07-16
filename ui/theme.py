@@ -1002,7 +1002,57 @@ VERDICT_CANVAS_CSS = """
     font-size: 11px;
     color: rgba(245,245,247,0.25);
     text-align: center;
-    margin: 24px 0 80px 0;
+    margin: 24px 0 16px 0;
+}
+.vc-intel-stack {
+    max-width: 398px;
+    margin: 0 auto 24px;
+    padding: 0 4px;
+}
+.vc-intel-block {
+    border-top: 1px solid #2C2C2E;
+    padding: 18px 0 4px 0;
+}
+.vc-intel-block:first-child {
+    border-top: none;
+    padding-top: 8px;
+}
+.vc-intel-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(245,245,247,0.38);
+    margin: 0 0 10px 0;
+}
+.vc-intel-line {
+    font-size: 15px;
+    font-weight: 400;
+    line-height: 1.45;
+    color: rgba(245,245,247,0.82);
+    margin: 0 0 8px 0;
+}
+.vc-intel-line.vc-intel-high { color: #00E676; }
+.vc-intel-line.vc-intel-medium { color: #FFC107; }
+.vc-intel-line.vc-intel-low { color: rgba(245,245,247,0.55); }
+.vc-intel-line.vc-intel-warn { color: #FF9E80; }
+.vc-intel-actions {
+    max-width: 398px;
+    margin: 8px auto 16px;
+}
+.vc-intel-actions [data-testid="stButton"] button {
+    background: transparent !important;
+    border: 1px solid #2C2C2E !important;
+    color: rgba(245,245,247,0.72) !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    min-height: 40px !important;
+}
+.vc-intel-foot {
+    text-align: center;
+    font-size: 11px;
+    color: rgba(245,245,247,0.22);
+    margin: 0 0 96px 0;
 }
 @media (max-width: 360px) {
     .verdict-canvas-root .vc-verdict-word { font-size: 44px; }
