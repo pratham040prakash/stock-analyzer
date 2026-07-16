@@ -1,0 +1,13 @@
+date,time,agent_name,customer_phone,duration_sec,status,hangup_reason
+2026-07-09,10:05:12,Priya Sharma,9876543210,245,answered,normal
+2026-07-09,10:08:44,Rahul Verma,9123456780,0,missed,no_answer
+2026-07-09,10:12:01,Priya Sharma,9988776655,180,answered,normal
+2026-07-09,10:15:33,Amit Singh,9012345678,12,failed,network_error
+2026-07-09,10:18:20,Rahul Verma,8877665544,320,answered,normal
+2026-07-09,10:22:45,Priya Sharma,8765432109,0,missed,agent_busy
+2026-07-09,10:25:10,Amit Singh,7654321098,45,failed,call_drop
+2026-07-09,10:30:00,Rahul Verma,6543210987,150,answered,normal
+2026-07-09,11:02:15,Priya Sharma,9432109876,0,missed,customer_busy
+2026-07-09,11:05:40,Amit Singh,9321098765,90,answered,normal
+2026-07-09,11:10:22,Rahul Verma,9210987654,8,failed,network_error
+2026-07-09,11:15:55,Priya Sharma,9109876543,210,answered,normal
