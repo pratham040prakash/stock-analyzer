@@ -8,17 +8,68 @@ from unittest.mock import MagicMock
 from analyzer.decision_engine.models import DecisionArtifact, DecisionVerdict, UncertaintyVector
 from analyzer.context_engine.models import ContextSnapshot
 from ui.components.home_dashboard import (
+    _mentor_one_liner,
     _pick_decision,
-    _risk_reward,
+    _resolve_verdict_state,
     _snapshot_from_cache,
     _snapshot_to_cache,
+    _trim_words,
+    VerdictCanvasState,
 )
+from ui.broker.state import BrokerSnapshot
 
 
 class HomeDashboardHelpersTest(unittest.TestCase):
-    def test_risk_reward(self):
-        self.assertEqual(_risk_reward(100.0, 95.0, 110.0), 2.0)
-        self.assertIsNone(_risk_reward(100.0, 100.0, 110.0))
+    def test_trim_words_caps_mentor_length(self):
+        long = " ".join(["word"] * 30)
+        trimmed = _trim_words(long, max_words=18)
+        self.assertLessEqual(len(trimmed.split()), 18)
+        self.assertTrue(trimmed.endswith("…"))
+
+    def test_resolve_verdict_connect_when_broker_offline(self):
+        broker = BrokerSnapshot(state="disconnected")
+        snapshot = MagicMock(risk_mode="NEUTRAL", market_session={}, market_phase="opening")
+        mis = MagicMock(loss_streak_days=0)
+        state = _resolve_verdict_state(broker, snapshot, mis, None)
+        self.assertEqual(state.key, "connect")
+
+    def test_resolve_verdict_trade_on_act(self):
+        artifact = DecisionArtifact(
+            decision_id="d1",
+            timestamp="",
+            verdict=DecisionVerdict.ACT,
+            reason="ok",
+            evidence_packet_id="ep1",
+            confidence=0.8,
+            uncertainty=UncertaintyVector(),
+            capital_recommendation="",
+            execution_recommendation="",
+            trade_allowed=True,
+        )
+        broker = BrokerSnapshot(state="connected")
+        snapshot = MagicMock(
+            risk_mode="NEUTRAL",
+            market_session={"phase": "regular"},
+            market_phase="regular",
+            trading_restrictions=(),
+            confidence=0.8,
+        )
+        mis = MagicMock(loss_streak_days=0)
+        state = _resolve_verdict_state(broker, snapshot, mis, artifact)
+        self.assertEqual(state.key, "trade")
+        self.assertEqual(state.cta_label, "See the plan")
+
+    def test_mentor_one_liner_is_short(self):
+        state = VerdictCanvasState("wait", "Wait", "You're done for today", "done")
+        line = _mentor_one_liner(
+            state,
+            decision=None,
+            mis=MagicMock(summary="", flags=()),
+            os_report=MagicMock(next_step=""),
+            snapshot=MagicMock(trading_restrictions=()),
+            pins=[],
+        )
+        self.assertLessEqual(len(line.split()), 18)
 
     def test_pick_decision_prefers_starred_equity(self):
         artifact = DecisionArtifact(

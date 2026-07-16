@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Phase 1 — Verdict Canvas Mockup · AI Trading Decision System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0A0A0B;
+      --surface: #1C1C1E;
+      --border: #2C2C2E;
+      --text: #F5F5F7;
+      --text-muted: rgba(245, 245, 247, 0.45);
+      --text-mentor: rgba(245, 245, 247, 0.88);
+      --verdict-wait: #FFC107;
+      --verdict-trade: #00E676;
+      --verdict-pause: #FF6B6B;
+      --verdict-rest: #A1A1A6;
+      --verdict-connect: #64B5F6;
+      --btn-bg: #F5F5F7;
+      --btn-text: #0A0A0B;
+      --sync-ok: #00E676;
+      --sync-warn: #FFC107;
+      --sync-bad: #FF6B6B;
+      --content-w: 390px;
+      --side: 16px;
+      --nav-h: 49px;
+      --safe-top: env(safe-area-inset-top, 12px);
+      --safe-bottom: env(safe-area-inset-bottom, 8px);
+      --verdict-glow: rgba(255, 193, 7, 0.06);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: Inter, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      background: #000;
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* Design review toolbar — not part of shipped UI */
+    .review-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 1000;
+      background: #111;
+      border-bottom: 1px solid #333;
+      padding: 8px 12px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      font-size: 11px;
+      color: #888;
+    }
+    .review-bar span { margin-right: 8px; }
+    .review-bar button {
+      font: 500 11px/1 Inter, sans-serif;
+      padding: 6px 10px;
+      border-radius: 6px;
+      border: 1px solid #333;
+      background: #1a1a1a;
+      color: #ccc;
+      cursor: pointer;
+    }
+    .review-bar button.active {
+      background: #F5F5F7;
+      color: #0A0A0B;
+      border-color: #F5F5F7;
+    }
+
+    .device-frame {
+      margin-top: 52px;
+      width: var(--content-w);
+      min-height: 844px;
+      background: var(--bg);
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 0 0 1px #222, 0 24px 80px rgba(0,0,0,0.6);
+    }
+
+    @media (min-width: 500px) {
+      .device-frame { border-radius: 40px; margin-top: 60px; margin-bottom: 40px; }
+    }
+
+    .screen {
+      display: flex;
+      flex-direction: column;
+      min-height: 844px;
+      padding-top: var(--safe-top);
+      padding-bottom: calc(var(--nav-h) + var(--safe-bottom) + 72px);
+    }
+
+    /* Header */
+    .header {
+      height: 44px;
+      padding: 0 var(--side);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .header-time {
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+    .sync {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+    .sync-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--sync-ok);
+    }
+
+    /* Verdict zone */
+    .verdict-zone {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      min-height: 320px;
+      padding: 48px var(--side);
+    }
+    .verdict-glow {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(
+        ellipse 280px 200px at 50% 45%,
+        var(--verdict-glow) 0%,
+        transparent 70%
+      );
+      pointer-events: none;
+    }
+    .verdict {
+      font-size: 56px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      line-height: 1;
+      text-align: center;
+      position: relative;
+      z-index: 1;
+      color: var(--verdict-wait);
+    }
+    @media (max-width: 360px) {
+      .verdict { font-size: 44px; }
+    }
+
+    /* Content stack */
+    .content-stack {
+      padding: 0 var(--side);
+      flex-shrink: 0;
+    }
+    .mentor {
+      font-size: 20px;
+      font-weight: 400;
+      line-height: 1.45;
+      color: var(--text-mentor);
+      max-width: 358px;
+    }
+    .primary-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 52px;
+      margin-top: 32px;
+      border: none;
+      border-radius: 14px;
+      background: var(--btn-bg);
+      color: var(--btn-text);
+      font-family: inherit;
+      font-size: 17px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.24);
+      transition: transform 0.1s ease, background 0.1s ease;
+    }
+    .primary-btn:active { transform: scale(0.98); background: #E8E8ED; }
+    .primary-btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+    .ghost-hint {
+      display: block;
+      width: 100%;
+      margin-top: 16px;
+      padding: 12px 0;
+      border: none;
+      background: none;
+      font-family: inherit;
+      font-size: 15px;
+      font-weight: 500;
+      color: rgba(245, 245, 247, 0.4);
+      text-align: center;
+      cursor: pointer;
+    }
+
+    /* Bottom nav */
+    .bottom-nav {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: calc(var(--nav-h) + var(--safe-bottom));
+      padding-bottom: var(--safe-bottom);
+      background: var(--bg);
+      border-top: 1px solid var(--surface);
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+    }
+    .nav-item {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      padding: 6px 0;
+      color: var(--text-muted);
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+    }
+    .nav-item.active { color: var(--text); }
+    .nav-item.active::before {
+      content: "";
+      width: 24px;
+      height: 2px;
+      background: var(--text);
+      border-radius: 1px;
+      margin-bottom: 2px;
+    }
+    .nav-icon {
+      width: 24px;
+      height: 24px;
+      opacity: 0.45;
+    }
+    .nav-item.active .nav-icon { opacity: 1; }
+
+    /* Ask pill */
+    .ask-pill {
+      position: absolute;
+      right: 16px;
+      bottom: calc(var(--nav-h) + var(--safe-bottom) + 16px);
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+    .ask-pill svg { opacity: 0.9; }
+
+    /* Why sheet */
+    .sheet-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 200;
+    }
+    .sheet-backdrop.open { display: block; }
+    .why-sheet {
+      position: fixed;
+      left: 50%;
+      transform: translateX(-50%) translateY(100%);
+      bottom: 0;
+      width: min(var(--content-w), 100vw);
+      max-height: 70vh;
+      background: var(--surface);
+      border-radius: 24px 24px 0 0;
+      z-index: 201;
+      transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+      padding: 8px 24px calc(32px + var(--safe-bottom));
+      overflow-y: auto;
+    }
+    .why-sheet.open { transform: translateX(-50%) translateY(0); }
+    .sheet-handle {
+      width: 36px;
+      height: 5px;
+      background: #3A3A3C;
+      border-radius: 3px;
+      margin: 0 auto 24px;
+    }
+    .why-sheet ul {
+      list-style: none;
+      font-size: 17px;
+      line-height: 1.5;
+      color: rgba(245,245,247,0.85);
+    }
+    .why-sheet li {
+      padding: 8px 0;
+      padding-left: 16px;
+      position: relative;
+    }
+    .why-sheet li::before {
+      content: "·";
+      position: absolute;
+      left: 0;
+      color: var(--text-muted);
+    }
+
+    .loading-dots {
+      display: inline-flex;
+      gap: 4px;
+    }
+    .loading-dots span {
+      animation: pulse 1.2s ease-in-out infinite;
+    }
+    .loading-dots span:nth-child(2) { animation-delay: 0.15s; }
+    .loading-dots span:nth-child(3) { animation-delay: 0.3s; }
+    @keyframes pulse {
+      0%, 80%, 100% { opacity: 0.3; }
+      40% { opacity: 1; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .why-sheet { transition: none; }
+      .loading-dots span { animation: none; opacity: 0.6; }
+    }
+
+    .spec-note {
+      max-width: var(--content-w);
+      padding: 16px;
+      font-size: 12px;
+      color: #666;
+      line-height: 1.5;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="review-bar" aria-hidden="true">
+    <span>Mockup states:</span>
+    <button type="button" class="active" data-state="wait">Wait</button>
+    <button type="button" data-state="trade">Trade</button>
+    <button type="button" data-state="pause">Pause</button>
+    <button type="button" data-state="rest">Rest</button>
+    <button type="button" data-state="connect">Connect</button>
+    <button type="button" data-state="loading">Loading</button>
+  </div>
+
+  <div class="device-frame" role="main">
+    <div class="screen">
+      <header class="header">
+        <time class="header-time" id="hdr-time">9:14 AM</time>
+        <div class="sync" id="sync">
+          <span class="sync-dot"></span>
+          <span>Synced</span>
+        </div>
+      </header>
+
+      <section class="verdict-zone" aria-live="polite">
+        <div class="verdict-glow" id="glow"></div>
+        <h1 class="verdict" id="verdict">Wait</h1>
+      </section>
+
+      <div class="content-stack">
+        <p class="mentor" id="mentor">
+          I'd sit on my hands until 9:45. Your book looks fine. If RELIANCE clears ₹2,850, that's the only name worth a look.
+        </p>
+        <button type="button" class="primary-btn" id="cta">You're done for today</button>
+        <button type="button" class="ghost-hint" id="why-open">Why I'm saying this</button>
+      </div>
+    </div>
+
+    <nav class="bottom-nav" aria-label="Main">
+      <div class="nav-item active">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+        Today
+      </div>
+      <div class="nav-item">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
+        Trades
+      </div>
+      <div class="nav-item">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>
+        You
+      </div>
+    </nav>
+
+    <button type="button" class="ask-pill" aria-label="Ask" title="Phase 4">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#F5F5F7" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
+    </button>
+  </div>
+
+  <div class="sheet-backdrop" id="backdrop"></div>
+  <div class="why-sheet" id="sheet" role="dialog" aria-label="Why I'm saying this">
+    <div class="sheet-handle"></div>
+    <ul id="why-bullets">
+      <li>Opening range still forming — wait for 9:45.</li>
+      <li>VIX is elevated; size down if you trade.</li>
+      <li>Your portfolio is balanced — no sector overload.</li>
+    </ul>
+  </div>
+
+  <p class="spec-note">
+    Phase 1 pixel mockup · 390×844 · Open <code>docs/design/Phase_1_Verdict_Canvas_Spec.md</code> for full spec.<br />
+    Review toolbar is for design QA only — not shipped.
+  </p>
+
+  <script>
+    const states = {
+      wait: {
+        verdict: "Wait",
+        color: "#FFC107",
+        glow: "rgba(255, 193, 7, 0.06)",
+        mentor: "I'd sit on my hands until 9:45. Your book looks fine. If RELIANCE clears ₹2,850, that's the only name worth a look.",
+        cta: "You're done for today",
+        sync: "ok",
+        why: [
+          "Opening range still forming — wait for 9:45.",
+          "VIX is elevated; size down if you trade.",
+          "Your portfolio is balanced — no sector overload."
+        ]
+      },
+      trade: {
+        verdict: "Trade",
+        color: "#00E676",
+        glow: "rgba(0, 230, 118, 0.06)",
+        mentor: "One setup worth risking capital on. Stay within your ₹2,000 daily limit. Your book can handle it.",
+        cta: "See the plan",
+        sync: "ok",
+        why: [
+          "RELIANCE has the clearest opening-range breakout.",
+          "Risk is ₹2,000 — within your daily cap.",
+          "I'm fairly sure about this one."
+        ]
+      },
+      pause: {
+        verdict: "Pause",
+        color: "#FF6B6B",
+        glow: "rgba(255, 107, 107, 0.05)",
+        mentor: "Three losing days in a row. The smartest trade is no trade. Your book doesn't need changes.",
+        cta: "You're done for today",
+        sync: "ok",
+        why: [
+          "You've lost three sessions in a row.",
+          "Protect capital — come back tomorrow.",
+          "No position in your book needs urgent action."
+        ]
+      },
+      rest: {
+        verdict: "Rest",
+        color: "#A1A1A6",
+        glow: "transparent",
+        mentor: "Markets are closed. Nothing to do until Monday 9 AM.",
+        cta: "View your week",
+        sync: "ok",
+        why: ["NSE session is closed.", "Weekly results are ready when you want them."]
+      },
+      connect: {
+        verdict: "Connect",
+        color: "#64B5F6",
+        glow: "rgba(100, 181, 246, 0.06)",
+        mentor: "I can't see your real holdings yet. Connect Zerodha so I can advise on your actual book.",
+        cta: "Connect Zerodha",
+        sync: "bad",
+        why: ["Holdings data is missing or stale.", "Advice improves once Kite is linked."]
+      },
+      loading: {
+        verdict: "···",
+        color: "#A1A1A6",
+        glow: "transparent",
+        mentor: "Checking the market and your book.",
+        cta: "···",
+        disabled: true,
+        sync: "warn",
+        why: []
+      }
+    };
+
+    const verdictEl = document.getElementById("verdict");
+    const mentorEl = document.getElementById("mentor");
+    const ctaEl = document.getElementById("cta");
+    const glowEl = document.getElementById("glow");
+    const syncEl = document.getElementById("sync");
+    const whyList = document.getElementById("why-bullets");
+
+    function setState(key) {
+      const s = states[key];
+      document.documentElement.style.setProperty("--verdict-glow", s.glow);
+      verdictEl.style.color = s.color;
+      if (key === "loading") {
+        verdictEl.innerHTML = '<span class="loading-dots"><span>·</span><span>·</span><span>·</span></span>';
+      } else {
+        verdictEl.textContent = s.verdict;
+      }
+      mentorEl.textContent = s.mentor;
+      ctaEl.textContent = s.cta;
+      ctaEl.disabled = !!s.disabled;
+      const dot = syncEl.querySelector(".sync-dot");
+      dot.style.background = s.sync === "ok" ? "#00E676" : s.sync === "warn" ? "#FFC107" : "#FF6B6B";
+      syncEl.querySelector("span:last-child").textContent =
+        s.sync === "ok" ? "Synced" : s.sync === "warn" ? "Updating" : "Offline";
+      whyList.innerHTML = (s.why || []).map((t) => `<li>${t}</li>`).join("");
+      document.querySelectorAll(".review-bar button").forEach((b) => {
+        b.classList.toggle("active", b.dataset.state === key);
+      });
+    }
+
+    document.querySelectorAll(".review-bar button").forEach((btn) => {
+      btn.addEventListener("click", () => setState(btn.dataset.state));
+    });
+
+    const backdrop = document.getElementById("backdrop");
+    const sheet = document.getElementById("sheet");
+    document.getElementById("why-open").addEventListener("click", () => {
+      backdrop.classList.add("open");
+      sheet.classList.add("open");
+    });
+    backdrop.addEventListener("click", () => {
+      backdrop.classList.remove("open");
+      sheet.classList.remove("open");
+    });
+  </script>
+</body>
+</html>

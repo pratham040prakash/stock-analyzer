@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Proof Canvas Mockup · AI Trading Decision System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0A0A0B;
+      --surface: #1C1C1E;
+      --border: #2C2C2E;
+      --text: #F5F5F7;
+      --text-muted: rgba(245, 245, 247, 0.45);
+      --text-mentor: rgba(245, 245, 247, 0.92);
+      --text-detail: rgba(245, 245, 247, 0.55);
+      --trade: #00E676;
+      --wait: #FFC107;
+      --pause: #FF6B6B;
+      --rest: #A1A1A6;
+      --risk: #FF8A80;
+      --danger: rgba(255, 107, 107, 0.28);
+      --amber: rgba(255, 193, 7, 0.22);
+      --green-path: rgba(0, 230, 118, 0.35);
+      --green-fill: rgba(0, 230, 118, 0.12);
+      --risk-fill: rgba(255, 138, 128, 0.15);
+      --blur-mask: rgba(10, 10, 11, 0.62);
+      --btn-bg: #F5F5F7;
+      --btn-text: #0A0A0B;
+      --sync-ok: #00E676;
+      --content-w: 390px;
+      --side: 16px;
+      --nav-h: 49px;
+      --safe-top: env(safe-area-inset-top, 12px);
+      --safe-bottom: env(safe-area-inset-bottom, 8px);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: Inter, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      background: #000;
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .review-bar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 2000;
+      background: #111;
+      border-bottom: 1px solid #333;
+      padding: 8px 12px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      font-size: 11px;
+      color: #888;
+    }
+    .review-bar span { margin-right: 4px; white-space: nowrap; }
+    .review-bar button {
+      font: 500 11px/1 Inter, sans-serif;
+      padding: 6px 10px;
+      border-radius: 6px;
+      border: 1px solid #333;
+      background: #1a1a1a;
+      color: #ccc;
+      cursor: pointer;
+    }
+    .review-bar button.active {
+      background: #F5F5F7;
+      color: #0A0A0B;
+      border-color: #F5F5F7;
+    }
+
+    .device-frame {
+      margin-top: 56px;
+      width: var(--content-w);
+      min-height: 844px;
+      background: var(--bg);
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 0 0 1px #222, 0 24px 80px rgba(0,0,0,0.6);
+    }
+    @media (min-width: 500px) {
+      .device-frame { border-radius: 40px; margin-top: 64px; margin-bottom: 40px; }
+    }
+
+    /* Dimmed background (Today / Trades behind proof) */
+    .bg-canvas {
+      position: absolute;
+      inset: 0;
+      padding-top: var(--safe-top);
+      filter: blur(10px);
+      opacity: 0.35;
+      pointer-events: none;
+      user-select: none;
+    }
+    .bg-canvas .bg-verdict {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 280px;
+      font-size: 56px;
+      font-weight: 600;
+      color: var(--trade);
+      opacity: 0.5;
+    }
+
+    /* Proof overlay */
+    .proof-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 10;
+      background: rgba(10, 10, 11, 0.96);
+      display: flex;
+      flex-direction: column;
+      padding-top: var(--safe-top);
+      padding-bottom: calc(var(--nav-h) + var(--safe-bottom) + 8px);
+    }
+
+    .header {
+      height: 44px;
+      padding: 0 var(--side);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .header-time {
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+    .sync {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      color: rgba(245,245,247,0.55);
+    }
+    .sync-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--sync-ok);
+    }
+
+    .proof-body {
+      flex: 1;
+      padding: 0 var(--side);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .proof-echo {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-muted);
+      margin: 4px 0 12px 0;
+      max-width: 358px;
+      line-height: 1.4;
+    }
+
+    .proof-mentor {
+      font-size: 20px;
+      font-weight: 400;
+      line-height: 1.45;
+      color: var(--text-mentor);
+      max-width: 358px;
+      margin-bottom: 16px;
+    }
+
+    /* Proof frame — SVG annotation layer (hero) */
+    .proof-frame {
+      position: relative;
+      width: 100%;
+      max-width: 358px;
+      height: 280px;
+      border-radius: 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .proof-frame svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .proof-action {
+      font-size: 17px;
+      font-weight: 400;
+      line-height: 1.45;
+      color: var(--text-detail);
+      max-width: 358px;
+      margin: 16px 0 0 0;
+    }
+
+    .primary-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      max-width: 358px;
+      height: 52px;
+      margin-top: 20px;
+      border: none;
+      border-radius: 14px;
+      background: var(--btn-bg);
+      color: var(--btn-text);
+      font-family: inherit;
+      font-size: 17px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.24);
+    }
+    .primary-btn:active { transform: scale(0.98); background: #E8E8ED; }
+
+    .ghost-row {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+    .ghost-btn {
+      border: none;
+      background: none;
+      font-family: inherit;
+      font-size: 15px;
+      font-weight: 500;
+      color: rgba(245,245,247,0.4);
+      padding: 10px 12px;
+      cursor: pointer;
+      min-height: 44px;
+    }
+    .ghost-btn:hover { color: rgba(245,245,247,0.65); }
+
+    .proof-foot {
+      font-size: 11px;
+      color: rgba(245,245,247,0.25);
+      text-align: center;
+      margin-top: auto;
+      padding: 16px var(--side) 8px;
+    }
+
+    /* Dock — dimmed */
+    .bottom-nav {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: calc(var(--nav-h) + var(--safe-bottom));
+      padding-bottom: var(--safe-bottom);
+      background: var(--bg);
+      border-top: 1px solid var(--surface);
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      z-index: 5;
+      opacity: 0.5;
+      pointer-events: none;
+    }
+    .nav-item {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-muted);
+      padding: 6px 0;
+    }
+    .nav-item.active { color: var(--text); }
+    .nav-item.active::before {
+      content: "";
+      width: 24px; height: 2px;
+      background: var(--text);
+      margin-bottom: 4px;
+    }
+
+    .ask-pill {
+      position: absolute;
+      right: 16px;
+      bottom: calc(var(--nav-h) + var(--safe-bottom) + 16px);
+      min-width: 56px;
+      height: 56px;
+      padding: 0 16px;
+      border-radius: 28px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+      z-index: 6;
+      opacity: 0.45;
+      pointer-events: none;
+    }
+
+    /* State visibility */
+    .state-panel { display: none; flex-direction: column; flex: 1; }
+    .state-panel.active { display: flex; }
+
+    /* Zone label pulse (trade live) */
+    @keyframes zone-pulse {
+      0%, 100% { opacity: 0.85; }
+      50% { opacity: 1; }
+    }
+    .pulse-zone { animation: zone-pulse 3s ease-in-out infinite; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .pulse-zone { animation: none; }
+    }
+
+    .spec-note {
+      max-width: var(--content-w);
+      padding: 16px 20px 32px;
+      font-size: 12px;
+      color: #666;
+      line-height: 1.55;
+      text-align: center;
+    }
+
+    .fossil-badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: rgba(255, 193, 7, 0.75);
+      margin-bottom: 8px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="review-bar" aria-hidden="true">
+    <span>Proof Canvas ·</span>
+    <button type="button" class="active" data-state="trade">Trade</button>
+    <button type="button" data-state="wait">Wait</button>
+    <button type="button" data-state="pause">Pause</button>
+    <button type="button" data-state="rest">Rest</button>
+    <button type="button" data-state="ask">Ask Proof</button>
+    <button type="button" data-state="fossil">Trust Fossil</button>
+  </div>
+
+  <div class="device-frame" role="main">
+    <!-- Blurred canvas behind -->
+    <div class="bg-canvas" aria-hidden="true">
+      <div class="header">
+        <span class="header-time">14:32 IST</span>
+        <span class="sync"><span class="sync-dot"></span>Synced</span>
+      </div>
+      <div class="bg-verdict" id="bgVerdict">Trade</div>
+    </div>
+
+    <div class="proof-overlay">
+      <div class="header">
+        <span class="header-time">14:32 IST</span>
+        <span class="sync"><span class="sync-dot"></span>Synced</span>
+      </div>
+
+      <div class="proof-body">
+
+        <!-- TRADE -->
+        <div class="state-panel active" data-panel="trade">
+          <p class="proof-echo">You decided to act — here's why.</p>
+          <p class="proof-mentor">Buyers regained control above ₹2,850 after sellers failed three times at the same level.</p>
+          <div class="proof-frame">
+            <svg viewBox="0 0 358 280" xmlns="http://www.w3.org/2000/svg" aria-label="Trade proof annotations">
+              <defs>
+                <filter id="blur-candles" x="-20%" y="-20%" width="140%" height="140%">
+                  <feGaussianBlur stdDeviation="2.5" />
+                </filter>
+                <linearGradient id="fade-bottom" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#1C1C1E" stop-opacity="0"/>
+                  <stop offset="100%" stop-color="#1C1C1E" stop-opacity="0.4"/>
+                </linearGradient>
+              </defs>
+              <rect width="358" height="280" fill="#1C1C1E"/>
+              <!-- Blurred candles (background only) -->
+              <g filter="url(#blur-candles)" opacity="0.35">
+                <rect x="24" y="120" width="6" height="40" fill="#666"/>
+                <rect x="38" y="100" width="6" height="55" fill="#666"/>
+                <rect x="52" y="90" width="6" height="45" fill="#888"/>
+                <rect x="66" y="110" width="6" height="35" fill="#666"/>
+                <rect x="80" y="95" width="6" height="50" fill="#888"/>
+                <rect x="94" y="85" width="6" height="40" fill="#666"/>
+                <rect x="108" y="100" width="6" height="55" fill="#888"/>
+                <rect x="122" y="115" width="6" height="30" fill="#666"/>
+                <rect x="136" y="105" width="6" height="45" fill="#888"/>
+                <rect x="150" y="90" width="6" height="50" fill="#666"/>
+                <rect x="164" y="80" width="6" height="40" fill="#888"/>
+                <rect x="178" y="95" width="6" height="35" fill="#666"/>
+                <rect x="192" y="88" width="6" height="48" fill="#888"/>
+                <rect x="206" y="75" width="6" height="42" fill="#666"/>
+                <rect x="220" y="70" width="6" height="50" fill="#888"/>
+                <rect x="234" y="82" width="6" height="38" fill="#666"/>
+                <rect x="248" y="78" width="6" height="45" fill="#888"/>
+                <rect x="262" y="72" width="6" height="40" fill="#666"/>
+                <rect x="276" y="68" width="6" height="48" fill="#888"/>
+                <rect x="290" y="65" width="6" height="42" fill="#666"/>
+                <rect x="304" y="60" width="6" height="50" fill="#888"/>
+                <rect x="318" y="55" width="6" height="45" fill="#666"/>
+              </g>
+              <!-- Resistance zone -->
+              <rect x="0" y="48" width="358" height="42" fill="rgba(255,107,107,0.18)" class="pulse-zone"/>
+              <text x="16" y="72" fill="rgba(255,107,107,0.9)" font-family="Inter,sans-serif" font-size="11" font-weight="500">Sellers consistently appeared here</text>
+              <!-- Reward corridor -->
+              <rect x="0" y="106" width="358" height="58" fill="var(--green-fill)"/>
+              <!-- Risk corridor -->
+              <rect x="0" y="164" width="358" height="36" fill="var(--risk-fill)"/>
+              <!-- Green path -->
+              <path d="M 40 200 Q 120 150 200 120 T 320 95" fill="none" stroke="#00E676" stroke-width="2.5" stroke-opacity="0.7"/>
+              <text x="100" y="138" fill="rgba(0,230,118,0.95)" font-family="Inter,sans-serif" font-size="11" font-weight="500">This is where buyers regain control</text>
+              <!-- Invalidation -->
+              <line x1="0" y1="200" x2="358" y2="200" stroke="#FF8A80" stroke-width="1" stroke-dasharray="4 4" opacity="0.6"/>
+              <text x="16" y="218" fill="rgba(255,138,128,0.85)" font-family="Inter,sans-serif" font-size="10" font-weight="500">If price closes below here, the idea is wrong</text>
+              <!-- Markers -->
+              <line x1="0" y1="168" x2="358" y2="168" stroke="#00E676" stroke-width="1" opacity="0.5"/>
+              <text x="16" y="162" fill="#00E676" font-family="Inter,sans-serif" font-size="10" font-weight="600">▲ Entry ₹2,850</text>
+              <line x1="0" y1="200" x2="358" y2="200" stroke="#FF8A80" stroke-width="1" opacity="0.5"/>
+              <text x="140" y="194" fill="#FF8A80" font-family="Inter,sans-serif" font-size="10" font-weight="600">■ Stop ₹2,815</text>
+              <line x1="0" y1="118" x2="358" y2="118" stroke="rgba(0,230,118,0.5)" stroke-width="1"/>
+              <text x="220" y="112" fill="#00E676" font-family="Inter,sans-serif" font-size="10" font-weight="600">◆ Target ₹2,930</text>
+              <!-- Now -->
+              <circle cx="290" cy="108" r="5" fill="#F5F5F7"/>
+              <text x="300" y="112" fill="#F5F5F7" font-family="Inter,sans-serif" font-size="10" font-weight="600">● Now ₹2,862</text>
+              <rect width="358" height="280" fill="url(#fade-bottom)" pointer-events="none"/>
+            </svg>
+          </div>
+          <p class="proof-action">Enter only above ₹2,850 — below that, the proof invalidates.</p>
+          <button type="button" class="primary-btn">Back to Trades</button>
+          <div class="ghost-row">
+            <button type="button" class="ghost-btn">Show raw candles</button>
+            <button type="button" class="ghost-btn">What if wrong?</button>
+          </div>
+        </div>
+
+        <!-- WAIT -->
+        <div class="state-panel" data-panel="wait">
+          <p class="proof-echo">Today says wait — here's why.</p>
+          <p class="proof-mentor">Price is extended into an area where sellers kept showing up — patience beats forcing an entry.</p>
+          <div class="proof-frame">
+            <svg viewBox="0 0 358 280" xmlns="http://www.w3.org/2000/svg" aria-label="Wait proof annotations">
+              <rect width="358" height="280" fill="#1C1C1E"/>
+              <g filter="url(#blur-candles)" opacity="0.25">
+                <rect x="20" y="100" width="5" height="50" fill="#555"/>
+                <rect x="35" y="90" width="5" height="60" fill="#666"/>
+                <rect x="50" y="80" width="5" height="45" fill="#555"/>
+                <rect x="65" y="95" width="5" height="55" fill="#666"/>
+                <rect x="80" y="70" width="5" height="50" fill="#555"/>
+                <rect x="95" y="85" width="5" height="40" fill="#666"/>
+                <rect x="110" y="75" width="5" height="55" fill="#555"/>
+                <rect x="125" y="65" width="5" height="45" fill="#666"/>
+                <rect x="140" y="80" width="5" height="50" fill="#555"/>
+                <rect x="155" y="60" width="5" height="55" fill="#666"/>
+                <rect x="170" y="70" width="5" height="40" fill="#555"/>
+                <rect x="185" y="55" width="5" height="50" fill="#666"/>
+                <rect x="200" y="65" width="5" height="45" fill="#555"/>
+                <rect x="215" y="50" width="5" height="55" fill="#666"/>
+                <rect x="230" y="58" width="5" height="48" fill="#555"/>
+                <rect x="245" y="45" width="5" height="52" fill="#666"/>
+                <rect x="260" y="52" width="5" height="45" fill="#555"/>
+                <rect x="275" y="40" width="5" height="50" fill="#666"/>
+                <rect x="290" y="48" width="5" height="42" fill="#555"/>
+                <rect x="305" y="38" width="5" height="48" fill="#666"/>
+                <rect x="320" y="42" width="5" height="40" fill="#555"/>
+              </g>
+              <!-- Danger zone — hero -->
+              <rect x="0" y="32" width="358" height="88" fill="var(--danger)"/>
+              <text x="16" y="58" fill="rgba(255,107,107,0.95)" font-family="Inter,sans-serif" font-size="12" font-weight="600">Do not buy here</text>
+              <text x="16" y="78" fill="rgba(255,107,107,0.75)" font-family="Inter,sans-serif" font-size="11" font-weight="500">Price is extended — poor asymmetry</text>
+              <!-- Demand below (sharp) -->
+              <rect x="0" y="200" width="358" height="48" fill="rgba(0,230,118,0.08)"/>
+              <line x1="0" y1="224" x2="358" y2="224" stroke="rgba(0,230,118,0.4)" stroke-width="1" stroke-dasharray="3 3"/>
+              <text x="16" y="240" fill="rgba(0,230,118,0.85)" font-family="Inter,sans-serif" font-size="11" font-weight="500">Previous buyers defended here</text>
+              <!-- Blur mask over mid chart -->
+              <rect x="0" y="120" width="358" height="80" fill="var(--blur-mask)"/>
+              <circle cx="270" cy="72" r="5" fill="#F5F5F7"/>
+              <text x="282" y="76" fill="#F5F5F7" font-family="Inter,sans-serif" font-size="10" font-weight="600">● Now — inside risk zone</text>
+            </svg>
+          </div>
+          <p class="proof-action">Patience is the proof — wait for price to return to defended ground.</p>
+          <button type="button" class="primary-btn">Back to Today</button>
+          <div class="ghost-row">
+            <button type="button" class="ghost-btn">Show raw candles</button>
+          </div>
+        </div>
+
+        <!-- PAUSE -->
+        <div class="state-panel" data-panel="pause">
+          <p class="proof-echo">Today says pause — structure is too weak.</p>
+          <p class="proof-mentor">Mixed signals — neither buyers nor sellers have clear control. New risk isn't justified.</p>
+          <div class="proof-frame">
+            <svg viewBox="0 0 358 280" xmlns="http://www.w3.org/2000/svg" aria-label="Pause proof annotations">
+              <rect width="358" height="280" fill="#1C1C1E"/>
+              <g opacity="0.3">
+                <rect x="30" y="110" width="5" height="40" fill="#555"/>
+                <rect x="50" y="100" width="5" height="50" fill="#666"/>
+                <rect x="70" y="115" width="5" height="35" fill="#555"/>
+                <rect x="90" y="105" width="5" height="45" fill="#666"/>
+                <rect x="110" y="95" width="5" height="50" fill="#555"/>
+                <rect x="130" y="108" width="5" height="38" fill="#666"/>
+                <rect x="150" y="102" width="5" height="42" fill="#555"/>
+                <rect x="170" y="98" width="5" height="48" fill="#666"/>
+                <rect x="190" y="112" width="5" height="32" fill="#555"/>
+                <rect x="210" y="100" width="5" height="45" fill="#666"/>
+                <rect x="230" y="108" width="5" height="40" fill="#555"/>
+                <rect x="250" y="95" width="5" height="50" fill="#666"/>
+                <rect x="270" y="105" width="5" height="38" fill="#555"/>
+                <rect x="290" y="98" width="5" height="45" fill="#666"/>
+              </g>
+              <!-- Amber uncertainty band -->
+              <rect x="0" y="88" width="358" height="96" fill="var(--amber)"/>
+              <text x="16" y="118" fill="rgba(255,193,7,0.95)" font-family="Inter,sans-serif" font-size="12" font-weight="600">Mixed signals — no clear control</text>
+              <text x="16" y="138" fill="rgba(255,193,7,0.75)" font-family="Inter,sans-serif" font-size="11" font-weight="500">Market structure is weak for new entries</text>
+              <!-- Soft loss context (no numbers) -->
+              <rect x="0" y="200" width="358" height="56" fill="rgba(255,107,107,0.08)"/>
+              <text x="16" y="232" fill="rgba(255,107,107,0.7)" font-family="Inter,sans-serif" font-size="11" font-weight="500">Protect capital — recent sessions have been rough</text>
+              <circle cx="300" cy="130" r="5" fill="#F5F5F7"/>
+              <text x="16" y="168" fill="rgba(245,245,247,0.55)" font-family="Inter,sans-serif" font-size="10" font-weight="500">● Now — inside uncertainty band</text>
+            </svg>
+          </div>
+          <p class="proof-action">Standing down today is the disciplined choice — protect the streak.</p>
+          <button type="button" class="primary-btn">Back to Today</button>
+          <div class="ghost-row">
+            <button type="button" class="ghost-btn">Show raw candles</button>
+          </div>
+        </div>
+
+        <!-- REST -->
+        <div class="state-panel" data-panel="rest">
+          <p class="proof-echo">Markets are closed.</p>
+          <p class="proof-mentor">Nothing deserves attention right now — rest is part of the plan.</p>
+          <div class="proof-frame" style="display:flex;align-items:center;justify-content:center;">
+            <svg viewBox="0 0 358 280" xmlns="http://www.w3.org/2000/svg" aria-label="Rest proof" style="opacity:0.12">
+              <rect width="358" height="280" fill="#1C1C1E"/>
+              <rect x="40" y="80" width="6" height="120" fill="#888"/>
+              <rect x="60" y="100" width="6" height="90" fill="#666"/>
+              <rect x="80" y="70" width="6" height="130" fill="#888"/>
+              <rect x="100" y="90" width="6" height="100" fill="#666"/>
+              <rect x="120" y="60" width="6" height="140" fill="#888"/>
+              <rect x="140" y="85" width="6" height="110" fill="#666"/>
+              <rect x="160" y="75" width="6" height="125" fill="#888"/>
+              <rect x="180" y="95" width="6" height="95" fill="#666"/>
+              <rect x="200" y="65" width="6" height="135" fill="#888"/>
+              <rect x="220" y="80" width="6" height="115" fill="#666"/>
+              <rect x="240" y="70" width="6" height="125" fill="#888"/>
+              <rect x="260" y="90" width="6" height="100" fill="#666"/>
+              <rect x="280" y="60" width="6" height="140" fill="#888"/>
+            </svg>
+            <p style="position:absolute;font-size:15px;font-weight:500;color:rgba(161,161,166,0.85);text-align:center;padding:0 32px;line-height:1.45;">Proof refreshes at market open</p>
+          </div>
+          <p class="proof-action">Check back when Today builds the next stance.</p>
+          <button type="button" class="primary-btn">Back to Today</button>
+        </div>
+
+        <!-- ASK PROOF -->
+        <div class="state-panel" data-panel="ask">
+          <p class="proof-echo">You asked: Should I buy HAL?</p>
+          <p class="proof-mentor">HAL is extended into seller territory — I'd wait for price to return to where buyers last defended.</p>
+          <div class="proof-frame">
+            <svg viewBox="0 0 358 280" xmlns="http://www.w3.org/2000/svg" aria-label="Ask proof annotations">
+              <rect width="358" height="280" fill="#1C1C1E"/>
+              <g filter="url(#blur-candles)" opacity="0.28">
+                <rect x="25" y="70" width="5" height="55" fill="#666"/>
+                <rect x="45" y="60" width="5" height="60" fill="#555"/>
+                <rect x="65" y="55" width="5" height="50" fill="#666"/>
+                <rect x="85" y="48" width="5" height="58" fill="#555"/>
+                <rect x="105" y="42" width="5" height="52" fill="#666"/>
+                <rect x="125" y="38" width="5" height="48" fill="#555"/>
+                <rect x="145" y="35" width="5" height="55" fill="#666"/>
+                <rect x="165" y="40" width="5" height="45" fill="#555"/>
+                <rect x="185" y="32" width="5" height="50" fill="#666"/>
+                <rect x="205" y="38" width="5" height="42" fill="#555"/>
+                <rect x="225" y="30" width="5" height="48" fill="#666"/>
+                <rect x="245" y="35" width="5" height="40" fill="#555"/>
+                <rect x="265" y="28" width="5" height="45" fill="#666"/>
+                <rect x="285" y="32" width="5" height="38" fill="#555"/>
+              </g>
+              <!-- Wait answer = amber/red rim -->
+              <rect x="4" y="28" width="350" height="78" fill="none" stroke="#FFC107" stroke-width="1.5" stroke-opacity="0.5" rx="4"/>
+              <rect x="0" y="32" width="358" height="72" fill="rgba(255,193,7,0.15)"/>
+              <text x="16" y="56" fill="rgba(255,193,7,0.95)" font-family="Inter,sans-serif" font-size="12" font-weight="600">Do not buy here — HAL is extended</text>
+              <text x="16" y="76" fill="rgba(255,193,7,0.75)" font-family="Inter,sans-serif" font-size="11" font-weight="500">Sellers consistently appeared here</text>
+              <rect x="0" y="195" width="358" height="50" fill="rgba(0,230,118,0.08)"/>
+              <line x1="0" y1="220" x2="358" y2="220" stroke="rgba(0,230,118,0.35)" stroke-dasharray="3 3"/>
+              <text x="16" y="236" fill="rgba(0,230,118,0.85)" font-family="Inter,sans-serif" font-size="11" font-weight="500">Previous buyers defended here — wait for this</text>
+              <circle cx="255" cy="58" r="5" fill="#F5F5F7"/>
+              <text x="16" y="168" fill="rgba(245,245,247,0.5)" font-family="Inter,sans-serif" font-size="10" font-weight="500">Answer: Wait</text>
+            </svg>
+          </div>
+          <p class="proof-action">Don't add HAL today — wait for a pullback to defended ground.</p>
+          <button type="button" class="primary-btn">Back to Ask</button>
+          <div class="ghost-row">
+            <button type="button" class="ghost-btn">Show raw candles</button>
+          </div>
+        </div>
+
+        <!-- TRUST FOSSIL -->
+        <div class="state-panel" data-panel="fossil">
+          <span class="fossil-badge">Thursday · frozen snapshot</span>
+          <p class="proof-echo">What I saw when I called Wait on INFY.</p>
+          <p class="proof-mentor">I read this as extended structure — INFY rallied anyway. I've since tightened my breakout confirmation rule.</p>
+          <div class="proof-frame">
+            <svg viewBox="0 0 358 280" xmlns="http://www.w3.org/2000/svg" aria-label="Trust fossil proof">
+              <rect width="358" height="280" fill="#1C1C1E"/>
+              <!-- Fossil tint -->
+              <rect width="358" height="280" fill="rgba(100,181,246,0.04)"/>
+              <g opacity="0.4">
+                <rect x="30" y="100" width="5" height="45" fill="#666"/>
+                <rect x="50" y="90" width="5" height="55" fill="#555"/>
+                <rect x="70" y="85" width="5" height="50" fill="#666"/>
+                <rect x="90" y="75" width="5" height="60" fill="#555"/>
+                <rect x="110" y="70" width="5" height="55" fill="#666"/>
+                <rect x="130" y="65" width="5" height="50" fill="#555"/>
+                <rect x="150" y="58" width="5" height="58" fill="#666"/>
+                <rect x="170" y="52" width="5" height="52" fill="#555"/>
+                <rect x="190" y="48" width="5" height="55" fill="#666"/>
+                <rect x="210" y="42" width="5" height="50" fill="#555"/>
+                <rect x="230" y="38" width="5" height="48" fill="#666"/>
+                <rect x="250" y="35" width="5" height="52" fill="#555"/>
+              </g>
+              <!-- What AI saw (danger at time) -->
+              <rect x="0" y="40" width="358" height="70" fill="rgba(255,193,7,0.18)"/>
+              <text x="16" y="64" fill="rgba(255,193,7,0.9)" font-family="Inter,sans-serif" font-size="11" font-weight="500">I saw: extended — called Wait</text>
+              <!-- What happened (ghost path up) -->
+              <path d="M 250 90 L 290 50 L 330 35" fill="none" stroke="rgba(255,107,107,0.5)" stroke-width="2" stroke-dasharray="5 4"/>
+              <text x="16" y="88" fill="rgba(255,107,107,0.75)" font-family="Inter,sans-serif" font-size="10" font-weight="500">What happened: rallied +1.2%</text>
+              <!-- Learning note -->
+              <rect x="0" y="210" width="358" height="56" fill="rgba(100,181,246,0.1)"/>
+              <text x="16" y="234" fill="rgba(100,181,246,0.9)" font-family="Inter,sans-serif" font-size="11" font-weight="500">What changed: tighter breakout confirmation</text>
+              <text x="16" y="252" fill="rgba(245,245,247,0.45)" font-family="Inter,sans-serif" font-size="10" font-weight="500">Fossil — not live data</text>
+            </svg>
+          </div>
+          <p class="proof-action">Misses update tomorrow's rules — that's how trust compounds.</p>
+          <button type="button" class="primary-btn">Back to Trust</button>
+          <div class="ghost-row">
+            <button type="button" class="ghost-btn">Since then</button>
+          </div>
+        </div>
+
+      </div>
+
+      <p class="proof-foot">Annotations are AI-drawn evidence — not a charting workspace.</p>
+    </div>
+
+    <div class="ask-pill">Ask</div>
+    <nav class="bottom-nav" aria-label="Dock">
+      <div class="nav-item" id="navToday">Today</div>
+      <div class="nav-item active" id="navTrades">Trades</div>
+      <div class="nav-item" id="navYou">You</div>
+    </nav>
+  </div>
+
+  <p class="spec-note">
+    <strong>Proof Canvas mockup</strong> — open this file in a browser. Use the toolbar to review all six states before production code.<br />
+    SVG annotation layer only · no TradingView · matches Phase 1–5 tokens (#0A0A0B, 390px, Inter).<br />
+    Screenshot each state for approval, then freeze architecture permanently.
+  </p>
+
+  <script>
+    const states = {
+      trade:  { bg: 'Trade', nav: 'trades', btn: 'Back to Trades' },
+      wait:   { bg: 'Wait',  nav: 'today',  btn: 'Back to Today' },
+      pause:  { bg: 'Pause', nav: 'today',  btn: 'Back to Today' },
+      rest:   { bg: 'Rest',  nav: 'today',  btn: 'Back to Today' },
+      ask:    { bg: 'Ask',   nav: 'today',  btn: 'Back to Ask' },
+      fossil: { bg: 'Trust', nav: 'you',    btn: 'Back to Trust' },
+    };
+
+    const buttons = document.querySelectorAll('.review-bar button');
+    const panels = document.querySelectorAll('.state-panel');
+    const bgVerdict = document.getElementById('bgVerdict');
+    const navToday = document.getElementById('navToday');
+    const navTrades = document.getElementById('navTrades');
+    const navYou = document.getElementById('navYou');
+
+    function setState(name) {
+      buttons.forEach(b => b.classList.toggle('active', b.dataset.state === name));
+      panels.forEach(p => p.classList.toggle('active', p.dataset.panel === name));
+      const cfg = states[name];
+      if (cfg) {
+        bgVerdict.textContent = cfg.bg;
+        navToday.classList.toggle('active', cfg.nav === 'today');
+        navTrades.classList.toggle('active', cfg.nav === 'trades');
+        navYou.classList.toggle('active', cfg.nav === 'you');
+        const primary = document.querySelector('.state-panel.active .primary-btn');
+        if (primary) primary.textContent = cfg.btn;
+      }
+    }
+
+    buttons.forEach(btn => {
+      btn.addEventListener('click', () => setState(btn.dataset.state));
+    });
+  </script>
+</body>
+</html>

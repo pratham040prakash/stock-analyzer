@@ -215,7 +215,7 @@ def main() -> None:
     load_app_env()
     startup_trace(1, "load_app_env")
 
-    st.set_page_config(page_title="Stock Analyzer", page_icon="📈", layout="wide")
+    st.set_page_config(page_title="AI Trading Decision System", page_icon="📈", layout="wide")
     startup_trace(1, "st.set_page_config")
 
     # Section 9 — consume OAuth callback before nav, wizard, or startup skip.
@@ -238,7 +238,8 @@ def main() -> None:
     is_home = st.session_state.get("nav_tab") == "Home"
     startup_trace(13, "page_routing", f"nav_tab={st.session_state.get('nav_tab')}")
 
-    st.title("📈 Stock Analyzer")
+    if not is_home:
+        st.title("📈 Stock Analyzer")
 
     with st.sidebar:
         st.header("Market")
@@ -294,7 +295,6 @@ def main() -> None:
 
     if is_home:
         st.session_state.setdefault("compact_nav", True)
-        render_app_navigation()
         render_unified_home(market, period=period)
         return
 

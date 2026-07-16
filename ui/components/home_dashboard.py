@@ -1,8 +1,9 @@
-"""Home investing assistant — five questions, action before data."""
+"""AI Trading Partner — Today (Phase 1) + dock shell; Trades via plan_canvas."""
 
 from __future__ import annotations
 
 import html
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -14,8 +15,6 @@ from analyzer.broker_truth.learning import resolve_learning_outcomes
 from analyzer.context_engine.models import ContextSnapshot
 from analyzer.decision_engine.models import DecisionArtifact, DecisionVerdict
 from analyzer.intraday_prefs import IntradayPrefs, load_intraday_prefs
-from analyzer.markets import is_india_market
-from analyzer.unified_search import unified_search
 from analyzer.investment_os import InvestmentOS, build_investment_os
 from analyzer.market_pulse_scan import MarketPulseReport
 from analyzer.mis_trade_advisory import MisTradeAdvisory, build_mis_trade_advisory
@@ -23,59 +22,64 @@ from analyzer.portfolio_store import load_saved_portfolio, portfolio_profile_key
 from analyzer.pulse_cache import load_pulse_cache_with_stale
 from analyzer.trade_journal import load_journal_entries
 from analyzer.watchlist_pins import PinnedPlan, load_pinned_plans
-from analyzer.zerodha import ZerodhaHolding, ZerodhaImportResult
+from analyzer.zerodha import ZerodhaImportResult
 from ui.broker.state import BrokerSnapshot, load_broker_snapshot
-from ui.navigation import request_nav_tab
-from ui.theme import HOME_UI_CSS
+from ui.components.partner_shell import get_partner_dock, render_ask_fab, render_partner_dock, set_partner_dock
+from ui.theme import VERDICT_CANVAS_CSS
 
 IST = ZoneInfo("Asia/Kolkata")
 PULSE_CACHE_TTL = 86_400
-
-_VERDICT_CLASS = {
-    DecisionVerdict.ACT: "dash-verdict-act",
-    DecisionVerdict.WAIT: "dash-verdict-wait",
-    DecisionVerdict.PASS: "dash-verdict-pass",
-    DecisionVerdict.REDUCE: "dash-verdict-reduce",
-    DecisionVerdict.DEFENSIVE: "dash-verdict-defensive",
-}
+_MENTOR_MAX_WORDS = 18
 
 
-@dataclass
-class OpportunityRow:
-    ticker: str
-    confidence: int
-    expected_reward: str
-    risk: str
-    entry: float
-    stop: float
-    target: float
-    side: str
+@dataclass(frozen=True)
+class VerdictCanvasState:
+    key: str
+    word: str
+    cta_label: str
+    cta_action: str  # done | plan | week | connect
 
 
 def _esc(text: str) -> str:
     return html.escape(str(text or ""))
 
 
-def _risk_reward(entry: float, stop: float, target: float) -> float | None:
-    risk = abs(entry - stop)
-    reward = abs(target - entry)
-    if risk <= 0:
-        return None
-    return round(reward / risk, 2)
+def _strip_md(text: str) -> str:
+    cleaned = re.sub(r"\*\*([^*]+)\*\*", r"\1", str(text or ""))
+    cleaned = re.sub(r"`([^`]+)`", r"\1", cleaned)
+    return cleaned.strip()
 
 
-def _fmt_inr(value: float | None, *, signed: bool = False) -> str:
-    if value is None:
-        return "—"
-    if signed:
-        return f"{'+' if value >= 0 else ''}₹{value:,.0f}"
-    return f"₹{value:,.0f}"
+def _trim_words(text: str, *, max_words: int = _MENTOR_MAX_WORDS) -> str:
+    words = _strip_md(text).split()
+    if len(words) <= max_words:
+        return " ".join(words)
+    clipped = " ".join(words[:max_words]).rstrip(".,;:")
+    return f"{clipped}…"
 
 
 def _load_pulse(market: str, period: str) -> MarketPulseReport | None:
     key = f"pulse_{period}_{market}"
     report, _fresh = load_pulse_cache_with_stale(key, PULSE_CACHE_TTL)
     return report
+
+
+def _journal_pnl_for_date(trade_date: str) -> float | None:
+    total = 0.0
+    found = False
+    for entry in load_journal_entries(limit=60):
+        if entry.trade_date == trade_date and entry.pnl_inr is not None:
+            total += float(entry.pnl_inr)
+            found = True
+    return total if found else None
+
+
+def _conf_numeric(decision: DecisionArtifact | None, snapshot: ContextSnapshot) -> int:
+    if decision:
+        raw = float(decision.confidence)
+        return int(round(raw * 100)) if raw <= 1.0 else int(round(raw))
+    raw = float(snapshot.confidence or 0.0)
+    return int(round(raw * 100)) if raw <= 1.0 else int(round(raw))
 
 
 def _pick_decision(
@@ -117,219 +121,6 @@ def _evidence_summary(decision: DecisionArtifact | None, *, limit: int = 6) -> l
         return []
 
 
-def _build_opportunities(
-    pins: list[PinnedPlan],
-    pulse: MarketPulseReport | None,
-) -> list[OpportunityRow]:
-    stock_map = pulse.stock_map if pulse else {}
-    rows: list[OpportunityRow] = []
-    for p in pins[:5]:
-        sym = p.symbol.upper().replace(".NS", "")
-        pulse_row = stock_map.get(sym) or stock_map.get(p.symbol)
-        conf = 55
-        if pulse_row is not None:
-            conf = int(max(0, min(100, round(pulse_row.combined_score))))
-        rr = _risk_reward(p.entry, p.stop_loss, p.target)
-        reward = abs(p.target - p.entry)
-        risk_amt = abs(p.entry - p.stop_loss)
-        rows.append(
-            OpportunityRow(
-                ticker=sym,
-                confidence=conf,
-                expected_reward=f"₹{reward:,.0f} ({rr or '—'}R)",
-                risk=f"₹{risk_amt:,.0f} stop",
-                entry=p.entry,
-                stop=p.stop_loss,
-                target=p.target,
-                side=getattr(p, "side", "LONG"),
-            )
-        )
-    return rows
-
-
-def _portfolio_metrics(
-    imp: ZerodhaImportResult | None,
-    prefs: IntradayPrefs,
-    *,
-    journal_today_pnl: float | None,
-) -> dict[str, Any]:
-    holdings = imp.holdings if imp and imp.holdings else []
-    invested = 0.0
-    unrealized = 0.0
-    allocation: list[tuple[str, float]] = []
-    for h in holdings:
-        ltp = h.last_price or h.average_price or 0.0
-        value = float(h.quantity or 0) * float(ltp)
-        invested += value
-        if h.pnl is not None:
-            unrealized += float(h.pnl)
-        if value > 0:
-            allocation.append((h.tradingsymbol or h.kite_symbol, value))
-    allocation.sort(key=lambda x: x[1], reverse=True)
-    capital = float(prefs.capital or 0)
-    cash = max(0.0, capital - invested) if capital else 0.0
-    exposure_pct = round(100.0 * invested / capital, 1) if capital > 0 else None
-    max_risk = capital * float(prefs.max_risk_pct) / 100.0 if capital else 0.0
-    alloc_lines = []
-    total = invested or 1.0
-    for sym, val in allocation[:4]:
-        alloc_lines.append(f"{sym} {100.0 * val / total:.0f}%")
-    return {
-        "today_pnl": journal_today_pnl if journal_today_pnl is not None else unrealized,
-        "today_pnl_source": "journal" if journal_today_pnl is not None else "holdings",
-        "cash": cash,
-        "exposure_pct": exposure_pct,
-        "invested": invested,
-        "risk_budget": max_risk,
-        "allocation": alloc_lines,
-        "holding_count": len(holdings),
-    }
-
-
-def _journal_pnl_for_date(trade_date: str) -> float | None:
-    total = 0.0
-    found = False
-    for entry in load_journal_entries(limit=60):
-        if entry.trade_date == trade_date and entry.pnl_inr is not None:
-            total += float(entry.pnl_inr)
-            found = True
-    return total if found else None
-
-
-def _conf_label(conf: float | int) -> tuple[str, str]:
-    pct = int(round(float(conf)))
-    if pct >= 70:
-        return "High confidence", "assist-conf-high"
-    if pct >= 40:
-        return "Medium confidence", "assist-conf-medium"
-    return "Low confidence", "assist-conf-low"
-
-
-def _conf_numeric(decision: DecisionArtifact | None, snapshot: ContextSnapshot) -> int:
-    if decision:
-        raw = float(decision.confidence)
-        return int(round(raw * 100)) if raw <= 1.0 else int(round(raw))
-    raw = float(snapshot.confidence or 0.0)
-    return int(round(raw * 100)) if raw <= 1.0 else int(round(raw))
-
-
-def _verdict_conclusion(
-    verdict: str,
-    *,
-    os_report: InvestmentOS,
-    mis: MisTradeAdvisory,
-) -> str:
-    mapping = {
-        "ACT": "Open today's trade plan and size the trade within your risk budget.",
-        "WAIT": "Hold off on new trades until the setup clears.",
-        "PASS": "Skip new trades today — protect your capital.",
-        "REDUCE": "Trim exposure and avoid adding fresh risk.",
-        "DEFENSIVE": "Stay defensive — no new entries until conditions improve.",
-    }
-    if os_report.next_step:
-        return os_report.next_step
-    return mapping.get(verdict, mis.summary or "Review your plan before acting.")
-
-
-def _levels_for_symbol(symbol: str, pins: list[PinnedPlan]) -> tuple[float, float, float] | None:
-    if not symbol:
-        return None
-    sym = symbol.upper().replace(".NS", "").replace(".BO", "")
-    for pin in pins:
-        pin_sym = pin.symbol.upper().replace(".NS", "").replace(".BO", "")
-        if pin_sym == sym:
-            return pin.entry, pin.stop_loss, pin.target
-    return None
-
-
-def _portfolio_health(
-    snapshot: ContextSnapshot,
-    mis: MisTradeAdvisory,
-    os_report: InvestmentOS,
-) -> tuple[str, str, str]:
-    """Qualitative health from existing engine outputs — no synthetic score."""
-    risk_mod = os_report.module("risk")
-    flag_count = len(mis.flags or ())
-    mode = snapshot.risk_mode or "NEUTRAL"
-
-    if mode == "CLOSED" or (risk_mod and risk_mod.status in ("warn", "off")):
-        label, css = "High Risk", "assist-conf-low"
-    elif mode == "RISK-OFF" or flag_count >= 2 or (risk_mod and risk_mod.status == "wait"):
-        label, css = "Needs Review", "assist-conf-medium"
-    else:
-        label, css = "Healthy", "assist-conf-high"
-
-    detail = risk_mod.headline if risk_mod and risk_mod.headline else os_report.next_step
-    if not detail and mis.flags:
-        detail = mis.flags[0]
-    if not detail:
-        detail = f"Market is {mode.lower().replace('_', ' ')} — stay within your plan."
-    return label, css, detail
-
-
-def _holding_pnl_pct(h: ZerodhaHolding) -> float | None:
-    if h.pnl is None or not h.average_price or not h.quantity:
-        return None
-    cost = float(h.average_price) * float(h.quantity)
-    if cost <= 0:
-        return None
-    return 100.0 * float(h.pnl) / cost
-
-
-def _holding_extremes(holdings: list[ZerodhaHolding]) -> tuple[str, str]:
-    scored: list[tuple[str, float]] = []
-    for h in holdings:
-        pct = _holding_pnl_pct(h)
-        if pct is None:
-            continue
-        scored.append((h.tradingsymbol or h.kite_symbol or "—", pct))
-    if not scored:
-        return "—", "—"
-    scored.sort(key=lambda x: x[1])
-    weakest = f"{scored[0][0]} ({scored[0][1]:+.1f}%)"
-    strongest = f"{scored[-1][0]} ({scored[-1][1]:+.1f}%)"
-    return weakest, strongest
-
-
-def _best_opportunity(
-    opportunities: list[OpportunityRow],
-    os_report: InvestmentOS,
-) -> OpportunityRow | None:
-    if not opportunities:
-        return None
-    star = (os_report.starred_symbol or "").upper().replace(".NS", "")
-    if star:
-        for row in opportunities:
-            if row.ticker.upper() == star:
-                return row
-    return opportunities[0]
-
-
-def _watch_bullets(
-    mis: MisTradeAdvisory,
-    snapshot: ContextSnapshot,
-    opportunities: list[OpportunityRow],
-    pins: list[PinnedPlan],
-) -> list[str]:
-    bullets: list[str] = []
-    for flag in (mis.flags or ())[:2]:
-        bullets.append(flag)
-    for restriction in snapshot.trading_restrictions[:2]:
-        if restriction not in bullets:
-            bullets.append(restriction)
-    for row in opportunities[:2]:
-        line = f"{row.ticker} — watch entry near ₹{row.entry:,.0f}"
-        if line not in bullets:
-            bullets.append(line)
-    if not bullets and pins:
-        p = pins[0]
-        sym = p.symbol.upper().replace(".NS", "")
-        bullets.append(f"{sym} — plan entry ₹{p.entry:,.0f}, stop ₹{p.stop_loss:,.0f}")
-    if not bullets:
-        bullets.append("No urgent items — stick to your trade plan.")
-    return bullets[:3]
-
-
 def _broker_snapshot() -> BrokerSnapshot:
     raw = st.session_state.get("broker_snapshot")
     if raw:
@@ -337,325 +128,269 @@ def _broker_snapshot() -> BrokerSnapshot:
     return load_broker_snapshot()
 
 
-def _go_symbol(symbol: str) -> None:
-    sym = symbol.replace(".NS", "").replace(".BO", "").strip()
-    request_nav_tab(
-        "Single Stock",
-        single_ticker=sym,
-        bt_ticker=sym,
-        intraday_ticker=sym,
-        alpha_ai_ticker=sym,
-    )
+def _sync_status(broker: BrokerSnapshot) -> tuple[str, str, str]:
+    """Return (css_class, dot_class, label)."""
+    if broker.connected():
+        if broker.state == "limited":
+            return "vc-sync-warn", "vc-sync-warn", "Stale"
+        return "vc-sync-ok", "vc-sync-ok", "Synced"
+    return "vc-sync-off", "vc-sync-off", "Offline"
 
 
-def _render_todays_decision(
+def _session_phase(snapshot: ContextSnapshot) -> str:
+    session = dict(snapshot.market_session or {})
+    return str(session.get("phase", "") or snapshot.market_phase or "")
+
+
+def _market_is_rest(snapshot: ContextSnapshot) -> bool:
+    phase = _session_phase(snapshot)
+    if snapshot.risk_mode == "CLOSED":
+        return True
+    return phase in ("weekend", "holiday", "after_hours", "closed")
+
+
+def _resolve_verdict_state(
+    broker: BrokerSnapshot,
+    snapshot: ContextSnapshot,
+    mis: MisTradeAdvisory,
+    decision: DecisionArtifact | None,
+) -> VerdictCanvasState:
+    if not broker.connected():
+        return VerdictCanvasState("connect", "Connect", "Connect Zerodha", "connect")
+
+    if _market_is_rest(snapshot):
+        return VerdictCanvasState("rest", "Rest", "View your week", "week")
+
+    if mis.loss_streak_days >= 2:
+        return VerdictCanvasState("pause", "Pause", "You're done for today", "done")
+
+    if decision and decision.verdict in (DecisionVerdict.PASS, DecisionVerdict.DEFENSIVE):
+        return VerdictCanvasState("pause", "Pause", "You're done for today", "done")
+
+    if snapshot.risk_mode in ("RISK-OFF", "CLOSED") and len(snapshot.trading_restrictions) >= 2:
+        return VerdictCanvasState("pause", "Pause", "You're done for today", "done")
+
+    if decision and decision.verdict == DecisionVerdict.ACT:
+        if _conf_numeric(decision, snapshot) >= 40:
+            return VerdictCanvasState("trade", "Trade", "See the plan", "plan")
+
+    if decision and decision.verdict == DecisionVerdict.REDUCE:
+        return VerdictCanvasState("wait", "Wait", "You're done for today", "done")
+
+    return VerdictCanvasState("wait", "Wait", "You're done for today", "done")
+
+
+def _mentor_one_liner(
+    state: VerdictCanvasState,
+    *,
     decision: DecisionArtifact | None,
     mis: MisTradeAdvisory,
     os_report: InvestmentOS,
     snapshot: ContextSnapshot,
     pins: list[PinnedPlan],
-) -> None:
-    st.markdown('<div class="assist-card assist-hero">', unsafe_allow_html=True)
-    st.markdown('<p class="assist-q">What should I do today?</p>', unsafe_allow_html=True)
+) -> str:
+    if state.key == "connect":
+        return "Link Zerodha once — I'll sync positions and tailor today's call."
 
-    if decision:
-        verdict = decision.verdict.value
-        cls = _VERDICT_CLASS.get(decision.verdict, "dash-verdict-wait")
-        reason = decision.reason
-        if decision.explainability and decision.explainability.why:
-            reason = decision.explainability.why
-        conf_num = _conf_numeric(decision, snapshot)
-    else:
-        verdict = "WAIT" if snapshot.risk_mode != "CLOSED" else "DEFENSIVE"
-        cls = "dash-verdict-defensive" if verdict == "DEFENSIVE" else "dash-verdict-wait"
-        reason = os_report.next_step or mis.summary or "Wait for a clearer setup."
-        conf_num = _conf_numeric(None, snapshot)
+    if state.key == "rest":
+        return "Markets are closed. Rest up; tomorrow's plan builds at open."
 
-    conf_text, conf_cls = _conf_label(conf_num)
-    conclusion = _verdict_conclusion(verdict, os_report=os_report, mis=mis)
+    if state.key == "pause":
+        if mis.loss_streak_days >= 2:
+            return _trim_words(
+                f"{mis.loss_streak_days} rough days in a row — pause today and protect your capital."
+            )
+        if decision and decision.reason:
+            return _trim_words(decision.reason)
+        if mis.flags:
+            return _trim_words(mis.flags[0])
+        return "Too much risk today — pause and protect your capital."
 
-    st.markdown(
-        f'<div class="dash-verdict {cls}">'
-        f'<p class="assist-verdict-xl">{_esc(verdict)}</p>'
-        f'<p class="assist-conf {conf_cls}">{_esc(conf_text)}</p>'
-        f"</div>",
-        unsafe_allow_html=True,
-    )
-    st.markdown(f'<p class="assist-reason">{_esc(reason)}</p>', unsafe_allow_html=True)
+    if state.key == "trade":
+        sym = (os_report.starred_symbol or "").upper().replace(".NS", "").replace(".BO", "")
+        if not sym and pins:
+            sym = pins[0].symbol.upper().replace(".NS", "").replace(".BO", "")
+        if sym:
+            return _trim_words(f"{sym} lines up — one clear plan, sized for your rules.")
+        return "One setup is ready — stay within your daily risk limit."
 
-    levels_sym = os_report.starred_symbol or (pins[0].symbol if pins else "")
-    levels = _levels_for_symbol(levels_sym, pins) if levels_sym else None
-    if levels:
-        entry, stop, target = levels
-        st.markdown(
-            '<div class="assist-levels">'
-            f'{_level_box("Entry", f"₹{entry:,.0f}")}'
-            f'{_level_box("Stop", f"₹{stop:,.0f}")}'
-            f'{_level_box("Target", f"₹{target:,.0f}")}'
-            f'{_level_box("Symbol", levels_sym.upper().replace(".NS", ""))}'
-            "</div>",
-            unsafe_allow_html=True,
-        )
-
-    st.markdown(f'<p class="assist-conclusion">{_esc(conclusion)}</p>', unsafe_allow_html=True)
-
-    if st.button("Open today's trade plan", key="assist_trade_plan", type="primary", use_container_width=True):
-        request_nav_tab("Suggestions")
-
-    with st.expander("Why this call?"):
-        st.caption(f"Confidence score: {conf_num}%")
-        evidence = _evidence_summary(decision)
-        if not evidence and mis.synthesis_pillars:
-            evidence = mis.synthesis_pillars[:5]
-        if not evidence and mis.flags:
-            evidence = [f"⚠ {f}" for f in mis.flags[:4]]
-        if evidence:
-            for line in evidence[:6]:
-                st.markdown(f"- {line}")
-        else:
-            st.caption("More detail appears after live synthesis runs.")
-
-    st.markdown("</div>", unsafe_allow_html=True)
+    if decision and decision.reason:
+        return _trim_words(decision.reason)
+    if snapshot.trading_restrictions:
+        return _trim_words(snapshot.trading_restrictions[0])
+    if os_report.next_step:
+        return _trim_words(os_report.next_step)
+    if mis.summary:
+        return _trim_words(mis.summary)
+    return "Not your moment yet — wait until price confirms the setup."
 
 
-def _level_box(label: str, value: str) -> str:
-    return (
-        f'<div class="assist-level-box">'
-        f'<p class="assist-level-label">{_esc(label)}</p>'
-        f'<p class="assist-level-value">{_esc(value)}</p>'
-        f"</div>"
-    )
-
-
-def _render_best_opportunity(
-    opportunities: list[OpportunityRow],
-    os_report: InvestmentOS,
-) -> None:
-    st.markdown('<div class="assist-card">', unsafe_allow_html=True)
-    st.markdown('<p class="assist-q">Which opportunity deserves my attention?</p>', unsafe_allow_html=True)
-
-    row = _best_opportunity(opportunities, os_report)
-    if not row:
-        st.markdown(
-            '<p class="assist-reason">No saved setups yet. Run a scan after market close to build your list.</p>',
-            unsafe_allow_html=True,
-        )
-        st.markdown(
-            '<p class="assist-conclusion">Head to Suggestions to scan and save picks for tomorrow.</p>',
-            unsafe_allow_html=True,
-        )
-        if st.button("Go to suggestions", key="assist_go_suggestions", use_container_width=True):
-            request_nav_tab("Suggestions")
-        st.markdown("</div>", unsafe_allow_html=True)
-        return
-
-    conf_text, conf_cls = _conf_label(row.confidence)
-    rr = _risk_reward(row.entry, row.stop, row.target)
-    rr_note = f"{rr}× reward vs risk" if rr else "check risk before sizing"
-    st.markdown(
-        f'<p class="assist-reason"><b>{_esc(row.ticker)}</b> — {_esc(row.side)} setup. '
-        f'<span class="assist-conf {conf_cls}">{_esc(conf_text)}</span> · {_esc(rr_note)}.</p>',
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        f'<p class="assist-reason">Entry ₹{row.entry:,.0f} · Stop ₹{row.stop:,.0f} · Target ₹{row.target:,.0f}</p>',
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        f'<p class="assist-conclusion">Review the full setup for {_esc(row.ticker)} before you commit capital.</p>',
-        unsafe_allow_html=True,
-    )
-
-    c1, c2 = st.columns(2)
-    with c1:
-        if st.button("Review Setup", key="assist_review_setup", type="primary", use_container_width=True):
-            _go_symbol(row.ticker)
-    with c2:
-        if st.button("See all picks", key="assist_all_picks", use_container_width=True):
-            request_nav_tab("Suggestions")
-
-    with st.expander("Setup details"):
-        st.caption(f"Confidence score: {row.confidence}%")
-        st.markdown(f"- Expected move: {row.expected_reward}")
-        st.markdown(f"- Risk: {row.risk}")
-
-    st.markdown("</div>", unsafe_allow_html=True)
-
-
-def _render_portfolio_assistant(
-    metrics: dict[str, Any],
-    portfolio: ZerodhaImportResult | None,
-    snapshot: ContextSnapshot,
-    mis: MisTradeAdvisory,
-    os_report: InvestmentOS,
-) -> None:
-    st.markdown('<div class="assist-card">', unsafe_allow_html=True)
-    st.markdown('<p class="assist-q">What should I do with my portfolio?</p>', unsafe_allow_html=True)
-
-    health, health_cls, health_detail = _portfolio_health(snapshot, mis, os_report)
-    holdings = portfolio.holdings if portfolio and portfolio.holdings else []
-    weakest, strongest = _holding_extremes(holdings)
-
-    pnl_label = "Today's P/L" if metrics["today_pnl_source"] == "journal" else "Unrealized P/L"
-    pnl_val = _fmt_inr(metrics["today_pnl"], signed=True)
-    exp = f"{metrics['exposure_pct']}%" if metrics["exposure_pct"] is not None else "not set"
-
-    st.markdown(
-        f'<p class="assist-reason">Portfolio is <span class="assist-conf {health_cls}">{_esc(health)}</span>. '
-        f'{_esc(health_detail)}</p>',
-        unsafe_allow_html=True,
-    )
-
-    if metrics["holding_count"]:
-        st.markdown(
-            f'<p class="assist-reason">{_esc(pnl_label)}: <b>{_esc(pnl_val)}</b> · '
-            f'Exposure { _esc(exp)} · Weakest: {_esc(weakest)} · Strongest: {_esc(strongest)}</p>',
-            unsafe_allow_html=True,
-        )
-        conclusion = (
-            f"You hold {metrics['holding_count']} position(s). "
-            "Review sizing on laggards before adding new trades."
-        )
-    else:
-        st.markdown(
-            '<p class="assist-reason">No holdings saved yet — connect your broker or import a CSV.</p>',
-            unsafe_allow_html=True,
-        )
-        conclusion = "Connect Zerodha or import holdings so portfolio advice stays accurate."
-
-    st.markdown(f'<p class="assist-conclusion">{_esc(conclusion)}</p>', unsafe_allow_html=True)
-
-    if st.button("See full portfolio", key="assist_portfolio", use_container_width=True):
-        request_nav_tab("My Portfolio")
-    st.markdown("</div>", unsafe_allow_html=True)
-
-
-def _render_watch_today(
+def _why_bullets(
+    decision: DecisionArtifact | None,
     mis: MisTradeAdvisory,
     snapshot: ContextSnapshot,
-    opportunities: list[OpportunityRow],
+    *,
     pins: list[PinnedPlan],
-) -> None:
-    st.markdown('<div class="assist-card">', unsafe_allow_html=True)
-    st.markdown('<p class="assist-q">What do I need to watch today?</p>', unsafe_allow_html=True)
-
-    bullets = _watch_bullets(mis, snapshot, opportunities, pins)
-    items = "".join(f"<li>{_esc(b)}</li>" for b in bullets)
-    st.markdown(f'<ul class="dash-evidence-list">{items}</ul>', unsafe_allow_html=True)
-    st.markdown(
-        '<p class="assist-conclusion">Keep these on your radar — act only when your plan says go.</p>',
-        unsafe_allow_html=True,
-    )
-
-    if st.button("View all picks", key="assist_watch_picks", use_container_width=True):
-        request_nav_tab("Suggestions")
-    st.markdown("</div>", unsafe_allow_html=True)
-
-
-def _render_broker_status() -> None:
-    snap = _broker_snapshot()
-    st.markdown('<div class="assist-card">', unsafe_allow_html=True)
-    st.markdown('<p class="assist-q">Is my broker connected?</p>', unsafe_allow_html=True)
-
-    if snap.connected():
-        card_cls = "assist-broker-ok"
-        status = f"Yes — {snap.broker_label} is connected"
-        if snap.user_id:
-            status += f" ({snap.user_id})"
-        detail = snap.last_sync_at or "Recently synced"
-        if snap.holdings_count:
-            detail += f" · {snap.holdings_count} holding(s)"
-        conclusion = "Your live holdings feed is active. Zerodha Console remains the P&L source of truth."
-        action_label = "Open My Portfolio"
-        action_tab = "My Portfolio"
-    elif snap.needs_sign_in():
-        card_cls = "assist-broker-off"
-        status = "Not connected — sign in to sync holdings"
-        detail = snap.error_message or "Connect Zerodha to pull live positions."
-        conclusion = "Connect now so portfolio and risk advice use your real book."
-        action_label = "Connect Zerodha"
-        action_tab = "My Portfolio"
-    else:
-        card_cls = "assist-broker-warn"
-        status = f"{snap.broker_label} — {snap.state.replace('_', ' ')}"
-        detail = snap.error_message or snap.last_sync_status or "Limited sync — check connection."
-        conclusion = "Refresh your broker session to keep advice aligned with your account."
-        action_label = "Fix broker connection"
-        action_tab = "My Portfolio"
-
-    st.markdown(
-        f'<div class="{card_cls}" style="padding-left:12px">'
-        f'<p class="assist-reason"><b>{_esc(status)}</b></p>'
-        f'<p class="assist-reason" style="opacity:0.8;font-size:0.95rem">{_esc(detail)}</p>'
-        f"</div>",
-        unsafe_allow_html=True,
-    )
-    st.markdown(f'<p class="assist-conclusion">{_esc(conclusion)}</p>', unsafe_allow_html=True)
-
-    if st.button(action_label, key="assist_broker_action", use_container_width=True):
-        request_nav_tab(action_tab)
-    st.markdown("</div>", unsafe_allow_html=True)
+) -> list[str]:
+    bullets: list[str] = []
+    for line in _evidence_summary(decision, limit=4):
+        bullets.append(_strip_md(line))
+    for flag in (mis.flags or ())[:3]:
+        text = _strip_md(flag)
+        if text not in bullets:
+            bullets.append(text)
+    for restriction in snapshot.trading_restrictions[:2]:
+        text = _strip_md(restriction)
+        if text not in bullets:
+            bullets.append(text)
+    if pins and len(bullets) < 6:
+        pin = pins[0]
+        sym = pin.symbol.upper().replace(".NS", "")
+        bullets.append(f"Watch {sym} near ₹{pin.entry:,.0f} with stop ₹{pin.stop_loss:,.0f}.")
+    if not bullets:
+        bullets.append("Conditions are mixed — patience beats forcing a trade.")
+    return bullets[:6]
 
 
-def _render_home_stock_search(*, market: str) -> None:
-    st.markdown('<div class="assist-search-wrap">', unsafe_allow_html=True)
-    query = st.text_input(
-        "Search any stock",
-        placeholder="Search any stock…",
-        key="home_stock_search",
-        label_visibility="collapsed",
-    )
-    if not query or len(query.strip()) < 2:
-        st.caption("Type a symbol or company name to jump straight to analysis.")
-        st.markdown("</div>", unsafe_allow_html=True)
+def _handle_primary_cta(action: str) -> None:
+    if action == "done":
+        st.toast("Nothing to do today — you're clear.")
         return
+    if action == "plan":
+        set_partner_dock("trades")
+        return
+    if action == "week":
+        set_partner_dock("you")
+        return
+    if action == "connect":
+        from ui.navigation import request_nav_tab
 
-    q = query.strip()
-    if is_india_market(market):
-        hits = unified_search(q, max_results=5)
-        if not hits:
-            st.caption("No matches — try the NSE symbol or company name.")
-        else:
-            for i, h in enumerate(hits):
-                label = f"{h.symbol} — {h.name[:40]}"
-                if st.button(label, key=f"home_search_{i}_{h.symbol}", use_container_width=True):
-                    _go_symbol(h.symbol)
-    else:
-        sym = q.upper()
-        if st.button(f"Analyze {sym}", key="home_search_us", use_container_width=True):
-            _go_symbol(sym)
+        request_nav_tab("My Portfolio")
+
+
+def _render_verdict_canvas(
+    *,
+    state: VerdictCanvasState,
+    mentor: str,
+    why_bullets: list[str],
+    built_at: str,
+    broker: BrokerSnapshot,
+) -> None:
+    sync_cls, dot_cls, sync_label = _sync_status(broker)
+    st.markdown(
+        f'<div class="verdict-canvas-root" data-verdict="{_esc(state.key)}">'
+        f'<div class="vc-header">'
+        f'<p class="vc-time">{_esc(built_at)}</p>'
+        f'<p class="vc-sync {sync_cls}">'
+        f'<span class="vc-sync-dot {dot_cls}"></span>{_esc(sync_label)}</p>'
+        f"</div>"
+        f'<div class="vc-verdict-zone"><p class="vc-verdict-word">{_esc(state.word)}</p></div>'
+        f'<p class="vc-mentor">{_esc(mentor)}</p>',
+        unsafe_allow_html=True,
+    )
+
+    st.markdown('<div class="vc-primary">', unsafe_allow_html=True)
+    if st.button(state.cta_label, key="vc_primary_cta", type="primary", use_container_width=True):
+        _handle_primary_cta(state.cta_action)
     st.markdown("</div>", unsafe_allow_html=True)
 
+    st.markdown('<div class="vc-ghost-row">', unsafe_allow_html=True)
+    g1, g2 = st.columns(2)
+    with g1:
+        with st.popover("Why I'm saying this"):
+            for line in why_bullets:
+                st.markdown(f"- {line}")
+            if state.key in ("wait", "trade", "pause"):
+                st.caption("I'm fairly sure about this call.")
+    with g2:
+        if st.button("See the proof", key="vc_proof", use_container_width=True):
+            from ui.components.proof_canvas import open_proof_overlay
 
-def render_home_dashboard(market: str, *, period: str = "1y", max_trades: int = 1) -> None:
-    del max_trades  # selection lives on Suggestions — home stays action-first
-    st.markdown(HOME_UI_CSS, unsafe_allow_html=True)
-    st.markdown('<div class="home-wrap dash-wrap assist-wrap">', unsafe_allow_html=True)
+            open_proof_overlay(origin="today", proof_mode=state.key)
+    st.markdown("</div>", unsafe_allow_html=True)
 
-    with st.spinner("Getting your briefing…"):
-        cached = load_dashboard_data(market, period, deep=False)
+    st.markdown(
+        '<p class="vc-foot">Zerodha Console is source of truth for P&amp;L.</p></div>',
+        unsafe_allow_html=True,
+    )
 
+
+def _render_today_canvas(
+    *,
+    market: str,
+    period: str,
+    cached: dict[str, Any],
+) -> None:
     snapshot: ContextSnapshot = _snapshot_from_cache(cached["snapshot"])
     mis: MisTradeAdvisory = cached["mis"]
     os_report: InvestmentOS = cached["os_report"]
     pins: list[PinnedPlan] = cached["pins"]
-    prefs: IntradayPrefs = cached["prefs"]
-    portfolio: ZerodhaImportResult | None = cached["portfolio"]
-    data = {**cached, "snapshot": snapshot}
-
     decision, _source = _pick_decision(mis, os_report)
-    opportunities = _build_opportunities(pins, data["pulse"])
-    port_metrics = _portfolio_metrics(portfolio, prefs, journal_today_pnl=data["journal_today_pnl"])
+    broker = _broker_snapshot()
 
-    _render_todays_decision(decision, mis, os_report, snapshot, pins)
-    _render_best_opportunity(opportunities, os_report)
-    _render_portfolio_assistant(port_metrics, portfolio, snapshot, mis, os_report)
-    _render_watch_today(mis, snapshot, opportunities, pins)
-    _render_broker_status()
-    _render_home_stock_search(market=market)
+    state = _resolve_verdict_state(broker, snapshot, mis, decision)
+    mentor = _mentor_one_liner(
+        state,
+        decision=decision,
+        mis=mis,
+        os_report=os_report,
+        snapshot=snapshot,
+        pins=pins,
+    )
+    why = _why_bullets(decision, mis, snapshot, pins=pins)
 
-    st.caption(f"Updated {data['built_at']} · Zerodha Console is source of truth for P&L.")
-    st.markdown("</div>", unsafe_allow_html=True)
+    _render_verdict_canvas(
+        state=state,
+        mentor=mentor,
+        why_bullets=why,
+        built_at=str(cached["built_at"]),
+        broker=broker,
+    )
+
+
+def render_home_dashboard(market: str, *, period: str = "1y", max_trades: int = 1) -> None:
+    del max_trades
+    st.markdown(VERDICT_CANVAS_CSS, unsafe_allow_html=True)
+
+    with st.spinner("···"):
+        cached = load_dashboard_data(market, period, deep=False)
+
+    from ui.components.answer_canvas import is_ask_overlay_open, render_answer_overlay
+    from ui.components.proof_canvas import is_proof_overlay_open, render_proof_overlay
+
+    ask_open = is_ask_overlay_open()
+    proof_open = is_proof_overlay_open()
+    if ask_open or proof_open:
+        st.markdown('<div class="vc-main-dimmed">', unsafe_allow_html=True)
+
+    dock = get_partner_dock()
+    if dock == "trades":
+        from ui.components.plan_canvas import render_plan_canvas
+
+        render_plan_canvas(market=market, cached=cached)
+    elif dock == "you":
+        from ui.components.partner_shell import is_trust_depth
+
+        if is_trust_depth():
+            from ui.components.trust_canvas import render_trust_canvas
+
+            render_trust_canvas(market=market, cached=cached)
+        else:
+            from ui.components.reflection_canvas import render_reflection_canvas
+
+            render_reflection_canvas(market=market, cached=cached)
+    else:
+        _render_today_canvas(market=market, period=period, cached=cached)
+
+    if ask_open or proof_open:
+        st.markdown("</div>", unsafe_allow_html=True)
+    if ask_open:
+        render_answer_overlay(market=market, cached=cached)
+    if proof_open:
+        render_proof_overlay(market=market, cached=cached)
+
+    render_partner_dock(active=dock)
+    render_ask_fab()
 
 
 def _snapshot_to_cache(snapshot: ContextSnapshot) -> dict[str, Any]:
