@@ -25,7 +25,7 @@ from analyzer.watchlist_pins import PinnedPlan, load_pinned_plans
 from analyzer.zerodha import ZerodhaImportResult
 from ui.broker.state import BrokerSnapshot, load_broker_snapshot
 from ui.components.partner_shell import get_partner_dock, render_ask_fab, render_partner_dock, set_partner_dock
-from ui.theme import VERDICT_CANVAS_CSS
+from ui.theme import VERDICT_CANVAS_CSS, PARTNER_PAGE_ACTIVATE_JS
 
 IST = ZoneInfo("Asia/Kolkata")
 PULSE_CACHE_TTL = 86_400
@@ -351,15 +351,15 @@ def _render_today_canvas(
 def render_home_dashboard(market: str, *, period: str = "1y", max_trades: int = 1) -> None:
     del max_trades
     st.markdown(VERDICT_CANVAS_CSS, unsafe_allow_html=True)
+    st.markdown(PARTNER_PAGE_ACTIVATE_JS, unsafe_allow_html=True)
 
-    with st.spinner("···"):
-        cached = load_dashboard_data(market, period, deep=False)
+    cached = load_dashboard_data(market, period, deep=False)
 
     from ui.components.answer_canvas import is_ask_overlay_open, render_answer_overlay
-    from ui.components.proof_canvas import is_proof_overlay_open, render_proof_overlay
+    from ui.components.proof_runtime import is_proof_ui_open, proof_canvas_active
 
     ask_open = is_ask_overlay_open()
-    proof_open = is_proof_overlay_open()
+    proof_open = proof_canvas_active() and is_proof_ui_open()
     if ask_open or proof_open:
         st.markdown('<div class="vc-main-dimmed">', unsafe_allow_html=True)
 
@@ -387,10 +387,13 @@ def render_home_dashboard(market: str, *, period: str = "1y", max_trades: int = 
     if ask_open:
         render_answer_overlay(market=market, cached=cached)
     if proof_open:
-        render_proof_overlay(market=market, cached=cached)
+        from ui.components.proof_canvas import render_proof_overlay
+
+        render_proof_overlay(market=market, period=period, cached=cached)
 
     render_partner_dock(active=dock)
     render_ask_fab()
+    st.markdown(PARTNER_PAGE_ACTIVATE_JS, unsafe_allow_html=True)
 
 
 def _snapshot_to_cache(snapshot: ContextSnapshot) -> dict[str, Any]:

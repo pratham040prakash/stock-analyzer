@@ -27,6 +27,7 @@ from ui.components.home_dashboard import (
     _why_bullets,
 )
 from ui.components.partner_shell import set_partner_dock
+from ui.components.proof_runtime import proof_canvas_active
 
 ASK_OVERLAY_OPEN = "ask_overlay_open"
 ASK_SUBMITTED_QUERY = "ask_submitted_query"
@@ -433,13 +434,19 @@ def open_ask_overlay() -> None:
     st.session_state[ASK_OVERLAY_OPEN] = True
     st.session_state.pop(ASK_SUBMITTED_QUERY, None)
     st.session_state.pop(ASK_DRAFT_KEY, None)
+    st.session_state.pop("partner_ask_stage", None)
     st.rerun()
 
 
-def close_ask_overlay(*, go_today: bool = False) -> None:
+def close_ask_overlay_silent() -> None:
     st.session_state[ASK_OVERLAY_OPEN] = False
     st.session_state.pop(ASK_SUBMITTED_QUERY, None)
     st.session_state.pop(ASK_DRAFT_KEY, None)
+    st.session_state.pop("partner_ask_stage", None)
+
+
+def close_ask_overlay(*, go_today: bool = False) -> None:
+    close_ask_overlay_silent()
     if go_today:
         set_partner_dock("today")
     else:
@@ -536,8 +543,8 @@ def render_answer_overlay(*, market: str, cached: dict[str, Any]) -> None:
             for line in answer.why_bullets:
                 st.markdown(f"- {line}")
             st.caption(answer.uncertainty)
-            if st.button("See the proof", key="ac_proof"):
-                from ui.components.proof_canvas import open_proof_overlay
+            if proof_canvas_active() and st.button("See the proof", key="ac_proof"):
+                from ui.components.proof_state import open_proof_overlay
 
                 sym = None
                 from analyzer.unified_search import unified_search

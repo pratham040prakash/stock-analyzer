@@ -26,13 +26,27 @@ def clear_partner_depth() -> None:
 def set_partner_dock(tab: str) -> None:
     if tab not in _VALID_DOCKS:
         tab = "today"
-    from ui.components.proof_canvas import close_proof_overlay_silent
+    from ui.components.answer_canvas import close_ask_overlay_silent
+    from ui.components.proof_runtime import close_proof_ui_silent
 
-    close_proof_overlay_silent()
+    close_proof_ui_silent()
+    close_ask_overlay_silent()
     if tab != "you":
         clear_partner_depth()
     st.session_state[PARTNER_DOCK_KEY] = tab
+    for key in list(st.session_state.keys()):
+        if str(key).startswith("partner_dock_stage_"):
+            st.session_state.pop(key, None)
+    st.session_state.pop("partner_ask_stage", None)
     st.rerun()
+
+
+def dock_needs_reset(tab: str, *, active: str) -> bool:
+    """True when dock button should fire even if tab already active (overlay open)."""
+    from ui.components.answer_canvas import is_ask_overlay_open
+    from ui.components.proof_runtime import is_proof_ui_open
+
+    return active != tab or is_proof_ui_open() or is_ask_overlay_open()
 
 
 def render_partner_dock(*, active: str) -> None:
@@ -42,21 +56,21 @@ def render_partner_dock(*, active: str) -> None:
         wrap = '<div class="vc-nav-today">' if active == "today" else "<div>"
         st.markdown(wrap, unsafe_allow_html=True)
         if st.button("Today", key="vc_nav_today", use_container_width=True):
-            if active != "today":
+            if dock_needs_reset("today", active=active):
                 set_partner_dock("today")
         st.markdown("</div>", unsafe_allow_html=True)
     with n2:
         wrap = '<div class="vc-nav-trades">' if active == "trades" else "<div>"
         st.markdown(wrap, unsafe_allow_html=True)
         if st.button("Trades", key="vc_nav_trades", use_container_width=True):
-            if active != "trades":
+            if dock_needs_reset("trades", active=active):
                 set_partner_dock("trades")
         st.markdown("</div>", unsafe_allow_html=True)
     with n3:
         wrap = '<div class="vc-nav-you">' if active == "you" else "<div>"
         st.markdown(wrap, unsafe_allow_html=True)
         if st.button("You", key="vc_nav_you", use_container_width=True):
-            if active != "you":
+            if dock_needs_reset("you", active=active):
                 set_partner_dock("you")
         st.markdown("</div>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
@@ -64,9 +78,9 @@ def render_partner_dock(*, active: str) -> None:
 
 def render_ask_fab() -> None:
     from ui.components.answer_canvas import is_ask_overlay_open, open_ask_overlay
-    from ui.components.proof_canvas import is_proof_overlay_open
+    from ui.components.proof_runtime import is_proof_ui_open
 
-    if is_ask_overlay_open() or is_proof_overlay_open():
+    if is_ask_overlay_open() or is_proof_ui_open():
         return
     st.markdown('<div class="vc-ask-wrap">', unsafe_allow_html=True)
     if st.button("Ask", key="vc_ask_pill"):

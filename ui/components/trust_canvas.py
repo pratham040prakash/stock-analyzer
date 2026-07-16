@@ -22,6 +22,7 @@ from analyzer.zerodha import ZerodhaImportResult
 from ui.broker.state import BrokerSnapshot
 from ui.components.home_dashboard import _strip_md, _trim_words
 from ui.components.partner_shell import clear_partner_depth, set_partner_dock
+from ui.components.proof_runtime import proof_canvas_active
 
 IST = ZoneInfo("Asia/Kolkata")
 
@@ -51,6 +52,8 @@ class TrustView:
     last_week: str
     this_week: str
     miss_line: str
+    miss_symbol: str
+    miss_date: str
     forward_line: str
     wrong_bullets: tuple[str, ...]
     learn_bullets: tuple[str, ...]
@@ -176,8 +179,10 @@ def _trade_story(
 def _pick_miss(
     suggestions: list[SuggestionRecord],
     journal: list[TradeJournalEntry],
-) -> tuple[str, list[str]]:
+) -> tuple[str, list[str], str, str]:
     misses: list[str] = []
+    miss_symbol = ""
+    miss_date = ""
     for row in suggestions:
         if row.outcome_correct != 0:
             continue
@@ -187,6 +192,9 @@ def _pick_miss(
         lesson = note if note else "tightened my confirmation rule"
         line = f"I missed {day}'s {sym} move. I've {lesson.rstrip('.')}."
         misses.append(line)
+        if not miss_symbol:
+            miss_symbol = sym
+            miss_date = row.signal_date
 
     for entry in journal:
         if not entry.mistake:
@@ -197,10 +205,13 @@ def _pick_miss(
         line = f"I missed {day} on {sym}. I've {fix.rstrip('.')}."
         if line not in misses:
             misses.append(line)
+            if not miss_symbol:
+                miss_symbol = sym
+                miss_date = entry.trade_date
 
     if not misses:
-        return "", []
-    return misses[0], misses[:4]
+        return "", [], "", ""
+    return misses[0], misses[:4], miss_symbol, miss_date
 
 
 def _resolve_trust_word(
@@ -250,7 +261,7 @@ def build_trust_view(
     suggestions = _recent_suggestions(days=14)
     last_s, this_s, last_l, this_l = _split_windows(suggestions, learning)
     scored_count = len(suggestions) + len(learning)
-    miss_line, wrong_bullets = _pick_miss(suggestions, journal)
+    miss_line, wrong_bullets, miss_symbol, miss_date = _pick_miss(suggestions, journal)
     has_miss = bool(miss_line)
 
     wait_saved = sum(
@@ -277,6 +288,8 @@ def build_trust_view(
                 "not estimates."
             ),
             miss_line="",
+            miss_symbol="",
+            miss_date="",
             forward_line=_FORWARD_LINE,
             wrong_bullets=(),
             learn_bullets=_learn_bullets(mis, has_miss=False),
@@ -293,6 +306,8 @@ def build_trust_view(
             last_week="",
             this_week=_THIN_HISTORY_BODY,
             miss_line=miss_line,
+            miss_symbol=miss_symbol,
+            miss_date=miss_date,
             forward_line=_FORWARD_LINE,
             wrong_bullets=tuple(wrong_bullets),
             learn_bullets=_learn_bullets(mis, has_miss=has_miss),
@@ -308,6 +323,8 @@ def build_trust_view(
         last_week=_trim_words(_wait_story(last_s, last_l), max_words=32),
         this_week=_trim_words(_trade_story(this_s, this_l, pins), max_words=28),
         miss_line=_trim_words(miss_line, max_words=24) if miss_line else "",
+        miss_symbol=miss_symbol,
+        miss_date=miss_date,
         forward_line=_FORWARD_LINE,
         wrong_bullets=tuple(wrong_bullets) if wrong_bullets else ("No major misses logged this window.",),
         learn_bullets=_learn_bullets(mis, has_miss=has_miss),
@@ -414,13 +431,15 @@ def render_trust_canvas(*, market: str, cached: dict[str, Any]) -> None:
         with st.popover("How I learn"):
             for line in view.learn_bullets:
                 st.markdown(f"- {line}")
-    if view.miss_line:
+    if view.miss_line and proof_canvas_active():
         if st.button("What I saw that day", key="tc_fossil", use_container_width=True):
-            from ui.components.proof_canvas import open_proof_overlay
+            from ui.components.proof_state import open_proof_overlay
 
             open_proof_overlay(
                 origin="trust",
                 proof_mode="fossil",
+                symbol=view.miss_symbol or None,
+                fossil_date=view.miss_date or None,
                 miss_note=view.miss_line,
             )
     st.markdown("</div>", unsafe_allow_html=True)

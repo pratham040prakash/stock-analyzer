@@ -681,6 +681,48 @@ VERDICT_CANVAS_CSS = """
     margin: 40px 0 32px 0;
     max-width: 358px;
 }
+/* AI thinking — partner reviewing, not software loading */
+.verdict-canvas-root[data-verdict="thinking"] .vc-verdict-zone {
+    background: radial-gradient(ellipse 280px 200px at 50% 45%, rgba(100,181,246,0.08) 0%, transparent 70%);
+}
+.verdict-canvas-root .vc-verdict-word.vc-thinking-word {
+    font-size: 28px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    color: rgba(245,245,247,0.72);
+    animation: vc-think-pulse 2.4s ease-in-out infinite;
+}
+.verdict-canvas-root .vc-thinking-dots span {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin: 0 3px;
+    border-radius: 50%;
+    background: rgba(100,181,246,0.85);
+    animation: vc-think-dot 1.2s ease-in-out infinite;
+}
+.verdict-canvas-root .vc-thinking-dots span:nth-child(2) { animation-delay: 0.15s; }
+.verdict-canvas-root .vc-thinking-dots span:nth-child(3) { animation-delay: 0.3s; }
+.verdict-canvas-root .vc-mentor.vc-mentor-thinking {
+    color: rgba(245,245,247,0.42);
+    font-style: normal;
+}
+.verdict-canvas-root .vc-sync-thinking .vc-sync-dot {
+    background: rgba(100,181,246,0.9);
+    animation: vc-sync-pulse 1.6s ease-in-out infinite;
+}
+@keyframes vc-think-pulse {
+    0%, 100% { opacity: 0.55; }
+    50% { opacity: 1; }
+}
+@keyframes vc-think-dot {
+    0%, 80%, 100% { transform: translateY(0); opacity: 0.35; }
+    40% { transform: translateY(-4px); opacity: 1; }
+}
+@keyframes vc-sync-pulse {
+    0%, 100% { opacity: 0.45; transform: scale(0.92); }
+    50% { opacity: 1; transform: scale(1); }
+}
 .verdict-canvas-root .vc-ghost-hint {
     text-align: center;
     margin: 16px 0 0 0;
@@ -1176,6 +1218,64 @@ VERDICT_CANVAS_CSS = """
     margin: 0 0 28px 0;
     max-width: 358px;
 }
+.proof-canvas-root {
+    color: #F5F5F7;
+}
+.proof-canvas-root .proof-echo {
+    font-size: 13px;
+    font-weight: 500;
+    color: rgba(245,245,247,0.45);
+    margin: 4px 0 10px 0;
+}
+.proof-canvas-root .proof-mentor {
+    font-size: 20px;
+    font-weight: 400;
+    line-height: 1.45;
+    color: rgba(245,245,247,0.92);
+    margin: 0 0 14px 0;
+    max-width: 358px;
+}
+.proof-canvas-root .proof-frame {
+    width: 100%;
+    max-width: 358px;
+    height: 280px;
+    border-radius: 16px;
+    border: 1px solid #2C2C2E;
+    overflow: hidden;
+    margin-bottom: 4px;
+}
+.proof-canvas-root .proof-action {
+    font-size: 17px;
+    font-weight: 400;
+    line-height: 1.45;
+    color: rgba(245,245,247,0.55);
+    margin: 12px 0 0 0;
+    max-width: 358px;
+}
+.proof-canvas-root .proof-fossil-badge {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: rgba(255,193,7,0.75);
+    margin: 0 0 6px 0;
+}
+.proof-canvas-root .proof-primary,
+.proof-canvas-root .proof-ghost {
+    max-width: 398px;
+    margin: 0 auto;
+    width: 100%;
+}
+.proof-canvas-root .proof-lwc-wrap {
+    max-width: 358px;
+    margin: 8px auto 0;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid #2C2C2E;
+}
+.proof-canvas-root .proof-foot {
+    text-align: center;
+}
 .proof-canvas-overlay {
     position: fixed;
     inset: 0;
@@ -1269,7 +1369,7 @@ VERDICT_CANVAS_CSS = """
 </style>
 <script>
 (function() {
-    var root = document.querySelector('.verdict-canvas-root, .plan-canvas-root, .reflection-canvas-root, .answer-canvas-overlay, .trust-canvas-root, .proof-canvas-overlay');
+    var root = document.querySelector('.verdict-canvas-root, .plan-canvas-root, .reflection-canvas-root, .answer-canvas-overlay, .trust-canvas-root, .proof-canvas-root, .proof-canvas-overlay');
     if (root) {
         var app = document.querySelector('[data-testid="stAppViewContainer"]');
         if (app) app.classList.add('verdict-canvas-page');
@@ -1280,6 +1380,30 @@ VERDICT_CANVAS_CSS = """
     if (document.querySelector('.proof-canvas-overlay')) {
         document.body.classList.add('proof-overlay-open');
     }
+})();
+</script>
+"""
+
+PARTNER_PAGE_ACTIVATE_JS = """
+<script>
+(function() {
+    function applyPartnerPage() {
+        var root = document.querySelector(
+            '.verdict-canvas-root, .plan-canvas-root, .reflection-canvas-root, '
+            + '.answer-canvas-overlay, .trust-canvas-root, .proof-canvas-root'
+        );
+        var app = document.querySelector('[data-testid="stAppViewContainer"]');
+        if (root && app) {
+            app.classList.add('verdict-canvas-page');
+        }
+        document.body.classList.toggle(
+            'ask-overlay-open',
+            !!document.querySelector('.answer-canvas-overlay')
+        );
+    }
+    applyPartnerPage();
+    setTimeout(applyPartnerPage, 0);
+    setTimeout(applyPartnerPage, 120);
 })();
 </script>
 """

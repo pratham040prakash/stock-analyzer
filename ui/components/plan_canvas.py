@@ -26,6 +26,7 @@ from ui.components.home_dashboard import (
     _trim_words,
 )
 from ui.components.partner_shell import set_partner_dock
+from ui.components.proof_runtime import proof_canvas_active
 
 _MENTOR_OPEN_MAX_WORDS = 22
 _REASON_MAX_WORDS = 20
@@ -209,12 +210,13 @@ def _render_active_plan(plan: TradePlanView, *, built_at: str, broker: BrokerSna
         set_partner_dock("today")
     st.markdown("</div>", unsafe_allow_html=True)
 
-    st.markdown('<div class="vc-ghost-row">', unsafe_allow_html=True)
-    if st.button("See the structure", key="pc_proof", use_container_width=True):
-        from ui.components.proof_canvas import open_proof_overlay
+    if proof_canvas_active():
+        st.markdown('<div class="vc-ghost-row">', unsafe_allow_html=True)
+        if st.button("See the structure", key="pc_proof", use_container_width=True):
+            from ui.components.proof_state import open_proof_overlay
 
-        open_proof_overlay(origin="trades", proof_mode="trade", symbol=plan.symbol)
-    st.markdown("</div>", unsafe_allow_html=True)
+            open_proof_overlay(origin="trades", proof_mode="trade", symbol=plan.symbol)
+        st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown(
         '<p class="vc-foot">Zerodha Console is source of truth for P&amp;L.</p></div>',

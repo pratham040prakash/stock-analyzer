@@ -232,13 +232,23 @@ def _trade_paths(entry: float, target: float, stop: float) -> tuple[PathAnnotati
 def _resolve_symbol_pin(
     os_report: InvestmentOS,
     pins: list[PinnedPlan],
+    mis: MisTradeAdvisory | None = None,
 ) -> tuple[str, PinnedPlan | None]:
     pin = plan_pick_pin(os_report, pins)
     if pin:
         sym = pin.symbol.upper().replace(".NS", "").replace(".BO", "")
         return sym, pin
     star = (os_report.starred_symbol or "").upper().replace(".NS", "").replace(".BO", "")
-    return star, None
+    if star:
+        return star, None
+    if mis and mis.best_pick:
+        sym = mis.best_pick.upper().replace(".NS", "").replace(".BO", "")
+        if sym:
+            return sym, None
+    if pins:
+        sym = pins[0].symbol.upper().replace(".NS", "").replace(".BO", "")
+        return sym, pins[0]
+    return "", None
 
 
 def build_structure_proof(
@@ -268,22 +278,39 @@ def build_structure_proof(
 
     decision, _src = _pick_decision(mis, os_report)
     state = _resolve_verdict_state(broker, snapshot, mis, decision)
-    sym, pin = _resolve_symbol_pin(os_report, pins)
+    sym, pin = _resolve_symbol_pin(os_report, pins, mis)
     if symbol:
         sym = symbol.upper().replace(".NS", "").replace(".BO", "")
 
     if not sym:
+        sym = "NIFTY"
+        mentor = _trim_words(
+            "No starred setup yet — here's how I read index structure when Today is still forming.",
+            max_words=24,
+        )
+        action = "Star a name on Suggestions to get symbol-specific proof next."
+        echo = "Index structure proof while your watchlist is empty."
+        candles = _fetch_candles(sym, market)
+        current = _current_price(sym, market, candles)
+        entry = current or 100.0
+        stop = entry * 0.985
+        zones = _wait_zones(entry=entry, stop=stop, current=entry, symbol=sym)
+        price_min, price_max = _price_pad([entry, stop, current or entry])
         return StructureProof(
-            symbol="",
-            verdict_state="rest",
+            symbol=sym,
+            verdict_state="wait",
             proof_mode=proof_mode,
-            echo_line="No active symbol to prove.",
-            mentor_line="When I make a call, you'll see exactly what I saw — annotated.",
-            action_line="Check back when Today shows a setup.",
-            zones=(),
+            echo_line=echo,
+            mentor_line=mentor,
+            action_line=action,
+            zones=zones,
+            markers=PriceMarkers(current=current),
+            price_min=price_min,
+            price_max=price_max,
+            candles=candles,
             primary_label=_ORIGIN_BACK.get(origin, "Back to Today"),
             origin=origin,
-            chart_opacity=0.12,
+            blur_candles=True,
         )
 
     candles = _fetch_candles(sym, market)
