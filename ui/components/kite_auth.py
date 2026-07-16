@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from urllib.parse import parse_qs, urlparse
+
 import streamlit as st
 
 from analyzer.zerodha import (
@@ -10,19 +12,17 @@ from analyzer.zerodha import (
     save_access_token_to_env,
 )
 from ui.broker.bootstrap import reset_broker_bootstrap
-from ui.broker.oauth_log import oauth_log, oauth_log_exception
+from ui.broker.oauth_log import oauth_log, oauth_log_exception, startup_trace
 from ui.components.kite_connect import clear_kite_status_caches
 
 _CHECKSUM_HELP = (
     "API Secret does not match your API Key. "
     "Open Settings → Broker → Advanced to reconfigure, then sign in again."
 )
-_OAUTH_RERUN_COUNT_KEY = "_oauth_rerun_count"
-_OAUTH_MAX_RERUNS = 3
 
 
 def _query_param(name: str) -> str:
-    """Read a query param — Streamlit may expose values as str or list."""
+    """Read a query param from st.query_params."""
     try:
         qp = st.query_params
         if name in qp:
@@ -34,20 +34,38 @@ def _query_param(name: str) -> str:
         return str(val or "").strip()
     except Exception as exc:
         oauth_log("query_param error", f"{name}: {exc}")
+    return ""
+
+
+def _query_param_from_context_url(name: str) -> str:
+    """Fallback: parse query string from st.context.url when query_params is empty."""
     try:
-        for key, val in dict(st.query_params).items():
-            if key == name:
-                if isinstance(val, list):
-                    return str(val[0] if val else "").strip()
-                return str(val or "").strip()
-    except Exception:
-        pass
+        url = str(getattr(st.context, "url", "") or "")
+        if not url or "?" not in url:
+            return ""
+        values = parse_qs(urlparse(url).query).get(name) or []
+        return str(values[0]).strip() if values else ""
+    except Exception as exc:
+        oauth_log("context.url parse error", f"{name}: {exc}")
+    return ""
+
+
+def get_request_token() -> str:
+    """Resolve request_token from query_params or context URL."""
+    token = _query_param("request_token")
+    if token:
+        oauth_log("Token source", "st.query_params")
+        return token
+    token = _query_param_from_context_url("request_token")
+    if token:
+        oauth_log("Token source", "st.context.url")
+        return token
     return ""
 
 
 def has_kite_oauth_callback() -> bool:
     """True when Zerodha redirected back with a request_token in the URL."""
-    return bool(_query_param("request_token"))
+    return bool(get_request_token())
 
 
 def _mask_token(token: str) -> str:
@@ -68,6 +86,7 @@ def _checksum_error_message(exc: Exception) -> str:
 
 def _clear_oauth_query_params() -> None:
     """Remove OAuth callback params so refresh does not reprocess."""
+    startup_trace(8, "_clear_oauth_query_params")
     try:
         for key in ("request_token", "action", "type", "status"):
             if key in st.query_params:
@@ -82,57 +101,34 @@ def _clear_oauth_query_params() -> None:
             oauth_log("URL cleanup failed", str(exc2))
 
 
-def process_oauth_callback_early() -> None:
-    """
-    Run at the top of main() immediately after set_page_config.
-    Must execute before ensure_broker_configured() or any early return.
-    Schedules st.rerun() so the browser URL drops OAuth query params.
-    """
-    request_token = _query_param("request_token")
-    if not request_token:
-        st.session_state.pop(_OAUTH_RERUN_COUNT_KEY, None)
-        return
-
-    rerun_count = int(st.session_state.get(_OAUTH_RERUN_COUNT_KEY, 0))
-    oauth_log(
-        "Early callback",
-        f"main() entry rerun_count={rerun_count} token={_mask_token(request_token)}",
-    )
-
-    if rerun_count >= _OAUTH_MAX_RERUNS:
-        oauth_log("Rerun guard", "max reruns reached — continuing render")
-        return
-
-    handle_kite_redirect(quiet=True)
-    _clear_oauth_query_params()
-    st.session_state[_OAUTH_RERUN_COUNT_KEY] = rerun_count + 1
-    oauth_log("Rerun scheduled", f"attempt {rerun_count + 1} to sync browser URL")
-    st.rerun()
-
-
 def handle_kite_redirect(*, quiet: bool = False) -> bool:
     """
     Auto-exchange request_token when Zerodha redirects back to Streamlit.
-    Call on every app run when request_token is present (including after startup).
     Returns True if a new token was saved this run.
     """
-    if not has_kite_oauth_callback():
+    startup_trace(4, "handle_kite_redirect.enter")
+
+    request_token = get_request_token()
+    if not request_token:
+        startup_trace(4, "handle_kite_redirect.skip", "no request_token")
         return False
 
     oauth_log("Callback detected")
-    request_token = _query_param("request_token")
     oauth_log("Request token found", _mask_token(request_token))
 
     failed_key = f"kite_failed_token_{request_token}"
     if st.session_state.get("kite_token_exchanged") == request_token:
         oauth_log("Already exchanged", "skipping duplicate processing")
         _clear_oauth_query_params()
+        startup_trace(4, "handle_kite_redirect.skip", "already exchanged")
         return False
     if st.session_state.get(failed_key):
         oauth_log("Skipped", "this request_token previously failed")
         _clear_oauth_query_params()
+        startup_trace(4, "handle_kite_redirect.skip", "previously failed")
         return False
 
+    startup_trace(5, "load_env_credentials")
     creds = load_env_credentials()
     if not creds["api_key"] or not creds["api_secret"]:
         oauth_log("Blocked", "API key or secret missing from configuration")
@@ -145,15 +141,18 @@ def handle_kite_redirect(*, quiet: bool = False) -> bool:
             st.session_state["_broker_toast"] = (
                 "Broker setup incomplete. Complete the one-time setup wizard first."
             )
+        startup_trace(4, "handle_kite_redirect.blocked", "missing API credentials")
         return False
 
     try:
         oauth_log("Exchanging request token")
+        startup_trace(6, "exchange_request_token")
         access_token = exchange_request_token(
             creds["api_key"], creds["api_secret"], request_token
         )
         oauth_log("Access token received", _mask_token(access_token))
 
+        startup_trace(7, "save_access_token_to_env")
         save_access_token_to_env(access_token)
         oauth_log("Token saved", "persisted to .env and process environment")
 
@@ -161,6 +160,7 @@ def handle_kite_redirect(*, quiet: bool = False) -> bool:
         st.session_state["kite_access_token"] = access_token
         from analyzer.zerodha import hydrate_kite_access_token
 
+        startup_trace(8, "hydrate_kite_access_token")
         hydrate_kite_access_token()
         clear_kite_status_caches()
         reset_broker_bootstrap()
@@ -203,6 +203,7 @@ def handle_kite_redirect(*, quiet: bool = False) -> bool:
             else:
                 st.success(message)
         oauth_log("OAuth complete", "authentication succeeded")
+        startup_trace(4, "handle_kite_redirect.done", "success")
         return True
     except Exception as exc:
         st.session_state[failed_key] = True
@@ -212,4 +213,5 @@ def handle_kite_redirect(*, quiet: bool = False) -> bool:
             st.session_state["_broker_toast"] = detail
         else:
             st.error(f"Login failed: {detail}")
+        startup_trace(4, "handle_kite_redirect.done", "failed")
         return False

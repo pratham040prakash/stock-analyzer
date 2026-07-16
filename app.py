@@ -23,7 +23,7 @@ from ui.components.theme_toggle import apply_theme_css, render_theme_toggle_side
 from ui.components.nse import render_nse_error_banner
 from ui.components.broker_setup_wizard import ensure_broker_configured
 from ui.components.broker_startup import run_broker_startup
-from ui.components.kite_auth import process_oauth_callback_early
+from ui.broker.oauth_log import startup_trace
 from ui.components.telegram_subscribe import render_telegram_subscribe_sidebar
 from ui.pages.beginner_risk import render_beginner_risk
 from ui.pages.alpha_ai import render_alpha_ai
@@ -208,23 +208,30 @@ def _maybe_autopilot_health_alert() -> None:
 
 
 def main() -> None:
-    load_app_env()
-    st.set_page_config(page_title="Stock Analyzer", page_icon="📈", layout="wide")
+    startup_trace(1, "app.main.enter")
 
-    # OAuth must run before any early return (wizard, Home, etc.)
-    process_oauth_callback_early()
+    load_app_env()
+    startup_trace(1, "load_app_env")
+
+    st.set_page_config(page_title="Stock Analyzer", page_icon="📈", layout="wide")
+    startup_trace(1, "st.set_page_config")
 
     apply_theme_css()
     st.markdown(MOBILE_CSS, unsafe_allow_html=True)
 
     init_nav_state()
     apply_pending_nav_tab()
+    startup_trace(2, "init_nav_state")
 
     if not ensure_broker_configured():
+        startup_trace(2, "ensure_broker_configured", "BLOCKED — wizard shown")
         return
+    startup_trace(2, "ensure_broker_configured", "OK")
 
     run_broker_startup()
+
     is_home = st.session_state.get("nav_tab") == "Home"
+    startup_trace(13, "page_routing", f"nav_tab={st.session_state.get('nav_tab')}")
 
     st.title("📈 Stock Analyzer")
 
