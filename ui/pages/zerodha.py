@@ -41,8 +41,9 @@ from analyzer.zerodha import (
     parse_holdings_csv,
     parse_kite_symbol_list,
 )
-from ui.components.kite_connect import render_kite_connect
-from ui.components.empty_states import empty_connect_kite, empty_portfolio
+from ui.components.broker_connect import render_portfolio_broker_gate
+from ui.components.portfolio_broker_header import render_portfolio_broker_header
+from ui.components.empty_states import empty_portfolio
 from ui.navigation import request_nav_tab
 
 
@@ -61,7 +62,7 @@ def _render_live_portfolio_panel(profile: str) -> None:
         st.caption("Market closed — live prices resume at 9:15 AM IST.")
         return
     if not is_kite_live():
-        st.caption("Connect **Kite Connect** (sidebar) for live portfolio prices.")
+        st.caption("Live Kite quotes unavailable — using last synced prices.")
         return
 
     imp = st.session_state.get("zd_import")
@@ -153,38 +154,25 @@ def render_zerodha(period: str) -> None:
     st.caption(
         "Track holdings with **qty & avg price** — works without Zerodha. "
         "Saved portfolio powers **Daily Advisor**, **Suggestions** intraday strip, and morning briefing. "
-        "**Connect Kite** for live sync + real-time LTP."
+        "**Connect Zerodha** for live sync + real-time LTP."
     )
 
     if msg := st.session_state.pop("_portfolio_auto_sync_msg", None):
         st.success(msg)
-    if err := st.session_state.get("_kite_sync_error"):
-        st.warning(f"Could not load holdings from Kite: {err}")
-
-    creds = load_env_credentials()
-    if creds.get("access_token") and not st.session_state.get("zd_import"):
-        st.info(
-            "Kite is logged in — holdings sync on app load. "
-            "If nothing appears below, click **Sync from Kite now**."
-        )
-
-    profile = st.text_input(
-        "Your profile name (use your initials on shared app)",
-        value=st.session_state.get("portfolio_profile", ""),
-        placeholder="e.g. pratham",
-        key="portfolio_profile_input",
-    )
-    if profile.strip():
-        st.session_state["portfolio_profile"] = profile.strip()
 
     prof = portfolio_profile_key()
     saved = load_saved_portfolio(profile=prof)
     if saved and not st.session_state.get("zd_import"):
         st.session_state["zd_import"] = saved
 
+    snapshot = st.session_state.get("broker_snapshot")
+    render_portfolio_broker_header(snapshot)
+    if render_portfolio_broker_gate(snapshot):
+        return
+
     mode = st.radio(
         "How to add holdings",
-        ["Manual entry", "Upload holdings CSV", "Paste Kite symbols", "Kite Connect API"],
+        ["Manual entry", "Upload holdings CSV", "Paste Kite symbols"],
         horizontal=True,
     )
 
@@ -284,29 +272,12 @@ def render_zerodha(period: str) -> None:
                 _persist_import(import_result)
                 st.success(f"Imported {len(yahoo_syms)} symbols")
 
-    else:
-        render_kite_connect(key_prefix="portfolio_kite")
-        st.divider()
-
-        creds = load_env_credentials()
-        if st.button("Fetch live holdings from Kite", type="primary", key="zd_fetch"):
-            with st.spinner("Connecting to Zerodha Kite..."):
-                import_result, err = sync_holdings_from_kite()
-                if err:
-                    st.error(err)
-                else:
-                    _persist_import(import_result)
-                    st.success(f"Fetched {len(import_result.holdings)} holdings from Kite")
-
     import_result = st.session_state.get("zd_import")
     _render_kite_watchlist_panel(prof)
 
     tracked = load_tracked_portfolio(import_result, profile=prof, refresh_ltp=is_kite_live())
     if not tracked.holdings:
         empty_portfolio(key="zd_empty_portfolio")
-        creds = load_env_credentials()
-        if not creds.get("access_token"):
-            empty_connect_kite(key="zd_empty_kite")
         return
 
     st.divider()
@@ -323,16 +294,19 @@ def render_zerodha(period: str) -> None:
     with sync_col:
         if creds.get("access_token"):
             if st.button("Sync from Kite now", type="primary", key="zd_sync_kite", use_container_width=True):
-                with st.spinner("Fetching holdings from Kite…"):
+                with st.spinner("Synchronizing Portfolio…"):
                     synced, err = sync_holdings_from_kite()
                     if err:
-                        st.error(err)
+                        st.warning("Unable to sync holdings right now. Try again shortly.")
                     elif synced:
                         _persist_import(synced)
+                        from ui.broker.bootstrap import reset_broker_bootstrap
+
+                        reset_broker_bootstrap()
                         st.success(f"Synced {len(synced.holdings)} holdings with live prices")
                         st.rerun()
         else:
-            st.caption("Login with Zerodha (sidebar) to auto-sync holdings.")
+            st.caption("Holdings sync automatically after you sign in to Zerodha.")
     with live_col:
         if is_kite_live():
             ensure_kite_stream_for_tracked(import_result, profile=prof)

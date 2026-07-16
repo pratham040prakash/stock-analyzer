@@ -6,11 +6,10 @@ import streamlit as st
 
 from analyzer.env_loader import load_app_env
 from analyzer.india import indian_ticker_help
-from analyzer.kite_stream import start_kite_ticker_on_app_start
 from analyzer.market_session import market_session_status
 from analyzer.markets import MARKETS, is_india_market
 from analyzer.app_mode import is_simple_cloud_mode
-from analyzer.portfolio_store import load_saved_portfolio, portfolio_profile_key, save_portfolio
+from analyzer.portfolio_store import load_saved_portfolio, portfolio_profile_key
 from analyzer.telegram_notify import send_telegram_broadcast, telegram_configured
 from analyzer.varsity_knowledge import VARSITY_MODULE_URL
 from ui.components.setup_wizard import render_setup_wizard_sidebar
@@ -22,8 +21,9 @@ from ui.components.command_palette import render_command_palette, render_tab_qui
 from ui.components.navigation_bar import render_app_navigation
 from ui.components.theme_toggle import apply_theme_css, render_theme_toggle_sidebar
 from ui.components.nse import render_nse_error_banner
-from ui.components.kite_auth import handle_kite_redirect
-from ui.components.kite_connect import render_kite_connect_sidebar
+from ui.components.broker_setup_wizard import ensure_broker_configured
+from ui.components.broker_startup import run_broker_startup
+from ui.components.kite_auth import process_oauth_callback_early
 from ui.components.telegram_subscribe import render_telegram_subscribe_sidebar
 from ui.pages.beginner_risk import render_beginner_risk
 from ui.pages.alpha_ai import render_alpha_ai
@@ -210,11 +210,20 @@ def _maybe_autopilot_health_alert() -> None:
 def main() -> None:
     load_app_env()
     st.set_page_config(page_title="Stock Analyzer", page_icon="📈", layout="wide")
+
+    # OAuth must run before any early return (wizard, Home, etc.)
+    process_oauth_callback_early()
+
     apply_theme_css()
     st.markdown(MOBILE_CSS, unsafe_allow_html=True)
 
     init_nav_state()
     apply_pending_nav_tab()
+
+    if not ensure_broker_configured():
+        return
+
+    run_broker_startup()
     is_home = st.session_state.get("nav_tab") == "Home"
 
     st.title("📈 Stock Analyzer")
@@ -252,7 +261,6 @@ def main() -> None:
             render_setup_wizard_sidebar()
             render_data_health_sidebar()
             render_autopilot_sidebar()
-            render_kite_connect_sidebar()
             render_sidebar_onboarding_button()
             with st.expander("📱 Telegram & schedules (optional)", expanded=False):
                 render_telegram_subscribe_sidebar()
@@ -278,14 +286,8 @@ def main() -> None:
         render_unified_home(market, period=period)
         return
 
-    handle_kite_redirect()
-    from analyzer.zerodha import hydrate_kite_access_token
-
-    hydrate_kite_access_token()
     st.caption("Home · star stocks · track results")
-
-    start_kite_ticker_on_app_start()
-    _hydrate_saved_portfolio()
+    _ensure_portfolio_streaming()
     _maybe_prep_morning_nag()
     _maybe_session_reminders()
     _maybe_watchlist_live_alerts()

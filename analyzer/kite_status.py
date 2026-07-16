@@ -104,8 +104,8 @@ def kite_connection_status(*, probe: bool = True) -> dict:
     if not creds.get("access_token"):
         return {
             "level": "no_token",
-            "headline": "Kite login required",
-            "detail": "Daily access token missing — sidebar → **Login with Zerodha**.",
+            "headline": "Broker not connected",
+            "detail": "Sign in to Zerodha to sync your portfolio.",
             "nfo_ok": False,
             "market_data": "not_logged_in",
         }
@@ -122,8 +122,8 @@ def kite_connection_status(*, probe: bool = True) -> dict:
     if kite is None:
         return {
             "level": "expired",
-            "headline": "Kite token expired",
-            "detail": "Sidebar → **Login with Zerodha** again (~10 sec).",
+            "headline": "Session expired",
+            "detail": "Reconnect to Zerodha to refresh your portfolio.",
             "nfo_ok": False,
             "market_data": "expired",
         }
@@ -151,8 +151,8 @@ def kite_connection_status(*, probe: bool = True) -> dict:
     if market != "ok":
         return {
             "level": "expired",
-            "headline": "Kite token expired",
-            "detail": "Sidebar → **Login with Zerodha** again.",
+            "headline": "Session expired",
+            "detail": "Reconnect to Zerodha to refresh your portfolio.",
             "nfo_ok": False,
             "market_data": market,
         }

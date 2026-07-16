@@ -166,30 +166,5 @@ def render_kite_connect(*, compact: bool = False, key_prefix: str = "kite") -> b
 
 
 def render_kite_connect_sidebar() -> None:
-    """Compact Kite block in the app sidebar."""
-    creds = load_env_credentials()
-    status = kite_connection_status(probe=False if not creds.get("access_token") else True)
-    level = status.get("level", "ok")
-
-    with st.expander("🔗 Zerodha Kite", expanded=level != "ok"):
-        if level == "ok":
-            st.success("Live data connected")
-            if st.button("Re-check Kite", key="sidebar_kite_recheck", use_container_width=True):
-                clear_kite_status_caches()
-                st.rerun()
-            return
-        if level == "limited":
-            market = status.get("market_data", "")
-            if market == "personal_app":
-                st.success("Logged in — holdings OK")
-                st.caption("Personal app: prices via **Yahoo** · Connect app for live Kite LTP")
-                with st.expander("Upgrade to Connect (optional)"):
-                    st.markdown(_CONNECT_UPGRADE_STEPS)
-            else:
-                st.warning("Logged in — no quote API yet")
-                st.caption("Prices use Yahoo · re-login after Connect subscription")
-            if st.button("Re-check Kite", key="sidebar_kite_recheck_lim", use_container_width=True):
-                clear_kite_status_caches()
-                st.rerun()
-            return
-        render_kite_connect(compact=False, key_prefix="sidebar_kite")
+    """Deprecated — personal desktop OS uses startup bootstrap instead of sidebar forms."""
+    return

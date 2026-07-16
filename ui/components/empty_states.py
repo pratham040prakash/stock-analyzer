@@ -25,9 +25,9 @@ def empty_state(
 
 def empty_connect_kite(*, key: str = "empty_kite") -> None:
     empty_state(
-        "No Kite connection",
-        "Connect Zerodha for live quotes, holdings import, and options chain.",
-        cta_label="Connect Kite → My Portfolio",
+        "Broker not connected",
+        "Sign in to Zerodha to sync holdings and live prices.",
+        cta_label="Open My Portfolio",
         cta_tab="My Portfolio",
         key=key,
     )

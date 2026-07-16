@@ -303,9 +303,19 @@ def exchange_request_token(api_key: str, api_secret: str, request_token: str) ->
     if not api_key or not api_secret or not request_token:
         raise ValueError("API key, secret, and request token are all required.")
 
+    try:
+        from ui.broker.oauth_log import oauth_log
+
+        oauth_log("generate_session started", f"api_key={api_key[:4]}…")
+    except Exception:
+        pass
+
     kite = KiteConnect(api_key=api_key)
     data = kite.generate_session(request_token, api_secret=api_secret)
-    return data["access_token"]
+    access_token = data.get("access_token")
+    if not access_token:
+        raise ValueError("Kite generate_session did not return access_token.")
+    return access_token
 
 
 def _holding_from_kite_holdings_row(row: dict) -> ZerodhaHolding | None:

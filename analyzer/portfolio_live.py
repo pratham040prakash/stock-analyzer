@@ -112,7 +112,7 @@ def sync_holdings_from_kite() -> tuple[ZerodhaImportResult | None, str]:
     """Fetch delivery holdings from Kite API."""
     creds = load_env_credentials()
     if not creds.get("api_key") or not creds.get("access_token"):
-        return None, "Connect Kite in the sidebar first — click **Login with Zerodha**."
+        return None, "Sign in to Zerodha to sync holdings."
     imp = fetch_holdings_from_kite(creds["api_key"], creds["access_token"])
     if imp.errors and not imp.holdings:
         return None, imp.errors[0]
