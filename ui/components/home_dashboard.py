@@ -1,37 +1,30 @@
-"""Investment OS Home Dashboard — answers market, decision, opportunities, risk in one screen."""
+"""Home investing assistant — five questions, action before data."""
 
 from __future__ import annotations
 
 import html
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
-import pandas as pd
 import streamlit as st
 
-from analyzer.broker_truth.learning import (
-    LearningOutcomeRow,
-    LearningOutcomeSource,
-    learning_source_stats,
-    resolve_learning_outcomes,
-)
-from analyzer.context_engine import build_context_snapshot
+from analyzer.broker_truth.learning import resolve_learning_outcomes
 from analyzer.context_engine.models import ContextSnapshot
 from analyzer.decision_engine.models import DecisionArtifact, DecisionVerdict
-from analyzer.intraday_prefs import IntradayPrefs, load_intraday_prefs, save_intraday_prefs
+from analyzer.intraday_prefs import IntradayPrefs, load_intraday_prefs
+from analyzer.markets import is_india_market
+from analyzer.unified_search import unified_search
 from analyzer.investment_os import InvestmentOS, build_investment_os
 from analyzer.market_pulse_scan import MarketPulseReport
 from analyzer.mis_trade_advisory import MisTradeAdvisory, build_mis_trade_advisory
-from analyzer.nightly_prep import run_nightly_prep
 from analyzer.portfolio_store import load_saved_portfolio, portfolio_profile_key
 from analyzer.pulse_cache import load_pulse_cache_with_stale
 from analyzer.trade_journal import load_journal_entries
-from analyzer.trade_selection import is_selected, toggle_selected
-from analyzer.watchlist_history import outcome_label
 from analyzer.watchlist_pins import PinnedPlan, load_pinned_plans
-from analyzer.zerodha import ZerodhaImportResult
+from analyzer.zerodha import ZerodhaHolding, ZerodhaImportResult
+from ui.broker.state import BrokerSnapshot, load_broker_snapshot
 from ui.navigation import request_nav_tab
 from ui.theme import HOME_UI_CSS
 
@@ -124,51 +117,6 @@ def _evidence_summary(decision: DecisionArtifact | None, *, limit: int = 6) -> l
         return []
 
 
-def _macro_headline(snapshot: ContextSnapshot) -> str:
-    macro = dict(snapshot.macro_state)
-    parts: list[str] = []
-    vix = macro.get("vix_regime") or snapshot.volatility_state
-    if vix:
-        parts.append(f"VIX {vix}")
-    fii = macro.get("fii_dii_summary")
-    if fii:
-        parts.append(str(fii)[:60])
-    leader = dict(snapshot.sector_strength).get("leader")
-    if leader:
-        parts.append(f"Leader: {leader}")
-    return " · ".join(parts) if parts else "Macro context loaded"
-
-
-def _global_bias(snapshot: ContextSnapshot) -> str:
-    state = dict(snapshot.global_market_state)
-    bias = str(state.get("bias", "NEUTRAL"))
-    action = str(state.get("india_action", "") or "")
-    spill = state.get("spillover_score")
-    tail = f" · spill {spill:+.0f}" if spill is not None else ""
-    return f"{bias}{tail}" + (f" — {action[:50]}" if action else "")
-
-
-def _session_label(snapshot: ContextSnapshot) -> str:
-    session = dict(snapshot.market_session)
-    status = str(session.get("status", "unknown"))
-    phase = str(session.get("phase", ""))
-    date = str(session.get("date", ""))
-    open_flag = "open" if session.get("is_open") else "closed"
-    return f"{status} · {phase} · {date} ({open_flag})"
-
-
-def _market_decision_hint(os_report: InvestmentOS, snapshot: ContextSnapshot | None) -> str:
-    if os_report.verdict in ("TRADE OK", "WAIT", "NO TRADE", "PREP", "CLOSED"):
-        return os_report.verdict
-    if snapshot:
-        if snapshot.risk_mode == "CLOSED":
-            return "CLOSED"
-        if snapshot.trading_restrictions:
-            return snapshot.trading_restrictions[0][:80]
-        return snapshot.risk_mode
-    return "—"
-
-
 def _build_opportunities(
     pins: list[PinnedPlan],
     pulse: MarketPulseReport | None,
@@ -248,14 +196,466 @@ def _journal_pnl_for_date(trade_date: str) -> float | None:
     return total if found else None
 
 
-def _yesterday_learning_row(rows: list[LearningOutcomeRow]) -> LearningOutcomeRow | None:
-    today = datetime.now(IST).date()
-    for offset in range(1, 8):
-        day = (today - timedelta(days=offset)).isoformat()
-        for row in rows:
-            if row.trade_date == day:
+def _conf_label(conf: float | int) -> tuple[str, str]:
+    pct = int(round(float(conf)))
+    if pct >= 70:
+        return "High confidence", "assist-conf-high"
+    if pct >= 40:
+        return "Medium confidence", "assist-conf-medium"
+    return "Low confidence", "assist-conf-low"
+
+
+def _conf_numeric(decision: DecisionArtifact | None, snapshot: ContextSnapshot) -> int:
+    if decision:
+        raw = float(decision.confidence)
+        return int(round(raw * 100)) if raw <= 1.0 else int(round(raw))
+    raw = float(snapshot.confidence or 0.0)
+    return int(round(raw * 100)) if raw <= 1.0 else int(round(raw))
+
+
+def _verdict_conclusion(
+    verdict: str,
+    *,
+    os_report: InvestmentOS,
+    mis: MisTradeAdvisory,
+) -> str:
+    mapping = {
+        "ACT": "Open today's trade plan and size the trade within your risk budget.",
+        "WAIT": "Hold off on new trades until the setup clears.",
+        "PASS": "Skip new trades today — protect your capital.",
+        "REDUCE": "Trim exposure and avoid adding fresh risk.",
+        "DEFENSIVE": "Stay defensive — no new entries until conditions improve.",
+    }
+    if os_report.next_step:
+        return os_report.next_step
+    return mapping.get(verdict, mis.summary or "Review your plan before acting.")
+
+
+def _levels_for_symbol(symbol: str, pins: list[PinnedPlan]) -> tuple[float, float, float] | None:
+    if not symbol:
+        return None
+    sym = symbol.upper().replace(".NS", "").replace(".BO", "")
+    for pin in pins:
+        pin_sym = pin.symbol.upper().replace(".NS", "").replace(".BO", "")
+        if pin_sym == sym:
+            return pin.entry, pin.stop_loss, pin.target
+    return None
+
+
+def _portfolio_health(
+    snapshot: ContextSnapshot,
+    mis: MisTradeAdvisory,
+    os_report: InvestmentOS,
+) -> tuple[str, str, str]:
+    """Qualitative health from existing engine outputs — no synthetic score."""
+    risk_mod = os_report.module("risk")
+    flag_count = len(mis.flags or ())
+    mode = snapshot.risk_mode or "NEUTRAL"
+
+    if mode == "CLOSED" or (risk_mod and risk_mod.status in ("warn", "off")):
+        label, css = "High Risk", "assist-conf-low"
+    elif mode == "RISK-OFF" or flag_count >= 2 or (risk_mod and risk_mod.status == "wait"):
+        label, css = "Needs Review", "assist-conf-medium"
+    else:
+        label, css = "Healthy", "assist-conf-high"
+
+    detail = risk_mod.headline if risk_mod and risk_mod.headline else os_report.next_step
+    if not detail and mis.flags:
+        detail = mis.flags[0]
+    if not detail:
+        detail = f"Market is {mode.lower().replace('_', ' ')} — stay within your plan."
+    return label, css, detail
+
+
+def _holding_pnl_pct(h: ZerodhaHolding) -> float | None:
+    if h.pnl is None or not h.average_price or not h.quantity:
+        return None
+    cost = float(h.average_price) * float(h.quantity)
+    if cost <= 0:
+        return None
+    return 100.0 * float(h.pnl) / cost
+
+
+def _holding_extremes(holdings: list[ZerodhaHolding]) -> tuple[str, str]:
+    scored: list[tuple[str, float]] = []
+    for h in holdings:
+        pct = _holding_pnl_pct(h)
+        if pct is None:
+            continue
+        scored.append((h.tradingsymbol or h.kite_symbol or "—", pct))
+    if not scored:
+        return "—", "—"
+    scored.sort(key=lambda x: x[1])
+    weakest = f"{scored[0][0]} ({scored[0][1]:+.1f}%)"
+    strongest = f"{scored[-1][0]} ({scored[-1][1]:+.1f}%)"
+    return weakest, strongest
+
+
+def _best_opportunity(
+    opportunities: list[OpportunityRow],
+    os_report: InvestmentOS,
+) -> OpportunityRow | None:
+    if not opportunities:
+        return None
+    star = (os_report.starred_symbol or "").upper().replace(".NS", "")
+    if star:
+        for row in opportunities:
+            if row.ticker.upper() == star:
                 return row
-    return rows[0] if rows else None
+    return opportunities[0]
+
+
+def _watch_bullets(
+    mis: MisTradeAdvisory,
+    snapshot: ContextSnapshot,
+    opportunities: list[OpportunityRow],
+    pins: list[PinnedPlan],
+) -> list[str]:
+    bullets: list[str] = []
+    for flag in (mis.flags or ())[:2]:
+        bullets.append(flag)
+    for restriction in snapshot.trading_restrictions[:2]:
+        if restriction not in bullets:
+            bullets.append(restriction)
+    for row in opportunities[:2]:
+        line = f"{row.ticker} — watch entry near ₹{row.entry:,.0f}"
+        if line not in bullets:
+            bullets.append(line)
+    if not bullets and pins:
+        p = pins[0]
+        sym = p.symbol.upper().replace(".NS", "")
+        bullets.append(f"{sym} — plan entry ₹{p.entry:,.0f}, stop ₹{p.stop_loss:,.0f}")
+    if not bullets:
+        bullets.append("No urgent items — stick to your trade plan.")
+    return bullets[:3]
+
+
+def _broker_snapshot() -> BrokerSnapshot:
+    raw = st.session_state.get("broker_snapshot")
+    if raw:
+        return BrokerSnapshot.from_dict(raw)
+    return load_broker_snapshot()
+
+
+def _go_symbol(symbol: str) -> None:
+    sym = symbol.replace(".NS", "").replace(".BO", "").strip()
+    request_nav_tab(
+        "Single Stock",
+        single_ticker=sym,
+        bt_ticker=sym,
+        intraday_ticker=sym,
+        alpha_ai_ticker=sym,
+    )
+
+
+def _render_todays_decision(
+    decision: DecisionArtifact | None,
+    mis: MisTradeAdvisory,
+    os_report: InvestmentOS,
+    snapshot: ContextSnapshot,
+    pins: list[PinnedPlan],
+) -> None:
+    st.markdown('<div class="assist-card assist-hero">', unsafe_allow_html=True)
+    st.markdown('<p class="assist-q">What should I do today?</p>', unsafe_allow_html=True)
+
+    if decision:
+        verdict = decision.verdict.value
+        cls = _VERDICT_CLASS.get(decision.verdict, "dash-verdict-wait")
+        reason = decision.reason
+        if decision.explainability and decision.explainability.why:
+            reason = decision.explainability.why
+        conf_num = _conf_numeric(decision, snapshot)
+    else:
+        verdict = "WAIT" if snapshot.risk_mode != "CLOSED" else "DEFENSIVE"
+        cls = "dash-verdict-defensive" if verdict == "DEFENSIVE" else "dash-verdict-wait"
+        reason = os_report.next_step or mis.summary or "Wait for a clearer setup."
+        conf_num = _conf_numeric(None, snapshot)
+
+    conf_text, conf_cls = _conf_label(conf_num)
+    conclusion = _verdict_conclusion(verdict, os_report=os_report, mis=mis)
+
+    st.markdown(
+        f'<div class="dash-verdict {cls}">'
+        f'<p class="assist-verdict-xl">{_esc(verdict)}</p>'
+        f'<p class="assist-conf {conf_cls}">{_esc(conf_text)}</p>'
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(f'<p class="assist-reason">{_esc(reason)}</p>', unsafe_allow_html=True)
+
+    levels_sym = os_report.starred_symbol or (pins[0].symbol if pins else "")
+    levels = _levels_for_symbol(levels_sym, pins) if levels_sym else None
+    if levels:
+        entry, stop, target = levels
+        st.markdown(
+            '<div class="assist-levels">'
+            f'{_level_box("Entry", f"₹{entry:,.0f}")}'
+            f'{_level_box("Stop", f"₹{stop:,.0f}")}'
+            f'{_level_box("Target", f"₹{target:,.0f}")}'
+            f'{_level_box("Symbol", levels_sym.upper().replace(".NS", ""))}'
+            "</div>",
+            unsafe_allow_html=True,
+        )
+
+    st.markdown(f'<p class="assist-conclusion">{_esc(conclusion)}</p>', unsafe_allow_html=True)
+
+    if st.button("Open today's trade plan", key="assist_trade_plan", type="primary", use_container_width=True):
+        request_nav_tab("Suggestions")
+
+    with st.expander("Why this call?"):
+        st.caption(f"Confidence score: {conf_num}%")
+        evidence = _evidence_summary(decision)
+        if not evidence and mis.synthesis_pillars:
+            evidence = mis.synthesis_pillars[:5]
+        if not evidence and mis.flags:
+            evidence = [f"⚠ {f}" for f in mis.flags[:4]]
+        if evidence:
+            for line in evidence[:6]:
+                st.markdown(f"- {line}")
+        else:
+            st.caption("More detail appears after live synthesis runs.")
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+def _level_box(label: str, value: str) -> str:
+    return (
+        f'<div class="assist-level-box">'
+        f'<p class="assist-level-label">{_esc(label)}</p>'
+        f'<p class="assist-level-value">{_esc(value)}</p>'
+        f"</div>"
+    )
+
+
+def _render_best_opportunity(
+    opportunities: list[OpportunityRow],
+    os_report: InvestmentOS,
+) -> None:
+    st.markdown('<div class="assist-card">', unsafe_allow_html=True)
+    st.markdown('<p class="assist-q">Which opportunity deserves my attention?</p>', unsafe_allow_html=True)
+
+    row = _best_opportunity(opportunities, os_report)
+    if not row:
+        st.markdown(
+            '<p class="assist-reason">No saved setups yet. Run a scan after market close to build your list.</p>',
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            '<p class="assist-conclusion">Head to Suggestions to scan and save picks for tomorrow.</p>',
+            unsafe_allow_html=True,
+        )
+        if st.button("Go to suggestions", key="assist_go_suggestions", use_container_width=True):
+            request_nav_tab("Suggestions")
+        st.markdown("</div>", unsafe_allow_html=True)
+        return
+
+    conf_text, conf_cls = _conf_label(row.confidence)
+    rr = _risk_reward(row.entry, row.stop, row.target)
+    rr_note = f"{rr}× reward vs risk" if rr else "check risk before sizing"
+    st.markdown(
+        f'<p class="assist-reason"><b>{_esc(row.ticker)}</b> — {_esc(row.side)} setup. '
+        f'<span class="assist-conf {conf_cls}">{_esc(conf_text)}</span> · {_esc(rr_note)}.</p>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        f'<p class="assist-reason">Entry ₹{row.entry:,.0f} · Stop ₹{row.stop:,.0f} · Target ₹{row.target:,.0f}</p>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        f'<p class="assist-conclusion">Review the full setup for {_esc(row.ticker)} before you commit capital.</p>',
+        unsafe_allow_html=True,
+    )
+
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("Review Setup", key="assist_review_setup", type="primary", use_container_width=True):
+            _go_symbol(row.ticker)
+    with c2:
+        if st.button("See all picks", key="assist_all_picks", use_container_width=True):
+            request_nav_tab("Suggestions")
+
+    with st.expander("Setup details"):
+        st.caption(f"Confidence score: {row.confidence}%")
+        st.markdown(f"- Expected move: {row.expected_reward}")
+        st.markdown(f"- Risk: {row.risk}")
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+def _render_portfolio_assistant(
+    metrics: dict[str, Any],
+    portfolio: ZerodhaImportResult | None,
+    snapshot: ContextSnapshot,
+    mis: MisTradeAdvisory,
+    os_report: InvestmentOS,
+) -> None:
+    st.markdown('<div class="assist-card">', unsafe_allow_html=True)
+    st.markdown('<p class="assist-q">What should I do with my portfolio?</p>', unsafe_allow_html=True)
+
+    health, health_cls, health_detail = _portfolio_health(snapshot, mis, os_report)
+    holdings = portfolio.holdings if portfolio and portfolio.holdings else []
+    weakest, strongest = _holding_extremes(holdings)
+
+    pnl_label = "Today's P/L" if metrics["today_pnl_source"] == "journal" else "Unrealized P/L"
+    pnl_val = _fmt_inr(metrics["today_pnl"], signed=True)
+    exp = f"{metrics['exposure_pct']}%" if metrics["exposure_pct"] is not None else "not set"
+
+    st.markdown(
+        f'<p class="assist-reason">Portfolio is <span class="assist-conf {health_cls}">{_esc(health)}</span>. '
+        f'{_esc(health_detail)}</p>',
+        unsafe_allow_html=True,
+    )
+
+    if metrics["holding_count"]:
+        st.markdown(
+            f'<p class="assist-reason">{_esc(pnl_label)}: <b>{_esc(pnl_val)}</b> · '
+            f'Exposure { _esc(exp)} · Weakest: {_esc(weakest)} · Strongest: {_esc(strongest)}</p>',
+            unsafe_allow_html=True,
+        )
+        conclusion = (
+            f"You hold {metrics['holding_count']} position(s). "
+            "Review sizing on laggards before adding new trades."
+        )
+    else:
+        st.markdown(
+            '<p class="assist-reason">No holdings saved yet — connect your broker or import a CSV.</p>',
+            unsafe_allow_html=True,
+        )
+        conclusion = "Connect Zerodha or import holdings so portfolio advice stays accurate."
+
+    st.markdown(f'<p class="assist-conclusion">{_esc(conclusion)}</p>', unsafe_allow_html=True)
+
+    if st.button("See full portfolio", key="assist_portfolio", use_container_width=True):
+        request_nav_tab("My Portfolio")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+def _render_watch_today(
+    mis: MisTradeAdvisory,
+    snapshot: ContextSnapshot,
+    opportunities: list[OpportunityRow],
+    pins: list[PinnedPlan],
+) -> None:
+    st.markdown('<div class="assist-card">', unsafe_allow_html=True)
+    st.markdown('<p class="assist-q">What do I need to watch today?</p>', unsafe_allow_html=True)
+
+    bullets = _watch_bullets(mis, snapshot, opportunities, pins)
+    items = "".join(f"<li>{_esc(b)}</li>" for b in bullets)
+    st.markdown(f'<ul class="dash-evidence-list">{items}</ul>', unsafe_allow_html=True)
+    st.markdown(
+        '<p class="assist-conclusion">Keep these on your radar — act only when your plan says go.</p>',
+        unsafe_allow_html=True,
+    )
+
+    if st.button("View all picks", key="assist_watch_picks", use_container_width=True):
+        request_nav_tab("Suggestions")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+def _render_broker_status() -> None:
+    snap = _broker_snapshot()
+    st.markdown('<div class="assist-card">', unsafe_allow_html=True)
+    st.markdown('<p class="assist-q">Is my broker connected?</p>', unsafe_allow_html=True)
+
+    if snap.connected():
+        card_cls = "assist-broker-ok"
+        status = f"Yes — {snap.broker_label} is connected"
+        if snap.user_id:
+            status += f" ({snap.user_id})"
+        detail = snap.last_sync_at or "Recently synced"
+        if snap.holdings_count:
+            detail += f" · {snap.holdings_count} holding(s)"
+        conclusion = "Your live holdings feed is active. Zerodha Console remains the P&L source of truth."
+        action_label = "Open My Portfolio"
+        action_tab = "My Portfolio"
+    elif snap.needs_sign_in():
+        card_cls = "assist-broker-off"
+        status = "Not connected — sign in to sync holdings"
+        detail = snap.error_message or "Connect Zerodha to pull live positions."
+        conclusion = "Connect now so portfolio and risk advice use your real book."
+        action_label = "Connect Zerodha"
+        action_tab = "My Portfolio"
+    else:
+        card_cls = "assist-broker-warn"
+        status = f"{snap.broker_label} — {snap.state.replace('_', ' ')}"
+        detail = snap.error_message or snap.last_sync_status or "Limited sync — check connection."
+        conclusion = "Refresh your broker session to keep advice aligned with your account."
+        action_label = "Fix broker connection"
+        action_tab = "My Portfolio"
+
+    st.markdown(
+        f'<div class="{card_cls}" style="padding-left:12px">'
+        f'<p class="assist-reason"><b>{_esc(status)}</b></p>'
+        f'<p class="assist-reason" style="opacity:0.8;font-size:0.95rem">{_esc(detail)}</p>'
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(f'<p class="assist-conclusion">{_esc(conclusion)}</p>', unsafe_allow_html=True)
+
+    if st.button(action_label, key="assist_broker_action", use_container_width=True):
+        request_nav_tab(action_tab)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+def _render_home_stock_search(*, market: str) -> None:
+    st.markdown('<div class="assist-search-wrap">', unsafe_allow_html=True)
+    query = st.text_input(
+        "Search any stock",
+        placeholder="Search any stock…",
+        key="home_stock_search",
+        label_visibility="collapsed",
+    )
+    if not query or len(query.strip()) < 2:
+        st.caption("Type a symbol or company name to jump straight to analysis.")
+        st.markdown("</div>", unsafe_allow_html=True)
+        return
+
+    q = query.strip()
+    if is_india_market(market):
+        hits = unified_search(q, max_results=5)
+        if not hits:
+            st.caption("No matches — try the NSE symbol or company name.")
+        else:
+            for i, h in enumerate(hits):
+                label = f"{h.symbol} — {h.name[:40]}"
+                if st.button(label, key=f"home_search_{i}_{h.symbol}", use_container_width=True):
+                    _go_symbol(h.symbol)
+    else:
+        sym = q.upper()
+        if st.button(f"Analyze {sym}", key="home_search_us", use_container_width=True):
+            _go_symbol(sym)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+def render_home_dashboard(market: str, *, period: str = "1y", max_trades: int = 1) -> None:
+    del max_trades  # selection lives on Suggestions — home stays action-first
+    st.markdown(HOME_UI_CSS, unsafe_allow_html=True)
+    st.markdown('<div class="home-wrap dash-wrap assist-wrap">', unsafe_allow_html=True)
+
+    with st.spinner("Getting your briefing…"):
+        cached = load_dashboard_data(market, period, deep=False)
+
+    snapshot: ContextSnapshot = _snapshot_from_cache(cached["snapshot"])
+    mis: MisTradeAdvisory = cached["mis"]
+    os_report: InvestmentOS = cached["os_report"]
+    pins: list[PinnedPlan] = cached["pins"]
+    prefs: IntradayPrefs = cached["prefs"]
+    portfolio: ZerodhaImportResult | None = cached["portfolio"]
+    data = {**cached, "snapshot": snapshot}
+
+    decision, _source = _pick_decision(mis, os_report)
+    opportunities = _build_opportunities(pins, data["pulse"])
+    port_metrics = _portfolio_metrics(portfolio, prefs, journal_today_pnl=data["journal_today_pnl"])
+
+    _render_todays_decision(decision, mis, os_report, snapshot, pins)
+    _render_best_opportunity(opportunities, os_report)
+    _render_portfolio_assistant(port_metrics, portfolio, snapshot, mis, os_report)
+    _render_watch_today(mis, snapshot, opportunities, pins)
+    _render_broker_status()
+    _render_home_stock_search(market=market)
+
+    st.caption(f"Updated {data['built_at']} · Zerodha Console is source of truth for P&L.")
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def _snapshot_to_cache(snapshot: ContextSnapshot) -> dict[str, Any]:
@@ -289,6 +689,8 @@ def _snapshot_from_cache(data: dict[str, Any]) -> ContextSnapshot:
 
 @st.cache_data(ttl=45, show_spinner=False)
 def load_dashboard_data(market: str, period: str, deep: bool) -> dict[str, Any]:
+    from analyzer.context_engine import build_context_snapshot
+
     prefs = load_intraday_prefs()
     snapshot = build_context_snapshot(market=market, use_cache=True)
     mis = build_mis_trade_advisory(market=market)
@@ -312,328 +714,3 @@ def load_dashboard_data(market: str, period: str, deep: bool) -> dict[str, Any]:
         "learning": learning,
         "built_at": datetime.now(IST).strftime("%H:%M IST"),
     }
-
-
-def _section_title(title: str, subtitle: str = "") -> None:
-    sub = f'<span class="dash-section-sub">{_esc(subtitle)}</span>' if subtitle else ""
-    st.markdown(
-        f'<div class="dash-section-head"><h3 class="dash-section-title">{_esc(title)}</h3>{sub}</div>',
-        unsafe_allow_html=True,
-    )
-
-
-def _metric_tile(label: str, value: str, *, hint: str = "") -> str:
-    hint_html = f'<p class="dash-tile-hint">{_esc(hint)}</p>' if hint else ""
-    return (
-        f'<div class="dash-tile">'
-        f'<p class="dash-tile-label">{_esc(label)}</p>'
-        f'<p class="dash-tile-value">{_esc(value)}</p>'
-        f"{hint_html}"
-        f"</div>"
-    )
-
-
-def _render_market_section(snapshot: ContextSnapshot, os_report: InvestmentOS) -> None:
-    _section_title("Today's Market", "What is happening?")
-    st.markdown('<div class="dash-card">', unsafe_allow_html=True)
-    row1 = "".join(
-        [
-            _metric_tile("Market Regime", snapshot.market_regime),
-            _metric_tile("Risk Mode", snapshot.risk_mode),
-            _metric_tile("Market Breadth", snapshot.market_breadth),
-            _metric_tile("Global Bias", _global_bias(snapshot).split(" — ")[0]),
-        ]
-    )
-    row2 = "".join(
-        [
-            _metric_tile("Macro State", _macro_headline(snapshot)[:72]),
-            _metric_tile("Session", _session_label(snapshot)),
-            _metric_tile("Decision", _market_decision_hint(os_report, snapshot)),
-        ]
-    )
-    st.markdown(f'<div class="dash-tile-grid dash-tile-grid-4">{row1}</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="dash-tile-grid dash-tile-grid-3">{row2}</div>', unsafe_allow_html=True)
-    global_detail = _global_bias(snapshot)
-    if " — " in global_detail:
-        st.caption(global_detail.split(" — ", 1)[1])
-    st.markdown("</div>", unsafe_allow_html=True)
-
-
-def _render_decision_section(
-    decision: DecisionArtifact | None,
-    mis: MisTradeAdvisory,
-    os_report: InvestmentOS,
-    snapshot: ContextSnapshot,
-) -> None:
-    _section_title("Today's Decision", "Should I deploy capital today?")
-    st.markdown('<div class="dash-card dash-decision-card">', unsafe_allow_html=True)
-
-    if decision:
-        verdict = decision.verdict.value
-        cls = _VERDICT_CLASS.get(decision.verdict, "dash-verdict-wait")
-        conf = int(round(decision.confidence))
-        reason = decision.reason
-        if decision.explainability and decision.explainability.why:
-            reason = decision.explainability.why
-    else:
-        verdict = "WAIT" if snapshot.risk_mode != "CLOSED" else "DEFENSIVE"
-        cls = "dash-verdict-defensive" if verdict == "DEFENSIVE" else "dash-verdict-wait"
-        conf = int(snapshot.confidence * 100) if snapshot.confidence else 0
-        reason = os_report.next_step or mis.summary
-
-    st.markdown(
-        f'<div class="dash-verdict {cls}">'
-        f'<span class="dash-verdict-label">{_esc(verdict)}</span>'
-        f'<span class="dash-verdict-conf">{conf}% confidence</span>'
-        f"</div>",
-        unsafe_allow_html=True,
-    )
-    st.markdown(f'<p class="dash-reason">{_esc(reason)}</p>', unsafe_allow_html=True)
-
-    evidence = _evidence_summary(decision)
-    if not evidence and mis.synthesis_pillars:
-        evidence = mis.synthesis_pillars[:5]
-    if not evidence and mis.flags:
-        evidence = [f"⚠ {f}" for f in mis.flags[:4]]
-    if evidence:
-        st.markdown('<p class="dash-evidence-title">Evidence summary</p>', unsafe_allow_html=True)
-        items = "".join(f"<li>{_esc(line)}</li>" for line in evidence[:6])
-        st.markdown(f'<ul class="dash-evidence-list">{items}</ul>', unsafe_allow_html=True)
-    else:
-        st.caption("Evidence packet not persisted yet — run live synthesis for detail.")
-
-    if os_report.next_step:
-        st.markdown(f'<p class="dash-next"><b>Next:</b> {_esc(os_report.next_step)}</p>', unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
-
-
-def _render_opportunities_section(
-    rows: list[OpportunityRow],
-    *,
-    max_trades: int,
-    market: str,
-    period: str,
-) -> None:
-    _section_title("Top Opportunities", "Best setups right now")
-    st.markdown('<div class="dash-card">', unsafe_allow_html=True)
-    if not rows:
-        st.caption("No picks saved — run tonight's scan after market close.")
-        if st.button("Scan tonight's stocks", type="primary", key="dash_scan", use_container_width=True):
-            with st.spinner("Scanning…"):
-                result, _ = run_nightly_prep(market, period=period, send_telegram=False, use_cache=False)
-            if result.equity_count:
-                st.success(f"Saved {result.equity_count} picks.")
-            load_dashboard_data.clear()
-            st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
-        return
-
-    df = pd.DataFrame(
-        [
-            {
-                "Ticker": r.ticker,
-                "Confidence": f"{r.confidence}%",
-                "Expected reward": r.expected_reward,
-                "Risk": r.risk,
-                "Side": r.side,
-            }
-            for r in rows
-        ]
-    )
-    st.dataframe(df, use_container_width=True, hide_index=True)
-
-    for r in rows:
-        picked = is_selected(r.ticker)
-        label = f"⭐ {r.ticker} selected" if picked else f"Select {r.ticker}"
-        btn_type = "primary" if picked else "secondary"
-        if st.button(label, key=f"dash_pick_{r.ticker}", type=btn_type, use_container_width=True):
-            toggle_selected(r.ticker, max_selected=max_trades)
-            st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
-
-
-def _render_portfolio_section(metrics: dict[str, Any]) -> None:
-    _section_title("Portfolio", "Exposure and P/L")
-    st.markdown('<div class="dash-card">', unsafe_allow_html=True)
-    c1, c2, c3, c4 = st.columns(4)
-    pnl_label = "Today's P/L" if metrics["today_pnl_source"] == "journal" else "Unrealized P/L"
-    with c1:
-        st.metric(pnl_label, _fmt_inr(metrics["today_pnl"], signed=True))
-    with c2:
-        st.metric("Cash", _fmt_inr(metrics["cash"]))
-    with c3:
-        exp = f"{metrics['exposure_pct']}%" if metrics["exposure_pct"] is not None else "—"
-        st.metric("Exposure", exp)
-    with c4:
-        st.metric("Risk budget", _fmt_inr(metrics["risk_budget"]))
-
-    if metrics["allocation"]:
-        st.caption("Allocation: " + " · ".join(metrics["allocation"]))
-    elif metrics["holding_count"] == 0:
-        st.caption("No holdings saved — connect Kite or import CSV in My Portfolio.")
-    else:
-        st.caption(f"{metrics['holding_count']} holding(s) tracked.")
-
-    if st.button("Open My Portfolio", key="dash_portfolio", use_container_width=True):
-        request_nav_tab("My Portfolio")
-    st.markdown("</div>", unsafe_allow_html=True)
-
-
-def _render_watchlist_section(
-    opportunities: list[OpportunityRow],
-    mis: MisTradeAdvisory,
-    snapshot: ContextSnapshot,
-    pins: list[PinnedPlan],
-) -> None:
-    _section_title("Watchlist", "Opportunities and risks")
-    left, right = st.columns(2)
-    with left:
-        st.markdown('<div class="dash-card dash-half-card">', unsafe_allow_html=True)
-        st.markdown("**Best opportunities**")
-        if opportunities:
-            for r in opportunities[:3]:
-                star = "⭐ " if is_selected(r.ticker) else ""
-                st.markdown(f"- {star}**{r.ticker}** · {r.confidence}% · {r.expected_reward}")
-        elif pins:
-            for p in pins[:3]:
-                st.markdown(f"- **{p.symbol}** · E ₹{p.entry:,.0f} → T ₹{p.target:,.0f}")
-        else:
-            st.caption("Run scan to populate watchlist.")
-        st.markdown("</div>", unsafe_allow_html=True)
-    with right:
-        st.markdown('<div class="dash-card dash-half-card">', unsafe_allow_html=True)
-        st.markdown("**Worst risks**")
-        risks: list[str] = []
-        risks.extend(snapshot.trading_restrictions[:4])
-        risks.extend(mis.flags[:4])
-        for p in sorted(pins, key=lambda x: _risk_reward(x.entry, x.stop_loss, x.target) or 0)[:2]:
-            rr = _risk_reward(p.entry, p.stop_loss, p.target)
-            if rr is not None and rr < 1.5:
-                risks.append(f"{p.symbol} tight R:R ({rr}×)")
-        if not risks:
-            risks.append("No elevated risk flags — stay sized to plan.")
-        for line in risks[:5]:
-            st.markdown(f"- {line}")
-        if st.button("Open Watchlist", key="dash_watchlist", use_container_width=True):
-            request_nav_tab("Watchlist")
-        st.markdown("</div>", unsafe_allow_html=True)
-
-
-def _render_learning_section(learning: list[LearningOutcomeRow]) -> None:
-    _section_title("Learning", "Yesterday vs reality")
-    st.markdown('<div class="dash-card">', unsafe_allow_html=True)
-    row = _yesterday_learning_row(learning)
-    stats = learning_source_stats(days=14)
-    if row:
-        source = "Broker" if row.source == LearningOutcomeSource.BROKER else "Coach fallback"
-        pnl_note = ""
-        if row.realized_pnl is not None:
-            pnl_note = f" · P&L {_fmt_inr(row.realized_pnl, signed=True)}"
-        c1, c2 = st.columns(2)
-        with c1:
-            st.markdown(f"**Yesterday** ({row.trade_date})")
-            st.markdown(f"- **Decision context:** prep score {row.prep_score:.0f}")
-            st.markdown(f"- **Reality:** {outcome_label(row.outcome)}")
-        with c2:
-            st.markdown("**Broker result**")
-            st.markdown(f"- Source: {source}{pnl_note}")
-            st.markdown(
-                f"- **Calibration:** {stats['broker_pct']:.0f}% broker-backed "
-                f"({stats['broker']}/{stats['total']} outcomes)"
-            )
-    else:
-        st.caption("No scored outcomes yet — log trades and sync broker truth.")
-    if st.button("Track Record & calibration", key="dash_learning", use_container_width=True):
-        request_nav_tab("Track Record")
-    st.markdown("</div>", unsafe_allow_html=True)
-
-
-def render_home_dashboard(market: str, *, period: str = "1y", max_trades: int = 1) -> None:
-    deep = st.session_state.get("os_deep_analysis", False)
-    st.markdown(HOME_UI_CSS, unsafe_allow_html=True)
-    st.markdown('<div class="home-wrap dash-wrap">', unsafe_allow_html=True)
-
-    st.markdown(
-        '<p class="dash-brand">Investment Operating System</p>'
-        '<p class="dash-tagline">Market · Decision · Opportunities · Risk — one screen</p>',
-        unsafe_allow_html=True,
-    )
-
-    with st.spinner("Loading dashboard…"):
-        cached = load_dashboard_data(market, period, deep)
-
-    snapshot: ContextSnapshot = _snapshot_from_cache(cached["snapshot"])
-    mis: MisTradeAdvisory = cached["mis"]
-    os_report: InvestmentOS = cached["os_report"]
-    pins: list[PinnedPlan] = cached["pins"]
-    prefs: IntradayPrefs = cached["prefs"]
-    portfolio: ZerodhaImportResult | None = cached["portfolio"]
-    learning: list[LearningOutcomeRow] = cached["learning"]
-    data = {**cached, "snapshot": snapshot}
-
-    decision, _source = _pick_decision(mis, os_report)
-    opportunities = _build_opportunities(pins, data["pulse"])
-    port_metrics = _portfolio_metrics(portfolio, prefs, journal_today_pnl=data["journal_today_pnl"])
-
-    _render_market_section(snapshot, os_report)
-    _render_decision_section(decision, mis, os_report, snapshot)
-
-    col_left, col_right = st.columns(2)
-    with col_left:
-        _render_opportunities_section(
-            opportunities,
-            max_trades=max_trades,
-            market=market,
-            period=period,
-        )
-    with col_right:
-        _render_portfolio_section(port_metrics)
-
-    _render_watchlist_section(opportunities, mis, snapshot, pins)
-    _render_learning_section(learning)
-
-    st.markdown('<p class="dash-section-title" style="margin-top:24px">Quick actions</p>', unsafe_allow_html=True)
-    a1, a2, a3, a4 = st.columns(4)
-    with a1:
-        if st.button("Intraday", key="dash_go_intraday", use_container_width=True):
-            request_nav_tab("Intraday")
-    with a2:
-        if st.button("Market Pulse", key="dash_go_pulse", use_container_width=True):
-            request_nav_tab("Market Pulse")
-    with a3:
-        if st.button("Log P&L", key="dash_go_log", type="primary", use_container_width=True):
-            request_nav_tab("Track Record")
-    with a4:
-        deep_label = "Live synthesis on" if deep else "Live synthesis"
-        if st.button(deep_label, key="dash_deep", use_container_width=True):
-            st.session_state["os_deep_analysis"] = not deep
-            load_dashboard_data.clear()
-            st.rerun()
-
-    st.markdown('<p class="dash-section-title" style="margin-top:18px">Capital settings</p>', unsafe_allow_html=True)
-    s1, s2, s3, s4 = st.columns(4)
-    with s1:
-        cap = st.number_input("Capital (₹)", value=int(prefs.capital), step=500, key="dash_cap")
-    with s2:
-        pct = st.slider("Daily goal %", 1.0, 5.0, float(prefs.min_daily_profit_pct), 0.5, key="dash_pct")
-    with s3:
-        risk = st.slider("Max risk %", 0.5, 3.0, float(prefs.max_risk_pct), 0.25, key="dash_risk")
-    with s4:
-        st.write("")
-        st.write("")
-        if st.button("Save settings", key="dash_save", use_container_width=True):
-            prefs.capital = float(cap)
-            prefs.min_daily_profit_pct = float(pct)
-            prefs.target_daily_profit_pct = pct * 2
-            prefs.stretch_daily_profit_pct = pct * 3
-            prefs.max_risk_pct = float(risk)
-            save_intraday_prefs(prefs)
-            load_dashboard_data.clear()
-            st.rerun()
-
-    snap_ref = f"{snapshot.snapshot_id[:8]}…" if snapshot.snapshot_id else "—"
-    st.caption(
-        f"Updated {data['built_at']} · snapshot {snap_ref} · "
-        "Zerodha Console is source of truth for P&L."
-    )
-    st.markdown("</div>", unsafe_allow_html=True)

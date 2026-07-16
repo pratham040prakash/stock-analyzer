@@ -309,6 +309,94 @@ HOME_UI_CSS = """
     font-weight: 800;
     letter-spacing: 0.04em;
 }
+.assist-wrap { max-width: 680px; margin: 0 auto; padding: 0 4px; }
+.assist-q {
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin: 0 0 12px 0;
+    line-height: 1.35;
+    opacity: 0.95;
+}
+.assist-card {
+    border-radius: 16px;
+    padding: 18px 20px;
+    margin-bottom: 14px;
+    border: 1px solid rgba(128,128,128,0.28);
+    background: rgba(18,18,22,0.5);
+}
+.assist-hero { padding: 22px 22px 20px 22px; margin-bottom: 16px; }
+.assist-verdict-xl {
+    font-size: 2.75rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    line-height: 1.1;
+    margin: 0 0 14px 0;
+}
+.assist-reason {
+    font-size: 1.12rem;
+    line-height: 1.55;
+    margin: 0 0 12px 0;
+    opacity: 0.94;
+}
+.assist-conf {
+    font-size: 0.88rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    opacity: 0.75;
+    margin: 0 0 8px 0;
+}
+.assist-conf-high { color: #00c853; }
+.assist-conf-medium { color: #ffb300; }
+.assist-conf-low { color: #ff6e40; }
+.assist-conclusion {
+    font-size: 0.95rem;
+    margin: 14px 0 0 0;
+    padding-top: 12px;
+    border-top: 1px solid rgba(128,128,128,0.22);
+    opacity: 0.88;
+}
+.assist-levels {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    margin: 12px 0 4px 0;
+}
+.assist-level-box {
+    border-radius: 10px;
+    padding: 10px 8px;
+    background: rgba(128,128,128,0.1);
+    text-align: center;
+}
+.assist-level-label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    opacity: 0.55;
+    margin: 0 0 4px 0;
+}
+.assist-level-value {
+    font-size: 0.95rem;
+    font-weight: 700;
+    margin: 0;
+}
+.assist-broker-ok { border-left: 4px solid #00c853; }
+.assist-broker-warn { border-left: 4px solid #ffb300; }
+.assist-broker-off { border-left: 4px solid #9e9e9e; opacity: 0.9; }
+.assist-search-wrap {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(128,128,128,0.2);
+}
+@media (max-width: 768px) {
+    .assist-verdict-xl { font-size: 2.1rem; }
+    .assist-levels { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+[data-theme="light"] .assist-card,
+.light-theme .assist-card {
+    background: rgba(255,255,255,0.96);
+    border-color: rgba(0,0,0,0.08);
+}
 .dash-verdict-conf {
     font-size: 0.95rem;
     opacity: 0.85;
