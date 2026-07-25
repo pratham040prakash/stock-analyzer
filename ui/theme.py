@@ -603,7 +603,7 @@ VERDICT_CANVAS_CSS = """
 .verdict-canvas-page .verdict-canvas-root {
     color: #F5F5F7;
     font-family: Inter, "SF Pro Display", system-ui, -apple-system, sans-serif;
-    min-height: calc(100vh - 2rem);
+    min-height: auto;
     padding: 0 16px;
     box-sizing: border-box;
 }
@@ -645,8 +645,8 @@ VERDICT_CANVAS_CSS = """
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 280px;
-    padding: 48px 0;
+    min-height: 72px;
+    padding: 12px 0 4px 0;
     border-radius: 0;
 }
 .verdict-canvas-root[data-verdict="wait"] .vc-verdict-zone {
@@ -678,8 +678,25 @@ VERDICT_CANVAS_CSS = """
     line-height: 1.45;
     color: rgba(245,245,247,0.88);
     text-align: left;
-    margin: 40px 0 32px 0;
+    margin: 8px 0 4px 0;
     max-width: 358px;
+}
+.verdict-canvas-page [data-testid="stVerticalBlock"] {
+    gap: 0.35rem !important;
+}
+.verdict-canvas-page [data-testid="stVerticalBlock"] > div[data-testid="stVerticalBlockBorderWrapper"] {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+}
+.verdict-canvas-page [data-testid="stMainBlockContainer"] {
+    padding-top: 0.35rem !important;
+}
+.verdict-canvas-root .vc-intel-stack-hero {
+    margin: 0 auto 4px;
+    padding-top: 0;
+}
+.verdict-canvas-root .vc-intel-stack-hero .vc-intel-block:first-child {
+    padding-top: 0;
 }
 /* AI thinking — partner reviewing, not software loading */
 .verdict-canvas-root[data-verdict="thinking"] .vc-verdict-zone {
@@ -862,7 +879,7 @@ VERDICT_CANVAS_CSS = """
     max-width: 358px;
 }
 .verdict-canvas-page .vc-ghost-row {
-    margin-top: 16px;
+    margin-top: 8px;
 }
 .verdict-canvas-page .vc-ghost-row [data-testid="stPopover"] button,
 .verdict-canvas-page .vc-ghost-row [data-testid="stButton"] button {
@@ -1006,16 +1023,16 @@ VERDICT_CANVAS_CSS = """
 }
 .vc-intel-stack {
     max-width: 398px;
-    margin: 0 auto 24px;
+    margin: 0 auto 12px;
     padding: 0 4px;
 }
 .vc-intel-block {
     border-top: 1px solid #2C2C2E;
-    padding: 18px 0 4px 0;
+    padding: 14px 0 2px 0;
 }
 .vc-intel-block:first-child {
     border-top: none;
-    padding-top: 8px;
+    padding-top: 4px;
 }
 .vc-intel-label {
     font-size: 11px;

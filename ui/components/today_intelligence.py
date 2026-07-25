@@ -10,15 +10,23 @@ from typing import Any, Protocol
 import streamlit as st
 
 from analyzer.context_engine.models import ContextSnapshot
+from analyzer.decision_engine.models import DecisionArtifact
 from analyzer.intraday_prefs import IntradayPrefs
 from analyzer.investment_os import InvestmentOS
 from analyzer.market_pulse_scan import MarketPulseReport
 from analyzer.mis_trade_advisory import MisTradeAdvisory
 from analyzer.watchlist_pins import PinnedPlan
-from analyzer.zerodha import ZerodhaHolding, ZerodhaImportResult
+from analyzer.zerodha import ZerodhaImportResult
+from ui.broker.state import BrokerSnapshot
+from ui.components.dashboard_pipeline import (
+    decision_reason,
+    fmt_inr,
+    holding_extremes,
+    portfolio_health_label,
+    portfolio_metrics,
+    watch_bullets,
+)
 from ui.navigation import request_nav_tab
-
-_EXPOSURE_WARN_PCT = 75.0
 
 
 class _TodayStance(Protocol):
@@ -136,6 +144,8 @@ def _market_gate(snapshot: ContextSnapshot) -> str:
     mode = (snapshot.risk_mode or "NEUTRAL").replace("_", " ").lower()
     phase = snapshot.market_phase.strip()
     vol = snapshot.volatility_state.strip()
+    breadth = snapshot.market_breadth.strip()
+    liquidity = snapshot.liquidity_state.strip()
 
     parts: list[str] = []
     if regime:
@@ -145,31 +155,57 @@ def _market_gate(snapshot: ContextSnapshot) -> str:
         parts.append(f"phase {phase}")
     if vol:
         parts.append(f"volatility {vol}")
+    if breadth:
+        parts.append(f"breadth {breadth}")
+    if liquidity:
+        parts.append(f"liquidity {liquidity}")
+    industries = dict(snapshot.industry_strength or {})
+    industry_note = str(industries.get("note", "") or "").strip()
+    industry_leader = str(industries.get("leader", "") or "").strip()
+    if industry_note:
+        parts.append(f"industry {industry_note}")
+    elif industry_leader and industry_leader.lower() != "unknown":
+        parts.append(f"industry leader {industry_leader}")
+    sectors = dict(snapshot.sector_strength or {})
+    sector_leader = str(sectors.get("leader", "") or "").strip()
+    if sector_leader and sector_leader.lower() != "unknown":
+        parts.append(f"sector leader {sector_leader}")
 
-    gate = " · ".join(parts)
-    return gate
+    return " · ".join(parts)
 
 
 def _market_support_line(snapshot: ContextSnapshot, os_report: InvestmentOS) -> str:
-    """Plain risk-on/off judgment from context + Market AI."""
+    """Plain risk-on/off judgment from context + Market AI + Sector module."""
+    parts: list[str] = []
     meta = dict(snapshot.metadata or {})
     if not meta.get("allow_new_entries", False):
         if snapshot.trading_restrictions:
-            return _strip_md(snapshot.trading_restrictions[0])
-        return "New entries not allowed yet — wait for the session gate."
+            parts.append(_strip_md(snapshot.trading_restrictions[0]))
+        else:
+            parts.append("New entries not allowed yet — wait for the session gate.")
+    elif snapshot.risk_mode == "RISK-ON":
+        parts.append("Environment supports taking risk — stay inside your daily loss cap.")
+    elif snapshot.risk_mode in ("RISK-OFF", "CLOSED"):
+        parts.append("Environment does not support new risk — protect capital.")
+    else:
+        market = os_report.module("market")
+        if market and market.detail:
+            favor = _strip_md(market.detail.split("·")[0])
+            if favor:
+                parts.append(f"Tape is tradeable with caution — {favor[:72]}.")
+            else:
+                parts.append("Mixed tape — one setup only, size down.")
+        else:
+            parts.append("Mixed tape — one setup only, size down.")
 
-    mode = snapshot.risk_mode
-    if mode == "RISK-ON":
-        return "Environment supports taking risk — stay inside your daily loss cap."
-    if mode in ("RISK-OFF", "CLOSED"):
-        return "Environment does not support new risk — protect capital."
+    sector = os_report.module("sector")
+    if sector and sector.headline and sector.headline != "No sector data yet":
+        sector_line = _strip_md(sector.headline)
+        if sector.detail:
+            sector_line = f"{sector_line} — {_strip_md(sector.detail)[:96]}"
+        parts.append(f"Sectors: {sector_line}")
 
-    market = os_report.module("market")
-    if market and market.detail:
-        favor = _strip_md(market.detail.split("·")[0])
-        if favor:
-            return f"Tape is tradeable with caution — {favor[:72]}."
-    return "Mixed tape — one setup only, size down."
+    return " · ".join(parts)
 
 
 def _selection_reason(best: OpportunityView | None, os_report: InvestmentOS) -> str:
@@ -178,14 +214,21 @@ def _selection_reason(best: OpportunityView | None, os_report: InvestmentOS) -> 
     star = _normalize_symbol(os_report.starred_symbol or "")
     stock = os_report.module("stock")
     strategy = os_report.module("strategy")
+    execution = os_report.module("execution")
     if star and best.ticker == star:
+        if strategy and strategy.detail:
+            return f"Chosen because you starred it — {_strip_md(strategy.detail)[:96]}."
         if strategy and strategy.headline:
-            return f"Chosen because you starred it — {_strip_md(strategy.headline)[:72]}."
+            return f"Chosen because you starred it — {_strip_md(strategy.headline)[:96]}."
         if stock and stock.detail:
             return _strip_md(stock.detail)
         return "Chosen because you starred it on tonight's scan."
+    if strategy and strategy.detail:
+        return _strip_md(strategy.detail)
     if stock and stock.detail and "star" not in stock.detail.lower():
         return _strip_md(stock.detail)
+    if execution and execution.headline:
+        return f"Execution plan — {_strip_md(execution.headline)[:96]}."
     return f"Chosen as top setup on tonight's scan ({best.confidence}% pulse score)."
 
 
@@ -198,15 +241,21 @@ def _price_vs_entry(best: OpportunityView | None, pulse: MarketPulseReport | Non
     price = float(row.price)
     entry = best.entry
     src = row.ltp_source or "live"
+    what = _strip_md(getattr(row, "what_to_do", "") or "")
     if best.side.upper() == "LONG":
         if price >= entry:
-            return f"Now ₹{price:,.0f} ({src}) — at or above entry, trigger is live."
-        gap = 100.0 * (entry - price) / price if price > 0 else 0.0
-        return f"Now ₹{price:,.0f} ({src}) — {gap:.1f}% below entry, not triggered yet."
-    if price <= entry:
-        return f"Now ₹{price:,.0f} ({src}) — at or below entry, trigger is live."
-    gap = 100.0 * (price - entry) / price if price > 0 else 0.0
-    return f"Now ₹{price:,.0f} ({src}) — {gap:.1f}% above entry, not triggered yet."
+            status = f"Now ₹{price:,.0f} ({src}) — at or above entry, trigger is live."
+        else:
+            gap = 100.0 * (entry - price) / price if price > 0 else 0.0
+            status = f"Now ₹{price:,.0f} ({src}) — {gap:.1f}% below entry, not triggered yet."
+    elif price <= entry:
+        status = f"Now ₹{price:,.0f} ({src}) — at or below entry, trigger is live."
+    else:
+        gap = 100.0 * (price - entry) / price if price > 0 else 0.0
+        status = f"Now ₹{price:,.0f} ({src}) — {gap:.1f}% above entry, not triggered yet."
+    if what:
+        return f"{status} Pulse: {what[:96]}."
+    return status
 
 
 def _holding_conflict(portfolio: ZerodhaImportResult | None, ticker: str) -> str:
@@ -243,15 +292,36 @@ def _portfolio_lines(
     prefs: IntradayPrefs,
     *,
     snapshot: ContextSnapshot,
+    mis: MisTradeAdvisory,
     os_report: InvestmentOS,
     best_ticker: str = "",
+    journal_today_pnl: float | None = None,
 ) -> tuple[str, ...]:
-    """Constraint + exposure capacity — one block, no duplicate deployment %. """
+    """Constraint + exposure capacity — one block, no duplicate deployment %."""
     holdings = portfolio.holdings if portfolio and portfolio.holdings else []
     if not holdings:
         return ("Portfolio not linked — connect Zerodha before sizing new risk.",)
 
+    metrics = portfolio_metrics(portfolio, prefs, journal_today_pnl=journal_today_pnl)
+    health_label, health_detail = portfolio_health_label(snapshot, mis, os_report)
+    weakest, strongest = holding_extremes(holdings)
+
     lines: list[str] = []
+    lines.append(f"Portfolio is {health_label}. {_strip_md(health_detail)}")
+    if journal_today_pnl is not None:
+        lines.append(
+            f"Today's Journal P/L: {fmt_inr(journal_today_pnl, signed=True)} · "
+            f"Exposure {metrics['exposure_pct']}% · "
+            f"Weakest: {weakest} · Strongest: {strongest}"
+        )
+    else:
+        lines.append(
+            f"Exposure {metrics['exposure_pct']}% · "
+            f"Weakest: {weakest} · Strongest: {strongest}"
+        )
+    if metrics["allocation"]:
+        lines.append("Allocation: " + ", ".join(metrics["allocation"]))
+
     if best_ticker:
         conflict = _holding_conflict(portfolio, best_ticker)
         if conflict:
@@ -261,92 +331,41 @@ def _portfolio_lines(
         lines.append(blocked)
 
     risk_mod = os_report.module("risk")
-    constraint = ""
-    if risk_mod and risk_mod.headline and not blocked:
-        constraint = risk_mod.headline
-    else:
-        exposure_pct, _invested = _portfolio_exposure(portfolio, prefs)
-        if exposure_pct is not None and exposure_pct >= _EXPOSURE_WARN_PCT:
-            constraint = (
-                f"Book is {exposure_pct:.0f}% deployed — add only if this setup clears your rules."
-            )
-        elif snapshot.risk_mode in ("RISK-OFF", "CLOSED"):
-            constraint = "Risk-off session — protect capital before chasing new entries."
-        else:
-            weakest = _weakest_holding(holdings)
-            if weakest:
-                constraint = f"Review {weakest} before adding fresh exposure."
-            else:
-                constraint = (
-                    f"{len(holdings)} holding(s) on book — stay within your daily risk cap."
-                )
+    risk_head = _strip_md(risk_mod.headline) if risk_mod and risk_mod.headline else ""
+    if risk_head and risk_head not in _strip_md(health_detail) and not blocked:
+        lines.append(risk_head)
+    elif snapshot.risk_mode in ("RISK-OFF", "CLOSED") and "Risk-off" not in " ".join(lines):
+        lines.append("Risk-off session — protect capital before chasing new entries.")
 
-    lines.append(constraint)
-    exposure_pct, invested = _portfolio_exposure(portfolio, prefs)
-    capital = float(prefs.capital or 0)
-    if capital <= 0 or exposure_pct is None:
-        return tuple(lines)
-
-    constraint_lower = constraint.lower()
-    if exposure_pct < _EXPOSURE_WARN_PCT:
-        cash = max(0.0, capital - invested)
-        capacity = f"Room to deploy — about ₹{cash:,.0f} within your stated capital."
-        if "cash" not in constraint_lower and "deploy" not in constraint_lower:
-            lines.append(capacity)
-    elif "deployed" not in constraint_lower and "%" not in constraint_lower:
-        if exposure_pct >= 95:
-            lines.append(f"Exposure at {exposure_pct:.0f}% — effectively fully invested.")
-        else:
-            lines.append(
-                f"Exposure at {exposure_pct:.0f}% — limited room for another full-sized trade."
-            )
-    return tuple(lines[:3])
-
-
-def _portfolio_exposure(
-    portfolio: ZerodhaImportResult | None,
-    prefs: IntradayPrefs,
-) -> tuple[float | None, float]:
-    holdings = portfolio.holdings if portfolio and portfolio.holdings else []
-    invested = 0.0
-    for holding in holdings:
-        ltp = holding.last_price or holding.average_price or 0.0
-        invested += float(holding.quantity or 0) * float(ltp)
-    capital = float(prefs.capital or 0)
-    exposure_pct = round(100.0 * invested / capital, 1) if capital > 0 else None
-    return exposure_pct, invested
-
-
-def _weakest_holding(holdings: list[ZerodhaHolding]) -> str:
-    scored: list[tuple[str, float]] = []
-    for holding in holdings:
-        if holding.pnl is None or not holding.average_price or not holding.quantity:
-            continue
-        cost = float(holding.average_price) * float(holding.quantity)
-        if cost <= 0:
-            continue
-        pct = 100.0 * float(holding.pnl) / cost
-        scored.append((holding.tradingsymbol or holding.kite_symbol or "", pct))
-    if not scored:
-        return ""
-    scored.sort(key=lambda item: item[1])
-    sym, pct = scored[0]
-    return f"{sym} ({pct:+.1f}%)" if sym else ""
+    return tuple(lines[:5])
 
 
 def _risk_warning_lines(
     mis: MisTradeAdvisory,
     snapshot: ContextSnapshot,
     *,
-    broker_connected: bool,
+    broker: BrokerSnapshot,
 ) -> tuple[str, ...]:
     lines: list[str] = []
-    if not broker_connected:
-        lines.append("Broker offline — today's call can't use live holdings.")
+    if not broker.connected():
+        detail = broker.error_message or "Connect Zerodha to pull live positions."
+        lines.append(f"Broker offline — {detail}")
+    elif broker.last_sync_at or broker.holdings_count:
+        sync = broker.last_sync_at or "Recently synced"
+        holdings_note = f" · {broker.holdings_count} holding(s)" if broker.holdings_count else ""
+        lines.append(f"Broker synced — {sync}{holdings_note}")
     if mis.loss_streak_days >= 2:
         lines.append(f"{mis.loss_streak_days} losing days in a row — pause protects capital.")
     elif mis.loss_streak_days == 1:
         lines.append("One losing day — keep today's size smaller than usual.")
+    if mis.mtf_summary:
+        lines.append(f"MTF: {_strip_md(mis.mtf_summary)}")
+    if mis.flow_summary:
+        lines.append(f"Flow: {_strip_md(mis.flow_summary)}")
+    if mis.synthesis_summary:
+        text = _strip_md(mis.synthesis_summary)
+        if text and text not in lines:
+            lines.append(text)
     for flag in (mis.flags or ())[:2]:
         text = str(flag).strip()
         if text and text not in lines:
@@ -355,10 +374,14 @@ def _risk_warning_lines(
         text = str(restriction).strip()
         if text and text not in lines:
             lines.append(text)
-    return tuple(lines[:3])
+    return tuple(lines[:5])
 
 
-def _opportunity_lines(best: OpportunityView | None) -> tuple[str, str]:
+def _opportunity_lines(
+    best: OpportunityView | None,
+    *,
+    os_report: InvestmentOS,
+) -> tuple[str, str]:
     if not best:
         return (
             "No staged setup",
@@ -367,16 +390,22 @@ def _opportunity_lines(best: OpportunityView | None) -> tuple[str, str]:
     side = best.side.upper()
     verb = "Long" if side == "LONG" else "Short"
     rr_note = f"{best.rr}R" if best.rr else "check reward vs risk"
+    reward_amt = abs(best.target - best.entry)
+    risk_amt = abs(best.entry - best.stop)
+    reward_risk = f"₹{reward_amt:,.0f} ({rr_note}) · ₹{risk_amt:,.0f} stop"
     name = f"{best.ticker} — {verb} setup ({best.confidence}% confidence)"
-    if side == "LONG":
+    execution = os_report.module("execution")
+    if execution and execution.headline:
+        direction = f"{_strip_md(execution.headline)} · {reward_risk}"
+    elif side == "LONG":
         direction = (
             f"Buy above ₹{best.entry:,.0f} · stop ₹{best.stop:,.0f} · "
-            f"target ₹{best.target:,.0f} · {rr_note}"
+            f"target ₹{best.target:,.0f} · {reward_risk}"
         )
     else:
         direction = (
             f"Sell below ₹{best.entry:,.0f} · stop ₹{best.stop:,.0f} · "
-            f"target ₹{best.target:,.0f} · {rr_note}"
+            f"target ₹{best.target:,.0f} · {reward_risk}"
         )
     return name, direction
 
@@ -385,29 +414,40 @@ def _ai_recommendation(
     state: _TodayStance,
     *,
     os_report: InvestmentOS,
+    mis: MisTradeAdvisory,
+    decision: DecisionArtifact | None,
     best: OpportunityView | None,
     risk_warnings: tuple[str, ...],
     prefs: IntradayPrefs,
 ) -> str:
     step = _strip_md(os_report.next_step or "")
-    if step and state.key in ("trade", "wait", "pause"):
+    if step:
         if state.key == "trade" and best:
-            budget = _daily_risk_budget_inr(prefs)
+            budget = float(os_report.max_loss_inr or 0) or _daily_risk_budget_inr(prefs)
             if budget > 0 and "max loss" not in step.lower():
                 return f"{step} Size within ₹{budget:,.0f} max loss."
-            return step
         return step
 
+    if state.key == "rest":
+        review = os_report.module("review")
+        if review and review.detail:
+            return _strip_md(review.detail)
+        if review and review.headline:
+            return _strip_md(review.headline)
+        return "Rest today — review your week and stage tomorrow's setups after close."
     if state.key == "connect":
         return "One Zerodha link unlocks portfolio-aware sizing and today's call."
-    if state.key == "rest":
-        return "Rest today — review your week and stage tomorrow's setups after close."
     if state.key == "pause":
+        reason = decision_reason(decision)
+        if reason:
+            return _strip_md(reason)[:160]
+        if mis.summary:
+            return _strip_md(mis.summary)
         if risk_warnings:
             return f"Protect capital today — {risk_warnings[0]}"
         return "Protect capital today — conditions don't justify new risk."
     if state.key == "trade" and best:
-        budget = _daily_risk_budget_inr(prefs)
+        budget = float(os_report.max_loss_inr or 0) or _daily_risk_budget_inr(prefs)
         if budget > 0:
             return (
                 f"Size {best.ticker} within ₹{budget:,.0f} max loss — "
@@ -426,6 +466,26 @@ def _ai_recommendation(
     return "Stay patient — wait for price to confirm before committing capital."
 
 
+def _next_watch_lines(
+    opportunities: list[OpportunityView],
+    best: OpportunityView | None,
+    *,
+    mis: MisTradeAdvisory,
+    snapshot: ContextSnapshot,
+    pins: list[PinnedPlan],
+) -> tuple[str, ...]:
+    alt = _pick_next_watch(opportunities, best)
+    tickers = [(row.ticker, row.entry) for row in opportunities]
+    bullets = watch_bullets(mis, snapshot, opportunity_tickers=tickers, pins=pins)
+    lines: list[str] = []
+    if alt:
+        lines.append(alt)
+    for bullet in bullets:
+        if bullet not in lines:
+            lines.append(bullet)
+    return tuple(lines[:3])
+
+
 def build_today_command_center(
     *,
     state: _TodayStance,
@@ -436,17 +496,15 @@ def build_today_command_center(
     pulse: MarketPulseReport | None,
     portfolio: ZerodhaImportResult | None,
     prefs: IntradayPrefs,
-    broker_connected: bool,
+    broker: BrokerSnapshot,
+    journal_today_pnl: float | None = None,
+    decision: DecisionArtifact | None = None,
 ) -> TodayCommandCenter:
     opportunities = _build_opportunity_views(pins, pulse)
     best = _pick_best(opportunities, os_report)
-    opportunity_name, entry_direction = _opportunity_lines(best)
-    risk_warnings = _risk_warning_lines(
-        mis,
-        snapshot,
-        broker_connected=broker_connected,
-    )
-    if state.key == "connect" and risk_warnings:
+    opportunity_name, entry_direction = _opportunity_lines(best, os_report=os_report)
+    risk_warnings = _risk_warning_lines(mis, snapshot, broker=broker)
+    if state.key == "connect":
         risk_warnings = tuple(
             line for line in risk_warnings if "broker offline" not in line.lower()
         )
@@ -461,14 +519,20 @@ def build_today_command_center(
             portfolio,
             prefs,
             snapshot=snapshot,
+            mis=mis,
             os_report=os_report,
             best_ticker=best.ticker if best else "",
+            journal_today_pnl=journal_today_pnl,
         ),
         risk_warnings=risk_warnings,
-        next_watch=_pick_next_watch(opportunities, best),
+        next_watch=" · ".join(
+            _next_watch_lines(opportunities, best, mis=mis, snapshot=snapshot, pins=pins)
+        ),
         ai_recommendation=_ai_recommendation(
             state,
             os_report=os_report,
+            mis=mis,
+            decision=decision,
             best=best,
             risk_warnings=risk_warnings,
             prefs=prefs,
@@ -502,34 +566,12 @@ def _go_symbol(symbol: str) -> None:
     )
 
 
-def render_today_command_center(
-    *,
+def _intel_blocks_for_center(
+    center: TodayCommandCenter,
     state: _TodayStance,
-    market: str,
-    cached: dict[str, Any],
-    broker_connected: bool,
-) -> None:
-    del market
-    snapshot: ContextSnapshot = cached["snapshot"]
-    if not isinstance(snapshot, ContextSnapshot):
-        from ui.components.home_dashboard import _snapshot_from_cache
-
-        snapshot = _snapshot_from_cache(cached["snapshot"])
-
-    center = build_today_command_center(
-        state=state,
-        snapshot=snapshot,
-        mis=cached["mis"],
-        os_report=cached["os_report"],
-        pins=cached["pins"],
-        pulse=cached.get("pulse"),
-        portfolio=cached.get("portfolio"),
-        prefs=cached["prefs"],
-        broker_connected=broker_connected,
-    )
-
-    blocks = [
-        _intel_block(
+) -> dict[str, str]:
+    return {
+        "opportunity": _intel_block(
             label="Opportunity",
             lines=[
                 line
@@ -543,33 +585,89 @@ def render_today_command_center(
             ],
             tone="high" if state.key == "trade" else "",
         ),
-        _intel_block(
+        "market": _intel_block(
             label="Market",
             lines=[line for line in (center.market_gate, center.market_support) if line],
         ),
-        _intel_block(
+        "portfolio": _intel_block(
             label="Portfolio",
             lines=list(center.portfolio_lines),
             tone="warn" if center.portfolio_lines and "not linked" in center.portfolio_lines[0].lower() else "",
         ),
-        _intel_block(
+        "risk": _intel_block(
             label="Risk",
             lines=list(center.risk_warnings),
             tone="warn" if center.risk_warnings else "",
         ),
-        _intel_block(
+        "next_watch": _intel_block(
             label="Next watch",
-            lines=[center.next_watch] if center.next_watch else [],
+            lines=[line for line in center.next_watch.split(" · ") if line.strip()],
         ),
-        _intel_block(
+        "do_next": _intel_block(
             label="Do next",
             lines=[center.ai_recommendation],
             tone="high" if state.key == "trade" else "",
         ),
-    ]
+    }
+
+
+def intel_stack_html(
+    center: TodayCommandCenter,
+    state: _TodayStance,
+    *,
+    sections: tuple[str, ...],
+) -> str:
+    block_map = _intel_blocks_for_center(center, state)
+    blocks = [block_map[key] for key in sections if key in block_map]
+    body = "".join(block for block in blocks if block)
+    if not body:
+        return ""
+    return f'<div class="vc-intel-stack vc-intel-stack-hero">{body}</div>'
+
+
+def render_today_command_center(
+    *,
+    state: _TodayStance,
+    market: str,
+    cached: dict[str, Any],
+    broker: BrokerSnapshot,
+    decision: DecisionArtifact | None = None,
+    sections: tuple[str, ...] | None = None,
+    include_actions: bool = False,
+    center: TodayCommandCenter | None = None,
+) -> None:
+    del market
+    snapshot: ContextSnapshot = cached["snapshot"]
+    if not isinstance(snapshot, ContextSnapshot):
+        from ui.components.home_dashboard import _snapshot_from_cache
+
+        snapshot = _snapshot_from_cache(cached["snapshot"])
+
+    if center is None:
+        center = build_today_command_center(
+            state=state,
+            snapshot=snapshot,
+            mis=cached["mis"],
+            os_report=cached["os_report"],
+            pins=cached["pins"],
+            pulse=cached.get("pulse"),
+            portfolio=cached.get("portfolio"),
+            prefs=cached["prefs"],
+            broker=broker,
+            journal_today_pnl=cached.get("journal_today_pnl"),
+            decision=decision,
+        )
+
+    block_map = _intel_blocks_for_center(center, state)
+    order = sections or ("opportunity", "do_next", "risk", "market", "portfolio", "next_watch")
+    blocks = [block_map[key] for key in order if key in block_map]
 
     html_body = "".join(block for block in blocks if block)
-    st.markdown(f'<div class="vc-intel-stack">{html_body}</div>', unsafe_allow_html=True)
+    if html_body:
+        st.markdown(f'<div class="vc-intel-stack">{html_body}</div>', unsafe_allow_html=True)
+
+    if not include_actions:
+        return
 
     st.markdown('<div class="vc-intel-actions">', unsafe_allow_html=True)
     a1, a2, a3 = st.columns(3)

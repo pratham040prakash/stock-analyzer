@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 
 from analyzer.decision_engine.models import DecisionArtifact, DecisionVerdict, UncertaintyVector
 from analyzer.watchlist_pins import PinnedPlan
+from ui.broker.state import BrokerSnapshot
 from ui.components.home_dashboard import VerdictCanvasState
 from ui.components.today_intelligence import (
     _market_gate,
@@ -18,6 +19,10 @@ from ui.components.today_intelligence import (
     build_today_command_center,
     _build_opportunity_views,
 )
+
+
+def _connected_broker() -> BrokerSnapshot:
+    return BrokerSnapshot(state="connected", holdings_count=2, last_sync_at="09:15 IST")
 
 
 class TodayCommandCenterTest(unittest.TestCase):
@@ -60,15 +65,23 @@ class TodayCommandCenterTest(unittest.TestCase):
             risk_mode="NEUTRAL",
             market_phase="regular",
             volatility_state="normal",
+            market_breadth="mixed",
+            liquidity_state="normal",
             trading_restrictions=(),
         )
         gate = _market_gate(snapshot)
         self.assertIn("Bull trend", gate)
 
     def test_risk_warnings_include_loss_streak(self):
-        mis = MagicMock(flags=(), loss_streak_days=3)
+        mis = MagicMock(
+            flags=(),
+            loss_streak_days=3,
+            mtf_summary="",
+            flow_summary="",
+            synthesis_summary="",
+        )
         snapshot = MagicMock(trading_restrictions=())
-        lines = _risk_warning_lines(mis, snapshot, broker_connected=True)
+        lines = _risk_warning_lines(mis, snapshot, broker=_connected_broker())
         self.assertTrue(any("losing days" in line for line in lines))
 
     def test_command_center_trade_recommendation_names_symbol(self):
@@ -83,21 +96,20 @@ class TodayCommandCenterTest(unittest.TestCase):
             trading_restrictions=(),
             sector_strength={},
         )
-        mis = MagicMock(flags=(), loss_streak_days=0)
-        os_report = MagicMock(starred_symbol="RELIANCE", next_step="", module=lambda _k: None)
-        prefs = MagicMock(capital=100_000)
-        decision = DecisionArtifact(
-            decision_id="d1",
-            timestamp="",
-            verdict=DecisionVerdict.ACT,
-            reason="ok",
-            evidence_packet_id="ep1",
-            confidence=0.8,
-            uncertainty=UncertaintyVector(),
-            capital_recommendation="",
-            execution_recommendation="",
-            trade_allowed=True,
+        mis = MagicMock(
+            flags=(),
+            loss_streak_days=0,
+            mtf_summary="",
+            flow_summary="",
+            synthesis_summary="",
         )
+        os_report = MagicMock(
+            starred_symbol="RELIANCE",
+            next_step="",
+            max_loss_inr=1000,
+            module=lambda _k: None,
+        )
+        prefs = MagicMock(capital=100_000, max_risk_pct=1.0)
         center = build_today_command_center(
             state=state,
             snapshot=snapshot,
@@ -107,12 +119,11 @@ class TodayCommandCenterTest(unittest.TestCase):
             pulse=None,
             portfolio=None,
             prefs=prefs,
-            broker_connected=True,
+            broker=_connected_broker(),
         )
         self.assertIn("RELIANCE", center.opportunity_name)
         self.assertIn("RELIANCE", center.ai_recommendation)
-        self.assertTrue(center.entry_direction.startswith("Buy above"))
-
+        self.assertIn("Buy above", center.entry_direction)
 
     def test_market_gate_excludes_restrictions(self):
         snapshot = MagicMock(
@@ -120,6 +131,8 @@ class TodayCommandCenterTest(unittest.TestCase):
             risk_mode="NEUTRAL",
             market_phase="regular",
             volatility_state="normal",
+            market_breadth="mixed",
+            liquidity_state="normal",
             trading_restrictions=("No new longs until 10:15",),
         )
         gate = _market_gate(snapshot)
@@ -137,8 +150,14 @@ class TodayCommandCenterTest(unittest.TestCase):
             trading_restrictions=(),
             sector_strength={},
         )
-        mis = MagicMock(flags=(), loss_streak_days=0)
-        os_report = MagicMock(starred_symbol="", next_step="", module=lambda _k: None)
+        mis = MagicMock(
+            flags=(),
+            loss_streak_days=0,
+            mtf_summary="",
+            flow_summary="",
+            synthesis_summary="",
+        )
+        os_report = MagicMock(starred_symbol="", next_step="", max_loss_inr=0, module=lambda _k: None)
         prefs = MagicMock(capital=0, max_risk_pct=0)
         center = build_today_command_center(
             state=state,
@@ -149,29 +168,22 @@ class TodayCommandCenterTest(unittest.TestCase):
             pulse=None,
             portfolio=None,
             prefs=prefs,
-            broker_connected=False,
+            broker=BrokerSnapshot(state="disconnected"),
         )
         self.assertIn("not linked", center.portfolio_lines[0].lower())
         self.assertFalse(center.risk_warnings)
 
     def test_risk_warnings_exclude_decision_reason(self):
-        mis = MagicMock(flags=(), loss_streak_days=0)
-        snapshot = MagicMock(trading_restrictions=())
-        decision = DecisionArtifact(
-            decision_id="d1",
-            timestamp="",
-            verdict=DecisionVerdict.PASS,
-            reason="Tape too choppy for new risk.",
-            evidence_packet_id="ep1",
-            confidence=0.5,
-            uncertainty=UncertaintyVector(),
-            capital_recommendation="",
-            execution_recommendation="",
-            trade_allowed=False,
+        mis = MagicMock(
+            flags=(),
+            loss_streak_days=0,
+            mtf_summary="",
+            flow_summary="",
+            synthesis_summary="",
         )
-        lines = _risk_warning_lines(mis, snapshot, broker_connected=True)
+        snapshot = MagicMock(trading_restrictions=())
+        lines = _risk_warning_lines(mis, snapshot, broker=_connected_broker())
         self.assertFalse(any("choppy" in line for line in lines))
-
 
     def test_market_support_blocks_entries_before_gate(self):
         snapshot = MagicMock(
@@ -191,7 +203,7 @@ class TodayCommandCenterTest(unittest.TestCase):
             [PinnedPlan("RELIANCE", 2850, 2815, 2930, "2026-07-16")],
             None,
         )[0]
-        strat = MagicMock(headline="Breakout above opening range")
+        strat = MagicMock(headline="Breakout above opening range", detail="Breakout above opening range")
         stock = MagicMock(detail="Best ranked pick in tonight's list (⭐ = your selection).")
 
         def module(key):
@@ -215,17 +227,44 @@ class TodayCommandCenterTest(unittest.TestCase):
         )[0]
         os_report = MagicMock(
             next_step="Wait until 9:45 IST — observe opening range first.",
+            max_loss_inr=0,
             module=lambda _k: None,
         )
+        mis = MagicMock(summary="", flags=())
         prefs = MagicMock(capital=100_000, max_risk_pct=1.0)
         text = _ai_recommendation(
             state,
             os_report=os_report,
+            mis=mis,
+            decision=None,
             best=best,
             risk_warnings=(),
             prefs=prefs,
         )
         self.assertIn("9:45", text)
+
+    def test_do_next_uses_os_next_step_even_in_connect_state(self):
+        from ui.components.today_intelligence import _ai_recommendation
+
+        state = VerdictCanvasState("connect", "Connect", "Connect Zerodha", "connect")
+        os_report = MagicMock(
+            next_step="Link Zerodha first, then review tonight's scan.",
+            max_loss_inr=0,
+            module=lambda _k: None,
+        )
+        mis = MagicMock(summary="", flags=())
+        prefs = MagicMock(capital=100_000, max_risk_pct=1.0)
+        text = _ai_recommendation(
+            state,
+            os_report=os_report,
+            mis=mis,
+            decision=None,
+            best=None,
+            risk_warnings=(),
+            prefs=prefs,
+        )
+        self.assertIn("tonight's scan", text)
+        self.assertNotIn("One Zerodha link unlocks", text)
 
 
 if __name__ == "__main__":

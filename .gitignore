@@ -7,3 +7,6 @@ logs/
 .pytest_cache/
 *.egg-info/
 .DS_Store
+
+# CCPL app lives in its own repo: ~/Documents/ccpl-2026-scoring-pro
+ccpl-2026-scoring-pro/

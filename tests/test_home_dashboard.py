@@ -101,12 +101,32 @@ class HomeDashboardHelpersTest(unittest.TestCase):
             uncertainty=UncertaintyVector(),
             capital_recommendation="",
             execution_recommendation="",
+            subject_type="equity",
         )
         os_report = MagicMock(starred_symbol="", decision_artifact=None)
         mis = MagicMock(decision_artifact=mis_artifact)
         picked, source = _pick_decision(mis, os_report)
         self.assertEqual(picked, mis_artifact)
         self.assertEqual(source, "session")
+
+    def test_pick_decision_skips_options_session_on_equity_home(self):
+        options_artifact = DecisionArtifact(
+            decision_id="d3",
+            timestamp="",
+            verdict=DecisionVerdict.WAIT,
+            reason="NIFTY CE",
+            evidence_packet_id="ep3",
+            confidence=50.0,
+            uncertainty=UncertaintyVector(),
+            capital_recommendation="",
+            execution_recommendation="",
+            subject_type="options",
+        )
+        os_report = MagicMock(starred_symbol="", decision_artifact=None)
+        mis = MagicMock(decision_artifact=options_artifact)
+        picked, source = _pick_decision(mis, os_report)
+        self.assertIsNone(picked)
+        self.assertEqual(source, "none")
 
     def test_snapshot_cache_roundtrip_is_pickle_safe(self):
         import pickle

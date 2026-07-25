@@ -24,6 +24,7 @@ from analyzer.trade_journal import load_journal_entries
 from analyzer.watchlist_pins import PinnedPlan, load_pinned_plans
 from analyzer.zerodha import ZerodhaImportResult
 from ui.broker.state import BrokerSnapshot, load_broker_snapshot
+from ui.components.dashboard_pipeline import decision_reason, is_equity_decision
 from ui.components.partner_shell import get_partner_dock, render_ask_fab, render_partner_dock, set_partner_dock
 from ui.theme import VERDICT_CANVAS_CSS, PARTNER_PAGE_ACTIVATE_JS
 
@@ -86,14 +87,14 @@ def _pick_decision(
     mis: MisTradeAdvisory,
     os_report: InvestmentOS,
 ) -> tuple[DecisionArtifact | None, str]:
-    """Prefer starred equity decision; fall back to session MIS decision."""
+    """Prefer starred equity decision; fall back to equity session decision only."""
     os_art = getattr(os_report, "decision_artifact", None)
     mis_art = getattr(mis, "decision_artifact", None)
     if os_art and os_report.starred_symbol:
         return os_art, "equity"
-    if mis_art:
+    if mis_art and is_equity_decision(mis_art):
         return mis_art, "session"
-    if os_art:
+    if os_art and is_equity_decision(os_art):
         return os_art, "equity"
     return None, "none"
 
@@ -200,8 +201,11 @@ def _mentor_one_liner(
             return _trim_words(
                 f"{mis.loss_streak_days} rough days in a row — pause today and protect your capital."
             )
-        if decision and decision.reason:
-            return _trim_words(decision.reason)
+        reason = decision_reason(decision)
+        if reason:
+            return _trim_words(reason)
+        if mis.summary:
+            return _trim_words(mis.summary)
         if mis.flags:
             return _trim_words(mis.flags[0])
         return "Too much risk today — pause and protect your capital."
@@ -215,8 +219,11 @@ def _mentor_one_liner(
         return "One setup is ready — stay within your daily risk limit."
 
     if state.key == "wait":
-        if decision and decision.reason:
-            return _trim_words(decision.reason)
+        reason = decision_reason(decision)
+        if reason:
+            return _trim_words(reason)
+        if mis.summary:
+            return _trim_words(mis.summary)
         if pins:
             sym = pins[0].symbol.upper().replace(".NS", "").replace(".BO", "")
             return _trim_words(f"Watch {sym} — wait for price to confirm before entering.")
@@ -226,13 +233,84 @@ def _mentor_one_liner(
             return _trim_words(os_report.next_step)
         return "Not your moment yet — wait until price confirms the setup."
 
-    if decision and decision.reason:
-        return _trim_words(decision.reason)
+    reason = decision_reason(decision)
+    if reason:
+        return _trim_words(reason)
+    if mis.summary:
+        return _trim_words(mis.summary)
     if snapshot.trading_restrictions:
         return _trim_words(snapshot.trading_restrictions[0])
     if os_report.next_step:
         return _trim_words(os_report.next_step)
     return "Not your moment yet — wait until price confirms the setup."
+
+
+def _pick_why_decision(
+    mis: MisTradeAdvisory,
+    os_report: InvestmentOS,
+) -> DecisionArtifact | None:
+    """Decision for Why popover — equity first, then any attached artifact."""
+    decision, _source = _pick_decision(mis, os_report)
+    if decision:
+        return decision
+    mis_art = getattr(mis, "decision_artifact", None)
+    if mis_art:
+        return mis_art
+    return getattr(os_report, "decision_artifact", None)
+
+
+def _why_primary(decision: DecisionArtifact | None) -> list[str]:
+    bullets: list[str] = []
+    if decision:
+        why = decision_reason(decision)
+        if why:
+            bullets.append(_strip_md(why))
+        if decision.capital_recommendation:
+            text = _strip_md(decision.capital_recommendation)
+            if text:
+                bullets.append(f"Capital: {text}")
+        if decision.execution_recommendation:
+            text = _strip_md(decision.execution_recommendation)
+            if text:
+                bullets.append(f"Execution: {text}")
+        for condition in (decision.invalidation_conditions or [])[:3]:
+            text = _strip_md(str(condition))
+            if text:
+                bullets.append(f"If wrong: {text}")
+    if not bullets:
+        bullets.append("Conditions are mixed — patience beats forcing a trade.")
+    return bullets[:6]
+
+
+def _why_advanced(
+    decision: DecisionArtifact | None,
+    mis: MisTradeAdvisory,
+    snapshot: ContextSnapshot,
+    *,
+    pins: list[PinnedPlan],
+) -> list[str]:
+    bullets: list[str] = []
+    for line in _evidence_summary(decision, limit=4):
+        text = _strip_md(line)
+        if text and text not in bullets:
+            bullets.append(text)
+    for pillar in (getattr(mis, "synthesis_pillars", None) or [])[:5]:
+        text = _strip_md(str(pillar))
+        if text and text not in bullets:
+            bullets.append(text)
+    for flag in (mis.flags or ())[:3]:
+        text = _strip_md(flag)
+        if text not in bullets:
+            bullets.append(text)
+    for restriction in snapshot.trading_restrictions[:2]:
+        text = _strip_md(restriction)
+        if text not in bullets:
+            bullets.append(text)
+    if pins:
+        pin = pins[0]
+        sym = pin.symbol.upper().replace(".NS", "")
+        bullets.append(f"Watch {sym} near ₹{pin.entry:,.0f} with stop ₹{pin.stop_loss:,.0f}.")
+    return bullets
 
 
 def _why_bullets(
@@ -242,24 +320,7 @@ def _why_bullets(
     *,
     pins: list[PinnedPlan],
 ) -> list[str]:
-    bullets: list[str] = []
-    for line in _evidence_summary(decision, limit=4):
-        bullets.append(_strip_md(line))
-    for flag in (mis.flags or ())[:3]:
-        text = _strip_md(flag)
-        if text not in bullets:
-            bullets.append(text)
-    for restriction in snapshot.trading_restrictions[:2]:
-        text = _strip_md(restriction)
-        if text not in bullets:
-            bullets.append(text)
-    if pins and len(bullets) < 6:
-        pin = pins[0]
-        sym = pin.symbol.upper().replace(".NS", "")
-        bullets.append(f"Watch {sym} near ₹{pin.entry:,.0f} with stop ₹{pin.stop_loss:,.0f}.")
-    if not bullets:
-        bullets.append("Conditions are mixed — patience beats forcing a trade.")
-    return bullets[:6]
+    return _why_primary(decision) + _why_advanced(decision, mis, snapshot, pins=pins)
 
 
 def _handle_primary_cta(action: str) -> None:
@@ -278,13 +339,13 @@ def _handle_primary_cta(action: str) -> None:
         request_nav_tab("My Portfolio")
 
 
-def _render_verdict_canvas(
+def _render_verdict_header(
     *,
     state: VerdictCanvasState,
     mentor: str,
-    why_bullets: list[str],
     built_at: str,
     broker: BrokerSnapshot,
+    intel_html: str = "",
 ) -> None:
     sync_cls, dot_cls, sync_label = _sync_status(broker)
     st.markdown(
@@ -295,21 +356,31 @@ def _render_verdict_canvas(
         f'<span class="vc-sync-dot {dot_cls}"></span>{_esc(sync_label)}</p>'
         f"</div>"
         f'<div class="vc-verdict-zone"><p class="vc-verdict-word">{_esc(state.word)}</p></div>'
-        f'<p class="vc-mentor">{_esc(mentor)}</p>',
+        f'<p class="vc-mentor">{_esc(mentor)}</p>'
+        f"{intel_html}",
         unsafe_allow_html=True,
     )
 
-    st.markdown('<div class="vc-primary">', unsafe_allow_html=True)
-    if st.button(state.cta_label, key="vc_primary_cta", type="primary", use_container_width=True):
-        _handle_primary_cta(state.cta_action)
-    st.markdown("</div>", unsafe_allow_html=True)
 
+def _render_verdict_ghost_and_cta(
+    *,
+    state: VerdictCanvasState,
+    why_primary: list[str],
+    why_advanced: list[str],
+    confidence_pct: int | None = None,
+) -> None:
     st.markdown('<div class="vc-ghost-row">', unsafe_allow_html=True)
     g1, g2 = st.columns(2)
     with g1:
         with st.popover("Why I'm saying this"):
-            for line in why_bullets:
+            if confidence_pct is not None:
+                st.caption(f"Confidence score: {confidence_pct}%")
+            for line in why_primary:
                 st.markdown(f"- {line}")
+            if why_advanced:
+                with st.expander("Advanced diagnostics"):
+                    for line in why_advanced:
+                        st.markdown(f"- {line}")
             if state.key in ("wait", "trade", "pause"):
                 st.caption("I'm fairly sure about this call.")
     with g2:
@@ -321,9 +392,38 @@ def _render_verdict_canvas(
             open_proof_overlay(origin="today", proof_mode=state.key)
     st.markdown("</div>", unsafe_allow_html=True)
 
+    st.markdown('<div class="vc-primary">', unsafe_allow_html=True)
+    if st.button(state.cta_label, key="vc_primary_cta", type="primary", use_container_width=True):
+        _handle_primary_cta(state.cta_action)
+    st.markdown("</div>", unsafe_allow_html=True)
+
     st.markdown(
         '<p class="vc-foot">Zerodha Console is source of truth for P&amp;L.</p></div>',
         unsafe_allow_html=True,
+    )
+
+
+def _render_verdict_canvas(
+    *,
+    state: VerdictCanvasState,
+    mentor: str,
+    why_primary: list[str],
+    why_advanced: list[str],
+    built_at: str,
+    broker: BrokerSnapshot,
+    confidence_pct: int | None = None,
+) -> None:
+    _render_verdict_header(
+        state=state,
+        mentor=mentor,
+        built_at=built_at,
+        broker=broker,
+    )
+    _render_verdict_ghost_and_cta(
+        state=state,
+        why_primary=why_primary,
+        why_advanced=why_advanced,
+        confidence_pct=confidence_pct,
     )
 
 
@@ -338,6 +438,7 @@ def _render_today_canvas(
     os_report: InvestmentOS = cached["os_report"]
     pins: list[PinnedPlan] = cached["pins"]
     decision, _source = _pick_decision(mis, os_report)
+    why_decision = _pick_why_decision(mis, os_report)
     broker = _broker_snapshot()
 
     state = _resolve_verdict_state(broker, snapshot, mis, decision)
@@ -349,23 +450,58 @@ def _render_today_canvas(
         snapshot=snapshot,
         pins=pins,
     )
-    why = _why_bullets(decision, mis, snapshot, pins=pins)
+    why_primary = _why_primary(why_decision)
+    why_advanced = _why_advanced(why_decision, mis, snapshot, pins=pins)
 
-    _render_verdict_canvas(
-        state=state,
-        mentor=mentor,
-        why_bullets=why,
-        built_at=str(cached["built_at"]),
-        broker=broker,
+    from ui.components.today_intelligence import (
+        build_today_command_center,
+        intel_stack_html,
+        render_today_command_center,
     )
 
-    from ui.components.today_intelligence import render_today_command_center
+    center = build_today_command_center(
+        state=state,
+        snapshot=snapshot,
+        mis=mis,
+        os_report=os_report,
+        pins=pins,
+        pulse=cached.get("pulse"),
+        portfolio=cached.get("portfolio"),
+        prefs=cached["prefs"],
+        broker=broker,
+        journal_today_pnl=cached.get("journal_today_pnl"),
+        decision=decision,
+    )
+    hero_intel = intel_stack_html(
+        center,
+        state,
+        sections=("opportunity", "do_next", "risk"),
+    )
+
+    _render_verdict_header(
+        state=state,
+        mentor=mentor,
+        built_at=str(cached["built_at"]),
+        broker=broker,
+        intel_html=hero_intel,
+    )
+
+    _render_verdict_ghost_and_cta(
+        state=state,
+        why_primary=why_primary,
+        why_advanced=why_advanced,
+        confidence_pct=_conf_numeric(why_decision or decision, snapshot),
+    )
 
     render_today_command_center(
         state=state,
         market=market,
         cached={**cached, "snapshot": snapshot},
-        broker_connected=broker.connected(),
+        broker=broker,
+        decision=decision,
+        sections=("market", "portfolio", "next_watch"),
+        include_actions=True,
+        center=center,
     )
 
 
