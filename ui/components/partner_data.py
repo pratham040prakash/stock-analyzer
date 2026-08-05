@@ -17,6 +17,8 @@ from analyzer.mis_trade_advisory import MisTradeAdvisory, build_mis_trade_adviso
 from analyzer.portfolio_store import load_saved_portfolio, portfolio_profile_key
 from analyzer.pulse_cache import load_pulse_cache_with_stale
 from analyzer.trade_journal import load_journal_entries
+from analyzer.use_cases.decision_context_bundle import DecisionContextBundle
+from analyzer.use_cases.morning_brief import load_morning_brief_domain
 from analyzer.watchlist_pins import load_pinned_plans
 from ui.broker.state import BrokerSnapshot, load_broker_snapshot
 
@@ -75,9 +77,6 @@ def read_broker_snapshot() -> BrokerSnapshot:
 @st.cache_data(ttl=45, show_spinner=False)
 def load_today_core(market: str, period: str) -> dict[str, Any]:
     """Minimal bundle for Today verdict + mentor (Stages 2–3)."""
-    from analyzer.use_cases.decision_context_bundle import DecisionContextBundle
-    from analyzer.use_cases.morning_brief import load_morning_brief_domain
-
     broker = read_broker_snapshot()
     domain = load_morning_brief_domain(
         market=market,

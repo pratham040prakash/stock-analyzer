@@ -212,6 +212,18 @@ class TestSingleAssemblyPath(ContextDeterminismFixture):
         self.assertNotIn("record_snapshot=True", text)
         self.assertNotIn("persist_decision_snapshot", text)
 
+    def test_partner_data_imports_load_morning_brief_domain(self):
+        text = Path("ui/components/partner_data.py").read_text(encoding="utf-8")
+        self.assertRegex(
+            text,
+            r"from analyzer\.use_cases\.morning_brief import .*load_morning_brief_domain",
+        )
+        fn_start = text.index("def load_today_core")
+        fn_end = text.index("\n@st.cache_data", fn_start + 1)
+        body = text[fn_start:fn_end]
+        self.assertIn("load_morning_brief_domain(", body)
+        self.assertNotIn("from analyzer.use_cases.morning_brief import", body)
+
     def test_partner_data_persists_in_application_layer(self):
         text = Path("ui/components/partner_data.py").read_text(encoding="utf-8")
         self.assertIn("DecisionContextBundle.freeze", text)
