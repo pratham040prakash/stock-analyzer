@@ -5,9 +5,12 @@
 #
 # starlette cap: Streamlit 1.58 gzip middleware is incompatible with starlette>=1.4.0
 # (GZipResponder requires thread_minimum_size). Cap keeps Cloud/CI/local graphs aligned.
+#
+# numpy pin: pandas 3.0.3 requires numpy>=2.3.3 on Python 3.14 (Streamlit Cloud default).
+# numpy 2.2.6 has no cp314 wheels and violates pandas' environment marker → unsatisfiable.
 yfinance==1.5.1
 pandas==3.0.3
-numpy==2.2.6
+numpy==2.3.5
 streamlit==1.58.0
 plotly==6.8.0
 requests==2.34.2
