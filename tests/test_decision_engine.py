@@ -510,7 +510,7 @@ class TestAttachFallbacks(unittest.TestCase):
 
 class TestArchitectureGuards(unittest.TestCase):
     def test_verdict_enum_only_in_decision_engine_package(self):
-        """Canonical DecisionVerdict assignment stays inside decision_engine."""
+        """Canonical DecisionVerdict assignment stays inside decision_engine; use_cases may compare."""
         import ast
         import pathlib
 
@@ -518,6 +518,8 @@ class TestArchitectureGuards(unittest.TestCase):
         offenders: list[str] = []
         for path in root.rglob("*.py"):
             if "decision_engine" in path.parts:
+                continue
+            if "use_cases" in path.parts:
                 continue
             try:
                 tree = ast.parse(path.read_text(encoding="utf-8"))

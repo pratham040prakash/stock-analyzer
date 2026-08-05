@@ -1,4 +1,5 @@
 """Evidence Engine — combine, merge, validate, and build packets."""
+# APEX-012-LIFECYCLE: ACTIVE
 
 from __future__ import annotations
 

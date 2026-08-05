@@ -1,4 +1,5 @@
 """Phase 2 — Trades tab · Plan Canvas (execution companion, presentation only)."""
+# APEX-012-LIFECYCLE: ACTIVE
 
 from __future__ import annotations
 
@@ -15,16 +16,15 @@ from analyzer.investment_os import InvestmentOS
 from analyzer.mis_trade_advisory import MisTradeAdvisory
 from analyzer.watchlist_pins import PinnedPlan
 from ui.broker.state import BrokerSnapshot
-from ui.components.home_dashboard import (
+from ui.components.canvas_utils import (
     VerdictCanvasState,
     _broker_snapshot,
     _esc,
-    _pick_decision,
-    _resolve_verdict_state,
     _strip_md,
     _sync_status,
     _trim_words,
 )
+from ui.components.morning_brief_ui import load_brief_from_cache, verdict_state_from_brief
 from ui.components.partner_shell import set_partner_dock
 from ui.components.proof_runtime import proof_canvas_active
 
@@ -280,19 +280,24 @@ def render_plan_canvas(
     cached: dict[str, Any],
 ) -> None:
     del market
-    from ui.components.home_dashboard import _snapshot_from_cache
+    from analyzer.use_cases.morning_brief import domain_from_cache_bundle
+    from ui.components.canvas_utils import _snapshot_from_cache
 
-    snapshot_obj = _snapshot_from_cache(cached["snapshot"])
+    broker = _broker_snapshot()
+    brief = load_brief_from_cache(cached, broker=broker)
+    domain = domain_from_cache_bundle(cached, broker=broker)
+    snapshot_obj = domain.context
+    if not isinstance(snapshot_obj, ContextSnapshot):
+        snapshot_obj = _snapshot_from_cache(cached["snapshot"])
 
     mis: MisTradeAdvisory = cached["mis"]
     os_report: InvestmentOS = cached["os_report"]
     pins: list[PinnedPlan] = cached["pins"]
     prefs: IntradayPrefs = cached["prefs"]
-    broker = _broker_snapshot()
     built_at = str(cached["built_at"])
 
-    decision, _source = _pick_decision(mis, os_report)
-    state = _resolve_verdict_state(broker, snapshot_obj, mis, decision)
+    state = verdict_state_from_brief(brief)
+    decision = domain.decision
 
     if not broker.connected():
         _render_connect_plan(built_at=built_at, broker=broker)

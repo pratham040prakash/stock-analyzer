@@ -1,4 +1,5 @@
 """Phase 5 — Trust Canvas (accountability story, presentation only)."""
+# APEX-012-LIFECYCLE: QUARANTINED
 
 from __future__ import annotations
 

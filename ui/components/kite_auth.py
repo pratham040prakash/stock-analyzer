@@ -12,7 +12,7 @@ from analyzer.zerodha import (
     save_access_token_to_env,
 )
 from ui.broker.bootstrap import reset_broker_bootstrap
-from ui.broker.oauth_log import fn_trace, oauth_log, oauth_log_exception, startup_trace
+from ui.broker.oauth_log import fn_trace, mask_oauth_url, oauth_log, oauth_log_exception, startup_trace
 from ui.components.kite_connect import clear_kite_status_caches
 
 _CHECKSUM_HELP = (
@@ -63,8 +63,6 @@ def get_request_token() -> str:
     """Resolve request_token from query_params or context URL."""
     qp_token = _query_param("request_token")
     ctx_token = _query_param_from_context_url("request_token")
-    print(f"qp_token={qp_token!r}")
-    print(f"ctx_token={ctx_token!r}")
     fn_trace(
         "get_request_token",
         "PROBE",
@@ -163,9 +161,6 @@ def handle_kite_redirect(*, quiet: bool = False) -> bool:
     try:
         oauth_log("Exchanging request token")
         startup_trace(6, "exchange_request_token")
-        print("request_token", request_token)
-        print("api_key", creds["api_key"])
-        print("api_secret", creds["api_secret"])
         access_token = exchange_request_token(
             creds["api_key"], creds["api_secret"], request_token
         )
@@ -253,24 +248,14 @@ def process_oauth_callback_if_present() -> None:
         context_url = ""
     print("----------------------------")
     print("APP START")
-    print(f"st.query_params = {dict(st.query_params)}")
-    print(f"st.context.url = {context_url}")
     print("----------------------------")
     oauth_log(
         "Early OAuth probe",
-        f"context.url={context_url[:120] if context_url else 'empty'}",
+        f"context.url={mask_oauth_url(context_url)}",
     )
 
     request_token = get_request_token()
-    print(f"request_token={request_token!r}")
     if not request_token:
-        qp_empty = not _query_param("request_token")
-        ctx_empty = not _query_param_from_context_url("request_token")
-        print(
-            "request_token empty because "
-            f"qp_token missing={qp_empty} ctx_token missing={ctx_empty} "
-            f"context.url={context_url!r}"
-        )
         fn_trace("process_oauth_callback_if_present", "EXIT", "no callback")
         return
 

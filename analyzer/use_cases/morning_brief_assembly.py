@@ -1,4 +1,5 @@
 """Assemble MorningBriefViewModel sections from domain inputs (ETS-003b v0.2)."""
+# APEX-012-LIFECYCLE: ACTIVE
 
 from __future__ import annotations
 

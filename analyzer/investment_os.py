@@ -1,4 +1,5 @@
 """Investment Operating System — seven modules, one question each."""
+# APEX-012-LIFECYCLE: QUARANTINED
 
 from __future__ import annotations
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -14,6 +15,28 @@ STARTUP_LOG_PATH = LOG_DIR / "startup.log"
 _LOGGER: logging.Logger | None = None
 _STARTUP_LOGGER: logging.Logger | None = None
 _MAX_SESSION_LINES = 60
+
+_SENSITIVE_QUERY_RE = re.compile(
+    r"(request_token|access_token|api_secret|api_key|password|client_secret)=([^&\s\"']+)",
+    re.IGNORECASE,
+)
+
+
+def sanitize_log_detail(detail: str) -> str:
+    """Redact credential-like query params and tokens from log detail strings."""
+    if not detail:
+        return detail
+    return _SENSITIVE_QUERY_RE.sub(r"\1=***", detail)
+
+
+def mask_oauth_url(url: str, *, max_len: int = 120) -> str:
+    """Return a log-safe OAuth redirect URL with sensitive query values redacted."""
+    if not url:
+        return "empty"
+    masked = sanitize_log_detail(url)
+    if len(masked) > max_len:
+        return masked[:max_len] + "…"
+    return masked
 
 
 def _ensure_logger() -> logging.Logger:
@@ -52,6 +75,8 @@ def _ensure_startup_logger() -> logging.Logger:
 
 def oauth_log(step: str, detail: str = "") -> None:
     """Write `[OAuth] step — detail` to oauth.log and session debug buffer."""
+    if detail:
+        detail = sanitize_log_detail(detail)
     message = f"[OAuth] {step}"
     if detail:
         message = f"{message} — {detail}"
@@ -60,7 +85,7 @@ def oauth_log(step: str, detail: str = "") -> None:
 
 
 def oauth_log_exception(step: str, exc: Exception) -> None:
-    oauth_log(step, f"{type(exc).__name__}: {exc}")
+    oauth_log(step, f"{type(exc).__name__}: {sanitize_log_detail(str(exc))}")
 
 
 def fn_trace(function: str, phase: str, detail: str = "") -> None:
@@ -70,6 +95,8 @@ def fn_trace(function: str, phase: str, detail: str = "") -> None:
 
 def startup_trace(step: int, function_name: str, detail: str = "") -> None:
     """Log exact startup execution order: `[Startup] 03 function_name`."""
+    if detail:
+        detail = sanitize_log_detail(detail)
     message = f"[Startup] {step:02d} {function_name}"
     if detail:
         message = f"{message} — {detail}"

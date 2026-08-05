@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Run morning briefing and optionally send to Telegram. Schedule at 8:30 AM IST."""
+# APEX-012-LIFECYCLE: DORMANT
 
 from __future__ import annotations
 

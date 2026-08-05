@@ -127,6 +127,7 @@ class TestArchitectureGuard(unittest.TestCase):
         offenders: list[str] = []
         allowed_roots = (
             root / "decision_engine",
+            root / "use_cases",  # comparison / display assembly only
         )
         for path in root.rglob("*.py"):
             if any(str(path).startswith(str(a)) for a in allowed_roots):

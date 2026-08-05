@@ -1,4 +1,5 @@
 """Phase 4 — Ask overlay · Answer Canvas (one question, one answer)."""
+# APEX-012-LIFECYCLE: ACTIVE
 
 from __future__ import annotations
 
@@ -10,7 +11,6 @@ from typing import Any
 import streamlit as st
 
 from analyzer.context_engine.models import ContextSnapshot
-from analyzer.decision_engine.models import DecisionArtifact, DecisionVerdict
 from analyzer.intraday_prefs import IntradayPrefs
 from analyzer.investment_os import InvestmentOS
 from analyzer.mis_trade_advisory import MisTradeAdvisory
@@ -18,13 +18,11 @@ from analyzer.unified_search import extract_symbol_from_command, unified_search
 from analyzer.watchlist_pins import PinnedPlan
 from analyzer.zerodha import ZerodhaImportResult
 from ui.broker.state import BrokerSnapshot
-from ui.components.home_dashboard import (
-    _evidence_summary,
-    _pick_decision,
-    _snapshot_from_cache,
-    _strip_md,
-    _trim_words,
-    _why_bullets,
+from ui.components.canvas_utils import _snapshot_from_cache, _strip_md, _trim_words
+from ui.components.morning_brief_ui import (
+    evidence_teaser_lines,
+    load_brief_from_cache,
+    why_bullets_from_brief,
 )
 from ui.components.partner_shell import set_partner_dock
 from ui.components.proof_runtime import proof_canvas_active
@@ -161,16 +159,15 @@ def _classify_intent(query: str) -> str:
     return "generic"
 
 
-def _verdict_to_answer(decision: DecisionArtifact | None) -> tuple[str, str]:
-    if not decision:
-        return "wait", "Wait"
-    if decision.verdict == DecisionVerdict.ACT:
-        return "buy", "Buy"
-    if decision.verdict == DecisionVerdict.REDUCE:
-        return "reduce", "Reduce"
-    if decision.verdict in (DecisionVerdict.PASS, DecisionVerdict.DEFENSIVE):
-        return "pass", "Pass"
-    return "wait", "Wait"
+def _verdict_key_to_answer(verdict_key: str) -> tuple[str, str]:
+    mapping = {
+        "trade": ("buy", "Buy"),
+        "wait": ("wait", "Wait"),
+        "pause": ("pass", "Pass"),
+        "connect": ("pass", "Pass"),
+        "rest": ("pass", "Pass"),
+    }
+    return mapping.get(verdict_key, ("wait", "Wait"))
 
 
 def _risk_budget_inr(prefs: IntradayPrefs) -> float:
@@ -254,7 +251,7 @@ def _build_symbol_answer(
     snapshot: ContextSnapshot,
     mis: MisTradeAdvisory,
     os_report: InvestmentOS,
-    decision: DecisionArtifact | None,
+    verdict_key: str,
     portfolio: ZerodhaImportResult | None,
 ) -> tuple[str, str, str, str]:
     starred = _display_symbol(os_report.starred_symbol or "")
@@ -274,8 +271,8 @@ def _build_symbol_answer(
         key, word = "wait", "Wait"
         body = f"{symbol} may work later, but today's risk mode says stand down."
         rec = f"Don't add {symbol} today — protect capital first."
-    elif decision and starred == symbol:
-        key, word = _verdict_to_answer(decision)
+    elif starred == symbol:
+        key, word = _verdict_key_to_answer(verdict_key)
         if key == "buy":
             body = f"{symbol} lines up with today's plan — I'd enter only with a hard stop."
             rec = f"Add {symbol} only if size fits your daily risk — one trade, one plan."
@@ -313,13 +310,13 @@ def build_ask_answer(
     echo = raw if len(raw) <= 72 else f"{raw[:69]}…"
     context = _context_line(broker)
 
+    brief = load_brief_from_cache(cached, broker=broker)
     snapshot = _snapshot_from_cache(cached["snapshot"])
     mis: MisTradeAdvisory = cached["mis"]
     os_report: InvestmentOS = cached["os_report"]
     pins: list[PinnedPlan] = cached["pins"]
     prefs: IntradayPrefs = cached["prefs"]
     portfolio: ZerodhaImportResult | None = cached.get("portfolio")
-    decision, _source = _pick_decision(mis, os_report)
 
     intent = _classify_intent(raw)
     opener = _personalized_opener(broker)
@@ -333,7 +330,7 @@ def build_ask_answer(
         )
         word = {"yes": "Yes", "tight": "Tight", "no": "No", "pass": "Pass"}.get(key, "Pass")
         primary = "Connect Zerodha" if action == "connect" else "Back to Today"
-        why = tuple(_why_bullets(decision, mis, snapshot, pins=pins))
+        why = tuple(why_bullets_from_brief(brief, mis=mis, snapshot=snapshot, pins=pins))
         unc = "Mixed signals — I'd stay cautious." if key in ("tight", "no") else "I'm fairly sure about this."
         return AskAnswerView(echo, context, key, word, mentor, rec, why, unc, primary, action)
 
@@ -351,7 +348,7 @@ def build_ask_answer(
             portfolio=portfolio,
             drop_pct=drop,
         )
-        why = tuple(_why_bullets(decision, mis, snapshot, pins=pins))
+        why = tuple(why_bullets_from_brief(brief, mis=mis, snapshot=snapshot, pins=pins))
         if snapshot.sector_strength:
             top = max(snapshot.sector_strength.items(), key=lambda kv: kv[1])
             why = (*why, f"Strongest sector today: {top[0]}.")[:6]
@@ -362,7 +359,7 @@ def build_ask_answer(
 
     if intent == "average_down":
         mentor, rec = _build_average_down_answer(broker=broker, mis=mis)
-        why = tuple(_why_bullets(decision, mis, snapshot, pins=pins))
+        why = tuple(why_bullets_from_brief(brief, mis=mis, snapshot=snapshot, pins=pins))
         if mis.flags:
             why = (*why, _strip_md(mis.flags[0]))[:6]
         unc = "I'm fairly sure — averaging down rarely fixes a bad entry."
@@ -379,14 +376,13 @@ def build_ask_answer(
             snapshot=snapshot,
             mis=mis,
             os_report=os_report,
-            decision=decision,
+            verdict_key=brief.decision.verdict_key,
             portfolio=portfolio,
         )
-        why = tuple(_why_bullets(decision, mis, snapshot, pins=pins))
-        for line in _evidence_summary(decision, limit=2):
-            text = _strip_md(line)
-            if text not in why:
-                why = (*why, text)[:6]
+        why = tuple(why_bullets_from_brief(brief, mis=mis, snapshot=snapshot, pins=pins))
+        for line in evidence_teaser_lines(brief, limit=2):
+            if line not in why:
+                why = (*why, line)[:6]
         unc = "I'm fairly sure about this." if key in ("buy", "wait") else "Mixed signals — I'd stay cautious."
         return AskAnswerView(
             echo, context, key, word, _trim_words(mentor, max_words=28), rec, why, unc, "Back to Today", "back_today"
@@ -419,7 +415,7 @@ def build_ask_answer(
         "Pass",
         mentor,
         rec,
-        tuple(_why_bullets(decision, mis, snapshot, pins=pins)),
+        tuple(why_bullets_from_brief(brief, mis=mis, snapshot=snapshot, pins=pins)),
         "Off-topic questions don't get a trade call.",
         "Back to Today",
         "back_today",
@@ -471,7 +467,7 @@ def is_ask_overlay_open() -> bool:
 
 def render_answer_overlay(*, market: str, cached: dict[str, Any]) -> None:
     del market
-    from ui.components.home_dashboard import _broker_snapshot
+    from ui.components.canvas_utils import _broker_snapshot
 
     broker = _broker_snapshot()
 

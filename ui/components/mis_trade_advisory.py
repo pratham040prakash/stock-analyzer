@@ -1,4 +1,5 @@
 """Trade / No trade advisory strip — predictive risk synthesis."""
+# APEX-012-LIFECYCLE: QUARANTINED
 
 from __future__ import annotations
 

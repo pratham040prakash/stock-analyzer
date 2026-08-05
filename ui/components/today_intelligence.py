@@ -1,4 +1,5 @@
 """P0 Today Command Center — prose supporting intelligence below verdict."""
+# APEX-012-LIFECYCLE: QUARANTINED
 
 from __future__ import annotations
 
@@ -635,6 +636,7 @@ def render_today_command_center(
     sections: tuple[str, ...] | None = None,
     include_actions: bool = False,
     center: TodayCommandCenter | None = None,
+    review_symbol: str | None = None,
 ) -> None:
     del market
     snapshot: ContextSnapshot = cached["snapshot"]
@@ -671,9 +673,15 @@ def render_today_command_center(
 
     st.markdown('<div class="vc-intel-actions">', unsafe_allow_html=True)
     a1, a2, a3 = st.columns(3)
+    from ui.components.decision_card import resolve_hero_review_nav_symbol
+
+    nav_symbol = resolve_hero_review_nav_symbol(
+        review_symbol=review_symbol,
+        legacy_best_ticker=center.best_ticker,
+    )
     with a1:
-        if center.best_ticker and st.button("Review setup", key="vc_intel_review", use_container_width=True):
-            _go_symbol(center.best_ticker)
+        if nav_symbol and st.button("Review setup", key="vc_intel_review", use_container_width=True):
+            _go_symbol(nav_symbol)
     with a2:
         if st.button("All picks", key="vc_intel_picks", use_container_width=True):
             request_nav_tab("Suggestions")

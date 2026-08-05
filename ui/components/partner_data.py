@@ -48,6 +48,7 @@ PARTNER_TODAY_STAGE = "partner_today_stage"
 PARTNER_TODAY_CORE = "partner_today_core"
 PARTNER_TODAY_STATE = "partner_today_state"
 PARTNER_TODAY_READY = "partner_today_ready"
+PARTNER_TODAY_THINKING = "partner_today_thinking"
 PARTNER_BG_DONE = "partner_bg_done"
 PARTNER_DOCK_STAGE = "partner_dock_stage"
 
@@ -74,7 +75,8 @@ def read_broker_snapshot() -> BrokerSnapshot:
 @st.cache_data(ttl=45, show_spinner=False)
 def load_today_core(market: str, period: str) -> dict[str, Any]:
     """Minimal bundle for Today verdict + mentor (Stages 2–3)."""
-    from analyzer.use_cases.morning_brief import domain_to_cache_bundle, load_morning_brief_domain
+    from analyzer.use_cases.decision_context_bundle import DecisionContextBundle
+    from analyzer.use_cases.morning_brief import load_morning_brief_domain
 
     broker = read_broker_snapshot()
     domain = load_morning_brief_domain(
@@ -84,7 +86,9 @@ def load_today_core(market: str, period: str) -> dict[str, Any]:
         deep=False,
         use_cache=True,
     )
-    bundle = domain_to_cache_bundle(domain)
+    ctx = DecisionContextBundle.freeze(domain)
+    ctx.assemble_view_model(record_snapshot=True)
+    bundle = ctx.to_cache_dict()
     bundle["market"] = market
     return bundle
 
@@ -141,14 +145,22 @@ def load_proof_bundle(market: str, period: str) -> dict[str, Any]:
     )
 
 
-def load_dashboard_data(market: str, period: str, deep: bool) -> dict[str, Any]:
-    """Full bundle — compatibility / tests only; home shell uses lazy loaders."""
-    del deep
+def _load_dashboard_bundle(market: str, period: str) -> dict[str, Any]:
     return _merge(
         load_today_core(market, period),
         load_portfolio_data(),
         load_background_modules(market, period),
     )
+
+
+def load_dashboard_data(market: str, period: str, deep: bool) -> dict[str, Any] | None:
+    """Full bundle. Returns None once per session to allow thinking state before load."""
+    del deep
+    reset_today_pipeline(market=market, period=period)
+    if not st.session_state.get(PARTNER_TODAY_THINKING):
+        st.session_state[PARTNER_TODAY_THINKING] = True
+        return None
+    return _load_dashboard_bundle(market, period)
 
 
 def reset_today_pipeline(*, market: str, period: str) -> None:
@@ -160,6 +172,7 @@ def reset_today_pipeline(*, market: str, period: str) -> None:
     st.session_state.pop(PARTNER_TODAY_CORE, None)
     st.session_state.pop(PARTNER_TODAY_STATE, None)
     st.session_state.pop(PARTNER_TODAY_READY, None)
+    st.session_state.pop(PARTNER_TODAY_THINKING, None)
     st.session_state[PARTNER_BG_DONE] = False
 
 
@@ -181,6 +194,5 @@ def clear_partner_caches_on_pickle_error(exc: Exception) -> bool:
         load_today_core.clear()
         load_portfolio_data.clear()
         load_background_modules.clear()
-        load_dashboard_data.clear()
         return True
     return False

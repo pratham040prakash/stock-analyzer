@@ -22,8 +22,7 @@ from ui.components.navigation_bar import render_app_navigation
 from ui.components.theme_toggle import apply_theme_css, render_theme_toggle_sidebar
 from ui.components.nse import render_nse_error_banner
 from ui.components.broker_setup_wizard import ensure_broker_configured
-from ui.components.broker_startup import run_broker_startup
-from ui.components.kite_auth import process_oauth_callback_if_present
+from analyzer.broker import BrokerSessionService
 from ui.broker.oauth_log import startup_trace
 from ui.components.telegram_subscribe import render_telegram_subscribe_sidebar
 from ui.pages.beginner_risk import render_beginner_risk
@@ -209,7 +208,6 @@ def _maybe_autopilot_health_alert() -> None:
 
 
 def main() -> None:
-    print(dict(st.query_params))
     startup_trace(1, "app.main.enter")
 
     load_app_env()
@@ -218,8 +216,9 @@ def main() -> None:
     st.set_page_config(page_title="AI Trading Decision System", page_icon="📈", layout="wide")
     startup_trace(1, "st.set_page_config")
 
+    broker_session = BrokerSessionService()
     # Section 9 — consume OAuth callback before nav, wizard, or startup skip.
-    process_oauth_callback_if_present()
+    broker_session.initialize(early_oauth=True)
 
     apply_theme_css()
     st.markdown(MOBILE_CSS, unsafe_allow_html=True)
@@ -233,7 +232,7 @@ def main() -> None:
         return
     startup_trace(2, "ensure_broker_configured", "OK")
 
-    run_broker_startup()
+    broker_session.initialize()
 
     is_home = st.session_state.get("nav_tab") == "Home"
     startup_trace(13, "page_routing", f"nav_tab={st.session_state.get('nav_tab')}")

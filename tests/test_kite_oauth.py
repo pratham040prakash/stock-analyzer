@@ -36,55 +36,44 @@ class TestOAuthCallbackDetection(unittest.TestCase):
 
 class TestBrokerStartupOAuthOrder(unittest.TestCase):
     @patch("ui.components.broker_startup.st")
-    @patch("ui.components.broker_startup.get_request_token", return_value="tok12345678")
-    @patch("ui.components.broker_startup.handle_kite_redirect", return_value=True)
-    @patch("ui.components.broker_startup._clear_oauth_query_params")
     @patch("ui.components.broker_startup.broker_bootstrap")
     @patch("ui.components.broker_startup.hydrate_kite_access_token")
-    @patch("ui.components.broker_startup.load_env_credentials")
-    def test_oauth_before_bootstrap(
+    def test_run_broker_startup_does_not_own_oauth(
         self,
-        mock_creds,
-        mock_hydrate,
+        _hydrate,
         mock_bootstrap,
-        _clear,
-        mock_handle,
-        _token,
         mock_st,
     ):
-        mock_creds.return_value = {"api_key": "k", "api_secret": "s", "access_token": ""}
+        """OAuth is owned by BrokerSessionService — not broker_startup (A-5)."""
         mock_st.session_state = {}
-        mock_st.empty.return_value = MagicMock()
-
-        call_order: list[str] = []
-
-        def _handle(*_a, **_k):
-            call_order.append("handle_kite_redirect")
-            return True
-
-        def _bootstrap(*_a, **_k):
-            call_order.append("broker_bootstrap")
-
-        mock_handle.side_effect = _handle
-        mock_bootstrap.side_effect = _bootstrap
-
-        with patch("ui.components.broker_startup.get_request_token", side_effect=["tok12345678", ""]):
-            run_broker_startup()
-
-        self.assertEqual(call_order, ["handle_kite_redirect", "broker_bootstrap"])
-        mock_st.rerun.assert_called_once()
-
-    @patch("ui.components.broker_startup._show_broker_toast")
-    @patch("ui.components.broker_startup.get_request_token", return_value="")
-    @patch("ui.components.broker_startup.handle_kite_redirect")
-    @patch("ui.components.broker_startup.st")
-    def test_skips_when_startup_done_and_no_callback(self, mock_st, mock_handle, _token, _toast):
-        mock_st.session_state = {"_broker_startup_done": True}
         mock_st.empty.return_value = MagicMock()
 
         run_broker_startup()
 
-        mock_handle.assert_not_called()
+        mock_bootstrap.assert_called_once()
+
+    def test_broker_startup_source_has_no_oauth_handler(self):
+        from pathlib import Path
+
+        source = (
+            Path(__file__).resolve().parents[1]
+            / "ui"
+            / "components"
+            / "broker_startup.py"
+        ).read_text(encoding="utf-8")
+        self.assertNotIn("handle_kite_redirect", source)
+        self.assertNotIn("process_oauth_callback_if_present", source)
+
+    @patch("ui.components.broker_startup._show_broker_toast")
+    @patch("ui.components.broker_startup.st")
+    def test_skips_when_startup_done(self, mock_st, _toast):
+        mock_st.session_state = {"_broker_startup_done": True}
+        mock_st.empty.return_value = MagicMock()
+
+        with patch("ui.components.broker_startup.broker_bootstrap") as mock_bootstrap:
+            run_broker_startup()
+
+        mock_bootstrap.assert_not_called()
 
 
 class TestHandleKiteRedirect(unittest.TestCase):

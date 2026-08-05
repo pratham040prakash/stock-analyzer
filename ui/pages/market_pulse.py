@@ -1,4 +1,5 @@
 """Market Pulse tab — Nifty 50 multi-horizon scan."""
+# APEX-012-LIFECYCLE: QUARANTINED
 
 from __future__ import annotations
 

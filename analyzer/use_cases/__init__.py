@@ -2,7 +2,6 @@
 
 from analyzer.use_cases.morning_brief import (
     MorningBriefDomain,
-    MorningBriefViewModel,
     MorningBriefScenario,
     build_morning_brief,
     domain_from_cache_bundle,
@@ -11,6 +10,7 @@ from analyzer.use_cases.morning_brief import (
     pick_decision,
     view_model_from_domain,
 )
+from analyzer.use_cases.decision_context_bundle import DecisionContextBundle
 from analyzer.use_cases.morning_brief_models import (
     DecisionSection,
     EvidenceSection,
@@ -21,6 +21,7 @@ from analyzer.use_cases.morning_brief_models import (
 MorningBriefViewModel = MorningBriefViewModelType
 
 __all__ = [
+    "DecisionContextBundle",
     "MorningBriefDomain",
     "MorningBriefViewModel",
     "MorningBriefScenario",

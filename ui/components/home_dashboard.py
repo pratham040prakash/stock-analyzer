@@ -1,289 +1,61 @@
 """AI Trading Partner — Today (Phase 1) + dock shell; Trades via plan_canvas."""
+# APEX-012-LIFECYCLE: ACTIVE
 
 from __future__ import annotations
 
-import html
-import re
-from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
 import streamlit as st
 
-from analyzer.context_engine.models import ContextSnapshot
-from analyzer.decision_engine.models import DecisionArtifact, DecisionVerdict
-from analyzer.investment_os import InvestmentOS
-from analyzer.mis_trade_advisory import MisTradeAdvisory
-from analyzer.use_cases.morning_brief import domain_from_cache_bundle, pick_decision as _pick_decision, view_model_from_domain
-from analyzer.use_cases.snapshot_cache import snapshot_from_cache, snapshot_to_cache
-from analyzer.watchlist_pins import PinnedPlan
-from ui.broker.state import BrokerSnapshot, load_broker_snapshot
-from ui.components.dashboard_pipeline import decision_reason
-from ui.components.decision_card import canvas_state_from_view_model, project_decision_card
+from analyzer.use_cases.decision_context_bundle import DecisionContextBundle
+from analyzer.use_cases.morning_brief import pick_decision as _pick_decision
+from ui.components.canvas_utils import (
+    VerdictCanvasState,
+    _broker_snapshot,
+    _esc,
+    _snapshot_from_cache,
+    _snapshot_to_cache,
+    _strip_md,
+    _sync_status,
+    _trim_words,
+)
+from ui.components.decision_card import (
+    below_fold_intel_sections,
+    compose_hero_intel_html,
+    hero_failure_html,
+    hero_header_sync_html,
+    hero_intel_sections,
+    hero_l0_trust_html,
+    hero_review_setup_symbol,
+    hero_stale_html,
+    project_decision_card,
+    today_intel_actions_allowed,
+)
+from ui.components.morning_brief_ui import (
+    why_advanced_from_brief,
+    why_primary_from_brief,
+)
 from ui.components.partner_data import load_dashboard_data
 from ui.components.partner_shell import get_partner_dock, render_ask_fab, render_partner_dock, set_partner_dock
-from ui.theme import VERDICT_CANVAS_CSS, PARTNER_PAGE_ACTIVATE_JS
+from ui.theme import PARTNER_PAGE_ACTIVATE_JS, VERDICT_CANVAS_CSS
 
 IST = ZoneInfo("Asia/Kolkata")
-_MENTOR_MAX_WORDS = 18
+TODAY_BROKER_GATE = "today_broker_gate"
 
-
-@dataclass(frozen=True)
-class VerdictCanvasState:
-    key: str
-    word: str
-    cta_label: str
-    cta_action: str  # done | plan | week | connect
-
-
-def _esc(text: str) -> str:
-    return html.escape(str(text or ""))
-
-
-def _strip_md(text: str) -> str:
-    cleaned = re.sub(r"\*\*([^*]+)\*\*", r"\1", str(text or ""))
-    cleaned = re.sub(r"`([^`]+)`", r"\1", cleaned)
-    return cleaned.strip()
-
-
-def _trim_words(text: str, *, max_words: int = _MENTOR_MAX_WORDS) -> str:
-    words = _strip_md(text).split()
-    if len(words) <= max_words:
-        return " ".join(words)
-    clipped = " ".join(words[:max_words]).rstrip(".,;:")
-    return f"{clipped}…"
-
-
-def _conf_numeric(decision: DecisionArtifact | None, snapshot: ContextSnapshot) -> int:
-    if decision:
-        raw = float(decision.confidence)
-        return int(round(raw * 100)) if raw <= 1.0 else int(round(raw))
-    raw = float(snapshot.confidence or 0.0)
-    return int(round(raw * 100)) if raw <= 1.0 else int(round(raw))
-
-
-def _evidence_summary(decision: DecisionArtifact | None, *, limit: int = 6) -> list[str]:
-    if not decision or not decision.evidence_packet_id:
-        return []
-    try:
-        from analyzer.evidence_engine import fetch_evidence_packet
-
-        packet = fetch_evidence_packet(decision.evidence_packet_id)
-        if not packet:
-            return []
-        lines: list[str] = []
-        for item in packet.items[:limit]:
-            label = str(item.label or item.category.value)
-            value = str(item.value or "")[:100]
-            lines.append(f"{label}: {value}")
-        if packet.conflicts:
-            lines.append(f"{len(packet.conflicts)} conflicting signal(s) noted")
-        if packet.gaps:
-            lines.append(f"{len(packet.gaps)} data gap(s)")
-        return lines
-    except Exception:
-        return []
-
-
-def _broker_snapshot() -> BrokerSnapshot:
-    raw = st.session_state.get("broker_snapshot")
-    if raw:
-        return BrokerSnapshot.from_dict(raw)
-    return load_broker_snapshot()
-
-
-def _sync_status(broker: BrokerSnapshot) -> tuple[str, str, str]:
-    """Return (css_class, dot_class, label)."""
-    if broker.connected():
-        if broker.state == "limited":
-            return "vc-sync-warn", "vc-sync-warn", "Stale"
-        return "vc-sync-ok", "vc-sync-ok", "Synced"
-    return "vc-sync-off", "vc-sync-off", "Offline"
-
-
-def _session_phase(snapshot: ContextSnapshot) -> str:
-    session = dict(snapshot.market_session or {})
-    return str(session.get("phase", "") or snapshot.market_phase or "")
-
-
-def _market_is_rest(snapshot: ContextSnapshot) -> bool:
-    phase = _session_phase(snapshot)
-    if snapshot.risk_mode == "CLOSED":
-        return True
-    return phase in ("weekend", "holiday", "after_hours", "closed")
-
-
-def _resolve_verdict_state(
-    broker: BrokerSnapshot,
-    snapshot: ContextSnapshot,
-    mis: MisTradeAdvisory,
-    decision: DecisionArtifact | None,
-) -> VerdictCanvasState:
-    if not broker.connected():
-        return VerdictCanvasState("connect", "Connect", "Connect Zerodha", "connect")
-
-    if _market_is_rest(snapshot):
-        return VerdictCanvasState("rest", "Rest", "View your week", "week")
-
-    if mis.loss_streak_days >= 2:
-        return VerdictCanvasState("pause", "Pause", "You're done for today", "done")
-
-    if decision and decision.verdict in (DecisionVerdict.PASS, DecisionVerdict.DEFENSIVE):
-        return VerdictCanvasState("pause", "Pause", "You're done for today", "done")
-
-    if snapshot.risk_mode in ("RISK-OFF", "CLOSED") and len(snapshot.trading_restrictions) >= 2:
-        return VerdictCanvasState("pause", "Pause", "You're done for today", "done")
-
-    if decision and decision.verdict == DecisionVerdict.ACT:
-        if _conf_numeric(decision, snapshot) >= 40:
-            return VerdictCanvasState("trade", "Trade", "See the plan", "plan")
-
-    if decision and decision.verdict == DecisionVerdict.REDUCE:
-        return VerdictCanvasState("wait", "Wait", "You're done for today", "done")
-
-    return VerdictCanvasState("wait", "Wait", "You're done for today", "done")
-
-
-def _mentor_one_liner(
-    state: VerdictCanvasState,
-    *,
-    decision: DecisionArtifact | None,
-    mis: MisTradeAdvisory,
-    os_report: InvestmentOS,
-    snapshot: ContextSnapshot,
-    pins: list[PinnedPlan],
-) -> str:
-    if state.key == "connect":
-        return "Link Zerodha once — I'll sync positions and tailor today's call."
-
-    if state.key == "rest":
-        return "Markets are closed. Rest up; tomorrow's plan builds at open."
-
-    if state.key == "pause":
-        if mis.loss_streak_days >= 2:
-            return _trim_words(
-                f"{mis.loss_streak_days} rough days in a row — pause today and protect your capital."
-            )
-        reason = decision_reason(decision)
-        if reason:
-            return _trim_words(reason)
-        if mis.summary:
-            return _trim_words(mis.summary)
-        if mis.flags:
-            return _trim_words(mis.flags[0])
-        return "Too much risk today — pause and protect your capital."
-
-    if state.key == "trade":
-        sym = (os_report.starred_symbol or "").upper().replace(".NS", "").replace(".BO", "")
-        if not sym and pins:
-            sym = pins[0].symbol.upper().replace(".NS", "").replace(".BO", "")
-        if sym:
-            return _trim_words(f"{sym} lines up — one clear plan, sized for your rules.")
-        return "One setup is ready — stay within your daily risk limit."
-
-    if state.key == "wait":
-        reason = decision_reason(decision)
-        if reason:
-            return _trim_words(reason)
-        if mis.summary:
-            return _trim_words(mis.summary)
-        if pins:
-            sym = pins[0].symbol.upper().replace(".NS", "").replace(".BO", "")
-            return _trim_words(f"Watch {sym} — wait for price to confirm before entering.")
-        if snapshot.trading_restrictions:
-            return _trim_words(snapshot.trading_restrictions[0])
-        if os_report.next_step:
-            return _trim_words(os_report.next_step)
-        return "Not your moment yet — wait until price confirms the setup."
-
-    reason = decision_reason(decision)
-    if reason:
-        return _trim_words(reason)
-    if mis.summary:
-        return _trim_words(mis.summary)
-    if snapshot.trading_restrictions:
-        return _trim_words(snapshot.trading_restrictions[0])
-    if os_report.next_step:
-        return _trim_words(os_report.next_step)
-    return "Not your moment yet — wait until price confirms the setup."
-
-
-def _pick_why_decision(
-    mis: MisTradeAdvisory,
-    os_report: InvestmentOS,
-) -> DecisionArtifact | None:
-    """Decision for Why popover — equity first, then any attached artifact."""
-    decision, _source = _pick_decision(mis, os_report)
-    if decision:
-        return decision
-    mis_art = getattr(mis, "decision_artifact", None)
-    if mis_art:
-        return mis_art
-    return getattr(os_report, "decision_artifact", None)
-
-
-def _why_primary(decision: DecisionArtifact | None) -> list[str]:
-    bullets: list[str] = []
-    if decision:
-        why = decision_reason(decision)
-        if why:
-            bullets.append(_strip_md(why))
-        if decision.capital_recommendation:
-            text = _strip_md(decision.capital_recommendation)
-            if text:
-                bullets.append(f"Capital: {text}")
-        if decision.execution_recommendation:
-            text = _strip_md(decision.execution_recommendation)
-            if text:
-                bullets.append(f"Execution: {text}")
-        for condition in (decision.invalidation_conditions or [])[:3]:
-            text = _strip_md(str(condition))
-            if text:
-                bullets.append(f"If wrong: {text}")
-    if not bullets:
-        bullets.append("Conditions are mixed — patience beats forcing a trade.")
-    return bullets[:6]
-
-
-def _why_advanced(
-    decision: DecisionArtifact | None,
-    mis: MisTradeAdvisory,
-    snapshot: ContextSnapshot,
-    *,
-    pins: list[PinnedPlan],
-) -> list[str]:
-    bullets: list[str] = []
-    for line in _evidence_summary(decision, limit=4):
-        text = _strip_md(line)
-        if text and text not in bullets:
-            bullets.append(text)
-    for pillar in (getattr(mis, "synthesis_pillars", None) or [])[:5]:
-        text = _strip_md(str(pillar))
-        if text and text not in bullets:
-            bullets.append(text)
-    for flag in (mis.flags or ())[:3]:
-        text = _strip_md(flag)
-        if text not in bullets:
-            bullets.append(text)
-    for restriction in snapshot.trading_restrictions[:2]:
-        text = _strip_md(restriction)
-        if text not in bullets:
-            bullets.append(text)
-    if pins:
-        pin = pins[0]
-        sym = pin.symbol.upper().replace(".NS", "")
-        bullets.append(f"Watch {sym} near ₹{pin.entry:,.0f} with stop ₹{pin.stop_loss:,.0f}.")
-    return bullets
-
-
-def _why_bullets(
-    decision: DecisionArtifact | None,
-    mis: MisTradeAdvisory,
-    snapshot: ContextSnapshot,
-    *,
-    pins: list[PinnedPlan],
-) -> list[str]:
-    return _why_primary(decision) + _why_advanced(decision, mis, snapshot, pins=pins)
+__all__ = [
+    "VerdictCanvasState",
+    "_broker_snapshot",
+    "_esc",
+    "_pick_decision",
+    "_snapshot_from_cache",
+    "_snapshot_to_cache",
+    "_strip_md",
+    "_sync_status",
+    "_trim_words",
+    "render_home_dashboard",
+]
 
 
 def _handle_primary_cta(action: str) -> None:
@@ -297,34 +69,68 @@ def _handle_primary_cta(action: str) -> None:
         set_partner_dock("you")
         return
     if action == "connect":
-        from ui.navigation import request_nav_tab
+        st.session_state[TODAY_BROKER_GATE] = True
+        st.rerun()
 
-        request_nav_tab("My Portfolio")
+
+def _render_broker_gate_inline(broker) -> None:
+    from ui.components.broker_connect import (
+        render_broker_connect_gate,
+        render_broker_error_gate,
+        render_broker_reconnect_gate,
+    )
+    from ui.broker.state import BrokerSnapshot
+
+    snap = broker if isinstance(broker, BrokerSnapshot) else BrokerSnapshot.from_dict(broker)
+    if snap.state == "expired":
+        render_broker_reconnect_gate(snap)
+    elif snap.state in ("offline", "error"):
+        render_broker_error_gate(snap)
+    else:
+        render_broker_connect_gate(snap)
+
+
+def _render_thinking_canvas() -> None:
+    built_at = datetime.now(IST).strftime("%H:%M IST")
+    st.markdown(
+        f'<div class="verdict-canvas-root" data-verdict="thinking">'
+        f'<div class="vc-header">'
+        f'<p class="vc-time">{_esc(built_at)}</p>'
+        f'<p class="vc-sync vc-sync-thinking">'
+        f'<span class="vc-sync-dot vc-sync-thinking"></span>Reviewing</p>'
+        f"</div>"
+        f'<div class="vc-verdict-zone">'
+        f'<p class="vc-verdict-word vc-thinking-word">Reviewing'
+        f'<span class="vc-thinking-dots"><span></span><span></span><span></span></span></p>'
+        f"</div>"
+        f'<p class="vc-mentor vc-mentor-thinking">Checking market context and your portfolio…</p>'
+        f"</div>",
+        unsafe_allow_html=True,
+    )
 
 
 def _render_verdict_header(
     *,
-    state: VerdictCanvasState,
-    mentor: str,
+    card,
     built_at: str,
-    broker: BrokerSnapshot,
     intel_html: str = "",
-    stale_label: str = "",
 ) -> None:
-    sync_cls, dot_cls, sync_label = _sync_status(broker)
-    stale_html = ""
-    if stale_label:
-        stale_html = f'<p class="vc-stale">{_esc(stale_label)}</p>'
+    sync_cls, dot_cls, sync_label = hero_header_sync_html(card)
+    stale_html = hero_stale_html(card)
+    failure_html = hero_failure_html(card)
+    trust_html = hero_l0_trust_html(card) if not card.failure_message else ""
     st.markdown(
-        f'<div class="verdict-canvas-root" data-verdict="{_esc(state.key)}">'
+        f'<div class="verdict-canvas-root" data-verdict="{_esc(card.verdict_key)}">'
         f'<div class="vc-header">'
         f'<p class="vc-time">{_esc(built_at)}</p>'
         f'<p class="vc-sync {sync_cls}">'
         f'<span class="vc-sync-dot {dot_cls}"></span>{_esc(sync_label)}</p>'
         f"</div>"
         f"{stale_html}"
-        f'<div class="vc-verdict-zone"><p class="vc-verdict-word">{_esc(state.word)}</p></div>'
-        f'<p class="vc-mentor">{_esc(mentor)}</p>'
+        f"{failure_html}"
+        f'<div class="vc-verdict-zone"><p class="vc-verdict-word">{_esc(card.verdict_word)}</p></div>'
+        f'<p class="vc-mentor">{_esc(card.reason)}</p>'
+        f"{trust_html}"
         f"{intel_html}",
         unsafe_allow_html=True,
     )
@@ -371,56 +177,25 @@ def _render_verdict_ghost_and_cta(
     )
 
 
-def _render_verdict_canvas(
-    *,
-    state: VerdictCanvasState,
-    mentor: str,
-    why_primary: list[str],
-    why_advanced: list[str],
-    built_at: str,
-    broker: BrokerSnapshot,
-    confidence_pct: int | None = None,
-) -> None:
-    _render_verdict_header(
-        state=state,
-        mentor=mentor,
-        built_at=built_at,
-        broker=broker,
-    )
-    _render_verdict_ghost_and_cta(
-        state=state,
-        why_primary=why_primary,
-        why_advanced=why_advanced,
-        confidence_pct=confidence_pct,
-    )
-
-
 def _render_today_canvas(
     *,
     market: str,
     period: str,
     cached: dict[str, Any],
 ) -> None:
-    broker = _broker_snapshot()
-    domain = domain_from_cache_bundle(cached, broker=broker)
-    brief = view_model_from_domain(domain, broker=broker)
+    ctx = DecisionContextBundle.from_cache_dict(cached)
+    brief = ctx.assemble_view_model(record_snapshot=False)
+    domain = ctx.to_domain()
     card = project_decision_card(brief)
-    vkey, vword, cta_label, cta_action = canvas_state_from_view_model(card)
-    state = VerdictCanvasState(vkey, vword, cta_label, cta_action)
+    state = VerdictCanvasState(card.verdict_key, card.verdict_word, card.cta_label, card.cta_action)
 
     snapshot = domain.context
     mis = domain.mis
     os_report = domain.os_report
     pins = domain.pins
     decision = domain.decision
-    why_decision = _pick_why_decision(mis, os_report)
-    mentor = card.reason
-    why_primary = list(brief.evidence.key_reasons) or _why_primary(why_decision)
-    why_advanced = [f"{line.label}: {line.value}" for line in brief.evidence.supporting_signals]
-    if brief.evidence.conflicting_signals:
-        why_advanced.extend(f"Conflict: {c.label} — {c.value}" for c in brief.evidence.conflicting_signals)
-    if not why_advanced:
-        why_advanced = _why_advanced(why_decision, mis, snapshot, pins=pins)
+    why_primary = why_primary_from_brief(brief)
+    why_advanced = why_advanced_from_brief(brief, mis=mis, snapshot=snapshot, pins=pins)
 
     from ui.components.today_intelligence import (
         build_today_command_center,
@@ -441,19 +216,23 @@ def _render_today_canvas(
         journal_today_pnl=cached.get("journal_today_pnl"),
         decision=decision,
     )
-    hero_intel = intel_stack_html(
-        center,
-        state,
-        sections=("opportunity", "do_next", "risk"),
+    hero_sections = hero_intel_sections(card)
+    legacy_sections = tuple(s for s in hero_sections if s != "opportunity")
+    legacy_intel = (
+        intel_stack_html(center, state, sections=legacy_sections)
+        if legacy_sections
+        else ""
+    )
+    hero_intel = compose_hero_intel_html(
+        card=card,
+        legacy_intel_html=legacy_intel,
+        sections=hero_sections,
     )
 
     _render_verdict_header(
-        state=state,
-        mentor=mentor,
+        card=card,
         built_at=str(cached["built_at"]),
-        broker=broker,
         intel_html=hero_intel,
-        stale_label=card.stale_label if card.stale else "",
     )
 
     _render_verdict_ghost_and_cta(
@@ -463,15 +242,22 @@ def _render_today_canvas(
         confidence_pct=brief.decision.confidence_level,
     )
 
+    if st.session_state.get(TODAY_BROKER_GATE):
+        _render_broker_gate_inline(broker)
+
+    review_symbol = (
+        hero_review_setup_symbol(card) if today_intel_actions_allowed(card) else None
+    )
     render_today_command_center(
         state=state,
         market=market,
         cached={**cached, "snapshot": snapshot},
         broker=broker,
         decision=decision,
-        sections=("market", "portfolio", "next_watch"),
-        include_actions=True,
+        sections=below_fold_intel_sections(card),
+        include_actions=today_intel_actions_allowed(card),
         center=center,
+        review_symbol=review_symbol,
     )
 
 
@@ -491,6 +277,13 @@ def render_home_dashboard(market: str, *, period: str = "1y", max_trades: int = 
         st.markdown('<div class="vc-main-dimmed">', unsafe_allow_html=True)
 
     dock = get_partner_dock()
+    if cached is None:
+        _render_thinking_canvas()
+        render_partner_dock(active=dock)
+        render_ask_fab()
+        st.rerun()
+        return
+
     if dock == "trades":
         from ui.components.plan_canvas import render_plan_canvas
 
@@ -521,11 +314,3 @@ def render_home_dashboard(market: str, *, period: str = "1y", max_trades: int = 
     render_partner_dock(active=dock)
     render_ask_fab()
     st.markdown(PARTNER_PAGE_ACTIVATE_JS, unsafe_allow_html=True)
-
-
-def _snapshot_to_cache(snapshot: ContextSnapshot) -> dict[str, Any]:
-    return snapshot_to_cache(snapshot)
-
-
-def _snapshot_from_cache(data: dict[str, Any]) -> ContextSnapshot:
-    return snapshot_from_cache(data)

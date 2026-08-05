@@ -1,4 +1,5 @@
 """Compact morning strip: Gift Nifty · 2 stars · OR · ladder · Kite."""
+# APEX-012-LIFECYCLE: DORMANT
 
 from __future__ import annotations
 

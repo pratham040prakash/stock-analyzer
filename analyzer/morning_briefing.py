@@ -1,4 +1,5 @@
 """Morning briefing — session, global, macro, pulse, optional holdings."""
+# APEX-012-LIFECYCLE: DORMANT
 
 from __future__ import annotations
 

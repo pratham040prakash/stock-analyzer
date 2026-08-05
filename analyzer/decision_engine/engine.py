@@ -1,4 +1,5 @@
 """Decision Engine — the only component that issues investment verdicts."""
+# APEX-012-LIFECYCLE: ACTIVE
 
 from __future__ import annotations
 

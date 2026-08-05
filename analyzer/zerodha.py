@@ -323,9 +323,7 @@ def exchange_request_token(api_key: str, api_secret: str, request_token: str) ->
 
     try:
         kite = KiteConnect(api_key=api_key)
-        print("BEFORE generate_session")
         data = kite.generate_session(request_token, api_secret=api_secret)
-        print("AFTER generate_session", data)
         access_token = data.get("access_token")
         if not access_token:
             fn_trace("exchange_request_token", "EXCEPTION", "no access_token in response")

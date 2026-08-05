@@ -1,4 +1,5 @@
 """Intraday tab — live candles, stories, and trade suggestions."""
+# APEX-012-LIFECYCLE: QUARANTINED
 
 from __future__ import annotations
 

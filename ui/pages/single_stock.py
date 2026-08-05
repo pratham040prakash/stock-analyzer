@@ -1,4 +1,5 @@
 """Single stock analysis tab."""
+# APEX-012-LIFECYCLE: QUARANTINED
 
 from __future__ import annotations
 

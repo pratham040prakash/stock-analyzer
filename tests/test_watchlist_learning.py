@@ -4,8 +4,10 @@ import json
 import sqlite3
 import tempfile
 import unittest
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 from analyzer.watchlist_learning import (
     DEFAULT_STRATEGY,
@@ -34,10 +36,18 @@ class TestWatchlistLearning(unittest.TestCase):
         self.sp = patch("analyzer.watchlist_learning.strategy_path", return_value=self.strat)
         for p in (self.jp, self.je, self.jh, self.jl, self.jb, self.bts, self.sp):
             p.start()
+        fixed_now = datetime(2026, 7, 10, 12, 0, tzinfo=ZoneInfo("Asia/Kolkata"))
+        self.dt_p = patch("analyzer.broker_truth.learning.datetime")
+        mock_dt = self.dt_p.start()
+        import datetime as real_datetime
+
+        mock_dt.now.return_value = fixed_now
+        mock_dt.side_effect = real_datetime.datetime
         reset_watchlist_strategy()
         self._seed_outcomes()
 
     def tearDown(self):
+        self.dt_p.stop()
         for p in (self.bts, self.jb, self.sp, self.jl, self.jh, self.je, self.jp):
             p.stop()
         self.tmp.cleanup()

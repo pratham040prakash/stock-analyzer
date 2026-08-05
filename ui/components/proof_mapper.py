@@ -1,4 +1,5 @@
 """Map dashboard data → StructureProof (presentation only)."""
+# APEX-012-LIFECYCLE: ACTIVE
 
 from __future__ import annotations
 
@@ -15,14 +16,12 @@ from analyzer.markets import normalize_ticker
 from analyzer.mis_trade_advisory import MisTradeAdvisory
 from analyzer.providers.router import get_live_ltp
 from analyzer.watchlist_pins import PinnedPlan
-from ui.components.home_dashboard import (
-    VerdictCanvasState,
-    _market_is_rest,
-    _mentor_one_liner,
-    _pick_decision,
-    _resolve_verdict_state,
-    _strip_md,
-    _trim_words,
+from ui.components.canvas_utils import VerdictCanvasState, _strip_md, _trim_words
+from ui.components.morning_brief_ui import (
+    load_brief_from_cache,
+    market_is_rest_from_brief,
+    mentor_line_from_brief,
+    verdict_state_from_brief,
 )
 from ui.components.plan_canvas import _pick_plan_pin as plan_pick_pin
 from ui.components.plan_canvas import build_trade_plan_view
@@ -264,20 +263,24 @@ def build_structure_proof(
     miss_note: str | None = None,
 ) -> StructureProof:
     """Synthesize one StructureProof for the active proof mode."""
-    from ui.components.home_dashboard import _snapshot_from_cache
+    from ui.broker.state import BrokerSnapshot, load_broker_snapshot
 
-    snapshot = _snapshot_from_cache(cached["snapshot"])
+    from analyzer.use_cases.morning_brief import domain_from_cache_bundle
+    from ui.components.canvas_utils import _snapshot_from_cache
+
+    broker = BrokerSnapshot.from_dict(cached.get("broker")) if cached.get("broker") else load_broker_snapshot()
+    brief = load_brief_from_cache(cached, broker=broker)
+    state = verdict_state_from_brief(brief)
+    domain = domain_from_cache_bundle(cached, broker=broker)
+
+    snapshot = cached["snapshot"]
+    if not isinstance(snapshot, ContextSnapshot):
+        snapshot = _snapshot_from_cache(snapshot)
     mis: MisTradeAdvisory = cached["mis"]
     os_report: InvestmentOS = cached["os_report"]
     pins: list[PinnedPlan] = cached["pins"]
     prefs: IntradayPrefs = cached["prefs"]
-
-    from ui.broker.state import BrokerSnapshot, load_broker_snapshot
-
-    broker = BrokerSnapshot.from_dict(cached.get("broker")) if cached.get("broker") else load_broker_snapshot()
-
-    decision, _src = _pick_decision(mis, os_report)
-    state = _resolve_verdict_state(broker, snapshot, mis, decision)
+    decision = domain.decision
     sym, pin = _resolve_symbol_pin(os_report, pins, mis)
     if symbol:
         sym = symbol.upper().replace(".NS", "").replace(".BO", "")
@@ -327,23 +330,13 @@ def build_structure_proof(
         verdict = "wait"
     elif proof_mode == "trade" or (verdict == "trade" and proof_mode != "wait"):
         verdict = "trade"
-    elif _market_is_rest(snapshot):
+    elif market_is_rest_from_brief(brief):
         verdict = "rest"
 
     prices = [p for p in (entry, stop, target, current or 0.0) if p and p > 0]
     price_min, price_max = _price_pad(prices)
 
-    mentor = _trim_words(
-        _mentor_one_liner(
-            state,
-            decision=decision,
-            mis=mis,
-            os_report=os_report,
-            snapshot=snapshot,
-            pins=pins,
-        ),
-        max_words=24,
-    )
+    mentor = _trim_words(mentor_line_from_brief(brief), max_words=24)
 
     if proof_mode == "trade" and pin:
         plan = build_trade_plan_view(

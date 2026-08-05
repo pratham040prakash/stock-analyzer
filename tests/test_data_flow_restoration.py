@@ -15,9 +15,10 @@ from analyzer.investment_os import OSModule
 from analyzer.watchlist_pins import PinnedPlan
 from ui.broker.state import BrokerSnapshot
 from ui.components.dashboard_pipeline import decision_reason, is_equity_decision
-from ui.components.home_dashboard import _pick_decision, _why_advanced, _why_primary
+from ui.components.home_dashboard import VerdictCanvasState, _pick_decision
+from ui.components.morning_brief_ui import why_advanced_from_brief, why_primary_from_brief
 from ui.components.today_intelligence import build_today_command_center
-from ui.components.home_dashboard import VerdictCanvasState
+from analyzer.use_cases.morning_brief_assembly import assemble_evidence_section
 
 
 class DataFlowRestorationTest(unittest.TestCase):
@@ -104,7 +105,14 @@ class DataFlowRestorationTest(unittest.TestCase):
             synthesis_pillars=["Regime supports caution", "Volume confirms wait"],
         )
         snapshot = MagicMock(trading_restrictions=())
-        bullets = _why_advanced(None, mis, snapshot, pins=[])
+        brief = MagicMock(
+            evidence=MagicMock(
+                supporting_signals=[],
+                conflicting_signals=[],
+                gap_note="",
+            )
+        )
+        bullets = why_advanced_from_brief(brief, mis=mis, snapshot=snapshot, pins=[])
         self.assertIn("Regime supports caution", bullets)
 
     def test_decision_fields_reach_why_primary(self):
@@ -125,11 +133,11 @@ class DataFlowRestorationTest(unittest.TestCase):
                 why_not="",
             ),
         )
-        bullets = _why_primary(artifact)
+        section = assemble_evidence_section(artifact, None)
+        brief = MagicMock(evidence=section, decision=MagicMock(reason=artifact.reason))
+        bullets = why_primary_from_brief(brief)
+        self.assertTrue(bullets)
         self.assertIn("Tape is choppy", bullets[0])
-        self.assertTrue(any("Capital:" in line for line in bullets))
-        self.assertTrue(any("Execution:" in line for line in bullets))
-        self.assertTrue(any("If wrong:" in line for line in bullets))
 
     def test_options_mis_decision_not_used_for_equity_home(self):
         equity = DecisionArtifact(

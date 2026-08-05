@@ -1,4 +1,5 @@
 """Morning Brief view models — authoritative DTO for Today (ETS-003b v0.2)."""
+# APEX-012-LIFECYCLE: ACTIVE
 
 from __future__ import annotations
 

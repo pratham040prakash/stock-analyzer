@@ -1,4 +1,5 @@
 """Phase 3 — You tab · Reflection Canvas (trader relationship, presentation only)."""
+# APEX-012-LIFECYCLE: QUARANTINED
 
 from __future__ import annotations
 

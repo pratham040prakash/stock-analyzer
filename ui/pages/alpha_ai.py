@@ -1,4 +1,5 @@
 """Alpha AI v3.0 — institutional equity research tab."""
+# APEX-012-LIFECYCLE: QUARANTINED
 
 from __future__ import annotations
 

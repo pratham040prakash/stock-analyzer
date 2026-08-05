@@ -14,11 +14,7 @@ from analyzer.decision_engine.models import DecisionArtifact
 from analyzer.intraday_prefs import IntradayPrefs, load_intraday_prefs
 from analyzer.investment_os import InvestmentOS, build_investment_os
 from analyzer.mis_trade_advisory import MisTradeAdvisory, build_mis_trade_advisory
-from analyzer.use_cases.morning_brief_assembly import (
-    assemble_morning_brief_view_model,
-    domain_bundle_for_cache,
-    fetch_evidence_packet_safe,
-)
+from analyzer.use_cases.decision_context_bundle import DecisionContextBundle
 from analyzer.use_cases.morning_brief_helpers import (
     MorningBriefScenario,
     built_at_label,
@@ -26,7 +22,7 @@ from analyzer.use_cases.morning_brief_helpers import (
     evaluate_stale,
 )
 from analyzer.use_cases.morning_brief_models import MorningBriefViewModel
-from analyzer.use_cases.snapshot_cache import snapshot_from_cache
+from analyzer.use_cases.morning_brief_assembly import fetch_evidence_packet_safe  # re-export for tests
 from analyzer.watchlist_pins import PinnedPlan, load_pinned_plans
 from ui.broker.state import BrokerSnapshot, load_broker_snapshot
 
@@ -176,49 +172,15 @@ def load_morning_brief_domain(
     )
 
 
-def view_model_from_domain(domain: MorningBriefDomain, *, broker: BrokerSnapshot | None = None) -> MorningBriefViewModel:
-    """Assemble authoritative view model — fetches Evidence in use case."""
-    broker_snap = broker if broker is not None else domain.broker
-    stale = domain.stale
-    stale_reason = domain.stale_reason
-    scenario = domain.scenario
-
-    if broker_snap.to_dict() != domain.broker.to_dict():
-        stale, stale_reason = evaluate_stale(
-            decision=domain.decision,
-            snapshot=domain.context,
-            broker=broker_snap,
-            context_from_cache=domain.context_from_cache,
-            context_cache_age=domain.context_cache_age,
-        )
-        scenario = detect_scenario(
-            broker=broker_snap,
-            snapshot=domain.context,
-            decision=domain.decision,
-            data_error=domain.data_error,
-        )
-
-    packet = fetch_evidence_packet_safe(domain.decision.evidence_packet_id if domain.decision else "")
-
-    return assemble_morning_brief_view_model(
-        market=domain.market,
-        context=domain.context,
-        decision=domain.decision,
-        decision_source=domain.decision_source,
-        broker=broker_snap,
-        mis=domain.mis,
-        os_report=domain.os_report,
-        pins=domain.pins,
-        prefs=domain.prefs,
-        built_at=domain.built_at,
-        scenario=scenario,
-        stale=stale,
-        stale_reason=stale_reason,
-        context_from_cache=domain.context_from_cache,
-        context_cache_age=domain.context_cache_age,
-        data_error=domain.data_error,
-        evidence_packet=packet,
-    )
+def view_model_from_domain(
+    domain: MorningBriefDomain,
+    *,
+    broker: BrokerSnapshot | None = None,
+    record_snapshot: bool = False,
+) -> MorningBriefViewModel:
+    """Assemble view model from frozen context — live broker overrides rejected (E0.6)."""
+    _ = broker  # retained for API compat; frozen domain.broker is authoritative
+    return DecisionContextBundle.freeze(domain).assemble_view_model(record_snapshot=record_snapshot)
 
 
 def build_morning_brief(
@@ -237,71 +199,16 @@ def build_morning_brief(
         deep=deep,
         use_cache=use_cache,
     )
-    return view_model_from_domain(domain, broker=broker or domain.broker)
+    return view_model_from_domain(domain, broker=broker or domain.broker, record_snapshot=True)
 
 
 def domain_to_cache_bundle(domain: MorningBriefDomain) -> dict[str, Any]:
-    return domain_bundle_for_cache(
-        market=domain.market,
-        context=domain.context,
-        decision=domain.decision,
-        decision_source=domain.decision_source,
-        broker=domain.broker,
-        mis=domain.mis,
-        os_report=domain.os_report,
-        pins=domain.pins,
-        prefs=domain.prefs,
-        built_at=domain.built_at,
-        scenario=domain.scenario,
-        stale=domain.stale,
-        stale_reason=domain.stale_reason,
-        context_from_cache=domain.context_from_cache,
-        context_cache_age=domain.context_cache_age,
-        data_error=domain.data_error,
-    )
+    return DecisionContextBundle.freeze(domain).to_cache_dict()
 
 
 def domain_from_cache_bundle(bundle: dict[str, Any], *, broker: BrokerSnapshot | None = None) -> MorningBriefDomain:
-    broker_snap = broker if broker is not None else load_broker_snapshot()
-    snapshot = snapshot_from_cache(bundle["snapshot"])
-    decision, decision_source = pick_decision(bundle["mis"], bundle["os_report"])
-    scenario = MorningBriefScenario(bundle.get("scenario", MorningBriefScenario.NORMAL.value))
-    stale = bool(bundle.get("stale", False))
-    stale_reason = str(bundle.get("stale_reason", ""))
-
-    if broker_snap.to_dict() != bundle.get("_broker_at_build"):
-        stale, stale_reason = evaluate_stale(
-            decision=decision,
-            snapshot=snapshot,
-            broker=broker_snap,
-            context_from_cache=bool(bundle.get("context_from_cache")),
-            context_cache_age=bundle.get("context_cache_age"),
-        )
-        scenario = detect_scenario(
-            broker=broker_snap,
-            snapshot=snapshot,
-            decision=decision,
-            data_error=str(bundle.get("data_error", "")),
-        )
-
-    return MorningBriefDomain(
-        market=str(bundle.get("market", "NSE")),
-        context=snapshot,
-        decision=decision,
-        decision_source=decision_source or str(bundle.get("decision_source", "none")),
-        broker=broker_snap,
-        mis=bundle["mis"],
-        os_report=bundle["os_report"],
-        pins=bundle.get("pins") or [],
-        prefs=bundle["prefs"],
-        built_at=str(bundle.get("built_at", built_at_label())),
-        scenario=scenario,
-        stale=stale,
-        stale_reason=stale_reason,
-        context_from_cache=bool(bundle.get("context_from_cache")),
-        context_cache_age=bundle.get("context_cache_age"),
-        data_error=str(bundle.get("data_error", "")),
-    )
+    _ = broker  # retained for API compat; frozen bundle broker is authoritative (E0.6)
+    return DecisionContextBundle.from_cache_dict(bundle).to_domain()  # type: ignore[return-value]
 
 
 # Legacy aliases

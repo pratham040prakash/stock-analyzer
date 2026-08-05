@@ -51,7 +51,8 @@ Numbers **002–998** are allocated by CTO on creation. Gaps are intentional for
 | APEX-006 | Security Strategy | CTO | Planned |
 | APEX-007 | Design System | Design + CTO | Planned |
 | APEX-008 | Data Provider Strategy | CTO | Planned |
-| APEX-009 | Phase 1 Product Unification Plan | CPO + Principal Eng | Planned |
+| **APEX-012** | Single Truth Migration | CTO | **Phase 0 — guardrails** |
+| **APEX-013** | Decision Snapshot (Intelligence Lab) | CTO | **E0.6 IMPLEMENTED** — [Context Determinism](./APEX-013_E0_6_Context_Determinism.md) |
 | APEX-999 | Engineering Handbook | CTO | DRAFT |
 
 ### ADR / RFC / ETS Catalog
@@ -68,6 +69,9 @@ Numbers **002–998** are allocated by CTO on creation. Gaps are intentional for
 | ETS-003 | Today Surface product specification | DRAFT — product spec; no implementation |
 | ETS-003a | Morning Brief experience specification | APPROVED — experience spec |
 | ETS-003b | Morning Brief data wiring (Trust-first) | APPROVED v0.2 — Milestone 1 implemented |
+| ETS-003c | Verdict Canvas trust bind (L0 hero) | IMPLEMENTED — awaiting CTO review |
+| **APEX-012** | Single Truth Migration | **Phase 0 IMPLEMENTED** — guardrails + lifecycle markers |
+| **APEX-013** | Decision Snapshot (Intelligence Lab) | **E0.6 IMPLEMENTED** — [Context Determinism](./APEX-013_E0_6_Context_Determinism.md) |
 
 ---
 

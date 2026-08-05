@@ -1,4 +1,5 @@
 """Live Charts grid page — all stocks, minute narratives."""
+# APEX-012-LIFECYCLE: QUARANTINED
 
 from __future__ import annotations
 

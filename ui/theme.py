@@ -681,6 +681,75 @@ VERDICT_CANVAS_CSS = """
     margin: 8px 0 4px 0;
     max-width: 358px;
 }
+.verdict-canvas-root .vc-stale {
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #FFC107;
+    background: rgba(255,193,7,0.1);
+    border: 1px solid rgba(255,193,7,0.25);
+    border-radius: 6px;
+    padding: 6px 10px;
+    margin: 0 0 8px 0;
+    max-width: 358px;
+}
+.verdict-canvas-root .vc-failure {
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.45;
+    color: #FF8A80;
+    background: rgba(255,82,82,0.1);
+    border: 1px solid rgba(255,82,82,0.28);
+    border-radius: 6px;
+    padding: 8px 10px;
+    margin: 0 0 8px 0;
+    max-width: 358px;
+}
+.verdict-canvas-root .vc-l0-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(245,245,247,0.45);
+    margin-right: 6px;
+}
+.verdict-canvas-root .vc-evidence-teaser {
+    font-size: 15px;
+    line-height: 1.45;
+    color: rgba(245,245,247,0.72);
+    margin: 0 0 6px 0;
+    max-width: 358px;
+}
+.verdict-canvas-root .vc-trust-line {
+    font-size: 14px;
+    line-height: 1.45;
+    color: rgba(245,245,247,0.62);
+    margin: 0 0 8px 0;
+    max-width: 358px;
+}
+.verdict-canvas-root .vc-confidence-band {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(245,245,247,0.5);
+    border: 1px solid rgba(245,245,247,0.12);
+    border-radius: 999px;
+    padding: 3px 10px;
+    margin: 0 0 8px 0;
+}
+.verdict-canvas-root .vc-confidence-band[data-band="high"] { color: #00E676; border-color: rgba(0,230,118,0.25); }
+.verdict-canvas-root .vc-confidence-band[data-band="medium"] { color: #FFC107; border-color: rgba(255,193,7,0.25); }
+.verdict-canvas-root .vc-confidence-band[data-band="low"] { color: rgba(245,245,247,0.45); }
+.verdict-canvas-root .vc-portfolio-line {
+    font-size: 13px;
+    line-height: 1.4;
+    color: rgba(245,245,247,0.5);
+    margin: 0 0 8px 0;
+    max-width: 358px;
+}
 .verdict-canvas-page [data-testid="stVerticalBlock"] {
     gap: 0.35rem !important;
 }

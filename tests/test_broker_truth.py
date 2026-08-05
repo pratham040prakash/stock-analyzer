@@ -3,8 +3,10 @@
 import sqlite3
 import tempfile
 import unittest
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+from zoneinfo import ZoneInfo
 
 from analyzer.broker_truth.learning import (
     LearningOutcomeSource,
@@ -321,10 +323,18 @@ class TestLearningAdapter(unittest.TestCase):
         )
         for p in (self.jp, self.jh, self.je, self.jl, self.bp):
             p.start()
+        fixed_now = datetime(2026, 7, 20, 12, 0, tzinfo=ZoneInfo("Asia/Kolkata"))
+        self.dt_p = patch("analyzer.broker_truth.learning.datetime")
+        mock_dt = self.dt_p.start()
+        import datetime as real_datetime
+
+        mock_dt.now.return_value = fixed_now
+        mock_dt.side_effect = real_datetime.datetime
         self._seed_coach_outcomes()
         self._seed_broker_record()
 
     def tearDown(self):
+        self.dt_p.stop()
         for p in (self.bp, self.jl, self.jh, self.je, self.jp):
             p.stop()
         self.tmp.cleanup()
