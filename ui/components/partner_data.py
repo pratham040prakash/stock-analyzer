@@ -74,21 +74,19 @@ def read_broker_snapshot() -> BrokerSnapshot:
 @st.cache_data(ttl=45, show_spinner=False)
 def load_today_core(market: str, period: str) -> dict[str, Any]:
     """Minimal bundle for Today verdict + mentor (Stages 2–3)."""
-    from analyzer.context_engine import build_context_snapshot
+    from analyzer.use_cases.morning_brief import domain_to_cache_bundle, load_morning_brief_domain
 
-    prefs = load_intraday_prefs()
-    snapshot = build_context_snapshot(market=market, use_cache=True)
-    mis = build_mis_trade_advisory(market=market)
-    os_report = build_investment_os(market, period=period, prefs=prefs, deep=False)
-    pins = load_pinned_plans()
-    return {
-        "snapshot": _snapshot_to_cache(snapshot),
-        "mis": mis,
-        "os_report": os_report,
-        "pins": pins,
-        "prefs": prefs,
-        "built_at": _built_at(),
-    }
+    broker = read_broker_snapshot()
+    domain = load_morning_brief_domain(
+        market=market,
+        period=period,
+        broker=broker,
+        deep=False,
+        use_cache=True,
+    )
+    bundle = domain_to_cache_bundle(domain)
+    bundle["market"] = market
+    return bundle
 
 
 @st.cache_data(ttl=120, show_spinner=False)

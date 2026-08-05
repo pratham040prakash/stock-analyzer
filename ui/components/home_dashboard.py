@@ -5,31 +5,26 @@ from __future__ import annotations
 import html
 import re
 from dataclasses import dataclass
-from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
 import streamlit as st
 
-from analyzer.broker_truth.learning import resolve_learning_outcomes
 from analyzer.context_engine.models import ContextSnapshot
 from analyzer.decision_engine.models import DecisionArtifact, DecisionVerdict
-from analyzer.intraday_prefs import IntradayPrefs, load_intraday_prefs
-from analyzer.investment_os import InvestmentOS, build_investment_os
-from analyzer.market_pulse_scan import MarketPulseReport
-from analyzer.mis_trade_advisory import MisTradeAdvisory, build_mis_trade_advisory
-from analyzer.portfolio_store import load_saved_portfolio, portfolio_profile_key
-from analyzer.pulse_cache import load_pulse_cache_with_stale
-from analyzer.trade_journal import load_journal_entries
-from analyzer.watchlist_pins import PinnedPlan, load_pinned_plans
-from analyzer.zerodha import ZerodhaImportResult
+from analyzer.investment_os import InvestmentOS
+from analyzer.mis_trade_advisory import MisTradeAdvisory
+from analyzer.use_cases.morning_brief import domain_from_cache_bundle, pick_decision as _pick_decision, view_model_from_domain
+from analyzer.use_cases.snapshot_cache import snapshot_from_cache, snapshot_to_cache
+from analyzer.watchlist_pins import PinnedPlan
 from ui.broker.state import BrokerSnapshot, load_broker_snapshot
-from ui.components.dashboard_pipeline import decision_reason, is_equity_decision
+from ui.components.dashboard_pipeline import decision_reason
+from ui.components.decision_card import canvas_state_from_view_model, project_decision_card
+from ui.components.partner_data import load_dashboard_data
 from ui.components.partner_shell import get_partner_dock, render_ask_fab, render_partner_dock, set_partner_dock
 from ui.theme import VERDICT_CANVAS_CSS, PARTNER_PAGE_ACTIVATE_JS
 
 IST = ZoneInfo("Asia/Kolkata")
-PULSE_CACHE_TTL = 86_400
 _MENTOR_MAX_WORDS = 18
 
 
@@ -59,44 +54,12 @@ def _trim_words(text: str, *, max_words: int = _MENTOR_MAX_WORDS) -> str:
     return f"{clipped}…"
 
 
-def _load_pulse(market: str, period: str) -> MarketPulseReport | None:
-    key = f"pulse_{period}_{market}"
-    report, _fresh = load_pulse_cache_with_stale(key, PULSE_CACHE_TTL)
-    return report
-
-
-def _journal_pnl_for_date(trade_date: str) -> float | None:
-    total = 0.0
-    found = False
-    for entry in load_journal_entries(limit=60):
-        if entry.trade_date == trade_date and entry.pnl_inr is not None:
-            total += float(entry.pnl_inr)
-            found = True
-    return total if found else None
-
-
 def _conf_numeric(decision: DecisionArtifact | None, snapshot: ContextSnapshot) -> int:
     if decision:
         raw = float(decision.confidence)
         return int(round(raw * 100)) if raw <= 1.0 else int(round(raw))
     raw = float(snapshot.confidence or 0.0)
     return int(round(raw * 100)) if raw <= 1.0 else int(round(raw))
-
-
-def _pick_decision(
-    mis: MisTradeAdvisory,
-    os_report: InvestmentOS,
-) -> tuple[DecisionArtifact | None, str]:
-    """Prefer starred equity decision; fall back to equity session decision only."""
-    os_art = getattr(os_report, "decision_artifact", None)
-    mis_art = getattr(mis, "decision_artifact", None)
-    if os_art and os_report.starred_symbol:
-        return os_art, "equity"
-    if mis_art and is_equity_decision(mis_art):
-        return mis_art, "session"
-    if os_art and is_equity_decision(os_art):
-        return os_art, "equity"
-    return None, "none"
 
 
 def _evidence_summary(decision: DecisionArtifact | None, *, limit: int = 6) -> list[str]:
@@ -346,8 +309,12 @@ def _render_verdict_header(
     built_at: str,
     broker: BrokerSnapshot,
     intel_html: str = "",
+    stale_label: str = "",
 ) -> None:
     sync_cls, dot_cls, sync_label = _sync_status(broker)
+    stale_html = ""
+    if stale_label:
+        stale_html = f'<p class="vc-stale">{_esc(stale_label)}</p>'
     st.markdown(
         f'<div class="verdict-canvas-root" data-verdict="{_esc(state.key)}">'
         f'<div class="vc-header">'
@@ -355,6 +322,7 @@ def _render_verdict_header(
         f'<p class="vc-sync {sync_cls}">'
         f'<span class="vc-sync-dot {dot_cls}"></span>{_esc(sync_label)}</p>'
         f"</div>"
+        f"{stale_html}"
         f'<div class="vc-verdict-zone"><p class="vc-verdict-word">{_esc(state.word)}</p></div>'
         f'<p class="vc-mentor">{_esc(mentor)}</p>'
         f"{intel_html}",
@@ -433,25 +401,26 @@ def _render_today_canvas(
     period: str,
     cached: dict[str, Any],
 ) -> None:
-    snapshot: ContextSnapshot = _snapshot_from_cache(cached["snapshot"])
-    mis: MisTradeAdvisory = cached["mis"]
-    os_report: InvestmentOS = cached["os_report"]
-    pins: list[PinnedPlan] = cached["pins"]
-    decision, _source = _pick_decision(mis, os_report)
-    why_decision = _pick_why_decision(mis, os_report)
     broker = _broker_snapshot()
+    domain = domain_from_cache_bundle(cached, broker=broker)
+    brief = view_model_from_domain(domain, broker=broker)
+    card = project_decision_card(brief)
+    vkey, vword, cta_label, cta_action = canvas_state_from_view_model(card)
+    state = VerdictCanvasState(vkey, vword, cta_label, cta_action)
 
-    state = _resolve_verdict_state(broker, snapshot, mis, decision)
-    mentor = _mentor_one_liner(
-        state,
-        decision=decision,
-        mis=mis,
-        os_report=os_report,
-        snapshot=snapshot,
-        pins=pins,
-    )
-    why_primary = _why_primary(why_decision)
-    why_advanced = _why_advanced(why_decision, mis, snapshot, pins=pins)
+    snapshot = domain.context
+    mis = domain.mis
+    os_report = domain.os_report
+    pins = domain.pins
+    decision = domain.decision
+    why_decision = _pick_why_decision(mis, os_report)
+    mentor = card.reason
+    why_primary = list(brief.evidence.key_reasons) or _why_primary(why_decision)
+    why_advanced = [f"{line.label}: {line.value}" for line in brief.evidence.supporting_signals]
+    if brief.evidence.conflicting_signals:
+        why_advanced.extend(f"Conflict: {c.label} — {c.value}" for c in brief.evidence.conflicting_signals)
+    if not why_advanced:
+        why_advanced = _why_advanced(why_decision, mis, snapshot, pins=pins)
 
     from ui.components.today_intelligence import (
         build_today_command_center,
@@ -484,13 +453,14 @@ def _render_today_canvas(
         built_at=str(cached["built_at"]),
         broker=broker,
         intel_html=hero_intel,
+        stale_label=card.stale_label if card.stale else "",
     )
 
     _render_verdict_ghost_and_cta(
         state=state,
         why_primary=why_primary,
         why_advanced=why_advanced,
-        confidence_pct=_conf_numeric(why_decision or decision, snapshot),
+        confidence_pct=brief.decision.confidence_level,
     )
 
     render_today_command_center(
@@ -554,58 +524,8 @@ def render_home_dashboard(market: str, *, period: str = "1y", max_trades: int = 
 
 
 def _snapshot_to_cache(snapshot: ContextSnapshot) -> dict[str, Any]:
-    """Plain dict for st.cache_data — MappingProxyType is not pickle-serializable."""
-    return snapshot.as_dict()
+    return snapshot_to_cache(snapshot)
 
 
 def _snapshot_from_cache(data: dict[str, Any]) -> ContextSnapshot:
-    """Rebuild ContextSnapshot with plain dicts (no mappingproxy) for UI use."""
-    return ContextSnapshot(
-        timestamp=str(data["timestamp"]),
-        market_regime=str(data["market_regime"]),
-        market_phase=str(data["market_phase"]),
-        market_breadth=str(data["market_breadth"]),
-        volatility_state=str(data["volatility_state"]),
-        liquidity_state=str(data["liquidity_state"]),
-        market_session=dict(data.get("market_session") or {}),
-        sector_strength=dict(data.get("sector_strength") or {}),
-        industry_strength=dict(data.get("industry_strength") or {}),
-        macro_state=dict(data.get("macro_state") or {}),
-        global_market_state=dict(data.get("global_market_state") or {}),
-        risk_mode=str(data["risk_mode"]),
-        trading_restrictions=tuple(data.get("trading_restrictions") or ()),
-        confidence=float(data.get("confidence") or 0.0),
-        schema_version=str(data.get("schema_version") or "1.0"),
-        snapshot_id=str(data.get("snapshot_id") or ""),
-        context_hash=str(data.get("context_hash") or ""),
-        metadata=dict(data.get("metadata") or {}),
-    )
-
-
-@st.cache_data(ttl=45, show_spinner=False)
-def load_dashboard_data(market: str, period: str, deep: bool) -> dict[str, Any]:
-    from analyzer.context_engine import build_context_snapshot
-
-    prefs = load_intraday_prefs()
-    snapshot = build_context_snapshot(market=market, use_cache=True)
-    mis = build_mis_trade_advisory(market=market)
-    os_report = build_investment_os(market, period=period, prefs=prefs, deep=deep)
-    pins = load_pinned_plans()
-    pulse = _load_pulse(market, period)
-    prof = portfolio_profile_key()
-    portfolio = load_saved_portfolio(profile=prof)
-    session_date = str(dict(snapshot.market_session).get("date", ""))
-    journal_today = _journal_pnl_for_date(session_date) if session_date else None
-    learning = resolve_learning_outcomes(days=14)
-    return {
-        "snapshot": _snapshot_to_cache(snapshot),
-        "mis": mis,
-        "os_report": os_report,
-        "pins": pins,
-        "pulse": pulse,
-        "portfolio": portfolio,
-        "prefs": prefs,
-        "journal_today_pnl": journal_today,
-        "learning": learning,
-        "built_at": datetime.now(IST).strftime("%H:%M IST"),
-    }
+    return snapshot_from_cache(data)
