@@ -1,5 +1,10 @@
-# Pinned versions for reproducible CI installs. Regenerate with:
-# pip freeze | grep -iE '^(yfinance|pandas|numpy|streamlit|plotly|requests|python-dotenv|kiteconnect)=='
+# Single production dependency authority — every direct production package is listed here.
+# Regenerate transitive pins after changes:
+#   python -m venv .venv && source .venv/bin/activate
+#   pip install -r requirements-lock.txt && pip freeze
+#
+# starlette cap: Streamlit 1.58 gzip middleware is incompatible with starlette>=1.4.0
+# (GZipResponder requires thread_minimum_size). Cap keeps Cloud/CI/local graphs aligned.
 yfinance==1.5.1
 pandas==3.0.3
 numpy==2.2.6
@@ -8,3 +13,5 @@ plotly==6.8.0
 requests==2.34.2
 python-dotenv==1.2.2
 kiteconnect==5.2.0
+fpdf2==2.8.7
+starlette>=0.40.0,<1.4.0
