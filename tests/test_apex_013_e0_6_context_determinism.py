@@ -199,6 +199,14 @@ class TestSingleAssemblyPath(ContextDeterminismFixture):
         text = Path("analyzer/use_cases/morning_brief.py").read_text(encoding="utf-8")
         self.assertNotIn("if broker_snap.to_dict() != bundle.get(\"_broker_at_build\"):", text)
 
+    def test_home_dashboard_broker_from_context_bundle(self):
+        text = Path("ui/components/home_dashboard.py").read_text(encoding="utf-8")
+        fn_start = text.index("def _render_today_canvas")
+        fn_end = text.index("\ndef render_home_dashboard")
+        body = text[fn_start:fn_end]
+        self.assertIn("broker = ctx.broker", body)
+        self.assertNotIn("_broker_snapshot()", body)
+
     def test_ui_does_not_own_persistence(self):
         text = Path("ui/components/home_dashboard.py").read_text(encoding="utf-8")
         self.assertNotIn("record_snapshot=True", text)

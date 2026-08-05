@@ -184,6 +184,7 @@ def _render_today_canvas(
     cached: dict[str, Any],
 ) -> None:
     ctx = DecisionContextBundle.from_cache_dict(cached)
+    broker = ctx.broker
     brief = ctx.assemble_view_model(record_snapshot=False)
     domain = ctx.to_domain()
     card = project_decision_card(brief)
