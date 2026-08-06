@@ -1,5 +1,20 @@
 # Product Changelog
 
+## v3.0 — V3-103 Portfolio Review (2026-08-06)
+
+**Milestone:** V3-103  
+**Architecture:** [docs/apex/APEX-017_V3-103_Portfolio_Review.md](../docs/apex/APEX-017_V3-103_Portfolio_Review.md)
+
+### Portfolio Review (V3-103)
+
+- Portfolio › Review — theme-first review queue, explanation headline, healthy reassurance
+- Reuses `PortfolioOverviewViewModel`; theme grouping via `portfolio_review_from_view_model()` (projection only)
+- Shared Understand framework for theme-level disclosure
+- Research handoff: navigation only
+- Mark reviewed: session state only
+- Regression gate: **32 / 32 passing**
+- V2 frozen pipeline unchanged
+
 ## v3.0 — V3-102 Holdings Experience (2026-08-06)
 
 **Milestone:** V3-102  

@@ -49,10 +49,12 @@ from ui.components.holdings_experience import render_holdings_surface
 from ui.components.portfolio_command_center import (
     PORTFOLIO_HOLDINGS,
     PORTFOLIO_OVERVIEW,
+    PORTFOLIO_REVIEW,
     get_portfolio_subtab,
     render_portfolio_overview_surface,
     render_portfolio_subnav,
 )
+from ui.components.portfolio_review_experience import render_portfolio_review_surface
 from ui.navigation import request_nav_tab
 from ui.theme import APEX_PARTNER_EXPERIENCE_CSS, PARTNER_PAGE_ACTIVATE_JS
 
@@ -241,6 +243,40 @@ def _render_portfolio_holdings_tab(*, period: str, prof: str) -> None:
     st.markdown(PARTNER_PAGE_ACTIVATE_JS, unsafe_allow_html=True)
 
 
+def _render_portfolio_review_tab(*, period: str, prof: str) -> None:
+    st.markdown(APEX_PARTNER_EXPERIENCE_CSS, unsafe_allow_html=True)
+    st.markdown(PARTNER_PAGE_ACTIVATE_JS, unsafe_allow_html=True)
+    _maybe_sync_portfolio_from_kite()
+
+    broker = read_broker_snapshot()
+    import_result = st.session_state.get("zd_import")
+    if not import_result:
+        saved = load_saved_portfolio(profile=prof)
+        if saved:
+            st.session_state["zd_import"] = saved
+            import_result = saved
+    prefs = load_intraday_prefs()
+    portfolio_section = None
+    try:
+        from analyzer.use_cases.decision_context_bundle import DecisionContextBundle
+        from ui.components.partner_data import load_today_core
+
+        bundle = load_today_core("india", period)
+        portfolio_section = DecisionContextBundle.from_cache_dict(bundle).assemble_view_model(
+            record_snapshot=False
+        ).portfolio
+    except Exception:
+        portfolio_section = None
+
+    render_portfolio_review_surface(
+        broker=broker,
+        portfolio=import_result,
+        prefs=prefs,
+        portfolio_section=portfolio_section,
+    )
+    st.markdown(PARTNER_PAGE_ACTIVATE_JS, unsafe_allow_html=True)
+
+
 def render_zerodha(period: str) -> None:
     if msg := st.session_state.pop("_portfolio_auto_sync_msg", None):
         st.success(msg)
@@ -255,5 +291,7 @@ def render_zerodha(period: str) -> None:
     render_portfolio_subnav(active=active)
     if active == PORTFOLIO_HOLDINGS:
         _render_portfolio_holdings_tab(period=period, prof=prof)
+    elif active == PORTFOLIO_REVIEW:
+        _render_portfolio_review_tab(period=period, prof=prof)
     else:
         _render_portfolio_overview_tab(period=period, prof=prof)

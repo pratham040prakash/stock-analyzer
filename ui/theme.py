@@ -1281,6 +1281,78 @@ APEX_BRIEF_EXPERIENCE_CSS = """
         display: none;
     }
 }
+.verdict-canvas-page .apex-portfolio-review {
+    padding-top: 8px;
+}
+.verdict-canvas-page .apex-review-context-header {
+    margin-bottom: 8px;
+}
+.verdict-canvas-page .apex-review-explanation {
+    padding: 12px 16px;
+    border-radius: 12px;
+    background: rgba(245,245,247,0.04);
+    margin-bottom: 12px;
+}
+.verdict-canvas-page .apex-review-headline {
+    font-size: 16px;
+    line-height: 1.55;
+    color: rgba(245,245,247,0.88);
+    margin: 0;
+}
+.verdict-canvas-page .apex-review-qualifier {
+    font-size: 13px;
+    color: #FFC107;
+    margin: 8px 0 0 0;
+}
+.verdict-canvas-page .apex-review-progress {
+    font-size: 14px;
+    color: rgba(245,245,247,0.62);
+    margin: 0 0 12px 0;
+}
+.verdict-canvas-page .apex-review-theme-queue {
+    margin-bottom: 12px;
+}
+.verdict-canvas-page .apex-review-theme-item {
+    border: 1px solid rgba(245,245,247,0.08);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+}
+.verdict-canvas-page .apex-review-theme-expanded {
+    outline: 2px solid rgba(10,132,255,0.35);
+    outline-offset: 2px;
+}
+.verdict-canvas-page .apex-review-theme-reviewed {
+    opacity: 0.72;
+}
+.verdict-canvas-page .apex-review-theme-title {
+    font-weight: 600;
+    margin: 0 0 8px 0;
+}
+.verdict-canvas-page .apex-review-theme-explanation,
+.verdict-canvas-page .apex-review-theme-holdings,
+.verdict-canvas-page .apex-review-theme-guidance {
+    font-size: 14px;
+    line-height: 1.5;
+    color: rgba(245,245,247,0.78);
+    margin: 0 0 8px 0;
+}
+.verdict-canvas-page .apex-review-reassurance {
+    margin-bottom: 12px;
+}
+.verdict-canvas-page .apex-review-reassurance-item {
+    margin: 0 0 6px 0;
+    color: rgba(245,245,247,0.82);
+}
+.verdict-canvas-page .apex-review-reassurance-empty {
+    color: rgba(245,245,247,0.52);
+    margin: 8px 0 0 0;
+}
+.verdict-canvas-page .apex-review-allocation-summary {
+    font-size: 14px;
+    color: rgba(245,245,247,0.72);
+    margin: 0 0 8px 0;
+}
 </style>
 """
 

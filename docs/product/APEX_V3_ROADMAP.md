@@ -1,8 +1,8 @@
 # APEX V3 — Roadmap
 
 **Document ID:** APEX-V3-ROADMAP  
-**Version:** 0.3  
-**Status:** ACTIVE — V3-102 shipped  
+**Version:** 0.4  
+**Status:** ACTIVE — V3-103 shipped  
 **Date:** 2026-08-06  
 **Owner:** Product  
 **Parent:** [APEX_V3_PRODUCT_STRATEGY.md](./APEX_V3_PRODUCT_STRATEGY.md)  
@@ -55,9 +55,10 @@ APEX V3 extends the **Daily Decision Experience** (V2 GA) into a full **Investme
 |----|-----------|---------|--------|
 | **V3-101** | **Portfolio Command Center** | Overview screen, contracts, assembly, Understand SSOT | **✅ Shipped** |
 | **V3-102** | **Holdings Experience** | Inventory ledger, search/filter/sort, row Understand, watchlist | **✅ Shipped** |
-| V3-103 | Allocation indicators | Policy drift vs bucket tags per row | Planned |
-| V3-104 | Health scoring surface | Reuse APS-005 patterns at portfolio level | Planned |
-| V3-105 | Integration tests | Render-level; 100% gate | ✅ 25-test gate |
+| **V3-103** | **Portfolio Review** | Theme-first review queue, explanation, Understand, Research handoff | **✅ Shipped** |
+| V3-104 | Allocation indicators | Policy drift vs bucket tags per row | Planned |
+| V3-105 | Health scoring surface | Reuse APS-005 patterns at portfolio level | Planned |
+| V3-106 | Integration tests | Render-level; 100% gate | ✅ 32-test gate |
 
 **Dependencies:** Zerodha connected; existing portfolio use cases  
 **Non-goals:** Rebalance execution; tax optimization
@@ -170,6 +171,8 @@ flowchart TD
 |-----|-------|----------|
 | — | Phase 0 docs | 2026-08-06 ✅ |
 | **V3-101** | **Portfolio Command Center** | **2026-08-06 ✅** |
+| **V3-102** | **Holdings Experience** | **2026-08-06 ✅** |
+| **V3-103** | **Portfolio Review** | **2026-08-06 ✅** |
 | `v3.0.0-alpha1` | Portfolio Intelligence (remaining) | 2026-12 |
 | `v3.0.0-alpha2` | Decision Memory | 2027-03 |
 | `v3.0.0-beta1` | Review Cadences | 2027-06 |

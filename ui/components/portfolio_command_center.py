@@ -18,16 +18,18 @@ from ui.navigation import request_nav_tab
 
 PORTFOLIO_SUBTAB_KEY = "portfolio_subtab"
 PORTFOLIO_OVERVIEW = "overview"
+PORTFOLIO_REVIEW = "review"
 PORTFOLIO_HOLDINGS = "holdings"
+_VALID_SUBTABS = (PORTFOLIO_OVERVIEW, PORTFOLIO_REVIEW, PORTFOLIO_HOLDINGS)
 
 
 def get_portfolio_subtab() -> str:
     tab = str(st.session_state.get(PORTFOLIO_SUBTAB_KEY, PORTFOLIO_OVERVIEW))
-    return tab if tab in (PORTFOLIO_OVERVIEW, PORTFOLIO_HOLDINGS) else PORTFOLIO_OVERVIEW
+    return tab if tab in _VALID_SUBTABS else PORTFOLIO_OVERVIEW
 
 
 def set_portfolio_subtab(tab: str) -> None:
-    if tab not in (PORTFOLIO_OVERVIEW, PORTFOLIO_HOLDINGS):
+    if tab not in _VALID_SUBTABS:
         tab = PORTFOLIO_OVERVIEW
     st.session_state[PORTFOLIO_SUBTAB_KEY] = tab
     st.rerun()
@@ -41,9 +43,10 @@ def render_portfolio_subnav(*, active: str) -> None:
     c1, c2, c3, c4, c5 = st.columns(5)
     tabs = (
         (PORTFOLIO_OVERVIEW, "Overview", c1),
-        (PORTFOLIO_HOLDINGS, "Holdings", c2),
+        (PORTFOLIO_REVIEW, "Review", c2),
+        (PORTFOLIO_HOLDINGS, "Holdings", c3),
     )
-    placeholders = (("positions", "Positions", c3), ("wealth", "Wealth", c4), ("doctor", "Doctor", c5))
+    placeholders = (("wealth", "Wealth", c4), ("doctor", "Doctor", c5))
     for tab_id, label, col in tabs:
         with col:
             kind = "primary" if active == tab_id else "secondary"
@@ -88,7 +91,7 @@ def _dispatch_primary_action(action: str) -> None:
     if action == "holdings":
         set_portfolio_subtab(PORTFOLIO_HOLDINGS)
     elif action == "review":
-        st.session_state["portfolio_focus_attention"] = True
+        set_portfolio_subtab(PORTFOLIO_REVIEW)
     elif action == "sync":
         st.session_state["_portfolio_sync_requested"] = True
 
