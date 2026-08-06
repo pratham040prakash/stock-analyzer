@@ -1,8 +1,8 @@
 # APEX V3 — Roadmap
 
 **Document ID:** APEX-V3-ROADMAP  
-**Version:** 0.2  
-**Status:** ACTIVE — V3-101 shipped  
+**Version:** 0.3  
+**Status:** ACTIVE — V3-102 shipped  
 **Date:** 2026-08-06  
 **Owner:** Product  
 **Parent:** [APEX_V3_PRODUCT_STRATEGY.md](./APEX_V3_PRODUCT_STRATEGY.md)  
@@ -54,10 +54,10 @@ APEX V3 extends the **Daily Decision Experience** (V2 GA) into a full **Investme
 | ID | Milestone | Outcome | Status |
 |----|-----------|---------|--------|
 | **V3-101** | **Portfolio Command Center** | Overview screen, contracts, assembly, Understand SSOT | **✅ Shipped** |
-| V3-102 | Portfolio page shell | 5-page nav introduces Portfolio tab | Planned |
-| V3-103 | Holdings + allocation | Broker truth + drift vs policy | Partial (Holdings tab) |
+| **V3-102** | **Holdings Experience** | Inventory ledger, search/filter/sort, row Understand, watchlist | **✅ Shipped** |
+| V3-103 | Allocation indicators | Policy drift vs bucket tags per row | Planned |
 | V3-104 | Health scoring surface | Reuse APS-005 patterns at portfolio level | Planned |
-| V3-105 | Integration tests | Render-level; 100% gate | ✅ 16-test gate |
+| V3-105 | Integration tests | Render-level; 100% gate | ✅ 25-test gate |
 
 **Dependencies:** Zerodha connected; existing portfolio use cases  
 **Non-goals:** Rebalance execution; tax optimization

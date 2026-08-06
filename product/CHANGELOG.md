@@ -1,5 +1,20 @@
 # Product Changelog
 
+## v3.0 — V3-102 Holdings Experience (2026-08-06)
+
+**Milestone:** V3-102  
+**Architecture:** [docs/apex/APEX-016_V3-102_Holdings_Experience.md](../docs/apex/APEX-016_V3-102_Holdings_Experience.md)
+
+### Holdings Experience (V3-102)
+
+- Portfolio › Holdings — inventory ledger (context bar, table, cards, watchlist)
+- Extended `PortfolioOverviewViewModel` with holdings rows; health SSOT reused from V3-101
+- Presentation projection only: `holdings_experience_from_view_model()`
+- Shared Understand framework for row-level disclosure
+- Research row action: navigation only
+- Regression gate: **25 / 25 passing**
+- V2 frozen pipeline unchanged
+
 ## v3.0 — V3-101 Portfolio Command Center (2026-08-06)
 
 **Milestone:** V3-101  

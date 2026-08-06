@@ -63,6 +63,39 @@ class PortfolioPreviewRowModel:
 
 
 @dataclass(frozen=True)
+class PortfolioHoldingRowModel:
+    symbol: str
+    name: str
+    quantity: float
+    average_price: float | None
+    last_price: float | None
+    value_inr: float
+    weight_pct: float
+    health_key: str
+    health_label: str
+    attention_reason: str
+    pnl_inr: float | None
+    stale: bool
+
+
+@dataclass(frozen=True)
+class PortfolioWatchlistRowModel:
+    symbol: str
+    name: str
+    last_price: float | None
+
+
+@dataclass(frozen=True)
+class PortfolioHoldingsContextSection:
+    summary_line: str
+    disconnected: bool
+    connect_message: str
+    show_connect_cta: bool
+    show_sync_cta: bool
+    has_holdings: bool
+
+
+@dataclass(frozen=True)
 class PortfolioDepthSection:
     title: str
     lines: tuple[str, ...]
@@ -79,5 +112,9 @@ class PortfolioOverviewViewModel:
     standouts: PortfolioStandoutsSection
     preview_rows: tuple[PortfolioPreviewRowModel, ...]
     preview_more_count: int
+    holdings_rows: tuple[PortfolioHoldingRowModel, ...]
+    watchlist_rows: tuple[PortfolioWatchlistRowModel, ...]
+    holdings_context: PortfolioHoldingsContextSection
     depth_sections: tuple[PortfolioDepthSection, ...]
     broker_footer: str
+    holdings_broker_footer: str

@@ -11,10 +11,13 @@ from analyzer.use_cases.portfolio_overview_models import (
     PortfolioAttentionItemModel,
     PortfolioDepthSection,
     PortfolioHealthSection,
+    PortfolioHoldingRowModel,
+    PortfolioHoldingsContextSection,
     PortfolioMetricsSection,
     PortfolioOverviewViewModel,
     PortfolioPreviewRowModel,
     PortfolioStandoutsSection,
+    PortfolioWatchlistRowModel,
 )
 from analyzer.zerodha import ZerodhaHolding, ZerodhaImportResult
 from ui.broker.state import BrokerSnapshot
@@ -22,6 +25,9 @@ from ui.broker.state import BrokerSnapshot
 _CONCENTRATION_WARN_PCT = 25.0
 _MAX_ATTENTION = 3
 _BROKER_FOOTER = "Zerodha Console is source of truth for holdings and P&L."
+_HOLDINGS_BROKER_FOOTER = (
+    "Zerodha Console is source of truth for quantities, cost basis, and P&L."
+)
 
 
 def _holding_rows(portfolio: ZerodhaImportResult | None) -> list[ZerodhaHolding]:
@@ -250,6 +256,129 @@ def _health_and_action(
     return health, action
 
 
+def _watchlist_rows(portfolio: ZerodhaImportResult | None) -> tuple[PortfolioWatchlistRowModel, ...]:
+    if not portfolio or not portfolio.holdings:
+        return ()
+    rows: list[PortfolioWatchlistRowModel] = []
+    for holding in portfolio.holdings:
+        if (holding.quantity or 0) > 0:
+            continue
+        sym = (holding.tradingsymbol or holding.kite_symbol or "—").upper()
+        rows.append(
+            PortfolioWatchlistRowModel(
+                symbol=sym,
+                name=(holding.tradingsymbol or sym)[:24],
+                last_price=holding.last_price,
+            )
+        )
+    rows.sort(key=lambda row: row.symbol)
+    return tuple(rows)
+
+
+def _holdings_rows(
+    *,
+    holdings: list[ZerodhaHolding],
+    weights: list[tuple[str, float, float]],
+    attention: tuple[PortfolioAttentionItemModel, ...],
+    stale: bool,
+) -> tuple[PortfolioHoldingRowModel, ...]:
+    weight_by_sym = {sym: pct for sym, _, pct in weights}
+    value_by_sym = {sym: value for sym, value, _ in weights}
+    reason_by_sym = {
+        item.symbol: item.reason
+        for item in attention
+        if item.symbol not in ("—", "")
+    }
+    rows: list[PortfolioHoldingRowModel] = []
+    for holding in holdings:
+        sym = (holding.tradingsymbol or holding.kite_symbol or "—").upper()
+        ltp = holding.last_price or holding.average_price
+        value = value_by_sym.get(sym, 0.0)
+        if value <= 0 and ltp and holding.quantity:
+            value = float(holding.quantity) * float(ltp)
+        weight = weight_by_sym.get(sym, 0.0)
+        if sym in reason_by_sym:
+            health_key = "attention"
+            health_label = "Attention"
+            attention_reason = reason_by_sym[sym]
+        elif value > 0 or (holding.quantity or 0) > 0:
+            health_key = "ok"
+            health_label = "OK"
+            attention_reason = ""
+        else:
+            health_key = "unknown"
+            health_label = "Unknown"
+            attention_reason = ""
+        rows.append(
+            PortfolioHoldingRowModel(
+                symbol=sym,
+                name=(holding.tradingsymbol or sym)[:24],
+                quantity=float(holding.quantity or 0),
+                average_price=holding.average_price,
+                last_price=holding.last_price,
+                value_inr=value,
+                weight_pct=round(weight, 1),
+                health_key=health_key,
+                health_label=health_label,
+                attention_reason=attention_reason,
+                pnl_inr=holding.pnl,
+                stale=stale,
+            )
+        )
+    rows.sort(key=lambda row: (-row.weight_pct, row.symbol))
+    return tuple(rows)
+
+
+def _holdings_context(
+    *,
+    broker: BrokerSnapshot,
+    count: int,
+    invested: float,
+    has_saved: bool,
+    stale: bool,
+    stale_label: str,
+) -> PortfolioHoldingsContextSection:
+    connected = broker.connected()
+    sync_hint = stale_label or broker.last_sync_at or "Not synced"
+    if connected:
+        summary = (
+            f"{count} holding{'s' if count != 1 else ''} · "
+            f"₹{invested:,.0f} invested · Last synced {sync_hint}"
+        )
+        return PortfolioHoldingsContextSection(
+            summary_line=summary,
+            disconnected=False,
+            connect_message="",
+            show_connect_cta=False,
+            show_sync_cta=stale,
+            has_holdings=count > 0,
+        )
+    if has_saved:
+        summary = (
+            f"{count} holding{'s' if count != 1 else ''} · "
+            f"₹{invested:,.0f} invested · Saved snapshot · {sync_hint}"
+        )
+        return PortfolioHoldingsContextSection(
+            summary_line=summary,
+            disconnected=True,
+            connect_message=(
+                "Connect broker to see live holdings · "
+                "or view last saved snapshot below."
+            ),
+            show_connect_cta=True,
+            show_sync_cta=False,
+            has_holdings=count > 0,
+        )
+    return PortfolioHoldingsContextSection(
+        summary_line="Connect broker to see live holdings.",
+        disconnected=True,
+        connect_message="Link Zerodha to see quantities, cost basis, and current values.",
+        show_connect_cta=True,
+        show_sync_cta=False,
+        has_holdings=False,
+    )
+
+
 def _depth_sections(
     *,
     allocation: PortfolioAllocationSection,
@@ -380,6 +509,21 @@ def assemble_portfolio_overview(
         ),
         preview_rows=preview_rows,
         preview_more_count=max(0, len(sorted_rows) - len(preview_rows)),
+        holdings_rows=_holdings_rows(
+            holdings=holdings,
+            weights=weights,
+            attention=attention,
+            stale=stale,
+        ),
+        watchlist_rows=_watchlist_rows(portfolio),
+        holdings_context=_holdings_context(
+            broker=broker,
+            count=count,
+            invested=invested,
+            has_saved=has_saved,
+            stale=stale,
+            stale_label=stale_label,
+        ),
         depth_sections=_depth_sections(
             allocation=allocation,
             attention=attention,
@@ -388,4 +532,5 @@ def assemble_portfolio_overview(
             prefs=prefs,
         ),
         broker_footer=_BROKER_FOOTER,
+        holdings_broker_footer=_HOLDINGS_BROKER_FOOTER,
     )

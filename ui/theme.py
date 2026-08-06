@@ -1163,6 +1163,124 @@ APEX_BRIEF_EXPERIENCE_CSS = """
     outline: 2px solid rgba(10,132,255,0.45);
     outline-offset: 4px;
 }
+.verdict-canvas-page .apex-holdings-experience {
+    padding-top: 8px;
+}
+.verdict-canvas-page .apex-holdings-context {
+    padding: 12px 16px;
+    border-radius: 12px;
+    background: rgba(245,245,247,0.04);
+    margin-bottom: 12px;
+}
+.verdict-canvas-page .apex-holdings-summary {
+    font-size: 16px;
+    line-height: 1.5;
+    color: rgba(245,245,247,0.88);
+    margin: 0;
+}
+.verdict-canvas-page .apex-holdings-connect-msg {
+    font-size: 14px;
+    color: rgba(245,245,247,0.56);
+    margin: 8px 0 0 0;
+}
+.verdict-canvas-page .apex-holdings-toolbar {
+    margin-bottom: 12px;
+}
+.verdict-canvas-page .apex-holdings-table-wrap {
+    overflow-x: auto;
+}
+.verdict-canvas-page .apex-holdings-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+.verdict-canvas-page .apex-holdings-table th,
+.verdict-canvas-page .apex-holdings-table td {
+    padding: 10px 8px;
+    border-bottom: 1px solid rgba(245,245,247,0.08);
+    text-align: left;
+}
+.verdict-canvas-page .apex-holdings-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+.verdict-canvas-page .apex-holdings-symbol {
+    font-weight: 600;
+}
+.verdict-canvas-page .apex-holdings-name {
+    color: rgba(245,245,247,0.62);
+    max-width: 160px;
+}
+.verdict-canvas-page .apex-holdings-health[data-health="ok"] {
+    color: #34C759;
+}
+.verdict-canvas-page .apex-holdings-health[data-health="attention"] {
+    color: #FFC107;
+}
+.verdict-canvas-page .apex-holdings-health[data-health="unknown"] {
+    color: rgba(245,245,247,0.52);
+}
+.verdict-canvas-page .apex-holdings-row-stale td,
+.verdict-canvas-page .apex-holdings-row-stale th {
+    color: rgba(245,245,247,0.48);
+}
+.verdict-canvas-page .apex-holdings-empty,
+.verdict-canvas-page .apex-holdings-empty-state p {
+    color: rgba(245,245,247,0.52);
+    font-size: 14px;
+}
+.verdict-canvas-page .apex-holdings-card-list {
+    display: none;
+}
+.verdict-canvas-page .apex-holdings-card {
+    border: 1px solid rgba(245,245,247,0.08);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+}
+.verdict-canvas-page .apex-holdings-card-title {
+    display: flex;
+    justify-content: space-between;
+    font-weight: 600;
+    margin: 0 0 8px 0;
+}
+.verdict-canvas-page .apex-holdings-card-line {
+    margin: 0 0 6px 0;
+    color: rgba(245,245,247,0.82);
+}
+.verdict-canvas-page .apex-holdings-card-muted {
+    color: rgba(245,245,247,0.52);
+    font-size: 13px;
+}
+.verdict-canvas-page .apex-holdings-card-health[data-health="ok"] {
+    color: #34C759;
+}
+.verdict-canvas-page .apex-holdings-card-health[data-health="attention"] {
+    color: #FFC107;
+}
+.verdict-canvas-page .apex-holdings-watchlist-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(245,245,247,0.06);
+}
+@media (max-width: 768px) {
+    .verdict-canvas-page .apex-holdings-table-region {
+        display: none;
+    }
+    .verdict-canvas-page .apex-holdings-row-actions {
+        display: none;
+    }
+    .verdict-canvas-page .apex-holdings-card-list {
+        display: block;
+    }
+}
+@media (min-width: 769px) {
+    .verdict-canvas-page .apex-holdings-card-list {
+        display: none;
+    }
+}
 </style>
 """
 
