@@ -13,6 +13,8 @@ Central registry for all APEX engineering documentation. Defines numbering, life
 
 Every APEX document references [APEX-000](./APEX-000_Company_Constitution.md) as the highest authority. Engineering practice is governed by [APEX-999](./APEX-999_Engineering_Handbook.md).
 
+**Product Operating System (v1.0):** structured product/engineering/design/AI/QA docs live at [../product-os/README.md](../product-os/README.md) (`product/`, `engineering/`, `design/`, `ai/`, `qa/` at repo root). Use that tree for specs and placeholders; use this `docs/apex/` tree for implementation-era canonical docs.
+
 ---
 
 ## Document Identifier System

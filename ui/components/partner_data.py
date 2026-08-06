@@ -51,6 +51,7 @@ PARTNER_TODAY_CORE = "partner_today_core"
 PARTNER_TODAY_STATE = "partner_today_state"
 PARTNER_TODAY_READY = "partner_today_ready"
 PARTNER_TODAY_THINKING = "partner_today_thinking"
+PARTNER_TODAY_LAST_BUNDLE = "partner_today_last_bundle"
 PARTNER_BG_DONE = "partner_bg_done"
 PARTNER_DOCK_STAGE = "partner_dock_stage"
 
@@ -156,10 +157,15 @@ def load_dashboard_data(market: str, period: str, deep: bool) -> dict[str, Any] 
     """Full bundle. Returns None once per session to allow thinking state before load."""
     del deep
     reset_today_pipeline(market=market, period=period)
+    last_bundle = st.session_state.get(PARTNER_TODAY_LAST_BUNDLE)
     if not st.session_state.get(PARTNER_TODAY_THINKING):
         st.session_state[PARTNER_TODAY_THINKING] = True
+        if last_bundle:
+            return {**last_bundle, "_refreshing": True}
         return None
-    return _load_dashboard_bundle(market, period)
+    bundle = _load_dashboard_bundle(market, period)
+    st.session_state[PARTNER_TODAY_LAST_BUNDLE] = bundle
+    return bundle
 
 
 def reset_today_pipeline(*, market: str, period: str) -> None:

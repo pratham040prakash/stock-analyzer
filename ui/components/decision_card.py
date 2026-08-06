@@ -308,5 +308,18 @@ def hero_header_sync_html(card: DecisionCardViewModel) -> tuple[str, str, str]:
     return sync_cls, dot_cls, card.sync_label
 
 
+def hero_session_ribbon_html(session_ribbon: tuple[str, ...]) -> str:
+    """L0.5 ambient session ribbon — projection only (ETS-003a §5.1)."""
+    items = [str(item).strip() for item in session_ribbon if str(item).strip()]
+    if not items:
+        return ""
+    chips = "".join(f'<span class="vc-ribbon-chip">{_esc(item)}</span>' for item in items[:4])
+    return f'<div class="vc-session-ribbon" role="status">{chips}</div>'
+
+
+def hero_refreshing_html() -> str:
+    return '<p class="vc-refreshing" role="status">Updating today\'s brief…</p>'
+
+
 # Legacy alias
 build_decision_card_view = project_decision_card

@@ -1,0 +1,14 @@
+openapi: 3.0.3
+info:
+  title: APEX Recommendation API
+  version: 1.0.0
+  description: Placeholder — see product/specifications/
+paths:
+  /v1/recommendations/{id}:
+    get:
+      summary: Get recommendation
+      responses:
+        '200':
+          description: Success
+        '503':
+          description: Degraded / offline

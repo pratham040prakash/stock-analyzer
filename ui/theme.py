@@ -586,6 +586,189 @@ div[data-testid="stHorizontalBlock"] .home-metric [data-testid="stMetric"] {
 </style>
 """
 
+APEX_BRIEF_EXPERIENCE_CSS = """
+<style>
+.verdict-canvas-page .apex-brief-page,
+.verdict-canvas-page .apex-section {
+    color: #F5F5F7;
+    font-family: Inter, "SF Pro Display", system-ui, -apple-system, sans-serif;
+}
+.verdict-canvas-page .apex-section {
+    padding: 28px 4px 8px 4px;
+    margin: 0;
+}
+.verdict-canvas-page .apex-section-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(245,245,247,0.42);
+    margin: 0 0 14px 0;
+}
+.verdict-canvas-page .apex-greeting-title {
+    font-size: 34px;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    margin: 0 0 10px 0;
+    color: #F5F5F7;
+}
+.verdict-canvas-page .apex-greeting-sub {
+    font-size: 17px;
+    line-height: 1.5;
+    color: rgba(245,245,247,0.72);
+    margin: 0 0 8px 0;
+}
+.verdict-canvas-page .apex-greeting-meta {
+    font-size: 13px;
+    color: rgba(245,245,247,0.38);
+    margin: 0;
+}
+.verdict-canvas-page .apex-exec-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+.verdict-canvas-page .apex-exec-card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 14px 12px;
+    border-radius: 14px;
+    background: rgba(255,255,255,0.04);
+}
+.verdict-canvas-page .apex-exec-k {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(245,245,247,0.42);
+}
+.verdict-canvas-page .apex-exec-v {
+    font-size: 15px;
+    font-weight: 500;
+    line-height: 1.35;
+    color: rgba(245,245,247,0.92);
+}
+.verdict-canvas-page .apex-brief-hero {
+    padding-top: 32px;
+}
+.verdict-canvas-page .apex-brief-view {
+    font-size: 32px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    margin: 0 0 16px 0;
+    color: #F5F5F7;
+}
+.verdict-canvas-page .apex-brief-why {
+    font-size: 18px;
+    line-height: 1.55;
+    color: rgba(245,245,247,0.82);
+    margin: 0 0 12px 0;
+}
+.verdict-canvas-page .apex-brief-confidence {
+    font-size: 14px;
+    font-weight: 500;
+    color: rgba(245,245,247,0.48);
+    margin: 0 0 18px 0;
+}
+.verdict-canvas-page .apex-brief-rec {
+    font-size: 16px;
+    line-height: 1.5;
+    color: rgba(245,245,247,0.88);
+    margin: 0 0 8px 0;
+}
+.verdict-canvas-page .apex-brief-rec-k {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(245,245,247,0.42);
+    margin-bottom: 6px;
+}
+.verdict-canvas-page .apex-priority-lead {
+    font-size: 20px;
+    font-weight: 500;
+    margin: 0 0 8px 0;
+}
+.verdict-canvas-page .apex-priority-detail {
+    font-size: 15px;
+    line-height: 1.5;
+    color: rgba(245,245,247,0.62);
+    margin: 0;
+}
+.verdict-canvas-page .apex-market-head {
+    font-size: 20px;
+    font-weight: 500;
+    margin: 0 0 10px 0;
+}
+.verdict-canvas-page .apex-market-body {
+    font-size: 16px;
+    line-height: 1.6;
+    color: rgba(245,245,247,0.72);
+    margin: 0;
+}
+.verdict-canvas-page .apex-connect-title {
+    font-size: 20px;
+    font-weight: 500;
+    margin: 0 0 8px 0;
+}
+.verdict-canvas-page .apex-connect-body {
+    font-size: 15px;
+    line-height: 1.55;
+    color: rgba(245,245,247,0.62);
+    margin: 0 0 4px 0;
+}
+.verdict-canvas-page .apex-learning-title {
+    font-size: 18px;
+    font-weight: 500;
+    margin: 0 0 8px 0;
+}
+.verdict-canvas-page .apex-learning-body {
+    font-size: 15px;
+    line-height: 1.6;
+    color: rgba(245,245,247,0.72);
+    margin: 0 0 8px 0;
+}
+.verdict-canvas-page .apex-learning-meta {
+    font-size: 13px;
+    color: rgba(245,245,247,0.38);
+    margin: 0;
+}
+.verdict-canvas-page .apex-stale,
+.verdict-canvas-page .apex-failure {
+    font-size: 13px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    margin: 8px 0 0 0;
+}
+.verdict-canvas-page .apex-stale {
+    color: #FFC107;
+    background: rgba(255,193,7,0.08);
+}
+.verdict-canvas-page .apex-failure {
+    color: #FF8A80;
+    background: rgba(255,107,107,0.08);
+}
+.verdict-canvas-page .apex-foot {
+    font-size: 12px;
+    color: rgba(245,245,247,0.32);
+    text-align: center;
+    padding: 24px 8px 8px 8px;
+    margin: 0;
+}
+.verdict-canvas-page [data-testid="stExpander"] {
+    border: none !important;
+    background: transparent !important;
+}
+.verdict-canvas-page [data-testid="stPopover"] button {
+    min-height: 44px;
+}
+</style>
+"""
+
 VERDICT_CANVAS_CSS = """
 <style>
 /* Phase 1 — Verdict Canvas (Today) */
@@ -693,6 +876,34 @@ VERDICT_CANVAS_CSS = """
     padding: 6px 10px;
     margin: 0 0 8px 0;
     max-width: 358px;
+}
+.verdict-canvas-root .vc-session-ribbon {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0 0 10px 0;
+    max-width: 358px;
+}
+.verdict-canvas-root .vc-ribbon-chip {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.03em;
+    color: rgba(255,255,255,0.72);
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 999px;
+    padding: 4px 10px;
+}
+.verdict-canvas-root .vc-refreshing {
+    font-size: 12px;
+    font-weight: 500;
+    color: rgba(255,255,255,0.55);
+    margin: 0 0 8px 0;
+}
+.verdict-canvas-root .vc-prepare-note {
+    font-size: 13px;
+    color: rgba(255,255,255,0.5);
+    margin-top: 8px;
 }
 .verdict-canvas-root .vc-failure {
     font-size: 13px;

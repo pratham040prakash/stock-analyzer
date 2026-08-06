@@ -55,21 +55,21 @@ def render_partner_dock(*, active: str) -> None:
     with n1:
         wrap = '<div class="vc-nav-today">' if active == "today" else "<div>"
         st.markdown(wrap, unsafe_allow_html=True)
-        if st.button("Today", key="vc_nav_today", use_container_width=True):
+        if st.button("Brief", key="vc_nav_today", use_container_width=True):
             if dock_needs_reset("today", active=active):
                 set_partner_dock("today")
         st.markdown("</div>", unsafe_allow_html=True)
     with n2:
         wrap = '<div class="vc-nav-trades">' if active == "trades" else "<div>"
         st.markdown(wrap, unsafe_allow_html=True)
-        if st.button("Trades", key="vc_nav_trades", use_container_width=True):
+        if st.button("Investments", key="vc_nav_trades", use_container_width=True):
             if dock_needs_reset("trades", active=active):
                 set_partner_dock("trades")
         st.markdown("</div>", unsafe_allow_html=True)
     with n3:
         wrap = '<div class="vc-nav-you">' if active == "you" else "<div>"
         st.markdown(wrap, unsafe_allow_html=True)
-        if st.button("You", key="vc_nav_you", use_container_width=True):
+        if st.button("Profile", key="vc_nav_you", use_container_width=True):
             if dock_needs_reset("you", active=active):
                 set_partner_dock("you")
         st.markdown("</div>", unsafe_allow_html=True)
