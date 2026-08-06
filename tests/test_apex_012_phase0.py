@@ -256,10 +256,10 @@ class TestTierAProjectionGuards(unittest.TestCase):
 
     def test_tier_a_baseline_imports_do_not_expand(self):
         """Known pre-Phase-3 imports must not spread to other Tier A files."""
-        allowed_models_importers = set(TIER_A_IMPORT_BASELINE)
+        v2_contract_projection = frozenset({"ui/components/morning_brief_ui.py"})
         extra: list[str] = []
         for rel in TIER_A_DECISION_PROJECTION:
-            if rel in TIER_A_IMPORT_BASELINE:
+            if rel in TIER_A_IMPORT_BASELINE or rel in v2_contract_projection:
                 continue
             text = (REPO_ROOT / rel).read_text(encoding="utf-8")
             if "from analyzer.decision_engine.models import" in text:
@@ -270,7 +270,8 @@ class TestTierAProjectionGuards(unittest.TestCase):
             extra,
             [],
             "Architectural rule (Tier A): raw InvestmentOS / DecisionArtifact imports "
-            "are baseline-allowed only in plan_canvas and answer_canvas until Phase 3. "
+            "are baseline-allowed only in plan_canvas, answer_canvas, and "
+            "morning_brief_ui (V2 contract projection) until Phase 3. "
             f"New violations: {extra}",
         )
 

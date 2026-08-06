@@ -1,5 +1,18 @@
 # Product Changelog
 
+## v2.0.0 — General Availability (2026-08-06)
+
+**Tag:** `v2.0.0`  
+**Release notes:** [product/releases/v2.0.0.md](./releases/v2.0.0.md)
+
+### V2.1-T001 — Test Suite Excellence
+
+- Full test suite: **687 / 687 passing** — zero known failures
+- Obsolete Phase 1 static tests replaced with V2 wiring assertions
+- Tier-A guardrail allowlists `morning_brief_ui.py` (contract projection)
+- Engineering MCP tests aligned with platform tool registry
+- No product, analyzer, contract, or UI changes
+
 ## v2.0.0-rc1 — Release Candidate (2026-08-06)
 
 **Tag:** `v2.0.0-rc1`  

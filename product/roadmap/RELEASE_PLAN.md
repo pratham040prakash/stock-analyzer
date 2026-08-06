@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Version** | 2.0 |
-| **Status** | Approved — RC cut complete |
+| **Status** | **Shipped — GA** |
 | **Owner** | Product |
 | **Last Updated** | 2026-08-06 |
 
@@ -14,27 +14,31 @@
 | Version | Type | Tag | Status | Date |
 |---------|------|-----|--------|------|
 | APEX V1 | Major (APS) | — | ✅ Shipped | 2026-08 |
-| APEX V2 | Major (Experience) | `v2.0.0-rc1` | ✅ **Release Candidate** | 2026-08-06 |
-| APEX V2 GA | Major | `v2.0.0` | Planned | TBD |
+| APEX V2 RC | Major (Experience) | `v2.0.0-rc1` | ✅ Shipped | 2026-08-06 |
+| **APEX V2 GA** | Major | **`v2.0.0`** | ✅ **General Availability** | 2026-08-06 |
+| APEX V2.1+ | Minor | `v2.1.x` | Planned | TBD |
 
 ---
 
-## v2.0.0-rc1 Cut Line
+## v2.0.0 GA Cut Line
 
-**Includes:** APS-001–006, V2-001–004, RC-001
+**Includes:** APS-001–006, V2-001–004, RC-001, V2.1-T001
 
-**Regression gate:** 54 / 54 tests
+**Regression gate:** 54 / 54 tests  
+**Full suite:** 687 / 687 tests — **0 known failures**
 
-**Release notes:** [product/releases/v2.0.0-rc1.md](../releases/v2.0.0-rc1.md)
+**Release notes:** [product/releases/v2.0.0.md](../releases/v2.0.0.md)
 
-**Documentation freeze:** [docs/apex/APEX-014_V2_Architecture_and_Release.md](../../docs/apex/APEX-014_V2_Architecture_and_Release.md) — APPROVED — FROZEN
+**Documentation freeze:** [docs/apex/APEX-014_V2_Architecture_and_Release.md](../../docs/apex/APEX-014_V2_Architecture_and_Release.md) — FROZEN (v2.0.0 GA)
+
+**Review archive:** [docs/apex/archive/v2.0.0-ga/ENGINEERING_REVIEW_SUMMARY.md](../../docs/apex/archive/v2.0.0-ga/ENGINEERING_REVIEW_SUMMARY.md)
 
 ---
 
-## GA Exit Criteria (V2 → v2.0.0)
+## GA Exit Criteria — Closed
 
-- [ ] Manual QA sign-off on Today + Review journeys
-- [ ] Obsolete static tests updated or retired
-- [ ] Optional full-suite infra deps documented in CI
-- [ ] Session ribbon product decision (wire or remove)
-- [ ] Review Depth drift guard maintained (single compositor)
+- [x] Obsolete static tests updated or retired (V2.1-T001)
+- [x] Review Depth drift guard maintained (RC-001)
+- [x] Full suite clean (687 / 687)
+- [ ] Manual QA sign-off — operational backlog
+- [ ] Session ribbon product decision — backlog

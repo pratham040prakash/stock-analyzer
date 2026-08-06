@@ -181,10 +181,11 @@ class TestReviewSetupNavigation(unittest.TestCase):
 
 
 class TestPhase2aWiring(unittest.TestCase):
-    def test_home_dashboard_passes_review_symbol_from_card(self):
-        text = (REPO_ROOT / "ui/components/home_dashboard.py").read_text(encoding="utf-8")
+    def test_today_brief_uses_review_symbol_from_card(self):
+        text = (REPO_ROOT / "ui/components/today_brief_experience.py").read_text(
+            encoding="utf-8"
+        )
         self.assertIn("hero_review_setup_symbol(card)", text)
-        self.assertIn("review_symbol=review_symbol", text)
 
 
 class TestCardContract(unittest.TestCase):

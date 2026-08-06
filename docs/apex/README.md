@@ -55,7 +55,7 @@ Numbers **002–998** are allocated by CTO on creation. Gaps are intentional for
 | APEX-008 | Data Provider Strategy | CTO | Planned |
 | **APEX-012** | Single Truth Migration | CTO | **Phase 0 — guardrails** |
 | **APEX-013** | Decision Snapshot (Intelligence Lab) | CTO | **E0.6 IMPLEMENTED** — [Context Determinism](./APEX-013_E0_6_Context_Determinism.md) |
-| **APEX-014** | V2 Architecture & Release Record | CTO | **APPROVED — FROZEN** — [V2 Architecture and Release](./APEX-014_V2_Architecture_and_Release.md) (v2.0.0-rc1) |
+| **APEX-014** | V2 Architecture & Release Record | CTO | **APPROVED — FROZEN (v2.0.0 GA)** — [V2 Architecture and Release](./APEX-014_V2_Architecture_and_Release.md) |
 | APEX-999 | Engineering Handbook | CTO | DRAFT |
 
 ### ADR / RFC / ETS Catalog

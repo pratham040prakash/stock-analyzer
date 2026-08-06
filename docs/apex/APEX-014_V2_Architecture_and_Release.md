@@ -2,9 +2,9 @@
 
 **Document ID:** APEX-014  
 **Version:** 1.0  
-**Status:** APPROVED — FROZEN (v2.0.0-rc1)  
+**Status:** APPROVED — FROZEN (v2.0.0 GA)  
 **Date:** 2026-08-06  
-**Baseline commit:** `v2.0.0-rc1` (RC-001)  
+**Baseline commit:** `v2.0.0` (GA)  
 **References:** [APEX-000](./APEX-000_Company_Constitution.md), [APEX-004](./APEX-004_Experience_Operating_System.md), [APEX-005](./APEX-005_System_Architecture_Blueprint.md), [product/CHANGELOG.md](../../product/CHANGELOG.md)
 
 ---

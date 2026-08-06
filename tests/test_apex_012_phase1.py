@@ -167,13 +167,12 @@ class TestHeroOpportunityFromBrief(unittest.TestCase):
 
 
 class TestPhase1Wiring(unittest.TestCase):
-    """Invariant: home_dashboard delegates hero Opportunity to decision_card projector."""
+    """Invariant: home_dashboard delegates Today surface to V2 brief experience."""
 
-    def test_home_dashboard_composes_hero_intel_from_brief(self):
+    def test_home_dashboard_delegates_to_today_brief_experience(self):
         text = (REPO_ROOT / "ui/components/home_dashboard.py").read_text(encoding="utf-8")
-        self.assertIn("compose_hero_intel_html", text)
-        self.assertIn('if s != "opportunity"', text)
-        self.assertNotIn("intel_stack_html(center, state, sections=hero_sections)", text)
+        self.assertIn("render_today_brief_experience", text)
+        self.assertNotIn("compose_hero_intel_html", text)
 
 
 if __name__ == "__main__":
