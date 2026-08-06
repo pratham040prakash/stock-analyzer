@@ -10,6 +10,7 @@ NAV_TABS = [
     "Home",
     "Suggestions",
     "Track Record",
+    "Journal",
     "Risk & Goals",
     "SIP & Goals",
     "Market Pulse",
@@ -34,6 +35,7 @@ NAV_GROUPS: dict[str, list[str]] = {
         "Home",
         "Suggestions",
         "Track Record",
+        "Journal",
     ],
     "📈 More trading": [
         "Market Pulse",
@@ -69,6 +71,7 @@ SIMPLE_NAV_GROUPS: dict[str, list[str]] = {
         "Home",
         "Suggestions",
         "Track Record",
+        "Journal",
     ],
     "🔍 Research": [
         "Alpha AI",
@@ -1440,6 +1443,90 @@ APEX_BRIEF_EXPERIENCE_CSS = """
 }
 .verdict-canvas-page .apex-research-footer {
     margin-top: 8px;
+}
+.verdict-canvas-page .apex-research-journal {
+    padding-top: 8px;
+}
+.verdict-canvas-page .apex-journal-subnav {
+    margin-bottom: 12px;
+}
+.verdict-canvas-page .apex-journal-title {
+    font-size: 18px;
+    margin: 0 0 8px 0;
+}
+.verdict-canvas-page .apex-journal-entry-card,
+.verdict-canvas-page .apex-journal-draft-card,
+.verdict-canvas-page .apex-journal-confirm,
+.verdict-canvas-page .apex-journal-detail {
+    border: 1px solid rgba(245,245,247,0.08);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+}
+.verdict-canvas-page .apex-journal-entry-type {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(10,132,255,0.85);
+}
+.verdict-canvas-page .apex-journal-entry-headline {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 6px 0;
+}
+.verdict-canvas-page .apex-journal-entry-preview,
+.verdict-canvas-page .apex-journal-narrative {
+    font-size: 14px;
+    line-height: 1.5;
+    color: rgba(245,245,247,0.82);
+    margin: 0 0 8px 0;
+}
+.verdict-canvas-page .apex-journal-entry-meta,
+.verdict-canvas-page .apex-journal-context-line,
+.verdict-canvas-page .apex-journal-completion,
+.verdict-canvas-page .apex-journal-outcome-note {
+    font-size: 13px;
+    color: rgba(245,245,247,0.55);
+    margin: 0 0 8px 0;
+}
+.verdict-canvas-page .apex-journal-block-label {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: rgba(245,245,247,0.45);
+    margin: 12px 0 6px 0;
+}
+.verdict-canvas-page .apex-journal-frozen-line {
+    font-size: 14px;
+    color: rgba(245,245,247,0.72);
+    margin: 0 0 6px 0;
+}
+.verdict-canvas-page .apex-journal-immutability-note {
+    font-size: 13px;
+    color: rgba(255,214,10,0.85);
+    margin: 0 0 12px 0;
+}
+.verdict-canvas-page .apex-journal-group-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: rgba(245,245,247,0.45);
+    margin: 12px 0 6px 0;
+}
+.verdict-canvas-page .apex-journal-empty {
+    font-size: 14px;
+    color: rgba(245,245,247,0.62);
+}
+.verdict-canvas-page .apex-journal-recorded-badge {
+    font-size: 14px;
+    color: rgba(48,209,88,0.85);
+    margin: 0 0 12px 0;
+}
+.verdict-canvas-page .apex-journal-evolution-row {
+    font-size: 13px;
+    margin: 0 0 8px 0;
+    color: rgba(245,245,247,0.72);
 }
 </style>
 """

@@ -250,8 +250,12 @@ Footer pattern (V2): *"Zerodha Console is source of truth for P&L."*
 | SCR-P-002 | Holdings List | V3-102 ✅ |
 | SCR-P-003 | Portfolio Review | V3-103 ✅ |
 | SCR-P-004 | Portfolio Doctor | V3-3 |
-| SCR-J-001 | Weekly Review | V3-2 |
-| SCR-J-002 | Decision Receipt Detail | V3-2 |
+| SCR-J-001 | Journal Timeline | V3-202 ✅ |
+| SCR-J-002 | Journal Entry Detail | V3-202 ✅ |
+| SCR-J-003 | Journal Confirm Draft | V3-202 ✅ |
+| SCR-J-004 | Outcome Review (future) | V3-203+ |
+| SCR-J-005 | Weekly Review | V3-204 |
+| SCR-J-006 | Decision Receipt Detail | V3-203 |
 | SCR-R-001 | Symbol Workbench | V3-201 ✅ |
 | SCR-Y-001 | Investor DNA | V3-5 |
 

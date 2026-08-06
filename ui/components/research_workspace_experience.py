@@ -285,7 +285,16 @@ def render_investment_decision_panel(*, contract: ResearchWorkspaceContract) -> 
     c1, c2 = st.columns(2)
     with c1:
         if st.button("Save to Journal draft", key="research_save_journal", use_container_width=True):
-            st.toast("Investment decision saved for this session — Journal persistence coming in V3-202.")
+            from ui.components.research_journal_experience import (
+                create_journal_draft_from_research,
+                navigate_to_journal_confirm,
+            )
+
+            if not str(st.session_state.get(text_key, "") or "").strip():
+                st.warning("Write your investment decision before saving to Journal.")
+            else:
+                draft_id = create_journal_draft_from_research(contract=contract)
+                navigate_to_journal_confirm(draft_id)
     with c2:
         with st.popover("Help me understand ▾"):
             render_understand_popover(contract.understand, wrap_popover=False)

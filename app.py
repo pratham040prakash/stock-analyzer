@@ -40,6 +40,7 @@ from ui.pages.penny_picks import render_penny_picks
 from ui.pages.screener import render_screener
 from ui.pages.single_stock import render_single_stock
 from ui.pages.sip_goals import render_sip_goals
+from ui.pages.research_journal import render_research_journal
 from ui.pages.track_record import render_track_record
 from ui.pages.unified_home import render_unified_home
 from ui.pages.varsity import render_varsity_guide
@@ -377,6 +378,8 @@ def main() -> None:
         render_backtest(market, period)
     elif selected == "Track Record":
         render_track_record()
+    elif selected == "Journal":
+        render_research_journal()
     elif selected == "Varsity TA":
         render_varsity_guide()
     else:

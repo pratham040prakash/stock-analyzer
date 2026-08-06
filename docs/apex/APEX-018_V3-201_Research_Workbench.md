@@ -100,7 +100,7 @@ Streamlit render (Single Stock tab → Workbench)
 - No analyzer or decision-engine changes
 - No new evidence model for Proof overlay
 - Investment Decision does not mutate Home or portfolio health
-- Journal receipt persistence deferred to V3-202+
+- Journal receipt persistence → **V3-202** (session-only; disk deferred)
 - Legacy Single Stock analyze flow removed from primary path
 
 ---

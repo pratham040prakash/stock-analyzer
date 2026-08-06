@@ -1,5 +1,21 @@
 # Product Changelog
 
+## v3.0 — V3-202 Research Journal Integration (2026-08-06)
+
+**Milestone:** V3-202  
+**Architecture:** [docs/apex/APEX-019_V3-202_Research_Journal_Integration.md](../docs/apex/APEX-019_V3-202_Research_Journal_Integration.md)
+
+### Research Journal Integration (V3-202)
+
+- Journal tab — Timeline (SCR-J-001), Drafts inbox, Confirm Draft (SCR-J-003), Entry Detail (SCR-J-002)
+- Research Workbench Q7 → draft → confirm → immutable `ResearchDecisionEntryContract`
+- Projection only: `research_journal_draft_from_workspace()` from `ResearchWorkspaceContract` + frozen bundle refs
+- Session-only storage; confirmed entries read-only; evolution chain for same symbol
+- Proof overlay reuses `DecisionArtifact` evidence packet; shared Understand framework
+- Outcome Review (SCR-J-004) reserved — disabled placeholder only
+- Regression gate: **69 / 69 passing**
+- V2 frozen pipeline unchanged
+
 ## v3.0 — V3-201 Research Workbench (2026-08-06)
 
 **Milestone:** V3-201  
