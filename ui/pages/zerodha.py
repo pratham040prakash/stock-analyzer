@@ -41,10 +41,19 @@ from analyzer.zerodha import (
     parse_holdings_csv,
     parse_kite_symbol_list,
 )
+from analyzer.intraday_prefs import load_intraday_prefs
 from ui.components.broker_connect import render_portfolio_broker_gate
-from ui.components.portfolio_broker_header import render_portfolio_broker_header
 from ui.components.empty_states import empty_portfolio
+from ui.components.partner_data import read_broker_snapshot
+from ui.components.portfolio_command_center import (
+    PORTFOLIO_HOLDINGS,
+    PORTFOLIO_OVERVIEW,
+    get_portfolio_subtab,
+    render_portfolio_overview_surface,
+    render_portfolio_subnav,
+)
 from ui.navigation import request_nav_tab
+from ui.theme import APEX_PARTNER_EXPERIENCE_CSS, PARTNER_PAGE_ACTIVATE_JS
 
 
 def _persist_import(import_result: ZerodhaImportResult) -> None:
@@ -149,26 +158,61 @@ def _render_kite_watchlist_panel(profile: str) -> None:
             st.rerun()
 
 
-def render_zerodha(period: str) -> None:
-    st.subheader("My Portfolio")
-    st.caption(
-        "Track holdings with **qty & avg price** — works without Zerodha. "
-        "Saved portfolio powers **Daily Advisor**, **Suggestions** intraday strip, and morning briefing. "
-        "**Connect Zerodha** for live sync + real-time LTP."
-    )
-
-    if msg := st.session_state.pop("_portfolio_auto_sync_msg", None):
-        st.success(msg)
-
-    prof = portfolio_profile_key()
-    saved = load_saved_portfolio(profile=prof)
-    if saved and not st.session_state.get("zd_import"):
-        st.session_state["zd_import"] = saved
-
-    snapshot = st.session_state.get("broker_snapshot")
-    render_portfolio_broker_header(snapshot)
-    if render_portfolio_broker_gate(snapshot):
+def _maybe_sync_portfolio_from_kite() -> None:
+    if not st.session_state.pop("_portfolio_sync_requested", False):
         return
+    creds = load_env_credentials()
+    if not creds.get("access_token"):
+        return
+    with st.spinner("Synchronizing portfolio…"):
+        synced, err = sync_holdings_from_kite()
+        if err:
+            st.warning("Unable to sync holdings right now. Try again shortly.")
+        elif synced:
+            _persist_import(synced)
+            from ui.broker.bootstrap import reset_broker_bootstrap
+
+            reset_broker_bootstrap()
+            st.success(f"Synced {len(synced.holdings)} holdings with live prices")
+            st.rerun()
+
+
+def _render_portfolio_overview_tab(*, period: str, prof: str) -> None:
+    st.markdown(APEX_PARTNER_EXPERIENCE_CSS, unsafe_allow_html=True)
+    st.markdown(PARTNER_PAGE_ACTIVATE_JS, unsafe_allow_html=True)
+    _maybe_sync_portfolio_from_kite()
+
+    broker = read_broker_snapshot()
+    import_result = st.session_state.get("zd_import")
+    prefs = load_intraday_prefs()
+    portfolio_section = None
+    try:
+        from analyzer.use_cases.decision_context_bundle import DecisionContextBundle
+        from ui.components.partner_data import load_today_core
+
+        bundle = load_today_core("india", period)
+        portfolio_section = DecisionContextBundle.from_cache_dict(bundle).assemble_view_model(
+            record_snapshot=False
+        ).portfolio
+    except Exception:
+        portfolio_section = None
+
+    render_portfolio_overview_surface(
+        broker=broker,
+        portfolio=import_result,
+        prefs=prefs,
+        portfolio_section=portfolio_section,
+    )
+    st.markdown(PARTNER_PAGE_ACTIVATE_JS, unsafe_allow_html=True)
+
+
+def _render_portfolio_holdings_tab(*, period: str, prof: str) -> None:
+    snapshot = st.session_state.get("broker_snapshot")
+    if render_portfolio_broker_gate(snapshot):
+        st.caption(
+            "You can still manage a saved portfolio below once connected, "
+            "or sign in to sync from Zerodha."
+        )
 
     mode = st.radio(
         "How to add holdings",
@@ -447,3 +491,21 @@ def render_zerodha(period: str) -> None:
     st.subheader("Portfolio Suggestions")
     st.markdown(generate_portfolio_advice(rows))
     st.caption("For **today's action** on each holding, open the **Daily Advisor** tab.")
+
+
+def render_zerodha(period: str) -> None:
+    if msg := st.session_state.pop("_portfolio_auto_sync_msg", None):
+        st.success(msg)
+
+    prof = portfolio_profile_key()
+    saved = load_saved_portfolio(profile=prof)
+    if saved and not st.session_state.get("zd_import"):
+        st.session_state["zd_import"] = saved
+
+    st.subheader("Portfolio")
+    active = get_portfolio_subtab()
+    render_portfolio_subnav(active=active)
+    if active == PORTFOLIO_HOLDINGS:
+        _render_portfolio_holdings_tab(period=period, prof=prof)
+    else:
+        _render_portfolio_overview_tab(period=period, prof=prof)

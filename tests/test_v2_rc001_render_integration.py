@@ -137,6 +137,7 @@ class ReviewDepthSingleSourceTest(unittest.TestCase):
     def test_today_brief_wires_decision_depth_panel(self):
         text = (REPO_ROOT / "ui/components/today_brief_experience.py").read_text(encoding="utf-8")
         self.assertIn("render_decision_depth_panel", text)
+        self.assertIn("render_understand_popover", text)
         self.assertNotIn("build_recommendation_explanation_view", text)
         self.assertNotIn("render_recommendation_explanation(", text)
         self.assertNotIn("build_investment_thesis_view", text)
@@ -149,20 +150,16 @@ class ReviewDepthSingleSourceTest(unittest.TestCase):
 
 class UnderstandPopoverIntegrationTest(unittest.TestCase):
     @patch("ui.components.today_brief_experience.render_decision_depth_panel")
-    @patch("ui.components.today_brief_experience._render_contract_popover")
-    @patch("ui.components.today_brief_experience.st")
+    @patch("ui.components.today_brief_experience.render_understand_popover")
     def test_understand_popover_reuses_review_depth_compositor(
         self,
-        mock_st,
-        mock_contract_popover,
+        mock_understand,
         mock_depth_panel,
     ):
         brief = _build_brief(with_decision=True)
         decision = _decision_artifact()
         contract = recommendation_contract_from_brief(brief, decision=decision)
         mis = MisTradeAdvisory(verdict="NO_TRADE", emoji="", headline="", summary="", score=40)
-        mock_st.popover.return_value.__enter__ = MagicMock(return_value=None)
-        mock_st.popover.return_value.__exit__ = MagicMock(return_value=False)
 
         _render_understand_popover(
             contract=contract,
@@ -172,7 +169,10 @@ class UnderstandPopoverIntegrationTest(unittest.TestCase):
             mis=mis,
         )
 
-        mock_contract_popover.assert_called_once()
+        mock_understand.assert_called_once()
+        extra_body = mock_understand.call_args.kwargs["extra_body"]
+        self.assertIsNotNone(extra_body)
+        extra_body()
         mock_depth_panel.assert_called_once_with(
             brief=brief,
             contract=contract,

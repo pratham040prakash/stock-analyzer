@@ -1019,6 +1019,150 @@ APEX_BRIEF_EXPERIENCE_CSS = """
     padding: 24px 8px 8px 8px;
     margin: 0;
 }
+.verdict-canvas-page .apex-portfolio-command-center {
+    padding-top: 8px;
+}
+.verdict-canvas-page .apex-portfolio-hero {
+    padding-top: 4px;
+}
+.verdict-canvas-page .apex-portfolio-badge {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 6px 10px;
+    border-radius: 999px;
+    margin: 0 0 14px 0;
+}
+.verdict-canvas-page .apex-portfolio-badge[data-badge="healthy"] {
+    color: #34C759;
+    background: rgba(52,199,89,0.12);
+}
+.verdict-canvas-page .apex-portfolio-badge[data-badge="attention"] {
+    color: #FFC107;
+    background: rgba(255,193,7,0.12);
+}
+.verdict-canvas-page .apex-portfolio-badge[data-badge="connect"] {
+    color: rgba(245,245,247,0.72);
+    background: rgba(245,245,247,0.08);
+}
+.verdict-canvas-page .apex-portfolio-headline {
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.25;
+    margin: 0 0 10px 0;
+    color: #F5F5F7;
+}
+.verdict-canvas-page .apex-portfolio-support,
+.verdict-canvas-page .apex-portfolio-stale {
+    font-size: 16px;
+    line-height: 1.5;
+    color: rgba(245,245,247,0.72);
+    margin: 0 0 8px 0;
+}
+.verdict-canvas-page .apex-portfolio-stale {
+    color: #FFC107;
+}
+.verdict-canvas-page .apex-portfolio-below-fold {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 720px;
+}
+.verdict-canvas-page .apex-portfolio-card {
+    border: 1px solid rgba(245,245,247,0.08);
+    border-radius: 14px;
+    padding: 16px 14px;
+    margin-bottom: 12px;
+    background: rgba(245,245,247,0.03);
+}
+.verdict-canvas-page .apex-portfolio-empty {
+    font-size: 15px;
+    color: rgba(245,245,247,0.62);
+    margin: 0;
+}
+.verdict-canvas-page .apex-portfolio-alloc-bar {
+    display: flex;
+    width: 100%;
+    height: 10px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: rgba(245,245,247,0.08);
+    margin: 10px 0 8px 0;
+}
+.verdict-canvas-page .apex-portfolio-alloc-core {
+    display: block;
+    height: 100%;
+    background: rgba(52,199,89,0.75);
+}
+.verdict-canvas-page .apex-portfolio-alloc-tactical {
+    display: block;
+    height: 100%;
+    background: rgba(10,132,255,0.75);
+}
+.verdict-canvas-page .apex-portfolio-alloc-cash {
+    display: block;
+    height: 100%;
+    background: rgba(245,245,247,0.28);
+}
+.verdict-canvas-page .apex-portfolio-alloc-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+    font-size: 13px;
+    color: rgba(245,245,247,0.72);
+}
+.verdict-canvas-page .apex-portfolio-policy {
+    font-size: 13px;
+    color: rgba(245,245,247,0.52);
+    margin: 10px 0 0 0;
+}
+.verdict-canvas-page .apex-portfolio-standout-line {
+    font-size: 15px;
+    line-height: 1.55;
+    color: rgba(245,245,247,0.78);
+    margin: 0;
+}
+.verdict-canvas-page .apex-portfolio-attention-row {
+    display: grid;
+    grid-template-columns: 24px 72px 96px 1fr;
+    gap: 8px;
+    align-items: start;
+    font-size: 14px;
+    margin-bottom: 10px;
+    color: rgba(245,245,247,0.78);
+}
+.verdict-canvas-page .apex-portfolio-preview-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    font-size: 14px;
+    margin-bottom: 8px;
+    color: rgba(245,245,247,0.78);
+}
+.verdict-canvas-page .apex-portfolio-preview-symbol {
+    min-width: 88px;
+    font-weight: 600;
+}
+.verdict-canvas-page .apex-portfolio-preview-weight {
+    min-width: 44px;
+}
+.verdict-canvas-page .apex-portfolio-preview-health[data-health="healthy"] {
+    color: #34C759;
+}
+.verdict-canvas-page .apex-portfolio-preview-health[data-health="review"] {
+    color: #FFC107;
+}
+.verdict-canvas-page .apex-status-muted {
+    color: rgba(245,245,247,0.52);
+}
+.verdict-canvas-page .apex-portfolio-subnav {
+    margin-bottom: 8px;
+}
+.verdict-canvas-page .apex-portfolio-focus {
+    outline: 2px solid rgba(10,132,255,0.45);
+    outline-offset: 4px;
+}
 </style>
 """
 

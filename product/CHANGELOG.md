@@ -1,5 +1,19 @@
 # Product Changelog
 
+## v3.0 — V3-101 Portfolio Command Center (2026-08-06)
+
+**Milestone:** V3-101  
+**Architecture:** [docs/apex/APEX-015_V3-101_Portfolio_Command_Center.md](../docs/apex/APEX-015_V3-101_Portfolio_Command_Center.md)
+
+### Portfolio Command Center (V3-101)
+
+- Portfolio › Overview — Health Hero, Action Row, Status Strip, below-fold cards
+- Use-case assembly: `assemble_portfolio_overview()` — health evaluation upstream
+- Presentation projection only: `portfolio_overview_from_view_model()`
+- Shared Understand framework: `understand_popover.py` (Home + Portfolio)
+- Regression gate: **16 / 16 passing**
+- V2 frozen pipeline unchanged
+
 ## v2.0.0 — General Availability (2026-08-06)
 
 **Tag:** `v2.0.0`  

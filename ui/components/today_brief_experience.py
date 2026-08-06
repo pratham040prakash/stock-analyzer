@@ -17,6 +17,10 @@ from ui.broker.state import BrokerSnapshot
 from ui.components.canvas_utils import VerdictCanvasState, _esc
 from ui.components.decision_card import DecisionCardViewModel, hero_review_setup_symbol
 from ui.components.decision_depth_panel import render_decision_depth_panel
+from ui.components.understand_popover import (
+    render_understand_popover,
+    understand_contract_from_recommendation,
+)
 from ui.components.morning_brief_ui import (
     RecommendationContract,
     answer_key_from_brief,
@@ -221,47 +225,12 @@ def _render_contract_popover(
     depth_expanded: bool = True,
 ) -> None:
     """Contract popover body — shared with Investments hero (APS-002) and Brief gateway."""
-
-    def _body() -> None:
-        if confidence_pct is not None:
-            st.caption(f"Confidence · {confidence_pct}%")
-        for title, lines in (
-            ("Why", contract.why),
-            ("Evidence", contract.evidence),
-            ("Trade-offs", contract.trade_offs),
-            ("Risks", contract.risks),
-            ("What could change", contract.what_could_change),
-            ("Suggested next step", contract.suggested_next_step),
-        ):
-            if not lines:
-                continue
-            st.markdown(f"**{title}**")
-            for line in lines:
-                st.markdown(f"- {line}")
-        with st.expander("Explanation depth", expanded=depth_expanded):
-            radio_kwargs: dict[str, Any] = {
-                "label": "Level",
-                "options": ("Simple", "Business", "Professional"),
-                "horizontal": True,
-                "label_visibility": "collapsed",
-            }
-            if depth_expander_key:
-                radio_kwargs["key"] = depth_expander_key
-            level = st.radio(**radio_kwargs)
-            if level == "Simple":
-                lines = contract.help_simple
-            elif level == "Business":
-                lines = contract.help_business
-            else:
-                lines = contract.help_professional
-            for line in lines:
-                st.markdown(f"- {line}")
-
-    if wrap_popover:
-        with st.popover("Help me understand"):
-            _body()
-    else:
-        _body()
+    render_understand_popover(
+        understand_contract_from_recommendation(contract, confidence_pct=confidence_pct),
+        wrap_popover=wrap_popover,
+        depth_expander_key=depth_expander_key,
+        depth_expanded=depth_expanded,
+    )
 
 
 def _render_understand_popover(
@@ -272,15 +241,9 @@ def _render_understand_popover(
     decision: DecisionArtifact | None,
     mis: MisTradeAdvisory,
 ) -> None:
-    """Home Command Center gateway — contract popover plus APS-003 through APS-006 depth."""
-    with st.popover("Help me understand"):
-        _render_contract_popover(
-            contract=contract,
-            confidence_pct=confidence_pct,
-            wrap_popover=False,
-            depth_expander_key="apex_cmd_understand_depth",
-            depth_expanded=False,
-        )
+    """Home Command Center gateway — shared Understand UX plus APS-003 through APS-006 depth."""
+
+    def _depth() -> None:
         render_decision_depth_panel(
             brief=brief,
             contract=contract,
@@ -289,6 +252,14 @@ def _render_understand_popover(
             key_prefix="apex_cmd_understand",
             include_section_header=False,
         )
+
+    render_understand_popover(
+        understand_contract_from_recommendation(contract, confidence_pct=confidence_pct),
+        wrap_popover=True,
+        depth_expander_key="apex_cmd_understand_depth",
+        depth_expanded=False,
+        extra_body=_depth,
+    )
 
 
 def _render_verdict_hero(
