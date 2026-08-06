@@ -15,11 +15,6 @@ from analyzer.investment_os import InvestmentOS
 from analyzer.mis_trade_advisory import MisTradeAdvisory
 from analyzer.use_cases.decision_context_bundle import DecisionContextBundle
 from analyzer.watchlist_pins import PinnedPlan
-from ui.broker.state import BrokerSnapshot
-from ui.components.business_health import (
-    build_business_health_view,
-    render_business_health,
-)
 from ui.components.canvas_utils import (
     VerdictCanvasState,
     _esc,
@@ -27,25 +22,14 @@ from ui.components.canvas_utils import (
     _trim_words,
 )
 from ui.components.decision_card import project_decision_card
+from ui.components.decision_depth_panel import render_decision_depth_panel
 from ui.components.investment_hero_experience import render_investment_hero_experience
-from ui.components.investment_thesis import (
-    build_investment_thesis_view,
-    render_investment_thesis,
-)
 from ui.components.morning_brief_ui import (
     recommendation_contract_from_brief,
     verdict_state_from_brief,
 )
 from ui.components.partner_shell import set_partner_dock
 from ui.components.proof_runtime import proof_canvas_active
-from ui.components.recommendation_explanation import (
-    build_recommendation_explanation_view,
-    render_recommendation_explanation,
-)
-from ui.components.risk_monitor import (
-    build_risk_monitor_view,
-    render_risk_monitor,
-)
 from ui.theme import APEX_INVESTMENT_HERO_CSS
 
 _MENTOR_OPEN_MAX_WORDS = 22
@@ -227,36 +211,13 @@ def _render_plan_execution_details(
         snapshot=snapshot,
         pins=pins,
     )
-    explanation = build_recommendation_explanation_view(
-        brief=brief,
-        contract=contract,
-        decision=decision,
-    )
-    render_recommendation_explanation(explanation, key_prefix="apex_plan_rex", title="Plan explanation")
-
-    thesis = build_investment_thesis_view(
+    render_decision_depth_panel(
         brief=brief,
         contract=contract,
         decision=decision,
         mis=mis,
+        key_prefix="apex_plan_depth",
     )
-    render_investment_thesis(thesis, key_prefix="apex_plan_thesis")
-
-    health = build_business_health_view(
-        brief=brief,
-        contract=contract,
-        decision=decision,
-        mis=mis,
-    )
-    render_business_health(health, key_prefix="apex_plan_health")
-
-    risk = build_risk_monitor_view(
-        brief=brief,
-        contract=contract,
-        decision=decision,
-        mis=mis,
-    )
-    render_risk_monitor(risk, key_prefix="apex_plan_risk")
 
     st.markdown('<div class="vc-primary">', unsafe_allow_html=True)
     st.link_button("Open in Kite", plan.kite_url, type="primary", use_container_width=True)

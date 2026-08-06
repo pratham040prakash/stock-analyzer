@@ -624,6 +624,113 @@ APEX_BRIEF_EXPERIENCE_CSS = """
     color: rgba(245,245,247,0.38);
     margin: 0;
 }
+.verdict-canvas-page .apex-command-center {
+    padding-top: 8px;
+}
+.verdict-canvas-page .apex-command-hero {
+    padding: 12px 4px 20px 4px;
+}
+.verdict-canvas-page .apex-command-greeting {
+    font-size: 13px;
+    color: rgba(245,245,247,0.42);
+    margin: 0 0 12px 0;
+}
+.verdict-canvas-page .apex-command-name {
+    font-size: 36px;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    line-height: 1.08;
+    margin: 0 0 14px 0;
+    color: #F5F5F7;
+}
+.verdict-canvas-page .apex-command-badge {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    border-radius: 999px;
+    padding: 6px 12px;
+    margin: 0 0 16px 0;
+    background: rgba(255,255,255,0.06);
+    color: rgba(245,245,247,0.88);
+}
+.verdict-canvas-page .apex-command-badge[data-badge="buy"] {
+    color: #30D158;
+    background: rgba(48,209,88,0.16);
+}
+.verdict-canvas-page .apex-command-badge[data-badge="wait"] {
+    color: #0A84FF;
+    background: rgba(10,132,255,0.16);
+}
+.verdict-canvas-page .apex-command-badge[data-badge="pass"] {
+    color: #A1A1A6;
+    background: rgba(255,255,255,0.06);
+}
+.verdict-canvas-page .apex-command-badge[data-badge="reduce"] {
+    color: #FF9F0A;
+    background: rgba(255,159,10,0.16);
+}
+.verdict-canvas-page .apex-command-badge[data-badge="sell"] {
+    color: #FF453A;
+    background: rgba(255,69,58,0.16);
+}
+.verdict-canvas-page .apex-command-why {
+    font-size: 18px;
+    line-height: 1.5;
+    color: rgba(245,245,247,0.86);
+    margin: 0 0 10px 0;
+}
+.verdict-canvas-page .apex-command-confidence {
+    font-size: 14px;
+    font-weight: 500;
+    color: rgba(245,245,247,0.52);
+    margin: 0 0 8px 0;
+}
+.verdict-canvas-page .apex-command-freshness {
+    font-size: 13px;
+    color: rgba(245,245,247,0.38);
+    margin: 0;
+}
+.verdict-canvas-page .apex-action-row {
+    padding: 0 0 16px 0;
+}
+.verdict-canvas-page .apex-status-strip {
+    padding: 8px 4px 20px 4px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.verdict-canvas-page .apex-status-strip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 14px;
+}
+.verdict-canvas-page .apex-status-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 72px;
+    flex: 1 1 auto;
+}
+.verdict-canvas-page .apex-status-k {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(245,245,247,0.38);
+}
+.verdict-canvas-page .apex-status-v {
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.3;
+    color: rgba(245,245,247,0.82);
+}
+.verdict-canvas-page .apex-command-context {
+    padding-top: 20px;
+}
+.verdict-canvas-page .apex-review-depth {
+    padding: 20px 4px 8px 4px;
+}
 .verdict-canvas-page .apex-exec-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
