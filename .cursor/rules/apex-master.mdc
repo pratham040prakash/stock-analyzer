@@ -1,0 +1,33 @@
+---
+description: APEX Master Engineering — decision platform principles, architecture, and definition of done
+alwaysApply: true
+---
+
+# APEX Master Engineering (v1.0)
+
+Read `.cursor/MASTER_PROMPT.md` for full standards. Context: `PROJECT_CONTEXT.md` · `TECH_STACK.md` · `CODING_STANDARDS.md` · `GIT_WORKFLOW.md` · `DECISION_LOG.md`.
+
+## Mission
+
+Investment **Decision Platform** — better decisions through trust and explainability. Never optimize for screen time, trading frequency, or engagement hacks.
+
+## Product
+
+- One primary question per screen.
+- Recommendation order is fixed: Current View → Why → Evidence → Trade-offs → Risks → What Could Change → Suggested Next Step → Help Me Understand.
+- Answer before analysis. Explain every recommendation. No pressure to act.
+
+## Engineering
+
+- **Single source of truth** — no duplicate loaders, broker recompute, or parallel verdict paths.
+- Business logic in **services/use cases** (`analyzer/`), not UI (`ui/components/`).
+- **Architecture changes require approval.** Prefer minimal diffs; match existing conventions.
+- **Tests required** for behaviour changes; run `python -m unittest discover -s tests -p "test_*.py"`.
+- Production deps: **`requirements-lock.txt`** only authority; `requirements.txt` delegates via `-r`.
+- Context determinism (E0.6): **`DecisionContextBundle`** — freeze context; no live broker override on rehydration.
+
+## Before returning work
+
+Summary · Architecture decisions · Files changed · Tests · Risks · Self-review (would I merge this? trust improved?).
+
+If spec is ambiguous: state assumptions, recommend, **wait for approval** before large changes.
