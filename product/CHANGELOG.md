@@ -1,5 +1,25 @@
 # Product Changelog
 
+## APEX V2 Complete
+
+- Home Command Center
+- Review Workspace
+- Visual Polish
+- Performance Improvements
+- Accessibility Improvements
+- Shared Theme System
+- CSS Consolidation
+
+### Performance & Accessibility (V2-004)
+
+- Pre-built `APEX_PARTNER_EXPERIENCE_CSS` bundle replaces runtime CSS concatenation
+- `content-visibility: auto` on below-fold sections for render performance
+- Focus-visible rings, reduced-motion support, and improved contrast (WCAG basics)
+- Semantic landmarks and ARIA attributes on Brief and Review surfaces
+- Duplicate hero CSS injection removed from `plan_canvas`
+- No contract changes
+- No business logic changes
+
 ## APEX V2
 
 ### Visual Polish (V2-003)

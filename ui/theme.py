@@ -783,6 +783,91 @@ APEX_V2_VISUAL_POLISH_CSS = """
 </style>
 """
 
+APEX_V2_PERFORMANCE_ACCESSIBILITY_CSS = """
+<style>
+/* V2-004 — performance hints, focus, contrast, responsive, reduced motion */
+.verdict-canvas-page {
+    --apex-text-subtle: rgba(245,245,247,0.48);
+    --apex-focus-ring: #0A84FF;
+    --apex-focus-glow: rgba(10,132,255,0.28);
+}
+.verdict-canvas-page .apex-section-label,
+.verdict-canvas-page .apex-command-greeting,
+.verdict-canvas-page .apex-greeting-meta,
+.verdict-canvas-page .apex-command-freshness,
+.verdict-canvas-page .apex-status-k,
+.verdict-canvas-page .apex-learning-meta,
+.verdict-canvas-page .apex-foot {
+    color: var(--apex-text-subtle);
+}
+.verdict-canvas-page .apex-section-label {
+    color: rgba(245,245,247,0.52);
+}
+.verdict-canvas-page .apex-command-context,
+.verdict-canvas-page .apex-review-depth,
+.verdict-canvas-page .plan-canvas-root .pc-details {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 220px;
+}
+.verdict-canvas-page .apex-status-strip-row {
+    row-gap: 12px;
+}
+@media (max-width: 380px) {
+    .verdict-canvas-page .apex-command-name,
+    .verdict-canvas-page .apex-inv-name {
+        font-size: clamp(28px, 8vw, var(--apex-title-size, 38px));
+    }
+    .verdict-canvas-page .apex-status-item {
+        min-width: calc(50% - 8px);
+        flex: 1 1 calc(50% - 8px);
+    }
+    .verdict-canvas-page .verdict-canvas-root,
+    .verdict-canvas-page .plan-canvas-root {
+        padding-left: max(12px, env(safe-area-inset-left, 0px));
+        padding-right: max(12px, env(safe-area-inset-right, 0px));
+    }
+}
+.verdict-canvas-page :where(
+    [data-testid="stButton"] button,
+    [data-testid="stPopover"] button,
+    [data-testid="stExpander"] summary,
+    [data-testid="stLinkButton"] a
+):focus-visible {
+    outline: 2px solid var(--apex-focus-ring) !important;
+    outline-offset: 2px !important;
+    box-shadow: 0 0 0 4px var(--apex-focus-glow) !important;
+}
+.verdict-canvas-page .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+.verdict-canvas-page :not(.apex-action-row) [data-testid="stPopover"] button {
+    color: rgba(245,245,247,0.72) !important;
+}
+@media (prefers-reduced-motion: reduce) {
+    .verdict-canvas-page *,
+    .verdict-canvas-page *::before,
+    .verdict-canvas-page *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+    .verdict-canvas-page [data-testid="stButton"] button[kind="primary"]:active,
+    .verdict-canvas-page .vc-primary [data-testid="stLinkButton"] a:active {
+        transform: none !important;
+    }
+}
+</style>
+"""
+
 APEX_BRIEF_EXPERIENCE_CSS = """
 <style>
 .verdict-canvas-page .apex-brief-page,
@@ -2049,3 +2134,15 @@ PARTNER_PAGE_ACTIVATE_JS = """
 })();
 </script>
 """
+
+APEX_PARTNER_EXPERIENCE_CSS = (
+    APEX_V2_VISUAL_POLISH_CSS
+    + APEX_V2_PERFORMANCE_ACCESSIBILITY_CSS
+    + APEX_BRIEF_EXPERIENCE_CSS
+    + APEX_RECOMMENDATION_EXPLANATION_CSS
+    + APEX_INVESTMENT_THESIS_CSS
+    + APEX_BUSINESS_HEALTH_CSS
+    + APEX_RISK_MONITOR_CSS
+    + APEX_INVESTMENT_HERO_CSS
+    + VERDICT_CANVAS_CSS
+)

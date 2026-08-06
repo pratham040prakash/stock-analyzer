@@ -355,8 +355,9 @@ def _render_verdict_hero(
     st.markdown(
         '<section class="apex-section apex-command-hero" aria-label="Today verdict">'
         f'<p class="apex-command-greeting">{_esc(greeting)}</p>'
-        f'<h2 class="apex-command-name">{_esc(investment_name)}</h2>'
-        f'<span class="apex-command-badge" data-badge="{_esc(badge_key)}">{_esc(badge_label)}</span>'
+        f'<h2 class="apex-command-name" id="apex-verdict-title">{_esc(investment_name)}</h2>'
+        f'<span class="apex-command-badge" data-badge="{_esc(badge_key)}" '
+        f'aria-label="Recommendation: {_esc(badge_label)}">{_esc(badge_label)}</span>'
         f'<p class="apex-command-why">{_esc(why)}</p>'
         f'<p class="apex-command-confidence">{_esc(confidence)}</p>'
         f'<p class="apex-command-freshness">{_esc(freshness)}</p>'
@@ -374,7 +375,10 @@ def _render_action_row(
     decision: DecisionArtifact | None,
     mis: MisTradeAdvisory,
 ) -> None:
-    st.markdown('<div class="apex-action-row">', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="apex-action-row" role="group" aria-label="Primary actions">',
+        unsafe_allow_html=True,
+    )
     c1, c2 = st.columns(2)
     action_spec = _primary_action_spec(card)
     with c1:
@@ -548,7 +552,10 @@ def render_today_brief_experience(
         decision=domain_decision,
     )
 
-    st.markdown('<div class="apex-brief-page apex-command-center">', unsafe_allow_html=True)
+    st.markdown(
+        '<main class="apex-brief-page apex-command-center" role="main" aria-labelledby="apex-verdict-title">',
+        unsafe_allow_html=True,
+    )
 
     if card.failure_message:
         st.markdown(
@@ -623,4 +630,4 @@ def render_today_brief_experience(
         f'You always own the final decision.</p>',
         unsafe_allow_html=True,
     )
-    st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("</main>", unsafe_allow_html=True)

@@ -25,16 +25,7 @@ from ui.components.decision_card import project_decision_card
 from ui.components.partner_data import load_dashboard_data
 from ui.components.partner_shell import get_partner_dock, render_ask_fab, render_partner_dock
 from ui.components.today_brief_experience import render_today_brief_experience
-from ui.theme import (
-    APEX_BRIEF_EXPERIENCE_CSS,
-    APEX_BUSINESS_HEALTH_CSS,
-    APEX_INVESTMENT_THESIS_CSS,
-    APEX_RECOMMENDATION_EXPLANATION_CSS,
-    APEX_RISK_MONITOR_CSS,
-    APEX_V2_VISUAL_POLISH_CSS,
-    PARTNER_PAGE_ACTIVATE_JS,
-    VERDICT_CANVAS_CSS,
-)
+from ui.theme import APEX_PARTNER_EXPERIENCE_CSS, PARTNER_PAGE_ACTIVATE_JS
 
 IST = ZoneInfo("Asia/Kolkata")
 
@@ -56,7 +47,7 @@ def _render_thinking_canvas(*, prepare: bool = False) -> None:
     built_at = datetime.now(IST).strftime("%H:%M IST")
     if prepare:
         st.markdown(
-            f'<div class="apex-brief-page apex-loading">'
+            f'<div class="apex-brief-page apex-loading" role="status" aria-live="polite" aria-busy="true">'
             f'<section class="apex-section apex-greeting">'
             f'<h1 class="apex-greeting-title">Welcome</h1>'
             f'<p class="apex-greeting-sub">We\'re preparing your first brief.</p>'
@@ -66,7 +57,7 @@ def _render_thinking_canvas(*, prepare: bool = False) -> None:
         )
         return
     st.markdown(
-        f'<div class="apex-brief-page apex-loading">'
+        f'<div class="apex-brief-page apex-loading" role="status" aria-live="polite" aria-busy="true">'
         f'<section class="apex-section apex-greeting">'
         f'<h1 class="apex-greeting-title">Reviewing your day</h1>'
         f'<p class="apex-greeting-sub">Checking market context and what deserves attention.</p>'
@@ -108,16 +99,7 @@ def _render_today_canvas(
 
 def render_home_dashboard(market: str, *, period: str = "1y", max_trades: int = 1) -> None:
     del max_trades
-    st.markdown(
-        APEX_V2_VISUAL_POLISH_CSS
-        + APEX_BRIEF_EXPERIENCE_CSS
-        + APEX_RECOMMENDATION_EXPLANATION_CSS
-        + APEX_INVESTMENT_THESIS_CSS
-        + APEX_BUSINESS_HEALTH_CSS
-        + APEX_RISK_MONITOR_CSS
-        + VERDICT_CANVAS_CSS,
-        unsafe_allow_html=True,
-    )
+    st.markdown(APEX_PARTNER_EXPERIENCE_CSS, unsafe_allow_html=True)
     st.markdown(PARTNER_PAGE_ACTIVATE_JS, unsafe_allow_html=True)
 
     cached = load_dashboard_data(market, period, deep=False)

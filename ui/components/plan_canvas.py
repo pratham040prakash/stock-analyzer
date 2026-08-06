@@ -30,7 +30,6 @@ from ui.components.morning_brief_ui import (
 )
 from ui.components.partner_shell import set_partner_dock
 from ui.components.proof_runtime import proof_canvas_active
-from ui.theme import APEX_INVESTMENT_HERO_CSS
 
 _MENTOR_OPEN_MAX_WORDS = 22
 _REASON_MAX_WORDS = 20
@@ -255,7 +254,6 @@ def render_plan_canvas(
     cached: dict[str, Any],
 ) -> None:
     del market
-    st.markdown(APEX_INVESTMENT_HERO_CSS, unsafe_allow_html=True)
 
     ctx = DecisionContextBundle.from_cache_dict(cached)
     broker = ctx.broker
@@ -288,8 +286,8 @@ def render_plan_canvas(
 
     data_plan = "active" if plan and plan.has_plan else ("connect" if not broker.connected() else "empty")
     st.markdown(
-        f'<div class="verdict-canvas-root plan-canvas-root apex-inv-page" '
-        f'data-plan="{data_plan}" data-verdict="{_esc(card.verdict_key)}">',
+        f'<div class="verdict-canvas-root plan-canvas-root apex-inv-page" role="main" '
+        f'aria-label="Investment review" data-plan="{data_plan}" data-verdict="{_esc(card.verdict_key)}">',
         unsafe_allow_html=True,
     )
 
