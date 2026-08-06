@@ -769,6 +769,195 @@ APEX_BRIEF_EXPERIENCE_CSS = """
 </style>
 """
 
+APEX_INVESTMENT_HERO_CSS = """
+<style>
+.verdict-canvas-page .apex-inv-hero {
+    padding-top: 20px;
+    padding-bottom: 8px;
+}
+.verdict-canvas-page .apex-inv-name {
+    font-size: 34px;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    margin: 0 0 12px 0;
+    color: #F5F5F7;
+}
+.verdict-canvas-page .apex-inv-badge {
+    display: inline-block;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    border-radius: 999px;
+    padding: 6px 12px;
+    margin: 0 0 16px 0;
+    background: rgba(255,255,255,0.06);
+    color: rgba(245,245,247,0.88);
+}
+.verdict-canvas-page .apex-inv-badge[data-badge="buy"] {
+    color: #00E676;
+    background: rgba(0,230,118,0.12);
+}
+.verdict-canvas-page .apex-inv-badge[data-badge="wait"] {
+    color: #FFC107;
+    background: rgba(255,193,7,0.12);
+}
+.verdict-canvas-page .apex-inv-badge[data-badge="pass"] {
+    color: #A1A1A6;
+    background: rgba(255,255,255,0.06);
+}
+.verdict-canvas-page .apex-inv-row {
+    font-size: 16px;
+    line-height: 1.5;
+    color: rgba(245,245,247,0.88);
+    margin: 0 0 10px 0;
+}
+.verdict-canvas-page .apex-inv-k {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(245,245,247,0.42);
+    margin-bottom: 4px;
+}
+.verdict-canvas-page .apex-inv-fresh {
+    font-size: 13px;
+    color: rgba(245,245,247,0.38);
+    margin: 4px 0 16px 0;
+}
+</style>
+"""
+
+APEX_INVESTMENT_THESIS_CSS = """
+<style>
+.verdict-canvas-page .apex-thesis {
+    padding-top: 12px;
+}
+.verdict-canvas-page .apex-thesis-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 6px 10px;
+    border-radius: 999px;
+    margin: 0 0 14px 0;
+}
+.verdict-canvas-page .apex-thesis-strengthening { background: rgba(48,209,88,0.16); color: #30D158; }
+.verdict-canvas-page .apex-thesis-stable { background: rgba(10,132,255,0.16); color: #0A84FF; }
+.verdict-canvas-page .apex-thesis-weakening { background: rgba(255,159,10,0.16); color: #FF9F0A; }
+.verdict-canvas-page .apex-thesis-l1 {
+    font-size: 17px;
+    line-height: 1.55;
+    color: rgba(245,245,247,0.86);
+    margin: 0;
+}
+.verdict-canvas-page .plan-canvas-root .apex-thesis-l1 {
+    font-size: 15px;
+}
+</style>
+"""
+
+APEX_BUSINESS_HEALTH_CSS = """
+<style>
+.verdict-canvas-page .apex-health {
+    padding-top: 12px;
+}
+.verdict-canvas-page .apex-health-l1 {
+    font-size: 17px;
+    line-height: 1.55;
+    color: rgba(245,245,247,0.86);
+    margin: 0 0 12px 0;
+}
+.verdict-canvas-page .plan-canvas-root .apex-health-l1 {
+    font-size: 15px;
+}
+.verdict-canvas-page .apex-health-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0 0 4px 0;
+}
+.verdict-canvas-page .apex-health-chip {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(245,245,247,0.08);
+    color: rgba(245,245,247,0.78);
+}
+</style>
+"""
+
+APEX_RISK_MONITOR_CSS = """
+<style>
+.verdict-canvas-page .apex-risk {
+    padding-top: 12px;
+}
+.verdict-canvas-page .apex-risk-l1 {
+    font-size: 17px;
+    line-height: 1.55;
+    color: rgba(245,245,247,0.86);
+    margin: 0 0 12px 0;
+}
+.verdict-canvas-page .plan-canvas-root .apex-risk-l1 {
+    font-size: 15px;
+}
+.verdict-canvas-page .apex-risk-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0 0 4px 0;
+}
+.verdict-canvas-page .apex-risk-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(255,69,58,0.12);
+    color: rgba(255,159,10,0.92);
+}
+</style>
+"""
+
+APEX_RECOMMENDATION_EXPLANATION_CSS = """
+<style>
+.verdict-canvas-page .apex-rex {
+    padding-top: 12px;
+}
+.verdict-canvas-page .apex-rex-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 6px 10px;
+    border-radius: 999px;
+    margin: 0 0 14px 0;
+}
+.verdict-canvas-page .apex-rex-buy { background: rgba(48,209,88,0.16); color: #30D158; }
+.verdict-canvas-page .apex-rex-hold { background: rgba(255,214,10,0.14); color: #FFD60A; }
+.verdict-canvas-page .apex-rex-wait { background: rgba(10,132,255,0.16); color: #0A84FF; }
+.verdict-canvas-page .apex-rex-reduce { background: rgba(255,159,10,0.16); color: #FF9F0A; }
+.verdict-canvas-page .apex-rex-sell { background: rgba(255,69,58,0.16); color: #FF453A; }
+.verdict-canvas-page .apex-rex-l1 {
+    font-size: 17px;
+    line-height: 1.55;
+    color: rgba(245,245,247,0.86);
+    margin: 0;
+}
+.verdict-canvas-page .plan-canvas-root .apex-rex-l1 {
+    font-size: 15px;
+}
+</style>
+"""
+
 VERDICT_CANVAS_CSS = """
 <style>
 /* Phase 1 — Verdict Canvas (Today) */

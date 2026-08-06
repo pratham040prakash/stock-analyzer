@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import html
 from dataclasses import dataclass
 from typing import Any
 
@@ -14,19 +13,40 @@ from analyzer.decision_engine.models import DecisionArtifact
 from analyzer.intraday_prefs import IntradayPrefs
 from analyzer.investment_os import InvestmentOS
 from analyzer.mis_trade_advisory import MisTradeAdvisory
+from analyzer.use_cases.decision_context_bundle import DecisionContextBundle
 from analyzer.watchlist_pins import PinnedPlan
 from ui.broker.state import BrokerSnapshot
+from ui.components.business_health import (
+    build_business_health_view,
+    render_business_health,
+)
 from ui.components.canvas_utils import (
     VerdictCanvasState,
-    _broker_snapshot,
     _esc,
     _strip_md,
-    _sync_status,
     _trim_words,
 )
-from ui.components.morning_brief_ui import load_brief_from_cache, verdict_state_from_brief
+from ui.components.decision_card import project_decision_card
+from ui.components.investment_hero_experience import render_investment_hero_experience
+from ui.components.investment_thesis import (
+    build_investment_thesis_view,
+    render_investment_thesis,
+)
+from ui.components.morning_brief_ui import (
+    recommendation_contract_from_brief,
+    verdict_state_from_brief,
+)
 from ui.components.partner_shell import set_partner_dock
 from ui.components.proof_runtime import proof_canvas_active
+from ui.components.recommendation_explanation import (
+    build_recommendation_explanation_view,
+    render_recommendation_explanation,
+)
+from ui.components.risk_monitor import (
+    build_risk_monitor_view,
+    render_risk_monitor,
+)
+from ui.theme import APEX_INVESTMENT_HERO_CSS
 
 _MENTOR_OPEN_MAX_WORDS = 22
 _REASON_MAX_WORDS = 20
@@ -175,30 +195,68 @@ def build_trade_plan_view(
     )
 
 
-def _render_active_plan(plan: TradePlanView, *, built_at: str, broker: BrokerSnapshot) -> None:
-    sync_cls, dot_cls, sync_label = _sync_status(broker)
+def _render_plan_execution_details(
+    plan: TradePlanView,
+    *,
+    brief,
+    decision: DecisionArtifact | None,
+    mis: MisTradeAdvisory,
+    snapshot: ContextSnapshot,
+    pins: list[PinnedPlan],
+) -> None:
     side_cls = "pc-side-long" if plan.side == "LONG" else "pc-side-short"
     st.markdown(
-        f'<div class="verdict-canvas-root plan-canvas-root" data-plan="active">'
-        f'<div class="vc-header">'
-        f'<p class="vc-time">{_esc(built_at)}</p>'
-        f'<p class="vc-sync {sync_cls}">'
-        f'<span class="vc-sync-dot {dot_cls}"></span>{_esc(sync_label)}</p>'
-        f"</div>"
-        f'<div class="pc-hero-zone pc-hero-trade">'
+        '<section class="pc-details" aria-label="Plan details">'
         f'<p class="pc-context">Trade</p>'
-        f'<p class="pc-symbol">{_esc(plan.symbol)}</p>'
         f'<p class="pc-side {side_cls}">{_esc(plan.side.title())}</p>'
-        f"</div>"
         f'<p class="vc-mentor pc-mentor-open">{_esc(plan.mentor_opening)}</p>'
         f'<p class="pc-reason">{_esc(plan.reason)}</p>'
         f'<p class="pc-line pc-line-protect">{_esc(plan.entry_line)}</p>'
         f'<p class="pc-line pc-line-protect">{_esc(plan.stop_line)}</p>'
         f'<p class="pc-line pc-line-loss">{_esc(plan.max_loss_line)}</p>'
         f'<p class="pc-line pc-line-target">{_esc(plan.target_line)}</p>'
-        f'<p class="pc-lifecycle">{_esc(plan.lifecycle_line)}</p>',
+        f'<p class="pc-lifecycle">{_esc(plan.lifecycle_line)}</p>'
+        "</section>",
         unsafe_allow_html=True,
     )
+
+    contract = recommendation_contract_from_brief(
+        brief,
+        decision=decision,
+        mis=mis,
+        snapshot=snapshot,
+        pins=pins,
+    )
+    explanation = build_recommendation_explanation_view(
+        brief=brief,
+        contract=contract,
+        decision=decision,
+    )
+    render_recommendation_explanation(explanation, key_prefix="apex_plan_rex", title="Plan explanation")
+
+    thesis = build_investment_thesis_view(
+        brief=brief,
+        contract=contract,
+        decision=decision,
+        mis=mis,
+    )
+    render_investment_thesis(thesis, key_prefix="apex_plan_thesis")
+
+    health = build_business_health_view(
+        brief=brief,
+        contract=contract,
+        decision=decision,
+        mis=mis,
+    )
+    render_business_health(health, key_prefix="apex_plan_health")
+
+    risk = build_risk_monitor_view(
+        brief=brief,
+        contract=contract,
+        decision=decision,
+        mis=mis,
+    )
+    render_risk_monitor(risk, key_prefix="apex_plan_risk")
 
     st.markdown('<div class="vc-primary">', unsafe_allow_html=True)
     st.link_button("Open in Kite", plan.kite_url, type="primary", use_container_width=True)
@@ -218,60 +276,16 @@ def _render_active_plan(plan: TradePlanView, *, built_at: str, broker: BrokerSna
             open_proof_overlay(origin="trades", proof_mode="trade", symbol=plan.symbol)
         st.markdown("</div>", unsafe_allow_html=True)
 
+
+def _render_empty_secondary() -> None:
     st.markdown(
-        '<p class="vc-foot">Zerodha Console is source of truth for P&amp;L.</p></div>',
+        '<p class="vc-mentor">Sitting out is the trade. Your capital is protected when you don\'t force one.</p>',
         unsafe_allow_html=True,
     )
-
-
-def _render_empty_plan(*, built_at: str, broker: BrokerSnapshot) -> None:
-    sync_cls, dot_cls, sync_label = _sync_status(broker)
-    st.markdown(
-        f'<div class="verdict-canvas-root plan-canvas-root" data-plan="empty">'
-        f'<div class="vc-header">'
-        f'<p class="vc-time">{_esc(built_at)}</p>'
-        f'<p class="vc-sync {sync_cls}">'
-        f'<span class="vc-sync-dot {dot_cls}"></span>{_esc(sync_label)}</p>'
-        f"</div>"
-        f'<div class="pc-hero-zone">'
-        f'<p class="pc-symbol pc-symbol-muted">No plan today</p>'
-        f"</div>"
-        f"<p class=\"vc-mentor\">Sitting out is the trade. Your capital is protected when you don't force one.</p>",
-        unsafe_allow_html=True,
-    )
-    st.markdown('<div class="vc-primary">', unsafe_allow_html=True)
-    if st.button("Back to Today", key="pc_back_today", type="primary", use_container_width=True):
-        set_partner_dock("today")
-    st.markdown("</div>", unsafe_allow_html=True)
-    st.markdown('<p class="vc-foot">Zerodha Console is source of truth for P&amp;L.</p></div>', unsafe_allow_html=True)
-
-
-def _render_connect_plan(*, built_at: str, broker: BrokerSnapshot) -> None:
-    sync_cls, dot_cls, sync_label = _sync_status(broker)
-    st.markdown(
-        f'<div class="verdict-canvas-root plan-canvas-root" data-plan="connect">'
-        f'<div class="vc-header">'
-        f'<p class="vc-time">{_esc(built_at)}</p>'
-        f'<p class="vc-sync {sync_cls}">'
-        f'<span class="vc-sync-dot {dot_cls}"></span>{_esc(sync_label)}</p>'
-        f"</div>"
-        f'<div class="pc-hero-zone">'
-        f'<p class="pc-symbol pc-symbol-muted">Link Zerodha first</p>'
-        f"</div>"
-        f"<p class=\"vc-mentor\">I'll size risk against your real book once holdings sync.</p>",
-        unsafe_allow_html=True,
-    )
-    st.markdown('<div class="vc-primary">', unsafe_allow_html=True)
-    if st.button("Connect Zerodha", key="pc_connect", type="primary", use_container_width=True):
-        from ui.navigation import request_nav_tab
-
-        request_nav_tab("My Portfolio")
-    st.markdown("</div>", unsafe_allow_html=True)
     st.markdown('<div class="vc-secondary">', unsafe_allow_html=True)
-    if st.button("Back to Today", key="pc_connect_back", use_container_width=True):
+    if st.button("Back to Today", key="pc_back_today", use_container_width=True):
         set_partner_dock("today")
     st.markdown("</div>", unsafe_allow_html=True)
-    st.markdown('<p class="vc-foot">Zerodha Console is source of truth for P&amp;L.</p></div>', unsafe_allow_html=True)
 
 
 def render_plan_canvas(
@@ -280,40 +294,76 @@ def render_plan_canvas(
     cached: dict[str, Any],
 ) -> None:
     del market
-    from analyzer.use_cases.morning_brief import domain_from_cache_bundle
-    from ui.components.canvas_utils import _snapshot_from_cache
+    st.markdown(APEX_INVESTMENT_HERO_CSS, unsafe_allow_html=True)
 
-    broker = _broker_snapshot()
-    brief = load_brief_from_cache(cached, broker=broker)
-    domain = domain_from_cache_bundle(cached, broker=broker)
+    ctx = DecisionContextBundle.from_cache_dict(cached)
+    broker = ctx.broker
+    brief = ctx.assemble_view_model(record_snapshot=False)
+    domain = ctx.to_domain()
+    card = project_decision_card(brief)
     snapshot_obj = domain.context
-    if not isinstance(snapshot_obj, ContextSnapshot):
-        snapshot_obj = _snapshot_from_cache(cached["snapshot"])
-
-    mis: MisTradeAdvisory = cached["mis"]
-    os_report: InvestmentOS = cached["os_report"]
-    pins: list[PinnedPlan] = cached["pins"]
-    prefs: IntradayPrefs = cached["prefs"]
-    built_at = str(cached["built_at"])
+    mis = ctx.mis
+    os_report = ctx.os_report
+    pins = list(ctx.pins)
+    prefs = ctx.prefs
 
     state = verdict_state_from_brief(brief)
     decision = domain.decision
 
-    if not broker.connected():
-        _render_connect_plan(built_at=built_at, broker=broker)
-        return
+    pin = _pick_plan_pin(os_report, pins) if broker.connected() else None
+    plan = (
+        build_trade_plan_view(
+            state=state,
+            pin=pin,
+            decision=decision,
+            mis=mis,
+            snapshot=snapshot_obj,
+            prefs=prefs,
+        )
+        if broker.connected()
+        else None
+    )
+    plan_symbol = plan.symbol if plan else None
 
-    pin = _pick_plan_pin(os_report, pins)
-    plan = build_trade_plan_view(
-        state=state,
-        pin=pin,
-        decision=decision,
-        mis=mis,
+    data_plan = "active" if plan and plan.has_plan else ("connect" if not broker.connected() else "empty")
+    st.markdown(
+        f'<div class="verdict-canvas-root plan-canvas-root apex-inv-page" '
+        f'data-plan="{data_plan}" data-verdict="{_esc(card.verdict_key)}">',
+        unsafe_allow_html=True,
+    )
+
+    render_investment_hero_experience(
+        cached=cached,
+        brief=brief,
+        card=card,
+        broker=broker,
         snapshot=snapshot_obj,
+        mis=mis,
+        domain_decision=decision,
+        pins=pins,
+        os_report=os_report,
         prefs=prefs,
+        pulse=cached.get("pulse"),
+        portfolio=cached.get("portfolio"),
+        journal_today_pnl=cached.get("journal_today_pnl"),
+        plan_symbol=plan_symbol,
     )
 
     if plan and plan.has_plan:
-        _render_active_plan(plan, built_at=built_at, broker=broker)
+        _render_plan_execution_details(
+            plan,
+            brief=brief,
+            decision=decision,
+            mis=mis,
+            snapshot=snapshot_obj,
+            pins=pins,
+        )
+    elif not broker.connected():
+        pass
     else:
-        _render_empty_plan(built_at=built_at, broker=broker)
+        _render_empty_secondary()
+
+    st.markdown(
+        '<p class="vc-foot">Zerodha Console is source of truth for P&amp;L.</p></div>',
+        unsafe_allow_html=True,
+    )

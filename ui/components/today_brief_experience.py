@@ -20,6 +20,22 @@ from ui.components.morning_brief_ui import (
     RecommendationContract,
     recommendation_contract_from_brief,
 )
+from ui.components.recommendation_explanation import (
+    build_recommendation_explanation_view,
+    render_recommendation_explanation,
+)
+from ui.components.investment_thesis import (
+    build_investment_thesis_view,
+    render_investment_thesis,
+)
+from ui.components.business_health import (
+    build_business_health_view,
+    render_business_health,
+)
+from ui.components.risk_monitor import (
+    build_risk_monitor_view,
+    render_risk_monitor,
+)
 from ui.components.partner_shell import set_partner_dock
 from ui.components.today_intelligence import TodayCommandCenter, build_today_command_center
 
@@ -259,8 +275,6 @@ def _render_todays_brief_hero(
     why: str,
     confidence: str,
     recommendation: str,
-    contract: RecommendationContract,
-    confidence_pct: int | None,
     card: DecisionCardViewModel,
 ) -> None:
     st.markdown(
@@ -274,17 +288,13 @@ def _render_todays_brief_hero(
         "</section>",
         unsafe_allow_html=True,
     )
-    c1, c2 = st.columns(2)
-    with c1:
-        _render_contract_popover(contract=contract, confidence_pct=confidence_pct)
-    with c2:
-        from ui.components.proof_runtime import proof_canvas_active
+    from ui.components.proof_runtime import proof_canvas_active
 
-        if proof_canvas_active() and card.verdict_key in ("trade", "wait", "pause"):
-            if st.button("See the proof", key="apex_brief_proof", use_container_width=True):
-                from ui.components.proof_state import open_proof_overlay
+    if proof_canvas_active() and card.verdict_key in ("trade", "wait", "pause"):
+        if st.button("See the proof", key="apex_brief_proof", use_container_width=True):
+            from ui.components.proof_state import open_proof_overlay
 
-                open_proof_overlay(origin="today", proof_mode=card.verdict_key)
+            open_proof_overlay(origin="today", proof_mode=card.verdict_key)
 
 
 def _render_priority_review(*, card: DecisionCardViewModel, center: TodayCommandCenter) -> None:
@@ -465,10 +475,39 @@ def render_today_brief_experience(
         why=why,
         confidence=_confidence_label(card),
         recommendation=_product_recommendation(card, contract, center),
-        contract=contract,
-        confidence_pct=brief.decision.confidence_level,
         card=card,
     )
+
+    explanation = build_recommendation_explanation_view(
+        brief=brief,
+        contract=contract,
+        decision=domain_decision,
+    )
+    render_recommendation_explanation(explanation, key_prefix="apex_today_rex")
+
+    thesis = build_investment_thesis_view(
+        brief=brief,
+        contract=contract,
+        decision=domain_decision,
+        mis=mis,
+    )
+    render_investment_thesis(thesis, key_prefix="apex_today_thesis")
+
+    health = build_business_health_view(
+        brief=brief,
+        contract=contract,
+        decision=domain_decision,
+        mis=mis,
+    )
+    render_business_health(health, key_prefix="apex_today_health")
+
+    risk = build_risk_monitor_view(
+        brief=brief,
+        contract=contract,
+        decision=domain_decision,
+        mis=mis,
+    )
+    render_risk_monitor(risk, key_prefix="apex_today_risk")
 
     _render_priority_review(card=card, center=center)
     _render_market_today(headline=market_headline, body=market_body, detail=market_detail)

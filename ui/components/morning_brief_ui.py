@@ -4,16 +4,21 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from analyzer.context_engine.models import ContextSnapshot
-from analyzer.decision_engine.models import DecisionArtifact
+from analyzer.decision_engine.models import DecisionArtifact, DecisionVerdict
 from analyzer.mis_trade_advisory import MisTradeAdvisory
 from analyzer.use_cases.decision_context_bundle import DecisionContextBundle
+from analyzer.use_cases.morning_brief_helpers import parse_decision_time
 from analyzer.use_cases.morning_brief_models import MorningBriefViewModel
 from analyzer.watchlist_pins import PinnedPlan
 from ui.broker.state import BrokerSnapshot
 from ui.components.canvas_utils import VerdictCanvasState, _strip_md, _trim_words
+
+IST = ZoneInfo("Asia/Kolkata")
 
 
 @dataclass(frozen=True)
@@ -29,6 +34,43 @@ class RecommendationContract:
     help_simple: tuple[str, ...]
     help_business: tuple[str, ...]
     help_professional: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class InvestmentThesisContract:
+    """APS-004 investment thesis sections (projection only)."""
+
+    thesis_statement: str
+    status_key: str
+    status_label: str
+    strengths: tuple[str, ...]
+    concerns: tuple[str, ...]
+    watch_closely: tuple[str, ...]
+    sell_conditions: tuple[str, ...]
+    level3_evidence: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class BusinessHealthContract:
+    """APS-005 business health sections (projection only)."""
+
+    summary: str
+    strengths: tuple[str, ...]
+    weaknesses: tuple[str, ...]
+    health_indicators: tuple[tuple[str, str], ...]
+    monitor_next: tuple[str, ...]
+    level3_evidence: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class RiskMonitorContract:
+    """APS-006 risk monitor sections (projection only)."""
+
+    summary: str
+    key_business_risks: tuple[str, ...]
+    watch_carefully: tuple[str, ...]
+    thesis_breakers: tuple[str, ...]
+    supporting_evidence: tuple[str, ...]
 
 
 def load_brief_from_cache(
@@ -126,15 +168,53 @@ def evidence_teaser_lines(brief: MorningBriefViewModel, *, limit: int = 2) -> li
 
 
 def answer_key_from_brief(brief: MorningBriefViewModel) -> tuple[str, str]:
-    mapping = {
+    key, label = recommendation_action_from_brief(brief)
+    if key == "hold":
+        return "pass", "Pass"
+    return key, label
+
+
+def recommendation_action_from_brief(
+    brief: MorningBriefViewModel,
+    *,
+    decision: DecisionArtifact | None = None,
+) -> tuple[str, str]:
+    """Shared presentation mapping → buy / hold / wait / reduce / sell."""
+    if decision is not None:
+        verdict = decision.verdict
+        if verdict == DecisionVerdict.REDUCE:
+            return "reduce", "Reduce"
+        if verdict == DecisionVerdict.ACT:
+            return "buy", "Buy"
+        if verdict in (DecisionVerdict.WAIT, DecisionVerdict.PASS):
+            return "wait", "Wait"
+        if verdict == DecisionVerdict.DEFENSIVE:
+            return "hold", "Hold"
+
+    display = (brief.decision.verdict_display or "").strip().lower()
+    for token, key, label in (
+        ("strong sell", "sell", "Sell"),
+        ("sell", "sell", "Sell"),
+        ("reduce", "reduce", "Reduce"),
+        ("strong buy", "buy", "Buy"),
+        ("buy", "buy", "Buy"),
+        ("accumulate", "buy", "Buy"),
+        ("hold", "hold", "Hold"),
+        ("wait", "wait", "Wait"),
+        ("pass", "wait", "Wait"),
+    ):
+        if token in display:
+            return key, label
+
+    key_map = {
         "trade": ("buy", "Buy"),
         "wait": ("wait", "Wait"),
-        "pause": ("pass", "Pass"),
-        "connect": ("pass", "Pass"),
-        "rest": ("pass", "Pass"),
+        "pause": ("hold", "Hold"),
+        "connect": ("wait", "Wait"),
+        "rest": ("hold", "Hold"),
         "prepare": ("wait", "Wait"),
     }
-    return mapping.get(brief.decision.verdict_key, ("wait", "Wait"))
+    return key_map.get(brief.decision.verdict_key, ("wait", "Wait"))
 
 
 def recommendation_contract_from_brief(
@@ -216,3 +296,220 @@ def recommendation_contract_from_brief(
         help_business=tuple(business[:5]),
         help_professional=tuple(professional[:12]),
     )
+
+
+def _dedupe_thesis_lines(lines: list[str], *, limit: int = 6) -> tuple[str, ...]:
+    out: list[str] = []
+    for raw in lines:
+        text = _strip_md(raw)
+        if text and text not in out:
+            out.append(text)
+        if len(out) >= limit:
+            break
+    return tuple(out)
+
+
+def _thesis_statement_from_brief(
+    brief: MorningBriefViewModel,
+    contract: RecommendationContract,
+) -> str:
+    if brief.evidence.key_reasons:
+        return _strip_md(brief.evidence.key_reasons[0])
+    if contract.help_business:
+        return _strip_md(contract.help_business[0])
+    if contract.why:
+        return _strip_md(contract.why[0])
+    trust = _strip_md(brief.trust.why_this_is_recommended)
+    for prefix in ("OPINION:", "FACT:", "ASSUMPTION:", "ESTIMATE:"):
+        if trust.upper().startswith(prefix):
+            return trust[len(prefix) :].strip()
+    return trust
+
+
+def _concern_lines_from_contract(contract: RecommendationContract) -> tuple[str, ...]:
+    return _dedupe_thesis_lines(list(contract.trade_offs) + list(contract.risks))
+
+
+def _level3_evidence_from_contract(contract: RecommendationContract) -> tuple[str, ...]:
+    level3 = contract.help_professional or tuple(
+        dict.fromkeys(contract.evidence + contract.trade_offs + contract.risks)
+    )[:12]
+    return tuple(level3) if level3 else tuple()
+
+
+def _monitor_lines_from_brief(
+    brief: MorningBriefViewModel,
+    contract: RecommendationContract,
+    *,
+    include_suggested_steps: bool = False,
+    supporting_limit: int = 3,
+    conflicting_limit: int = 0,
+) -> tuple[str, ...]:
+    monitor: list[str] = []
+    if include_suggested_steps:
+        monitor.extend(contract.suggested_next_step)
+    monitor.extend(brief.trust.gaps)
+    for item in brief.evidence.supporting_signals[:supporting_limit]:
+        monitor.append(item.label)
+    for item in brief.evidence.conflicting_signals[:conflicting_limit]:
+        monitor.append(item.label)
+    return _dedupe_thesis_lines(monitor, limit=5)
+
+
+def investment_thesis_contract_from_brief(
+    brief: MorningBriefViewModel,
+    contract: RecommendationContract,
+    *,
+    mis: MisTradeAdvisory | None = None,
+) -> InvestmentThesisContract:
+    """Project MorningBriefViewModel + RecommendationContract → APS-004 thesis sections."""
+    strengths: list[str] = []
+    for item in brief.evidence.supporting_signals:
+        strengths.append(f"{item.label}: {item.value}")
+    if mis:
+        strengths.extend(mis.positives[:4])
+
+    concerns = _concern_lines_from_contract(contract)
+    watch = _monitor_lines_from_brief(
+        brief,
+        contract,
+        include_suggested_steps=True,
+        supporting_limit=3,
+    )
+
+    sell_conditions = _dedupe_thesis_lines(list(contract.what_could_change), limit=5)
+    level3 = _level3_evidence_from_contract(contract)
+
+    return InvestmentThesisContract(
+        thesis_statement=_thesis_statement_from_brief(brief, contract),
+        status_key="",
+        status_label="",
+        strengths=_dedupe_thesis_lines(strengths),
+        concerns=concerns,
+        watch_closely=watch,
+        sell_conditions=sell_conditions,
+        level3_evidence=level3,
+    )
+
+
+def _business_health_summary(
+    brief: MorningBriefViewModel,
+    contract: RecommendationContract,
+) -> str:
+    if len(contract.help_business) > 1:
+        return _strip_md(contract.help_business[1])
+    if contract.help_business:
+        return _strip_md(contract.help_business[0])
+    if brief.portfolio.summary and brief.portfolio.ready:
+        return _strip_md(brief.portfolio.summary)
+    if contract.why:
+        return _strip_md(contract.why[0])
+    return ""
+
+
+def _health_indicators_from_brief(
+    brief: MorningBriefViewModel,
+) -> tuple[tuple[str, str], ...]:
+    indicators: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for item in brief.evidence.supporting_signals + brief.evidence.conflicting_signals:
+        label = _strip_md(f"{item.label}: {item.value}")
+        if not label or label in seen:
+            continue
+        seen.add(label)
+        key = item.label.lower().replace(" ", "-").replace("/", "-")[:32] or "indicator"
+        indicators.append((key, label))
+        if len(indicators) >= 6:
+            break
+    return tuple(indicators)
+
+
+def business_health_contract_from_brief(
+    brief: MorningBriefViewModel,
+    contract: RecommendationContract,
+    thesis: InvestmentThesisContract,
+) -> BusinessHealthContract:
+    """Project MorningBriefViewModel + contracts → APS-005 business health sections."""
+    return BusinessHealthContract(
+        summary=_business_health_summary(brief, contract),
+        strengths=thesis.strengths,
+        weaknesses=thesis.concerns,
+        health_indicators=_health_indicators_from_brief(brief),
+        monitor_next=_monitor_lines_from_brief(
+            brief,
+            contract,
+            supporting_limit=4,
+            conflicting_limit=2,
+        ),
+        level3_evidence=thesis.level3_evidence,
+    )
+
+
+def _risk_summary_from_brief(
+    brief: MorningBriefViewModel,
+    thesis: InvestmentThesisContract,
+) -> str:
+    if brief.risk.warnings:
+        return _strip_md(brief.risk.warnings[0])
+    if thesis.concerns:
+        return _strip_md(thesis.concerns[0])
+    if brief.evidence.gap_note:
+        return _strip_md(brief.evidence.gap_note)
+    return ""
+
+
+def risk_monitor_contract_from_brief(
+    brief: MorningBriefViewModel,
+    thesis: InvestmentThesisContract,
+    health: BusinessHealthContract,
+) -> RiskMonitorContract:
+    """Project existing contracts → APS-006 risk monitor sections."""
+    return RiskMonitorContract(
+        summary=_risk_summary_from_brief(brief, thesis),
+        key_business_risks=thesis.concerns,
+        watch_carefully=health.monitor_next,
+        thesis_breakers=thesis.sell_conditions,
+        supporting_evidence=thesis.level3_evidence,
+    )
+
+
+def human_review_freshness_label(
+    *,
+    built_at: str,
+    last_updated: str,
+    stale: bool,
+    stale_label: str,
+    refreshing: bool,
+    offline: bool = False,
+) -> str:
+    """Human-friendly review timestamp for hero surfaces (presentation only)."""
+    if refreshing:
+        return "Reviewed just now · updating"
+    if offline:
+        return "Reviewed offline · reconnect to refresh"
+    if stale and stale_label:
+        return f"Reviewed · {stale_label}"
+
+    now = datetime.now(IST)
+    for raw in (last_updated,):
+        if not raw:
+            continue
+        dt = parse_decision_time(raw)
+        if dt is None:
+            continue
+        delta = now - dt
+        if delta < timedelta(minutes=1):
+            return "Reviewed just now"
+        mins = int(delta.total_seconds() // 60)
+        if mins < 60:
+            suffix = "s" if mins != 1 else ""
+            return f"Reviewed {mins} minute{suffix} ago"
+        if dt.date() == now.date():
+            return f"Reviewed at {dt.strftime('%H:%M IST')}"
+        if (now.date() - dt.date()).days == 1:
+            return "Reviewed yesterday"
+        return f"Reviewed {dt.strftime('%d %b')}"
+
+    if built_at:
+        return f"Reviewed at {built_at}"
+    return "Review freshness updating"

@@ -25,7 +25,15 @@ from ui.components.decision_card import project_decision_card
 from ui.components.partner_data import load_dashboard_data
 from ui.components.partner_shell import get_partner_dock, render_ask_fab, render_partner_dock
 from ui.components.today_brief_experience import render_today_brief_experience
-from ui.theme import APEX_BRIEF_EXPERIENCE_CSS, PARTNER_PAGE_ACTIVATE_JS, VERDICT_CANVAS_CSS
+from ui.theme import (
+    APEX_BRIEF_EXPERIENCE_CSS,
+    APEX_BUSINESS_HEALTH_CSS,
+    APEX_INVESTMENT_THESIS_CSS,
+    APEX_RECOMMENDATION_EXPLANATION_CSS,
+    APEX_RISK_MONITOR_CSS,
+    PARTNER_PAGE_ACTIVATE_JS,
+    VERDICT_CANVAS_CSS,
+)
 
 IST = ZoneInfo("Asia/Kolkata")
 
@@ -99,7 +107,15 @@ def _render_today_canvas(
 
 def render_home_dashboard(market: str, *, period: str = "1y", max_trades: int = 1) -> None:
     del max_trades
-    st.markdown(APEX_BRIEF_EXPERIENCE_CSS + VERDICT_CANVAS_CSS, unsafe_allow_html=True)
+    st.markdown(
+        APEX_BRIEF_EXPERIENCE_CSS
+        + APEX_RECOMMENDATION_EXPLANATION_CSS
+        + APEX_INVESTMENT_THESIS_CSS
+        + APEX_BUSINESS_HEALTH_CSS
+        + APEX_RISK_MONITOR_CSS
+        + VERDICT_CANVAS_CSS,
+        unsafe_allow_html=True,
+    )
     st.markdown(PARTNER_PAGE_ACTIVATE_JS, unsafe_allow_html=True)
 
     cached = load_dashboard_data(market, period, deep=False)
