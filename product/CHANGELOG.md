@@ -2,6 +2,14 @@
 
 ## APEX V2
 
+### Visual Polish (V2-003)
+
+- Shared theme system via `APEX_V2_VISUAL_POLISH_CSS`
+- CSS consolidation — single source of truth for shared visual rules
+- Premium visual hierarchy across Home Command Center and Review Workspace
+- No contract changes
+- No business logic changes
+
 ### Review Workspace (V2-002)
 
 - Single Review Depth container on Investments

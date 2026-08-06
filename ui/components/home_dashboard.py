@@ -31,6 +31,7 @@ from ui.theme import (
     APEX_INVESTMENT_THESIS_CSS,
     APEX_RECOMMENDATION_EXPLANATION_CSS,
     APEX_RISK_MONITOR_CSS,
+    APEX_V2_VISUAL_POLISH_CSS,
     PARTNER_PAGE_ACTIVATE_JS,
     VERDICT_CANVAS_CSS,
 )
@@ -108,7 +109,8 @@ def _render_today_canvas(
 def render_home_dashboard(market: str, *, period: str = "1y", max_trades: int = 1) -> None:
     del max_trades
     st.markdown(
-        APEX_BRIEF_EXPERIENCE_CSS
+        APEX_V2_VISUAL_POLISH_CSS
+        + APEX_BRIEF_EXPERIENCE_CSS
         + APEX_RECOMMENDATION_EXPLANATION_CSS
         + APEX_INVESTMENT_THESIS_CSS
         + APEX_BUSINESS_HEALTH_CSS

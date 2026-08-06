@@ -586,24 +586,213 @@ div[data-testid="stHorizontalBlock"] .home-metric [data-testid="stMetric"] {
 </style>
 """
 
-APEX_BRIEF_EXPERIENCE_CSS = """
+APEX_V2_VISUAL_POLISH_CSS = """
 <style>
-.verdict-canvas-page .apex-brief-page,
-.verdict-canvas-page .apex-section {
-    color: #F5F5F7;
-    font-family: Inter, "SF Pro Display", system-ui, -apple-system, sans-serif;
+/* V2-003 — shared design tokens and visual polish */
+.verdict-canvas-page {
+    --apex-font: Inter, "SF Pro Display", system-ui, -apple-system, sans-serif;
+    --apex-text: #F5F5F7;
+    --apex-text-secondary: rgba(245,245,247,0.82);
+    --apex-text-muted: rgba(245,245,247,0.52);
+    --apex-text-subtle: rgba(245,245,247,0.38);
+    --apex-surface: rgba(255,255,255,0.04);
+    --apex-surface-elevated: rgba(255,255,255,0.06);
+    --apex-border: rgba(255,255,255,0.08);
+    --apex-radius-sm: 10px;
+    --apex-radius-md: 14px;
+    --apex-radius-lg: 18px;
+    --apex-space-xs: 8px;
+    --apex-space-sm: 12px;
+    --apex-space-md: 16px;
+    --apex-space-lg: 24px;
+    --apex-title-size: 38px;
+    --apex-section-size: 11px;
+    --apex-body-size: 16px;
+    --apex-body-lg-size: 18px;
+    --apex-badge-buy: #30D158;
+    --apex-badge-wait: #0A84FF;
+    --apex-badge-pass: #A1A1A6;
+    --apex-badge-reduce: #FF9F0A;
+    --apex-badge-sell: #FF453A;
 }
-.verdict-canvas-page .apex-section {
-    padding: 28px 4px 8px 4px;
-    margin: 0;
+.verdict-canvas-page .apex-command-badge,
+.verdict-canvas-page .apex-inv-badge,
+.verdict-canvas-page .apex-rex-badge,
+.verdict-canvas-page .apex-thesis-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    border-radius: 999px;
+    padding: 6px 12px;
+    line-height: 1.2;
+    margin: 0 0 var(--apex-space-md) 0;
+    background: var(--apex-surface-elevated);
+    color: var(--apex-text-secondary);
+}
+.verdict-canvas-page .apex-command-badge[data-badge="buy"],
+.verdict-canvas-page .apex-inv-badge[data-badge="buy"],
+.verdict-canvas-page .apex-rex-badge.apex-rex-buy {
+    color: var(--apex-badge-buy);
+    background: rgba(48,209,88,0.16);
+}
+.verdict-canvas-page .apex-command-badge[data-badge="wait"],
+.verdict-canvas-page .apex-inv-badge[data-badge="wait"],
+.verdict-canvas-page .apex-rex-badge.apex-rex-wait {
+    color: var(--apex-badge-wait);
+    background: rgba(10,132,255,0.16);
+}
+.verdict-canvas-page .apex-command-badge[data-badge="pass"],
+.verdict-canvas-page .apex-inv-badge[data-badge="pass"],
+.verdict-canvas-page .apex-rex-badge.apex-rex-hold {
+    color: var(--apex-badge-pass);
+    background: var(--apex-surface-elevated);
+}
+.verdict-canvas-page .apex-command-badge[data-badge="reduce"],
+.verdict-canvas-page .apex-rex-badge.apex-rex-reduce {
+    color: var(--apex-badge-reduce);
+    background: rgba(255,159,10,0.16);
+}
+.verdict-canvas-page .apex-command-badge[data-badge="sell"],
+.verdict-canvas-page .apex-rex-badge.apex-rex-sell {
+    color: var(--apex-badge-sell);
+    background: rgba(255,69,58,0.16);
+}
+.verdict-canvas-page .apex-health-chip,
+.verdict-canvas-page .apex-risk-badge,
+.verdict-canvas-page .vc-ribbon-chip {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    padding: 6px 10px;
+    border-radius: 999px;
+    line-height: 1.2;
+    background: var(--apex-surface-elevated);
+    color: var(--apex-text-secondary);
+    border: 1px solid var(--apex-border);
+}
+.verdict-canvas-page .apex-command-hero,
+.verdict-canvas-page .apex-inv-hero {
+    background: linear-gradient(180deg, rgba(255,255,255,0.035) 0%, transparent 100%);
+    border: 1px solid var(--apex-border);
+    border-radius: var(--apex-radius-lg);
+    padding: var(--apex-space-md) var(--apex-space-sm) var(--apex-space-lg);
+    margin-bottom: var(--apex-space-sm);
+}
+.verdict-canvas-page .apex-command-name,
+.verdict-canvas-page .apex-inv-name {
+    font-size: var(--apex-title-size);
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    line-height: 1.08;
+    color: var(--apex-text);
 }
 .verdict-canvas-page .apex-section-label {
-    font-size: 11px;
+    font-size: var(--apex-section-size);
     font-weight: 600;
     letter-spacing: 0.12em;
     text-transform: uppercase;
     color: rgba(245,245,247,0.42);
     margin: 0 0 14px 0;
+}
+.verdict-canvas-page .apex-command-name {
+    margin: 0 0 14px 0;
+}
+.verdict-canvas-page .apex-status-strip {
+    background: var(--apex-surface);
+    border: 1px solid var(--apex-border);
+    border-radius: var(--apex-radius-md);
+    padding: var(--apex-space-md) var(--apex-space-sm);
+    margin: var(--apex-space-sm) 0 var(--apex-space-lg);
+}
+.verdict-canvas-page .apex-review-depth {
+    background: var(--apex-surface);
+    border: 1px solid var(--apex-border);
+    border-radius: var(--apex-radius-md);
+    padding: var(--apex-space-md) var(--apex-space-sm) var(--apex-space-xs);
+    margin-top: var(--apex-space-md);
+}
+.verdict-canvas-page .plan-canvas-root .pc-details {
+    background: var(--apex-surface);
+    border: 1px solid var(--apex-border);
+    border-radius: var(--apex-radius-md);
+    padding: var(--apex-space-md) var(--apex-space-sm);
+    margin-bottom: var(--apex-space-md);
+}
+.verdict-canvas-page .apex-action-row {
+    padding: 0 0 var(--apex-space-md);
+    gap: var(--apex-space-xs);
+}
+.verdict-canvas-page .apex-action-row [data-testid="stPopover"] button {
+    width: 100%;
+    min-height: 52px !important;
+    border-radius: var(--apex-radius-md) !important;
+    font-size: 16px !important;
+    font-weight: 600 !important;
+    background: transparent !important;
+    color: var(--apex-text) !important;
+    border: 1px solid var(--apex-border) !important;
+    box-shadow: none !important;
+}
+.verdict-canvas-page .apex-action-row [data-testid="stPopover"] button:hover {
+    background: var(--apex-surface-elevated) !important;
+    border-color: rgba(255,255,255,0.14) !important;
+}
+.verdict-canvas-page .apex-command-context {
+    padding-top: var(--apex-space-lg);
+    border-top: 1px solid rgba(255,255,255,0.04);
+    margin-top: var(--apex-space-xs);
+}
+.verdict-canvas-page .apex-loading .apex-greeting-title {
+    animation: apex-loading-pulse 1.8s ease-in-out infinite;
+}
+.verdict-canvas-page .apex-loading .apex-greeting-sub,
+.verdict-canvas-page .apex-loading .apex-greeting-meta {
+    color: var(--apex-text-subtle);
+}
+@keyframes apex-loading-pulse {
+    0%, 100% { opacity: 0.55; }
+    50% { opacity: 1; }
+}
+.verdict-canvas-page [data-testid="stExpander"] details {
+    border: 1px solid var(--apex-border);
+    border-radius: var(--apex-radius-sm);
+    background: rgba(255,255,255,0.02);
+    margin-bottom: var(--apex-space-xs);
+}
+.verdict-canvas-page [data-testid="stExpander"] summary {
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    color: var(--apex-text-secondary) !important;
+    padding: var(--apex-space-sm) var(--apex-space-sm) !important;
+}
+.verdict-canvas-page [data-testid="stExpander"] [data-testid="stExpanderDetails"] {
+    padding: 0 var(--apex-space-sm) var(--apex-space-sm) !important;
+}
+.verdict-canvas-page .plan-canvas-root .vc-mentor {
+    font-size: var(--apex-body-lg-size);
+    line-height: 1.5;
+    color: var(--apex-text-secondary);
+    padding: var(--apex-space-md);
+    border: 1px solid var(--apex-border);
+    border-radius: var(--apex-radius-md);
+    background: var(--apex-surface);
+}
+</style>
+"""
+
+APEX_BRIEF_EXPERIENCE_CSS = """
+<style>
+.verdict-canvas-page .apex-brief-page,
+.verdict-canvas-page .apex-section {
+    color: var(--apex-text, #F5F5F7);
+    font-family: var(--apex-font, Inter, "SF Pro Display", system-ui, -apple-system, sans-serif);
+}
+.verdict-canvas-page .apex-section {
+    padding: 28px 4px 8px 4px;
+    margin: 0;
 }
 .verdict-canvas-page .apex-greeting-title {
     font-size: 34px;
@@ -627,53 +816,10 @@ APEX_BRIEF_EXPERIENCE_CSS = """
 .verdict-canvas-page .apex-command-center {
     padding-top: 8px;
 }
-.verdict-canvas-page .apex-command-hero {
-    padding: 12px 4px 20px 4px;
-}
 .verdict-canvas-page .apex-command-greeting {
     font-size: 13px;
     color: rgba(245,245,247,0.42);
     margin: 0 0 12px 0;
-}
-.verdict-canvas-page .apex-command-name {
-    font-size: 36px;
-    font-weight: 600;
-    letter-spacing: -0.03em;
-    line-height: 1.08;
-    margin: 0 0 14px 0;
-    color: #F5F5F7;
-}
-.verdict-canvas-page .apex-command-badge {
-    display: inline-block;
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    border-radius: 999px;
-    padding: 6px 12px;
-    margin: 0 0 16px 0;
-    background: rgba(255,255,255,0.06);
-    color: rgba(245,245,247,0.88);
-}
-.verdict-canvas-page .apex-command-badge[data-badge="buy"] {
-    color: #30D158;
-    background: rgba(48,209,88,0.16);
-}
-.verdict-canvas-page .apex-command-badge[data-badge="wait"] {
-    color: #0A84FF;
-    background: rgba(10,132,255,0.16);
-}
-.verdict-canvas-page .apex-command-badge[data-badge="pass"] {
-    color: #A1A1A6;
-    background: rgba(255,255,255,0.06);
-}
-.verdict-canvas-page .apex-command-badge[data-badge="reduce"] {
-    color: #FF9F0A;
-    background: rgba(255,159,10,0.16);
-}
-.verdict-canvas-page .apex-command-badge[data-badge="sell"] {
-    color: #FF453A;
-    background: rgba(255,69,58,0.16);
 }
 .verdict-canvas-page .apex-command-why {
     font-size: 18px;
@@ -691,14 +837,6 @@ APEX_BRIEF_EXPERIENCE_CSS = """
     font-size: 13px;
     color: rgba(245,245,247,0.38);
     margin: 0;
-}
-.verdict-canvas-page .apex-action-row {
-    padding: 0 0 16px 0;
-}
-.verdict-canvas-page .apex-status-strip {
-    padding: 8px 4px 20px 4px;
-    border-top: 1px solid rgba(255,255,255,0.06);
-    border-bottom: 1px solid rgba(255,255,255,0.06);
 }
 .verdict-canvas-page .apex-status-strip-row {
     display: flex;
@@ -724,76 +862,6 @@ APEX_BRIEF_EXPERIENCE_CSS = """
     font-weight: 500;
     line-height: 1.3;
     color: rgba(245,245,247,0.82);
-}
-.verdict-canvas-page .apex-command-context {
-    padding-top: 20px;
-}
-.verdict-canvas-page .apex-review-depth {
-    padding: 20px 4px 8px 4px;
-}
-.verdict-canvas-page .apex-exec-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
-}
-.verdict-canvas-page .apex-exec-card {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    padding: 14px 12px;
-    border-radius: 14px;
-    background: rgba(255,255,255,0.04);
-}
-.verdict-canvas-page .apex-exec-k {
-    font-size: 11px;
-    font-weight: 500;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: rgba(245,245,247,0.42);
-}
-.verdict-canvas-page .apex-exec-v {
-    font-size: 15px;
-    font-weight: 500;
-    line-height: 1.35;
-    color: rgba(245,245,247,0.92);
-}
-.verdict-canvas-page .apex-brief-hero {
-    padding-top: 32px;
-}
-.verdict-canvas-page .apex-brief-view {
-    font-size: 32px;
-    font-weight: 600;
-    letter-spacing: -0.02em;
-    line-height: 1.15;
-    margin: 0 0 16px 0;
-    color: #F5F5F7;
-}
-.verdict-canvas-page .apex-brief-why {
-    font-size: 18px;
-    line-height: 1.55;
-    color: rgba(245,245,247,0.82);
-    margin: 0 0 12px 0;
-}
-.verdict-canvas-page .apex-brief-confidence {
-    font-size: 14px;
-    font-weight: 500;
-    color: rgba(245,245,247,0.48);
-    margin: 0 0 18px 0;
-}
-.verdict-canvas-page .apex-brief-rec {
-    font-size: 16px;
-    line-height: 1.5;
-    color: rgba(245,245,247,0.88);
-    margin: 0 0 8px 0;
-}
-.verdict-canvas-page .apex-brief-rec-k {
-    display: block;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: rgba(245,245,247,0.42);
-    margin-bottom: 6px;
 }
 .verdict-canvas-page .apex-priority-lead {
     font-size: 20px;
@@ -866,53 +934,17 @@ APEX_BRIEF_EXPERIENCE_CSS = """
     padding: 24px 8px 8px 8px;
     margin: 0;
 }
-.verdict-canvas-page [data-testid="stExpander"] {
-    border: none !important;
-    background: transparent !important;
-}
-.verdict-canvas-page [data-testid="stPopover"] button {
-    min-height: 44px;
-}
 </style>
 """
 
 APEX_INVESTMENT_HERO_CSS = """
 <style>
 .verdict-canvas-page .apex-inv-hero {
-    padding-top: 20px;
-    padding-bottom: 8px;
+    padding-top: 0;
+    padding-bottom: 0;
 }
 .verdict-canvas-page .apex-inv-name {
-    font-size: 34px;
-    font-weight: 600;
-    letter-spacing: -0.03em;
-    line-height: 1.1;
     margin: 0 0 12px 0;
-    color: #F5F5F7;
-}
-.verdict-canvas-page .apex-inv-badge {
-    display: inline-block;
-    font-size: 13px;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    border-radius: 999px;
-    padding: 6px 12px;
-    margin: 0 0 16px 0;
-    background: rgba(255,255,255,0.06);
-    color: rgba(245,245,247,0.88);
-}
-.verdict-canvas-page .apex-inv-badge[data-badge="buy"] {
-    color: #00E676;
-    background: rgba(0,230,118,0.12);
-}
-.verdict-canvas-page .apex-inv-badge[data-badge="wait"] {
-    color: #FFC107;
-    background: rgba(255,193,7,0.12);
-}
-.verdict-canvas-page .apex-inv-badge[data-badge="pass"] {
-    color: #A1A1A6;
-    background: rgba(255,255,255,0.06);
 }
 .verdict-canvas-page .apex-inv-row {
     font-size: 16px;
@@ -943,13 +975,6 @@ APEX_INVESTMENT_THESIS_CSS = """
     padding-top: 12px;
 }
 .verdict-canvas-page .apex-thesis-badge {
-    display: inline-block;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    padding: 6px 10px;
-    border-radius: 999px;
     margin: 0 0 14px 0;
 }
 .verdict-canvas-page .apex-thesis-strengthening { background: rgba(48,209,88,0.16); color: #30D158; }
@@ -987,16 +1012,6 @@ APEX_BUSINESS_HEALTH_CSS = """
     gap: 8px;
     margin: 0 0 4px 0;
 }
-.verdict-canvas-page .apex-health-chip {
-    display: inline-block;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    padding: 6px 10px;
-    border-radius: 999px;
-    background: rgba(245,245,247,0.08);
-    color: rgba(245,245,247,0.78);
-}
 </style>
 """
 
@@ -1021,14 +1036,9 @@ APEX_RISK_MONITOR_CSS = """
     margin: 0 0 4px 0;
 }
 .verdict-canvas-page .apex-risk-badge {
-    display: inline-block;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    padding: 6px 10px;
-    border-radius: 999px;
     background: rgba(255,69,58,0.12);
     color: rgba(255,159,10,0.92);
+    border-color: rgba(255,69,58,0.18);
 }
 </style>
 """
@@ -1039,20 +1049,9 @@ APEX_RECOMMENDATION_EXPLANATION_CSS = """
     padding-top: 12px;
 }
 .verdict-canvas-page .apex-rex-badge {
-    display: inline-block;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    padding: 6px 10px;
-    border-radius: 999px;
     margin: 0 0 14px 0;
 }
-.verdict-canvas-page .apex-rex-buy { background: rgba(48,209,88,0.16); color: #30D158; }
 .verdict-canvas-page .apex-rex-hold { background: rgba(255,214,10,0.14); color: #FFD60A; }
-.verdict-canvas-page .apex-rex-wait { background: rgba(10,132,255,0.16); color: #0A84FF; }
-.verdict-canvas-page .apex-rex-reduce { background: rgba(255,159,10,0.16); color: #FF9F0A; }
-.verdict-canvas-page .apex-rex-sell { background: rgba(255,69,58,0.16); color: #FF453A; }
 .verdict-canvas-page .apex-rex-l1 {
     font-size: 17px;
     line-height: 1.55;
