@@ -1,8 +1,8 @@
 # APEX V3 — Roadmap
 
 **Document ID:** APEX-V3-ROADMAP  
-**Version:** 0.4  
-**Status:** ACTIVE — V3-103 shipped  
+**Version:** 0.5  
+**Status:** ACTIVE — V3-201 shipped  
 **Date:** 2026-08-06  
 **Owner:** Product  
 **Parent:** [APEX_V3_PRODUCT_STRATEGY.md](./APEX_V3_PRODUCT_STRATEGY.md)  
@@ -58,7 +58,7 @@ APEX V3 extends the **Daily Decision Experience** (V2 GA) into a full **Investme
 | **V3-103** | **Portfolio Review** | Theme-first review queue, explanation, Understand, Research handoff | **✅ Shipped** |
 | V3-104 | Allocation indicators | Policy drift vs bucket tags per row | Planned |
 | V3-105 | Health scoring surface | Reuse APS-005 patterns at portfolio level | Planned |
-| V3-106 | Integration tests | Render-level; 100% gate | ✅ 32-test gate |
+| V3-106 | Integration tests | Render-level; 100% gate | ✅ 43-test gate |
 
 **Dependencies:** Zerodha connected; existing portfolio use cases  
 **Non-goals:** Rebalance execution; tax optimization
@@ -67,16 +67,17 @@ APEX V3 extends the **Daily Decision Experience** (V2 GA) into a full **Investme
 
 ---
 
-## Phase 2 — Decision Memory (Q1 2027)
+## Phase 2 — Research & Decision Memory (Q1 2027) — IN PROGRESS
 
-**Theme:** *"What did I decide and what happened?"*
+**Theme:** *"Should I invest in this company?"* · *"What did I decide and what happened?"*
 
-| ID | Milestone | Outcome |
-|----|-----------|---------|
-| V3-201 | Decision Receipt | Immutable receipt on ACT/WAIT with proof link |
-| V3-202 | Weekly Review | Sunday ritual; broker reconcile |
-| V3-203 | Journal page shell | Journal tab; trade log integration |
-| V3-204 | Discipline metrics | Process score (not P&L leaderboard) |
+| ID | Milestone | Outcome | Status |
+|----|-----------|---------|--------|
+| **V3-201** | **Research Workbench** | 7-question workflow, Investment Decision, Understand, Proof | **✅ Shipped** |
+| V3-202 | Decision Receipt | Immutable receipt on ACT/WAIT with proof link | Planned |
+| V3-203 | Weekly Review | Sunday ritual; broker reconcile | Planned |
+| V3-204 | Journal page shell | Journal tab; trade log integration | Planned |
+| V3-205 | Discipline metrics | Process score (not P&L leaderboard) | Planned |
 
 **Target tag:** `v3.0.0-alpha2`
 
@@ -173,6 +174,7 @@ flowchart TD
 | **V3-101** | **Portfolio Command Center** | **2026-08-06 ✅** |
 | **V3-102** | **Holdings Experience** | **2026-08-06 ✅** |
 | **V3-103** | **Portfolio Review** | **2026-08-06 ✅** |
+| **V3-201** | **Research Workbench** | **2026-08-06 ✅** |
 | `v3.0.0-alpha1` | Portfolio Intelligence (remaining) | 2026-12 |
 | `v3.0.0-alpha2` | Decision Memory | 2027-03 |
 | `v3.0.0-beta1` | Review Cadences | 2027-06 |

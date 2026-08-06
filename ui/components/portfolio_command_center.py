@@ -146,8 +146,11 @@ def render_portfolio_status_strip(*, contract: PortfolioOverviewContract) -> Non
     )
 
 
-def _research_handoff(symbol: str) -> None:
+def _research_handoff(symbol: str, *, back_subtab: str | None = None) -> None:
     clean = symbol.upper().replace(".NS", "").replace(".BO", "").replace("NSE:", "")
+    from ui.components.research_workspace_experience import set_research_back_context
+
+    set_research_back_context(tab="My Portfolio", subtab=back_subtab or PORTFOLIO_OVERVIEW)
     request_nav_tab("Single Stock", single_ticker=clean)
 
 

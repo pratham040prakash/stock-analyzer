@@ -10,6 +10,7 @@ from ui.components.canvas_utils import _esc
 from ui.components.portfolio_command_center import (
     PORTFOLIO_HOLDINGS,
     PORTFOLIO_OVERVIEW,
+    PORTFOLIO_REVIEW,
     _research_handoff,
     set_portfolio_subtab,
 )
@@ -98,7 +99,7 @@ def render_research_handoff_menu(
             key=f"review_research_{theme.theme_key}_{index}",
             use_container_width=True,
         ):
-            _research_handoff(symbols[0])
+            _research_handoff(symbols[0], back_subtab=PORTFOLIO_REVIEW)
         return
     with st.popover("Open Research ▾"):
         for sym_index, symbol in enumerate(symbols[:5]):
@@ -107,7 +108,7 @@ def render_research_handoff_menu(
                 key=f"review_research_pick_{theme.theme_key}_{index}_{sym_index}",
                 use_container_width=True,
             ):
-                _research_handoff(symbol)
+                _research_handoff(symbol, back_subtab=PORTFOLIO_REVIEW)
 
 
 def render_theme_understand_popover(

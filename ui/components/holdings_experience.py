@@ -13,7 +13,7 @@ from ui.components.holdings_experience_ui import (
     holdings_experience_from_inputs,
     holdings_row_understand_contract,
 )
-from ui.components.portfolio_command_center import _research_handoff
+from ui.components.portfolio_command_center import PORTFOLIO_HOLDINGS, _research_handoff
 from ui.components.understand_popover import render_understand_popover
 
 _HOLDINGS_SEARCH_KEY = "holdings_search_query"
@@ -189,7 +189,7 @@ def render_holdings_row_understand_popover(*, row: HoldingsRowContract, index: i
             key=f"holdings_understand_research_{row.symbol}_{index}",
             use_container_width=True,
         ):
-            _research_handoff(row.symbol)
+            _research_handoff(row.symbol, back_subtab=PORTFOLIO_HOLDINGS)
 
 
 def render_holdings_table_region(
@@ -233,7 +233,7 @@ def render_holdings_table_region(
                     key=f"holdings_research_{row.symbol}_{index}",
                     use_container_width=True,
                 ):
-                    _research_handoff(row.symbol)
+                    _research_handoff(row.symbol, back_subtab=PORTFOLIO_HOLDINGS)
             with c2:
                 render_holdings_row_understand_popover(row=row, index=index)
         st.markdown("</div>", unsafe_allow_html=True)
@@ -257,7 +257,7 @@ def render_holdings_card(*, row: HoldingsRowContract, index: int) -> None:
     c1, c2 = st.columns(2)
     with c1:
         if st.button(f"→ {row.symbol}", key=f"holdings_card_go_{row.symbol}_{index}"):
-            _research_handoff(row.symbol)
+            _research_handoff(row.symbol, back_subtab=PORTFOLIO_HOLDINGS)
     with c2:
         render_holdings_row_understand_popover(row=row, index=index)
 
@@ -301,7 +301,7 @@ def render_watchlist_collapsible(*, contract: HoldingsExperienceContract) -> Non
                 key=f"holdings_watchlist_{row.symbol}_{index}",
                 use_container_width=True,
             ):
-                _research_handoff(row.symbol)
+                _research_handoff(row.symbol, back_subtab=PORTFOLIO_HOLDINGS)
 
 
 def render_holdings_empty_state(*, contract: HoldingsExperienceContract) -> None:

@@ -1,5 +1,21 @@
 # Product Changelog
 
+## v3.0 — V3-201 Research Workbench (2026-08-06)
+
+**Milestone:** V3-201  
+**Architecture:** [docs/apex/APEX-018_V3-201_Research_Workbench.md](../docs/apex/APEX-018_V3-201_Research_Workbench.md)
+
+### Research Workbench (V3-201)
+
+- Research › Workbench (Single Stock tab) — 7-question research workflow, Investment View Hero
+- Reuses `DecisionContextBundle` → `MorningBriefViewModel` + existing presentation contracts
+- Projection only: `research_workspace_from_view_model()`
+- Shared Understand framework; Proof overlay reuses `DecisionArtifact` evidence
+- Investment Decision: session-only (Watch · Hold · Accumulate Later · Avoid)
+- Portfolio handoff preserves back navigation context
+- Regression gate: **43 / 43 passing**
+- V2 frozen pipeline unchanged
+
 ## v3.0 — V3-103 Portfolio Review (2026-08-06)
 
 **Milestone:** V3-103  

@@ -1353,6 +1353,94 @@ APEX_BRIEF_EXPERIENCE_CSS = """
     color: rgba(245,245,247,0.72);
     margin: 0 0 8px 0;
 }
+.verdict-canvas-page .apex-research-workbench {
+    padding-top: 8px;
+}
+.verdict-canvas-page .apex-research-subnav {
+    margin-bottom: 12px;
+}
+.verdict-canvas-page .apex-research-context-header {
+    margin-bottom: 8px;
+}
+.verdict-canvas-page .apex-research-context-chip {
+    font-size: 14px;
+    color: rgba(245,245,247,0.72);
+    margin: 4px 0 0 0;
+}
+.verdict-canvas-page .apex-research-fit {
+    font-size: 13px;
+    color: rgba(245,245,247,0.55);
+    margin: 4px 0 8px 0;
+}
+.verdict-canvas-page .apex-research-hero {
+    padding: 12px 16px;
+    border-radius: 12px;
+    background: rgba(245,245,247,0.04);
+    margin-bottom: 12px;
+}
+.verdict-canvas-page .apex-research-view-label {
+    font-size: 18px;
+    font-weight: 700;
+    margin: 0 0 8px 0;
+}
+.verdict-canvas-page .apex-research-summary {
+    font-size: 15px;
+    line-height: 1.55;
+    color: rgba(245,245,247,0.88);
+    margin: 0;
+}
+.verdict-canvas-page .apex-research-disclaimer {
+    font-size: 13px;
+    color: rgba(245,245,247,0.52);
+    margin: 8px 0 0 0;
+}
+.verdict-canvas-page .apex-research-progress {
+    font-size: 14px;
+    color: rgba(245,245,247,0.62);
+    margin: 8px 0 12px 0;
+}
+.verdict-canvas-page .apex-research-question-panel,
+.verdict-canvas-page .apex-research-decision {
+    border: 1px solid rgba(245,245,247,0.08);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+}
+.verdict-canvas-page .apex-research-question-title {
+    font-size: 16px;
+    margin: 0 0 10px 0;
+}
+.verdict-canvas-page .apex-research-body-line {
+    font-size: 14px;
+    line-height: 1.5;
+    color: rgba(245,245,247,0.78);
+    margin: 0 0 8px 0;
+}
+.verdict-canvas-page .apex-research-labeled-line {
+    font-size: 14px;
+    margin: 0 0 6px 0;
+}
+.verdict-canvas-page .apex-evidence-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(10,132,255,0.85);
+}
+.verdict-canvas-page .apex-research-decision-label {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: rgba(245,245,247,0.45);
+    margin: 12px 0 6px 0;
+}
+.verdict-canvas-page .apex-research-alpha-link {
+    margin-bottom: 8px;
+}
+.verdict-canvas-page .apex-research-footer {
+    margin-top: 8px;
+}
 </style>
 """
 
