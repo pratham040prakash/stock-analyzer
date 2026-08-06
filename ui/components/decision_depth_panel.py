@@ -34,14 +34,16 @@ def render_decision_depth_panel(
     decision: DecisionArtifact | None,
     mis: MisTradeAdvisory,
     key_prefix: str = "apex_review_depth",
+    include_section_header: bool = True,
 ) -> None:
     """Unified Review Depth container — reuses existing APS renderers only."""
-    st.markdown(
-        '<section class="apex-section apex-review-depth" aria-label="Review depth">'
-        '<p class="apex-section-label">Review Depth</p>'
-        "</section>",
-        unsafe_allow_html=True,
-    )
+    if include_section_header:
+        st.markdown(
+            '<section class="apex-section apex-review-depth" aria-label="Review depth">'
+            '<p class="apex-section-label">Review Depth</p>'
+            "</section>",
+            unsafe_allow_html=True,
+        )
 
     explanation = build_recommendation_explanation_view(
         brief=brief,

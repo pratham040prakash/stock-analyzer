@@ -1,5 +1,17 @@
 # Product Changelog
 
+## v2.0.0-rc1 — Release Candidate (2026-08-06)
+
+**Tag:** `v2.0.0-rc1`  
+**Release notes:** [product/releases/v2.0.0-rc1.md](./releases/v2.0.0-rc1.md)
+
+### Release Candidate Hardening (RC-001)
+
+- Unified Review Depth — Today popover reuses `render_decision_depth_panel`
+- Render integration tests for Home Command Center, Understand popover, Review Workspace
+- Engineering documentation: `docs/apex/APEX-014_V2_Architecture_and_Release.md`
+- Full suite triaged — no RC regressions
+
 ## APEX V2 Complete
 
 - Home Command Center

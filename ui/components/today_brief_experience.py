@@ -14,16 +14,9 @@ from analyzer.decision_engine.models import DecisionArtifact
 from analyzer.mis_trade_advisory import MisTradeAdvisory
 from analyzer.use_cases.morning_brief_models import MorningBriefViewModel
 from ui.broker.state import BrokerSnapshot
-from ui.components.business_health import (
-    build_business_health_view,
-    render_business_health,
-)
 from ui.components.canvas_utils import VerdictCanvasState, _esc
 from ui.components.decision_card import DecisionCardViewModel, hero_review_setup_symbol
-from ui.components.investment_thesis import (
-    build_investment_thesis_view,
-    render_investment_thesis,
-)
+from ui.components.decision_depth_panel import render_decision_depth_panel
 from ui.components.morning_brief_ui import (
     RecommendationContract,
     answer_key_from_brief,
@@ -31,14 +24,6 @@ from ui.components.morning_brief_ui import (
     recommendation_contract_from_brief,
 )
 from ui.components.partner_shell import set_partner_dock
-from ui.components.recommendation_explanation import (
-    build_recommendation_explanation_view,
-    render_recommendation_explanation,
-)
-from ui.components.risk_monitor import (
-    build_risk_monitor_view,
-    render_risk_monitor,
-)
 from ui.components.today_intelligence import TodayCommandCenter, build_today_command_center
 
 IST = ZoneInfo("Asia/Kolkata")
@@ -296,45 +281,14 @@ def _render_understand_popover(
             depth_expander_key="apex_cmd_understand_depth",
             depth_expanded=False,
         )
-
-        explanation = build_recommendation_explanation_view(
-            brief=brief,
-            contract=contract,
-            decision=decision,
-        )
-        with st.expander("Recommendation explanation", expanded=False):
-            render_recommendation_explanation(
-                explanation,
-                key_prefix="apex_cmd_rex",
-                title="Recommendation explanation",
-            )
-
-        thesis = build_investment_thesis_view(
+        render_decision_depth_panel(
             brief=brief,
             contract=contract,
             decision=decision,
             mis=mis,
+            key_prefix="apex_cmd_understand",
+            include_section_header=False,
         )
-        with st.expander("Investment thesis", expanded=False):
-            render_investment_thesis(thesis, key_prefix="apex_cmd_thesis")
-
-        health = build_business_health_view(
-            brief=brief,
-            contract=contract,
-            decision=decision,
-            mis=mis,
-        )
-        with st.expander("Business health", expanded=False):
-            render_business_health(health, key_prefix="apex_cmd_health")
-
-        risk = build_risk_monitor_view(
-            brief=brief,
-            contract=contract,
-            decision=decision,
-            mis=mis,
-        )
-        with st.expander("Risk monitor", expanded=False):
-            render_risk_monitor(risk, key_prefix="apex_cmd_risk")
 
 
 def _render_verdict_hero(
