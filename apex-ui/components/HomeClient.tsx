@@ -7,6 +7,7 @@ import DailyDecisionCard from "./DailyDecisionCard";
 import DecisionHistoryPanel from "./DecisionHistoryPanel";
 import DailyInsightBanner from "./DailyInsightBanner";
 import FinancialProfileSetup from "./FinancialProfileSetup";
+import IntentSelector from "./IntentSelector";
 import LoginCTA from "./LoginCTA";
 import PortfolioCard from "./PortfolioCard";
 import PortfolioSummary, {
@@ -546,6 +547,7 @@ export default function HomeClient({
 
           {showGuidance && (
             <>
+              <IntentSelector />
               {portfolioLoading && !hasPortfolioData && (
                 <PortfolioSummarySkeleton />
               )}
