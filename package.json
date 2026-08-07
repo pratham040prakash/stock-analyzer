@@ -2,7 +2,7 @@
   "private": true,
   "name": "stock-analyzer",
   "scripts": {
-    "vercel-build": "bash scripts/vercel-build.sh",
-    "build": "npm run build --prefix apex-ui"
+    "build": "npm run build --prefix apex-ui",
+    "dev": "npm run dev --prefix apex-ui"
   }
 }
