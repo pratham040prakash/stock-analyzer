@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ConnectZerodhaCard from "./ConnectZerodhaCard";
+import AvailableFundsCard from "./AvailableFundsCard";
 import DailyDecisionCard from "./DailyDecisionCard";
 import DecisionHistoryPanel from "./DecisionHistoryPanel";
 import DailyInsightBanner from "./DailyInsightBanner";
@@ -54,6 +55,11 @@ type DecisionHistoryResponse = {
 type ZerodhaSessionResponse = {
   status?: string;
   connected?: boolean;
+};
+
+type FundsResponse = {
+  available_cash: number;
+  status?: string;
 };
 
 function LoadingState() {
@@ -126,6 +132,8 @@ export default function HomeClient({
   const [portfolioLoading, setPortfolioLoading] = useState(
     () => initialPortfolio.holdings.length === 0,
   );
+  const [availableCash, setAvailableCash] = useState<number | null>(null);
+  const [fundsLoading, setFundsLoading] = useState(false);
   const [brokerMessage, setBrokerMessage] = useState<string | null>(
     zerodhaNotice === "connected"
       ? "Zerodha connected — syncing your portfolio now."
@@ -272,6 +280,22 @@ export default function HomeClient({
     }
   }, [configured, user]);
 
+  const loadFunds = useCallback(async () => {
+    if (!configured || !user) return;
+
+    setFundsLoading(true);
+    try {
+      const res = await apiFetch("/api/funds", { method: "GET" });
+      const data = await parseApiJson<FundsResponse>(res, "Funds");
+      if (!data) return;
+      setAvailableCash(Math.max(0, Math.round(data.available_cash ?? 0)));
+    } catch {
+      setAvailableCash(null);
+    } finally {
+      setFundsLoading(false);
+    }
+  }, [configured, user]);
+
   const intentDecisionEnabled =
     configured &&
     Boolean(user) &&
@@ -317,6 +341,7 @@ export default function HomeClient({
       await loadPortfolio({ silent: true });
       refreshDecision();
       await loadDailyInsight();
+      await loadFunds();
       await loadDecisionHistory();
 
       const res = await apiFetch("/api/zerodha/session", { method: "GET" });
@@ -335,6 +360,7 @@ export default function HomeClient({
     loadPortfolio,
     refreshDecision,
     loadDailyInsight,
+    loadFunds,
     loadDecisionHistory,
   ]);
 
@@ -349,6 +375,7 @@ export default function HomeClient({
       setCompletedFetchKey(user.id);
       void refreshDecision();
       void loadDailyInsight();
+      void loadFunds();
       void loadDecisionHistory();
     });
   }, [
@@ -359,6 +386,7 @@ export default function HomeClient({
     loadPortfolio,
     refreshDecision,
     loadDailyInsight,
+    loadFunds,
     loadDecisionHistory,
   ]);
 
@@ -381,6 +409,7 @@ export default function HomeClient({
       if (!cancelled) {
         setCompletedFetchKey(portfolioFetchKey);
         void loadDailyInsight();
+        void loadFunds();
         void loadDecisionHistory();
       }
     });
@@ -394,6 +423,7 @@ export default function HomeClient({
     loadPortfolio,
     refreshDecision,
     loadDailyInsight,
+    loadFunds,
     loadDecisionHistory,
   ]);
 
@@ -569,6 +599,14 @@ export default function HomeClient({
                     riskLevel={portfolioData.risk_level ?? "Low"}
                     topSymbol={portfolioData.top_symbol}
                     topAllocationPct={portfolioData.top_allocation_pct}
+                  />
+                )}
+              {connectionStatus === "CONNECTED" &&
+                (fundsLoading || availableCash !== null) && (
+                  <AvailableFundsCard
+                    availableCash={availableCash ?? 0}
+                    intent={userIntent}
+                    loading={fundsLoading && availableCash === null}
                   />
                 )}
             </>
