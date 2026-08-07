@@ -1,4 +1,5 @@
 import type { PortfolioRiskLevel } from "@/lib/portfolioRisk";
+import type { DecisionOpportunity } from "@/types/decision";
 import type { Intent } from "@/types/intent";
 
 export type Recommendation = {
@@ -51,9 +52,12 @@ export function getRecommendations(
   return [];
 }
 
-export function getExploreOpportunities(): Pick<Recommendation, "name" | "reason">[] {
-  return getRecommendations("explore", "Low").map(({ name, reason }) => ({
+export function getOpportunities(
+  intent: Intent,
+  risk: PortfolioRiskLevel = "Low",
+): DecisionOpportunity[] {
+  return getRecommendations(intent, risk).map(({ name, type }) => ({
     name,
-    reason,
+    type,
   }));
 }

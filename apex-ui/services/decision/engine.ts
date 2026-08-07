@@ -4,7 +4,7 @@ import {
   getInvestableSurplus,
   type FinancialProfile,
 } from "@/lib/financialProfile";
-import { getExploreOpportunities } from "@/lib/recommendations";
+import { getOpportunities } from "@/lib/recommendations";
 import type {
   DailyDecisionOutput,
   DailyDecisionType,
@@ -419,7 +419,8 @@ function buildConfidenceFactors(
   return factors.slice(0, 5);
 }
 
-const EXPLORE_OPPORTUNITIES: DecisionOpportunity[] = getExploreOpportunities();
+const EXPLORE_OPPORTUNITIES: DecisionOpportunity[] = getOpportunities("explore");
+const GROW_OPPORTUNITIES: DecisionOpportunity[] = getOpportunities("grow");
 
 function buildGrowDecision(
   _input: DecisionEngineInput,
@@ -436,6 +437,7 @@ function buildGrowDecision(
     confidence,
     message: "Invest gradually to grow your portfolio",
     suggestion: "Use available funds to accumulate quality stocks",
+    opportunities: GROW_OPPORTUNITIES,
     reason: "Portfolio size can be increased steadily",
     confidence_factors: [
       "You selected Grow Portfolio as today's intent",

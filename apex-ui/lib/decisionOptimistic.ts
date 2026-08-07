@@ -2,12 +2,13 @@ import {
   deployableFundsForIntent,
   getAllocation,
 } from "@/lib/allocation";
-import { getExploreOpportunities } from "@/lib/recommendations";
+import { getOpportunities } from "@/lib/recommendations";
 import type { PortfolioRiskLevel } from "@/lib/portfolioRisk";
 import type { DailyDecisionOutput } from "@/types/decision";
 import type { Intent } from "@/types/intent";
 
-const EXPLORE_OPPORTUNITIES = getExploreOpportunities();
+const GROW_OPPORTUNITIES = getOpportunities("grow");
+const EXPLORE_OPPORTUNITIES = getOpportunities("explore");
 
 export type OptimisticDecisionContext = {
   stock?: string;
@@ -49,6 +50,7 @@ export function createOptimisticDecision(
       action: "buy",
       message: "Invest gradually to grow your portfolio",
       suggestion: "Use available funds to accumulate quality stocks",
+      opportunities: GROW_OPPORTUNITIES,
       reason: "Portfolio size can be increased steadily",
       recommended_allocation: optimisticAllocation(intent, context),
     };

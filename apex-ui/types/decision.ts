@@ -18,7 +18,7 @@ export type DecisionActionType =
 
 export type DecisionOpportunity = {
   name: string;
-  reason: string;
+  type: string;
 };
 
 export type RecommendedAllocationItem = {

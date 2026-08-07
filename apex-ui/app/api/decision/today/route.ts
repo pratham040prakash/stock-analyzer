@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import { apiError } from "@/lib/api/response";
 import {
+  buildExecutionPlan,
   deployableFundsForIntent,
   getAllocation,
 } from "@/lib/allocation";
 import { portfolioRiskFromAllocation } from "@/lib/portfolioRisk";
+import { getOpportunities } from "@/lib/recommendations";
 import { getActiveBrokerConnection } from "@/services/broker/connections";
 import {
   computePortfolioMetrics,
@@ -57,24 +59,29 @@ async function enrichDecisionWithAllocation(
   const connection = await getActiveBrokerConnection(supabase, userId);
 
   if (connection?.status !== "active") {
-    return { ...decision, recommended_allocation: [] };
+    return { ...decision, opportunities: [], recommended_allocation: [] };
   }
 
   const marginsResult = await fetchZerodhaMargins(connection.accessToken);
 
   if (marginsResult.status !== "OK") {
-    return { ...decision, recommended_allocation: [] };
+    return { ...decision, opportunities: [], recommended_allocation: [] };
   }
 
   const risk = portfolioRiskFromAllocation(topAllocationPercent(holdings))
     .risk_level;
+  const opportunities = getOpportunities(intent, risk);
   const deployable = deployableFundsForIntent(
     marginsResult.availableCash,
     intent,
   );
-  const recommended_allocation = getAllocation(deployable, intent, risk);
+  const recommended_allocation = buildExecutionPlan(
+    opportunities,
+    deployable,
+    intent,
+  );
 
-  return { ...decision, recommended_allocation };
+  return { ...decision, opportunities, recommended_allocation };
 }
 
 function decisionResponsePayload(

@@ -122,7 +122,6 @@ export default function DailyDecisionCard({
   const canTrim = isSellAction(decision.action) && Boolean(decision.stock);
   const isBuy = decision.action === "buy";
   const isExplore = decision.action === "explore";
-  const opportunities = decision.opportunities ?? [];
   const suggestedSellPercent = decision.suggested_sell_percent ?? 20;
   const sellOptions = buildSellPercentOptions(decision.suggested_sell_percent);
   const activeSellPercent = selectedSellPercent ?? suggestedSellPercent;
@@ -134,7 +133,7 @@ export default function DailyDecisionCard({
       ? decisionRiskMicrocopy(decision.allocation, activeSellPercent)
       : null;
 
-  const recommendedAllocation = useMemo(() => {
+  const recommendedPlan = useMemo(() => {
     if (decision.recommended_allocation?.length) {
       return decision.recommended_allocation;
     }
@@ -159,8 +158,8 @@ export default function DailyDecisionCard({
     riskLevel,
   ]);
 
-  const showRecommendedAllocation =
-    recommendedAllocation.length > 0 && (isBuy || isExplore);
+  const showRecommendedPlan =
+    recommendedPlan.length > 0 && (isBuy || isExplore);
 
   const sellImpact =
     pendingSellPercent !== null &&
@@ -276,43 +275,56 @@ export default function DailyDecisionCard({
           )}
 
           <div className="space-y-3 min-h-[7.5rem]">
-            {isExplore ? (
+            {isBuy || isExplore ? (
               <div className="space-y-3">
-                <p className="text-xs text-gray-500 uppercase tracking-wider">
-                  Opportunities
-                </p>
-                <ul className="space-y-2">
-                  {opportunities.map((opportunity) => (
-                    <li
-                      key={opportunity.name}
-                      className="flex items-start justify-between gap-4 rounded-xl border border-purple-500/20 bg-purple-500/5 px-4 py-3"
+                {isBuy && (
+                  <>
+                    <p className="text-sm text-gray-300">
+                      Invest your available funds
+                    </p>
+                    <button
+                      type="button"
+                      className={`w-full px-5 py-3.5 rounded-xl text-sm font-semibold transition-all ${visuals.primaryButton}`}
                     >
-                      <div>
-                        <p className="text-sm font-medium text-purple-50">
-                          {opportunity.name}
-                        </p>
-                        <p className="text-xs text-purple-200/70 mt-1">
-                          {opportunity.reason}
-                        </p>
-                      </div>
-                      <span className="shrink-0 rounded-full border border-purple-500/30 bg-purple-500/10 px-2.5 py-1 text-[11px] font-medium text-purple-100">
-                        Idea
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : isBuy ? (
-              <div className="space-y-3">
-                <p className="text-sm text-gray-300">
-                  Invest your available funds
-                </p>
-                <button
-                  type="button"
-                  className={`w-full px-5 py-3.5 rounded-xl text-sm font-semibold transition-all ${visuals.primaryButton}`}
-                >
-                  {primaryLabel}
-                </button>
+                      {primaryLabel}
+                    </button>
+                  </>
+                )}
+
+                {isExplore && (
+                  <button
+                    type="button"
+                    className={`w-full px-5 py-3.5 rounded-xl text-sm font-semibold transition-all ${visuals.primaryButton}`}
+                  >
+                    {primaryLabel}
+                  </button>
+                )}
+
+                {showRecommendedPlan && (
+                  <div
+                    className={`rounded-xl border px-4 py-3 space-y-2 ${
+                      isExplore
+                        ? "border-purple-500/20 bg-purple-500/5"
+                        : "border-emerald-500/20 bg-emerald-500/5"
+                    }`}
+                  >
+                    <p className="text-xs text-gray-500 uppercase tracking-wider">
+                      Recommended Plan
+                    </p>
+                    <ul className="space-y-1.5">
+                      {recommendedPlan.map((item) => (
+                        <li
+                          key={item.name}
+                          className={`text-sm ${
+                            isExplore ? "text-purple-50" : "text-emerald-50"
+                          }`}
+                        >
+                          {formatInr(item.amount)} → {item.name}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             ) : (
               <>
@@ -375,37 +387,10 @@ export default function DailyDecisionCard({
             )}
 
             <p className="text-xs text-gray-600">
-              {isExplore
-                ? "Research ideas in your broker — guidance only, not a buy recommendation."
-                : isBuy
-                  ? "Guidance only — execute purchases in your broker when ready."
-                  : "Guidance only — confirm to simulate; execute in your broker for real trades."}
+              {isBuy || isExplore
+                ? "Guidance only — execute in your broker when ready."
+                : "Guidance only — confirm to simulate; execute in your broker for real trades."}
             </p>
-
-            {showRecommendedAllocation && (
-              <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 space-y-2">
-                <p className="text-xs text-gray-500 uppercase tracking-wider">
-                  Recommended allocation
-                </p>
-                <ul className="space-y-2">
-                  {recommendedAllocation.map((item) => (
-                    <li key={item.name} className="flex items-start gap-2">
-                      <span className="text-gray-500 mt-0.5" aria-hidden>
-                        •
-                      </span>
-                      <div>
-                        <p className="text-sm text-gray-200">
-                          {formatInr(item.amount)} → {item.name}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-0.5">
-                          {item.reason}
-                        </p>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
           </div>
 
           <button

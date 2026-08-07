@@ -1,7 +1,10 @@
 import { safeInvestAmount } from "@/lib/funds";
-import { getRecommendations } from "@/lib/recommendations";
+import { getOpportunities } from "@/lib/recommendations";
 import type { PortfolioRiskLevel } from "@/lib/portfolioRisk";
-import type { RecommendedAllocationItem } from "@/types/decision";
+import type {
+  DecisionOpportunity,
+  RecommendedAllocationItem,
+} from "@/types/decision";
 import type { Intent } from "@/types/intent";
 
 const ALLOCATION_WEIGHTS: Partial<Record<Intent, number[]>> = {
@@ -62,27 +65,31 @@ export function deployableFundsForIntent(
   return 0;
 }
 
+export function buildExecutionPlan(
+  opportunities: DecisionOpportunity[],
+  funds: number,
+  intent: Intent,
+): RecommendedAllocationItem[] {
+  const weights = ALLOCATION_WEIGHTS[intent];
+
+  if (funds <= 0 || !weights?.length || !opportunities.length) {
+    return [];
+  }
+
+  const items = opportunities.map((opportunity, index) => ({
+    name: opportunity.name,
+    amount: funds * (weights[index] ?? 0),
+    reason: opportunity.type,
+  }));
+
+  return normalizeAllocationItems(items, funds);
+}
+
 export function getAllocation(
   funds: number,
   intent: Intent,
   risk: PortfolioRiskLevel,
 ): RecommendedAllocationItem[] {
-  if (funds <= 0) {
-    return [];
-  }
-
-  const recommendations = getRecommendations(intent, risk);
-  const weights = ALLOCATION_WEIGHTS[intent];
-
-  if (!recommendations.length || !weights) {
-    return [];
-  }
-
-  const items = recommendations.map((recommendation, index) => ({
-    name: recommendation.name,
-    amount: funds * (weights[index] ?? 0),
-    reason: recommendation.reason,
-  }));
-
-  return normalizeAllocationItems(items, funds);
+  const opportunities = getOpportunities(intent, risk);
+  return buildExecutionPlan(opportunities, funds, intent);
 }
