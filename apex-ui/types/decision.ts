@@ -1,5 +1,7 @@
 export type DailyDecisionType = "BUY_MORE" | "HOLD" | "REDUCE" | "WAIT";
 
+import { portfolioRiskFromAllocation } from "@/lib/portfolioRisk";
+
 export type DecisionActionType = "reduce" | "buy" | "hold" | "wait";
 
 export type DailyDecisionOutput = {
@@ -99,4 +101,45 @@ export function buildSellPercentOptions(suggested?: number): number[] {
       : [...BASE_SELL_PERCENTS];
 
   return [...new Set(options)].sort((a, b) => a - b);
+}
+
+export function decisionConfidenceBadge(confidence: number): string {
+  if (confidence >= 80) {
+    return `High confidence (${confidence}%)`;
+  }
+  if (confidence >= 65) {
+    return `Medium confidence (${confidence}%)`;
+  }
+  return `Moderate confidence (${confidence}%)`;
+}
+
+export function decisionHeroActionText(
+  decision: DailyDecisionOutput,
+  sellPercent?: number,
+): string {
+  if (decision.action === "reduce" && decision.stock) {
+    const pct = sellPercent ?? decision.suggested_sell_percent ?? 20;
+    return `Sell ${pct}% of ${decision.stock}`;
+  }
+
+  if (decision.action === "buy") {
+    return decision.message ?? "Invest your monthly surplus steadily";
+  }
+
+  if (decision.action === "wait") {
+    return "Pause new investments for now";
+  }
+
+  return "Hold steady — no change today";
+}
+
+export function decisionRiskMicrocopy(
+  allocation: number,
+  sellPercent: number,
+): string {
+  const current = portfolioRiskFromAllocation(allocation).risk_level;
+  const next = portfolioRiskFromAllocation(
+    Math.round(allocation * (1 - sellPercent / 100)),
+  ).risk_level;
+  return `This reduces your risk from ${current.toUpperCase()} → ${next.toUpperCase()}`;
 }
