@@ -3,6 +3,7 @@
 import type { DecisionHistoryEntry } from "@/types/decisionHistory";
 import {
   decisionActionLabel,
+  displayConfidencePercent,
   type DecisionActionType,
 } from "@/types/decision";
 
@@ -36,10 +37,11 @@ function formatHistoryDate(date: string): string {
 
 function historyLabel(entry: DecisionHistoryEntry): string {
   const action = decisionActionLabel(entry.action as DecisionActionType);
+  const confidence = displayConfidencePercent(entry.confidence);
   if (entry.stock) {
-    return `${action} ${entry.stock} (${entry.confidence}%)`;
+    return `${action} ${entry.stock} (${confidence}%)`;
   }
-  return `${action} (${entry.confidence}%)`;
+  return `${action} (${confidence}%)`;
 }
 
 function actionTone(action: DecisionActionType): string {

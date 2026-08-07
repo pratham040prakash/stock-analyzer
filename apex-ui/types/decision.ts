@@ -63,25 +63,27 @@ export function dailyDecisionTypeToAction(
 }
 
 export function decisionHeadline(decision: DailyDecisionOutput): string {
+  const confidence = displayConfidencePercent(decision.confidence);
+
   if (
     decision.action === "reduce" &&
     decision.stock &&
     decision.suggested_sell_percent !== undefined
   ) {
     if (decision.suggestion === "Book partial profit") {
-      return `Book profit · ${decision.stock} (${decision.confidence}%)`;
+      return `Book profit · ${decision.stock} (${confidence}%)`;
     }
     if (decision.suggestion === "Reduce risk exposure") {
-      return `Trim risk · ${decision.stock} (${decision.confidence}%)`;
+      return `Trim risk · ${decision.stock} (${confidence}%)`;
     }
-    return `Sell ${decision.suggested_sell_percent}% ${decision.stock} (${decision.confidence}%)`;
+    return `Sell ${decision.suggested_sell_percent}% ${decision.stock} (${confidence}%)`;
   }
 
   const label = decisionActionLabel(decision.action);
   if (decision.stock) {
-    return `${label} ${decision.stock} (${decision.confidence}%)`;
+    return `${label} ${decision.stock} (${confidence}%)`;
   }
-  return `${label} (${decision.confidence}%)`;
+  return `${label} (${confidence}%)`;
 }
 
 export function decisionAllocationHint(
@@ -103,14 +105,24 @@ export function buildSellPercentOptions(suggested?: number): number[] {
   return [...new Set(options)].sort((a, b) => a - b);
 }
 
+/** Never show 100% — cap displayed confidence at 90. */
+export function displayConfidencePercent(confidence: number): number {
+  return Math.min(90, Math.max(0, Math.round(confidence)));
+}
+
 export function decisionConfidenceBadge(confidence: number): string {
+  const display = displayConfidencePercent(confidence);
+
+  if (confidence >= 90) {
+    return `Very high confidence (${display}%)`;
+  }
   if (confidence >= 80) {
-    return `High confidence (${confidence}%)`;
+    return `High confidence (${display}%)`;
   }
-  if (confidence >= 65) {
-    return `Medium confidence (${confidence}%)`;
+  if (confidence >= 60) {
+    return `Moderate confidence (${display}%)`;
   }
-  return `Moderate confidence (${confidence}%)`;
+  return `Low confidence (${display}%)`;
 }
 
 export function decisionHeroActionText(
