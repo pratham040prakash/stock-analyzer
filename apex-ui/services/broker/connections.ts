@@ -19,7 +19,31 @@ export function mapBrokerDbError(message: string): string {
   ) {
     return "Database table broker_connections is missing. Run apex-ui/supabase/schema.sql in Supabase SQL editor.";
   }
+  if (
+    lower.includes("on conflict") ||
+    lower.includes("no unique or exclusion constraint")
+  ) {
+    return "Database missing unique constraint on broker_connections (user_id, broker). Run apex-ui/supabase/bootstrap_broker_connections.sql in Supabase SQL editor.";
+  }
   return message;
+}
+
+type BrokerTokenRow = {
+  access_token?: string | null;
+  access_token_encrypted?: string | null;
+};
+
+function resolveStoredAccessToken(row: BrokerTokenRow): string {
+  const stored = row.access_token_encrypted || row.access_token;
+  if (!stored) {
+    throw new Error("Missing access token on broker connection");
+  }
+
+  try {
+    return decryptToken(stored);
+  } catch {
+    return stored;
+  }
 }
 
 export async function upsertBrokerConnection(
@@ -28,9 +52,10 @@ export async function upsertBrokerConnection(
   broker: string,
   tokens: BrokerConnectionInput,
 ): Promise<void> {
-  const access_token_encrypted = encryptToken(tokens.accessToken);
-  const public_token_encrypted = encryptToken(tokens.publicToken);
+  const access_token = encryptToken(tokens.accessToken);
+  const public_token = encryptToken(tokens.publicToken);
 
+  console.log("Saving broker connection:", { user_id: userId, broker });
   brokerLog("Saving broker connection", {
     user_id: userId,
     broker,
@@ -43,15 +68,15 @@ export async function upsertBrokerConnection(
       {
         user_id: userId,
         broker,
-        access_token_encrypted,
-        public_token_encrypted,
+        access_token,
+        public_token,
         kite_user_id: tokens.kiteUserId,
         status: "active",
         updated_at: new Date().toISOString(),
       },
       { onConflict: "user_id,broker" },
     )
-    .select("id, status, kite_user_id")
+    .select("id, broker, access_token, status, kite_user_id")
     .single();
 
   if (error) {
@@ -78,7 +103,7 @@ export async function getActiveBrokerConnection(
 ): Promise<{ accessToken: string; status: string } | null> {
   const { data, error } = await supabase
     .from("broker_connections")
-    .select("access_token_encrypted, status")
+    .select("access_token, status")
     .eq("user_id", userId)
     .eq("broker", broker)
     .maybeSingle();
@@ -100,7 +125,7 @@ export async function getActiveBrokerConnection(
   }
 
   return {
-    accessToken: decryptToken(data.access_token_encrypted),
+    accessToken: resolveStoredAccessToken(data),
     status: data.status,
   };
 }

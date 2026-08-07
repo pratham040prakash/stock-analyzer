@@ -5,6 +5,8 @@ export type DailyDecisionOutput = {
   confidence: number;
   reason: string;
   actions: string[];
+  focusSymbol?: string;
+  focusAllocationPct?: number;
 };
 
 export type PortfolioSnapshotInput = {

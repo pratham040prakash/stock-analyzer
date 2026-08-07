@@ -12,7 +12,9 @@ export type Database = {
           id: string;
           user_id: string;
           broker: string;
-          access_token_encrypted: string;
+          access_token: string | null;
+          access_token_encrypted: string | null;
+          public_token: string | null;
           public_token_encrypted: string | null;
           kite_user_id: string | null;
           status: "active" | "expired" | "revoked";
@@ -23,7 +25,9 @@ export type Database = {
           id?: string;
           user_id: string;
           broker?: string;
-          access_token_encrypted: string;
+          access_token?: string | null;
+          access_token_encrypted?: string | null;
+          public_token?: string | null;
           public_token_encrypted?: string | null;
           kite_user_id?: string | null;
           status?: "active" | "expired" | "revoked";
@@ -31,7 +35,9 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
-          access_token_encrypted?: string;
+          access_token?: string | null;
+          access_token_encrypted?: string | null;
+          public_token?: string | null;
           public_token_encrypted?: string | null;
           kite_user_id?: string | null;
           status?: "active" | "expired" | "revoked";

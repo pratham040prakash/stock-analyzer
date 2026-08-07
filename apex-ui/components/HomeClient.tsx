@@ -6,6 +6,7 @@ import ConnectZerodhaCard from "./ConnectZerodhaCard";
 import DailyDecisionCard from "./DailyDecisionCard";
 import FinancialProfileSetup from "./FinancialProfileSetup";
 import LoginCTA from "./LoginCTA";
+import PortfolioCard from "./PortfolioCard";
 import { useAuth } from "@/components/AuthProvider";
 import { authDebug } from "@/lib/auth/log";
 import type { Portfolio } from "@/types/portfolio";
@@ -13,6 +14,7 @@ import type { ConnectionStatus } from "@/lib/broker/zerodha";
 import type { FinancialProfile } from "@/lib/financialProfile";
 import { isProfileComplete } from "@/lib/financialProfile";
 import type { DailyDecisionOutput } from "@/types/decision";
+import type { PortfolioApiResponse } from "@/types/portfolioApi";
 import { recordVisit, saveCachedPortfolio } from "@/lib/portfolioCache";
 import { useGreeting } from "@/lib/useGreeting";
 import { useZerodhaOAuth } from "@/lib/useZerodhaOAuth";
@@ -27,11 +29,6 @@ type Props = {
   initialFinancialProfile: FinancialProfile | null;
   zerodhaNotice?: string;
   zerodhaError?: string;
-};
-
-type HoldingsResponse = {
-  status: ConnectionStatus | "OK" | "ERROR";
-  portfolio?: Portfolio;
 };
 
 type DecisionResponse = {
@@ -80,6 +77,7 @@ function ErrorBanner({
 }
 
 export default function HomeClient({
+  initialPortfolio,
   connectionStatus: initialConnectionStatus,
   userName,
   initialFinancialProfile,
@@ -102,6 +100,9 @@ export default function HomeClient({
     null,
   );
   const [dailyDecision, setDailyDecision] = useState<DailyDecisionOutput | null>(
+    null,
+  );
+  const [portfolioData, setPortfolioData] = useState<PortfolioApiResponse | null>(
     null,
   );
   const [portfolioError, setPortfolioError] = useState<string | null>(null);
@@ -160,6 +161,24 @@ export default function HomeClient({
     saveCachedPortfolio(next);
   }, []);
 
+  const applyPortfolioResponse = useCallback(
+    (data: PortfolioApiResponse) => {
+      setPortfolioData(data);
+
+      if (data.status === "OK" && data.holdings.length > 0) {
+        updatePortfolio({
+          holdings: data.holdings.map((h) => ({
+            symbol: h.tradingsymbol,
+            quantity: h.quantity,
+            avgPrice: h.average_price,
+            currentPrice: h.last_price,
+          })),
+        });
+      }
+    },
+    [updatePortfolio],
+  );
+
   const loadDailyDecision = useCallback(async () => {
     if (!configured || !user) return;
 
@@ -180,25 +199,23 @@ export default function HomeClient({
     setBrokerMessage(null);
     setCompletedFetchKey(null);
 
-    fetch("/api/zerodha/holdings")
+    fetch("/api/portfolio")
       .then(async (res) => {
-        const data = (await res.json()) as HoldingsResponse & { message?: string };
-        if (!res.ok) {
+        const data = (await res.json()) as PortfolioApiResponse;
+        if (!res.ok && data.status !== "TOKEN_EXPIRED") {
           throw new Error(data.message ?? "Could not load portfolio");
         }
         return data;
       })
       .then((data) => {
-        if (data.status === "OK" && data.portfolio) {
-          updatePortfolio(data.portfolio);
+        applyPortfolioResponse(data);
+
+        if (data.status === "OK" && data.holdings.length > 0) {
           setConnectionStatus("CONNECTED");
           setBrokerMessage("Your portfolio is synced and ready.");
         } else if (data.status === "TOKEN_EXPIRED") {
           setConnectionStatus("TOKEN_EXPIRED");
-          if (data.portfolio) {
-            updatePortfolio(data.portfolio);
-          }
-        } else {
+        } else if (data.status === "NOT_CONNECTED") {
           setConnectionStatus("NOT_CONNECTED");
         }
       })
@@ -216,7 +233,7 @@ export default function HomeClient({
     user,
     authLoading,
     isCompletingOAuth,
-    updatePortfolio,
+    applyPortfolioResponse,
     loadDailyDecision,
   ]);
 
@@ -235,10 +252,10 @@ export default function HomeClient({
 
     recordVisit();
 
-    fetch("/api/zerodha/holdings")
+    fetch("/api/portfolio")
       .then(async (res) => {
-        const data = (await res.json()) as HoldingsResponse & { message?: string };
-        if (!res.ok) {
+        const data = (await res.json()) as PortfolioApiResponse;
+        if (!res.ok && data.status !== "TOKEN_EXPIRED") {
           throw new Error(data.message ?? "Could not load portfolio");
         }
         return data;
@@ -246,16 +263,14 @@ export default function HomeClient({
       .then((data) => {
         if (cancelled) return;
 
-        if (data.status === "OK" && data.portfolio) {
-          updatePortfolio(data.portfolio);
+        applyPortfolioResponse(data);
+
+        if (data.status === "OK" && data.holdings.length > 0) {
           setConnectionStatus("CONNECTED");
           setBrokerMessage("Your portfolio is synced and ready.");
         } else if (data.status === "TOKEN_EXPIRED") {
           setConnectionStatus("TOKEN_EXPIRED");
-          if (data.portfolio) {
-            updatePortfolio(data.portfolio);
-          }
-        } else {
+        } else if (data.status === "NOT_CONNECTED") {
           setConnectionStatus("NOT_CONNECTED");
         }
       })
@@ -279,9 +294,51 @@ export default function HomeClient({
   }, [
     shouldFetchPortfolio,
     portfolioFetchKey,
-    updatePortfolio,
+    applyPortfolioResponse,
     loadDailyDecision,
   ]);
+
+  useEffect(() => {
+    if (initialPortfolio.holdings.length === 0) return;
+
+    setPortfolioData((current) => {
+      if (current && current.holdings.length > 0) return current;
+
+      const formatted = initialPortfolio.holdings.map((h) => {
+        const value = h.quantity * h.currentPrice;
+        const pnl = (h.currentPrice - h.avgPrice) * h.quantity;
+        return {
+          tradingsymbol: h.symbol,
+          quantity: h.quantity,
+          average_price: h.avgPrice,
+          last_price: h.currentPrice,
+          pnl,
+          value,
+          allocation_pct: 0,
+        };
+      });
+
+      const total_value = formatted.reduce((sum, h) => sum + h.value, 0);
+      const holdings = formatted
+        .map((h) => ({
+          ...h,
+          allocation_pct: total_value > 0 ? (h.value / total_value) * 100 : 0,
+        }))
+        .sort((a, b) => b.value - a.value);
+
+      const top = holdings[0];
+
+      return {
+        status: "OK",
+        holdings,
+        total_value,
+        total_pnl: holdings.reduce((sum, h) => sum + h.pnl, 0),
+        concentrated: (top?.allocation_pct ?? 0) > 50,
+        top_symbol: top?.tradingsymbol,
+        top_allocation_pct: top?.allocation_pct,
+      };
+    });
+  }, [initialPortfolio]);
 
   if (authLoading) {
     return <LoadingState />;
@@ -419,8 +476,24 @@ export default function HomeClient({
         )}
 
         {connectionStatus === "CONNECTED" && !isCompletingOAuth && (
-          <div className="text-xs text-teal-400/80">
-            Your portfolio is synced and ready.
+          <div className="space-y-4">
+            <div className="text-xs text-teal-400/80">
+              Your portfolio is synced and ready.
+            </div>
+
+            {portfolioData &&
+              portfolioData.holdings.length > 0 &&
+              portfolioData.total_value !== undefined &&
+              portfolioData.total_pnl !== undefined && (
+                <PortfolioCard
+                  holdings={portfolioData.holdings}
+                  totalValue={portfolioData.total_value}
+                  totalPnl={portfolioData.total_pnl}
+                  concentrated={portfolioData.concentrated}
+                  topSymbol={portfolioData.top_symbol}
+                  topAllocationPct={portfolioData.top_allocation_pct}
+                />
+              )}
           </div>
         )}
 

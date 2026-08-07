@@ -4,7 +4,9 @@ create table if not exists public.broker_connections (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   broker text not null default 'zerodha',
-  access_token_encrypted text not null,
+  access_token text not null,
+  public_token text,
+  access_token_encrypted text,
   public_token_encrypted text,
   kite_user_id text,
   status text not null default 'active' check (status in ('active', 'expired', 'revoked')),
@@ -13,7 +15,10 @@ create table if not exists public.broker_connections (
   unique (user_id, broker)
 );
 
--- If upgrading an existing project, run:
+-- Legacy column names (optional upgrade path):
+-- alter table public.broker_connections add column if not exists access_token text;
+-- alter table public.broker_connections add column if not exists public_token text;
+-- alter table public.broker_connections add column if not exists access_token_encrypted text;
 -- alter table public.broker_connections add column if not exists public_token_encrypted text;
 -- alter table public.broker_connections add column if not exists kite_user_id text;
 

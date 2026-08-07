@@ -1,0 +1,5 @@
+# Supabase local CLI config (remote push via `npx supabase db push --linked`)
+project_id = "wmgnwujrtsmtchuhcfzk"
+
+[db]
+major_version = 15

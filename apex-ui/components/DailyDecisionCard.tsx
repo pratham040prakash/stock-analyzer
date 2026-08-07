@@ -52,6 +52,12 @@ export default function DailyDecisionCard({ decision }: Props) {
       <div className="pt-3 border-t border-white/10">
         <div className="text-xs text-gray-400 mb-2">Why</div>
         <p className="text-sm text-gray-300 leading-relaxed">{decision.reason}</p>
+        {decision.focusSymbol && decision.focusAllocationPct !== undefined && (
+          <p className="text-xs text-amber-300/80 mt-2">
+            Focus: {decision.focusSymbol} · {decision.focusAllocationPct}% of
+            portfolio
+          </p>
+        )}
       </div>
 
       {decision.actions.length > 0 && (
