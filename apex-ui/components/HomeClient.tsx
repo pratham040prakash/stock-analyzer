@@ -16,6 +16,7 @@ import { isProfileComplete } from "@/lib/financialProfile";
 import type { DailyDecisionOutput } from "@/types/decision";
 import type { PortfolioApiResponse } from "@/types/portfolioApi";
 import { recordVisit, saveCachedPortfolio } from "@/lib/portfolioCache";
+import { apiFetch } from "@/lib/api/clientFetch";
 import { useGreeting } from "@/lib/useGreeting";
 import { useZerodhaOAuth } from "@/lib/useZerodhaOAuth";
 
@@ -145,7 +146,7 @@ export default function HomeClient({
   useEffect(() => {
     if (!configured || !user || authLoading || isCompletingOAuth) return;
 
-    fetch("/api/zerodha/session")
+    apiFetch("/api/zerodha/session", { method: "GET" })
       .then((res) => res.json())
       .then((data: ZerodhaSessionResponse) => {
         if (data.connected) {
@@ -183,7 +184,7 @@ export default function HomeClient({
     if (!configured || !user) return;
 
     try {
-      const res = await fetch("/api/decision/today");
+      const res = await apiFetch("/api/decision/today", { method: "GET" });
       if (!res.ok) return;
       const data = (await res.json()) as DecisionResponse;
       setDailyDecision(data.decision);
@@ -199,7 +200,7 @@ export default function HomeClient({
     setBrokerMessage(null);
     setCompletedFetchKey(null);
 
-    fetch("/api/portfolio")
+    apiFetch("/api/portfolio", { method: "GET" })
       .then(async (res) => {
         const data = (await res.json()) as PortfolioApiResponse;
         if (!res.ok && data.status !== "TOKEN_EXPIRED") {
@@ -252,7 +253,7 @@ export default function HomeClient({
 
     recordVisit();
 
-    fetch("/api/portfolio")
+    apiFetch("/api/portfolio", { method: "GET" })
       .then(async (res) => {
         const data = (await res.json()) as PortfolioApiResponse;
         if (!res.ok && data.status !== "TOKEN_EXPIRED") {

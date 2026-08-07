@@ -8,6 +8,7 @@ import {
   type FinancialProfile,
   type IncomeRange,
 } from "@/lib/financialProfile";
+import { apiFetch } from "@/lib/api/clientFetch";
 
 type Props = {
   onComplete?: (profile: FinancialProfile) => void;
@@ -36,7 +37,7 @@ export default function FinancialProfileSetup({ onComplete }: Props) {
     setError(null);
 
     try {
-      const res = await fetch("/api/financial-profile", {
+      const res = await apiFetch("/api/financial-profile", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(profile),

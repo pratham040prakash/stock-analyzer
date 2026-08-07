@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { isDev } from "@/lib/env";
 import { isSystemConfigured, SYSTEM_CONFIG_INCOMPLETE_MESSAGE } from "@/lib/env/config";
+import { apiFetch } from "@/lib/api/clientFetch";
 
 export default function DevDebugBadge() {
   const [brokerConfigured, setBrokerConfigured] = useState(true);
@@ -11,7 +12,7 @@ export default function DevDebugBadge() {
   useEffect(() => {
     if (!isDev) return;
 
-    fetch("/api/zerodha/config")
+    apiFetch("/api/zerodha/config", { method: "GET" })
       .then((res) => res.json())
       .then((data: { configured?: boolean }) => {
         setBrokerConfigured(Boolean(data.configured));

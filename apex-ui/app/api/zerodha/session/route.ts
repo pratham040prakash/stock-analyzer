@@ -13,6 +13,8 @@ import {
 import { syncUserPortfolio } from "@/services/portfolio/sync";
 import { createClient } from "@/lib/supabase/server";
 
+export const dynamic = "force-dynamic";
+
 type SessionRequest = {
   request_token?: string;
 };
@@ -27,19 +29,19 @@ export async function GET() {
     return apiOk({ connected: false, authenticated: false });
   }
 
-  const status = await getBrokerConnectionStatus(supabase, user.id);
+  const connection = await getBrokerConnectionStatus(supabase, user.id);
 
   brokerLog("Zerodha session status", {
     user_id: user.id,
-    connected: status.connected,
-    kite_user_id: status.kiteUserId,
+    connected: connection.connected,
+    kite_user_id: connection.kiteUserId,
   });
 
   return apiOk({
-    connected: status.connected,
+    connected: connection.connected,
     authenticated: true,
-    status: status.status,
-    kite_user_id: status.kiteUserId,
+    status: connection.status,
+    kite_user_id: connection.kiteUserId,
   });
 }
 

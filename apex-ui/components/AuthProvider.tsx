@@ -65,6 +65,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [supabase]);
 
+  useEffect(() => {
+    if (!supabase) return;
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void supabase.auth.startAutoRefresh();
+        window.location.reload();
+      } else {
+        supabase.auth.stopAutoRefresh();
+      }
+    };
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [supabase]);
+
   async function signOut() {
     if (!supabase) return;
     authLog("Sign out clicked");

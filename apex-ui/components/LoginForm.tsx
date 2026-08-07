@@ -13,6 +13,7 @@ import {
   mapAuthErrorMessage,
 } from "@/lib/auth/errors";
 import { authError, authLog } from "@/lib/auth/log";
+import { apiFetch } from "@/lib/api/clientFetch";
 import {
   getOtpCooldownRemaining,
   markOtpSent,
@@ -191,7 +192,7 @@ export default function LoginForm() {
     authLog("Email login click", { email: trimmedEmail });
 
     try {
-      const response = await fetch("/api/auth/otp", {
+      const response = await apiFetch("/api/auth/otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: trimmedEmail }),

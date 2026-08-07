@@ -10,7 +10,13 @@ export function createClient() {
     throw new Error("Supabase ENV not configured");
   }
 
-  return createBrowserClient<Database>(supabaseUrl, supabaseKey);
+  return createBrowserClient<Database>(supabaseUrl, supabaseKey, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+    },
+  });
 }
 
 export { isSupabaseConfigured } from "@/lib/supabase/env";
