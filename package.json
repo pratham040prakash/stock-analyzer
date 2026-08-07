@@ -2,7 +2,7 @@
   "private": true,
   "name": "stock-analyzer",
   "scripts": {
-    "vercel-build": "cd apex-ui && npm run build",
+    "vercel-build": "cd apex-ui && npm run build && cp -r .next ../.next",
     "build": "cd apex-ui && npm run build"
   }
 }

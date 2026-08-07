@@ -36,12 +36,15 @@ This app lives in the **`apex-ui/`** subdirectory of the monorepo.
 ### Recommended (simplest)
 
 1. Vercel → **Project Settings → General → Root Directory** → set to **`apex-ui`**
-2. Add environment variables from `.env.example`
-3. Redeploy
+2. Remove any custom **Output Directory** override (leave blank)
+3. Add environment variables from `.env.example`
+4. Redeploy (use **Redeploy → Clear build cache** if a prior deploy failed)
+
+When Root Directory is `apex-ui`, Vercel reads `apex-ui/vercel.json` for crons and finds `.next` in the right place automatically.
 
 ### Alternative (repo root as Vercel root)
 
-The repo root includes `vercel.json` and `package.json` that run `cd apex-ui && npm run build` when Root Directory is left blank.
+The repo root `vercel.json` builds in `apex-ui/` and copies `.next` to the repo root for Vercel's Next.js builder.
 
 ### Required env vars
 

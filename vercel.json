@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "installCommand": "cd apex-ui && npm install",
-  "buildCommand": "cd apex-ui && npm run build",
+  "buildCommand": "cd apex-ui && npm run build && cp -r .next ../.next",
   "devCommand": "cd apex-ui && npm run dev",
   "crons": [
     {
