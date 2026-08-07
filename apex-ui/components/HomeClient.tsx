@@ -16,7 +16,7 @@ import { isProfileComplete } from "@/lib/financialProfile";
 import type { DailyDecisionOutput } from "@/types/decision";
 import type { PortfolioApiResponse } from "@/types/portfolioApi";
 import { recordVisit, saveCachedPortfolio } from "@/lib/portfolioCache";
-import { apiFetch } from "@/lib/api/clientFetch";
+import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
 import { useGreeting } from "@/lib/useGreeting";
 import { useZerodhaOAuth } from "@/lib/useZerodhaOAuth";
 
@@ -147,14 +147,13 @@ export default function HomeClient({
     if (!configured || !user || authLoading || isCompletingOAuth) return;
 
     apiFetch("/api/zerodha/session", { method: "GET" })
-      .then((res) => res.json())
-      .then((data: ZerodhaSessionResponse) => {
-        if (data.connected) {
-          setConnectionStatus("CONNECTED");
-        }
+      .then((res) => parseApiJson<ZerodhaSessionResponse>(res, "Zerodha session"))
+      .then((data) => {
+        if (!data?.connected) return;
+        setConnectionStatus("CONNECTED");
       })
       .catch(() => {
-        // Holdings fetch remains the fallback source of truth.
+        // Portfolio fetch remains the fallback source of truth.
       });
   }, [configured, user, authLoading, isCompletingOAuth]);
 
@@ -185,8 +184,8 @@ export default function HomeClient({
 
     try {
       const res = await apiFetch("/api/decision/today", { method: "GET" });
-      if (!res.ok) return;
-      const data = (await res.json()) as DecisionResponse;
+      const data = await parseApiJson<DecisionResponse>(res, "Daily decision");
+      if (!data) return;
       setDailyDecision(data.decision);
     } catch {
       // Decision is optional on first connect — don't block the flow.
@@ -202,7 +201,10 @@ export default function HomeClient({
 
     apiFetch("/api/portfolio", { method: "GET" })
       .then(async (res) => {
-        const data = (await res.json()) as PortfolioApiResponse;
+        const data = await parseApiJson<PortfolioApiResponse>(res, "Portfolio");
+        if (!data) {
+          throw new Error("Could not load portfolio");
+        }
         if (!res.ok && data.status !== "TOKEN_EXPIRED") {
           throw new Error(data.message ?? "Could not load portfolio");
         }
@@ -255,7 +257,10 @@ export default function HomeClient({
 
     apiFetch("/api/portfolio", { method: "GET" })
       .then(async (res) => {
-        const data = (await res.json()) as PortfolioApiResponse;
+        const data = await parseApiJson<PortfolioApiResponse>(res, "Portfolio");
+        if (!data) {
+          throw new Error("Could not load portfolio");
+        }
         if (!res.ok && data.status !== "TOKEN_EXPIRED") {
           throw new Error(data.message ?? "Could not load portfolio");
         }

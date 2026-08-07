@@ -13,7 +13,7 @@ import {
   mapAuthErrorMessage,
 } from "@/lib/auth/errors";
 import { authError, authLog } from "@/lib/auth/log";
-import { apiFetch } from "@/lib/api/clientFetch";
+import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
 import {
   getOtpCooldownRemaining,
   markOtpSent,
@@ -198,11 +198,16 @@ export default function LoginForm() {
         body: JSON.stringify({ email: trimmedEmail }),
       });
 
-      const payload = (await response.json()) as {
+      const payload = await parseApiJson<{
         status?: string;
         message?: string;
         redirectTo?: string;
-      };
+      }>(response, "Auth OTP");
+
+      if (!payload) {
+        setError("Unable to sign in. Try again.");
+        return;
+      }
 
       if (!response.ok) {
         const errMessage = payload.message ?? "Unable to sign in. Try again.";

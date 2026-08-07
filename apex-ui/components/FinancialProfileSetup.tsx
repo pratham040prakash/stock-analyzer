@@ -8,7 +8,7 @@ import {
   type FinancialProfile,
   type IncomeRange,
 } from "@/lib/financialProfile";
-import { apiFetch } from "@/lib/api/clientFetch";
+import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
 
 type Props = {
   onComplete?: (profile: FinancialProfile) => void;
@@ -43,11 +43,17 @@ export default function FinancialProfileSetup({ onComplete }: Props) {
         body: JSON.stringify(profile),
       });
 
+      const data = await parseApiJson<{ error?: string; message?: string }>(
+        res,
+        "Financial profile",
+      );
+
       if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as {
-          error?: string;
-        } | null;
-        throw new Error(data?.error ?? "Could not save profile");
+        throw new Error(data?.error ?? data?.message ?? "Could not save profile");
+      }
+
+      if (!data) {
+        throw new Error("Could not save profile");
       }
 
       onComplete?.(profile);

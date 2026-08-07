@@ -1,5 +1,5 @@
 import { apiError, apiOk } from "@/lib/api/response";
-import { brokerLog } from "@/lib/broker/log";
+import { brokerError, brokerLog } from "@/lib/broker/log";
 import {
   exchangeRequestToken,
   KITE_ACCESS_TOKEN_COOKIE,
@@ -20,29 +20,37 @@ type SessionRequest = {
 };
 
 export async function GET() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  if (!user) {
-    return apiOk({ connected: false, authenticated: false });
+    if (!user) {
+      return apiOk({ connected: false, authenticated: false });
+    }
+
+    const connection = await getBrokerConnectionStatus(supabase, user.id);
+
+    brokerLog("Zerodha session status", {
+      user_id: user.id,
+      connected: connection.connected,
+      kite_user_id: connection.kiteUserId,
+    });
+
+    return apiOk({
+      connected: connection.connected,
+      authenticated: true,
+      status: connection.status,
+      kite_user_id: connection.kiteUserId,
+    });
+  } catch (err) {
+    brokerError("Zerodha session API error", {
+      message: err instanceof Error ? err.message : "Unknown error",
+    });
+
+    return apiError("Internal server error", 500);
   }
-
-  const connection = await getBrokerConnectionStatus(supabase, user.id);
-
-  brokerLog("Zerodha session status", {
-    user_id: user.id,
-    connected: connection.connected,
-    kite_user_id: connection.kiteUserId,
-  });
-
-  return apiOk({
-    connected: connection.connected,
-    authenticated: true,
-    status: connection.status,
-    kite_user_id: connection.kiteUserId,
-  });
 }
 
 export async function POST(req: Request) {

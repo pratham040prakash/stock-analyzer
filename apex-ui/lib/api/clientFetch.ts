@@ -15,3 +15,45 @@ export function apiFetch(
     cache: init?.cache ?? DEFAULT_INIT.cache,
   });
 }
+
+/** Safely parse JSON API bodies — never throws on empty or invalid responses. */
+export async function parseApiJson<T>(
+  res: Response,
+  label = "API",
+): Promise<T | null> {
+  console.log(`${label} response status:`, res.status);
+
+  if (!res.ok) {
+    console.error(`${label} failed`, res.status);
+  }
+
+  let text = "";
+  try {
+    text = await res.text();
+  } catch (err) {
+    console.error(`${label} failed to read response body`, err);
+    return null;
+  }
+
+  if (!text.trim()) {
+    console.error(`${label} returned empty body`);
+    return null;
+  }
+
+  try {
+    return JSON.parse(text) as T;
+  } catch (err) {
+    console.error(`${label} invalid JSON response`, err);
+    return null;
+  }
+}
+
+export async function apiFetchJson<T>(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+  label = "API",
+): Promise<{ response: Response; data: T | null }> {
+  const response = await apiFetch(input, init);
+  const data = await parseApiJson<T>(response, label);
+  return { response, data };
+}
