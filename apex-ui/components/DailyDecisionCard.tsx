@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { DailyDecisionOutput } from "@/types/decision";
 import {
+  buildSellPercentOptions,
   decisionAllocationHint,
   decisionHeadline,
 } from "@/types/decision";
@@ -14,8 +15,6 @@ type Props = {
   decision: DailyDecisionOutput;
   totalValue?: number;
 };
-
-const SELL_OPTIONS = [10, 20, 50] as const;
 
 function decisionTone(action: DailyDecisionOutput["action"]): string {
   switch (action) {
@@ -45,10 +44,9 @@ export default function DailyDecisionCard({
 
   const headline = decisionHeadline(decision);
   const canTrim = decision.action === "reduce" && Boolean(decision.stock);
-  const activeSellPercent =
-    selectedSellPercent ??
-    decision.suggested_sell_percent ??
-    SELL_OPTIONS[1];
+  const suggestedSellPercent = decision.suggested_sell_percent ?? 20;
+  const sellOptions = buildSellPercentOptions(decision.suggested_sell_percent);
+  const activeSellPercent = selectedSellPercent ?? suggestedSellPercent;
   const allocationHint =
     canTrim && decision.allocation !== undefined
       ? decisionAllocationHint(decision.allocation, activeSellPercent)
@@ -64,6 +62,10 @@ export default function DailyDecisionCard({
           totalValue,
         )
       : null;
+
+  useEffect(() => {
+    setSelectedSellPercent(null);
+  }, [decision.suggested_sell_percent, decision.stock]);
 
   useEffect(() => {
     if (!toastMessage) return;
@@ -127,7 +129,7 @@ export default function DailyDecisionCard({
         {canTrim && (
           <>
             <div className="flex flex-wrap gap-2">
-              {SELL_OPTIONS.map((percent) => {
+              {sellOptions.map((percent) => {
                 const isActive = activeSellPercent === percent;
                 return (
                   <button

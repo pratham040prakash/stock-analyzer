@@ -89,3 +89,14 @@ export function decisionAllocationHint(
   const nextAllocation = Math.round(allocation * (1 - sellPercent / 100));
   return `Reducing ${sellPercent}% will bring allocation from ${allocation}% → ${nextAllocation}%`;
 }
+
+const BASE_SELL_PERCENTS = [10, 20, 50];
+
+export function buildSellPercentOptions(suggested?: number): number[] {
+  const options =
+    suggested !== undefined
+      ? [...BASE_SELL_PERCENTS, suggested]
+      : [...BASE_SELL_PERCENTS];
+
+  return [...new Set(options)].sort((a, b) => a - b);
+}
