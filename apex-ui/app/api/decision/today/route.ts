@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { apiError } from "@/lib/api/response";
-import { evaluateDailyDecision } from "@/services/decision/engine";
+import { getDecision } from "@/services/decision/engine";
 import {
   getTodayDailyDecision,
   saveDailyDecision,
@@ -12,7 +12,7 @@ import {
   getLatestPortfolioSnapshotWithMetrics,
 } from "@/services/portfolio/repository";
 import { createClient } from "@/lib/supabase/server";
-import { parseUserIntent } from "@/types/intent";
+import { parseUserIntent, resolveIntent } from "@/types/intent";
 
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -25,7 +25,7 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
-  const intent = parseUserIntent(searchParams.get("intent"));
+  const intent = resolveIntent(parseUserIntent(searchParams.get("intent")));
 
   const stored = await getTodayDailyDecision(supabase, user.id);
 
@@ -60,7 +60,7 @@ export async function GET(request: Request) {
   const lastMentorOutput = await getLatestMentorOutput(supabase, user.id);
 
   const metrics = computePortfolioMetrics(snapshot.portfolio);
-  const decision = evaluateDailyDecision({
+  const decision = getDecision({
     portfolioSnapshot: {
       holdings: snapshot.portfolio.holdings,
       total_value: snapshot.total_value || metrics.totalValue,

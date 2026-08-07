@@ -5,9 +5,14 @@ import {
   readStoredUserIntent,
   storeUserIntent,
 } from "@/lib/userIntent";
-import type { Intent } from "@/types/intent";
+import {
+  decisionTodayApiPath,
+  resolveIntent,
+  type Intent,
+} from "@/types/intent";
 
 export type { Intent } from "@/types/intent";
+export { decisionTodayApiPath };
 
 const OPTIONS: { value: Intent; label: string }[] = [
   { value: "grow", label: "Grow Portfolio" },
@@ -34,7 +39,8 @@ function buttonClass(selected: boolean, value: Intent): string {
 }
 
 type Props = {
-  onIntentChange?: (intent: Intent | null) => void;
+  /** Called with resolved intent; use decisionTodayApiPath(intent) for the API URL. */
+  onIntentChange?: (intent: Intent) => void;
 };
 
 export default function IntentSelector({ onIntentChange }: Props) {
@@ -52,7 +58,7 @@ export default function IntentSelector({ onIntentChange }: Props) {
     }
 
     storeUserIntent(intent);
-    onIntentChange?.(intent);
+    onIntentChange?.(resolveIntent(intent));
   }, [intent, hydrated, onIntentChange]);
 
   return (

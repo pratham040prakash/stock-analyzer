@@ -47,6 +47,7 @@ function historyLabel(entry: DecisionHistoryEntry): string {
 function actionTone(action: DecisionActionType): string {
   switch (action) {
     case "reduce":
+    case "sell":
       return "text-amber-300";
     case "buy":
       return "text-teal-300";

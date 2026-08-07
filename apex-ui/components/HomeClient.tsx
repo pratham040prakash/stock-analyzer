@@ -25,7 +25,7 @@ import type { PortfolioApiResponse } from "@/types/portfolioApi";
 import type { DailyInsight } from "@/types/dailyInsight";
 import type { DecisionHistoryEntry } from "@/types/decisionHistory";
 import { readStoredUserIntent } from "@/lib/userIntent";
-import type { Intent } from "@/types/intent";
+import { decisionTodayApiPath, resolveIntent, type Intent } from "@/types/intent";
 import { recordVisit, saveCachedPortfolio } from "@/lib/portfolioCache";
 import { portfolioRiskFromAllocation } from "@/lib/portfolioRisk";
 import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
@@ -289,14 +289,12 @@ export default function HomeClient({
       if (!configured || !user) return;
 
       try {
-        const intent =
+        const intent = resolveIntent(
           intentOverride !== undefined
             ? intentOverride
-            : readStoredUserIntent();
-        const query = intent
-          ? `?intent=${encodeURIComponent(intent)}`
-          : "";
-        const res = await apiFetch(`/api/decision/today${query}`, {
+            : readStoredUserIntent(),
+        );
+        const res = await apiFetch(decisionTodayApiPath(intent), {
           method: "GET",
         });
         const data = await parseApiJson<DecisionResponse>(
@@ -314,7 +312,7 @@ export default function HomeClient({
   );
 
   const handleIntentChange = useCallback(
-    (intent: Intent | null) => {
+    (intent: Intent) => {
       void loadDailyDecision(intent);
     },
     [loadDailyDecision],

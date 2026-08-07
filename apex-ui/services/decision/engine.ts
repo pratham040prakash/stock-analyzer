@@ -418,10 +418,10 @@ function buildConfidenceFactors(
   return factors.slice(0, 5);
 }
 
-const DEFAULT_OPPORTUNITIES: DecisionOpportunity[] = [
-  { name: "Stock A", reason: "Momentum" },
-  { name: "Stock B", reason: "Undervalued" },
-  { name: "ETF", reason: "Diversification" },
+const EXPLORE_OPPORTUNITIES: DecisionOpportunity[] = [
+  { name: "HDFC Bank", reason: "Stable large cap" },
+  { name: "Infosys", reason: "Strong IT sector" },
+  { name: "Nifty 50 ETF", reason: "Diversification" },
 ];
 
 function buildGrowDecision(
@@ -437,10 +437,9 @@ function buildGrowDecision(
     action: "buy",
     intent: "grow",
     confidence,
-    message: "Invest gradually into your portfolio",
-    suggestion: "Use available funds for accumulation",
-    reason:
-      "You chose to grow — steady accumulation from your surplus builds long-term wealth without forcing a single big bet.",
+    message: "Invest gradually to grow your portfolio",
+    suggestion: "Use available funds to accumulate quality stocks",
+    reason: "Portfolio size can be increased steadily",
     confidence_factors: [
       "You selected Grow Portfolio as today's intent",
       hasProfile
@@ -451,8 +450,8 @@ function buildGrowDecision(
         : "Small, regular steps beat timing the market",
     ],
     actions: [
-      "Invest your monthly surplus in steady, small steps",
-      "Spread new money across sectors instead of one concentrated bet",
+      "Invest your available funds in steady, small steps",
+      "Spread new money across quality names instead of one concentrated bet",
     ],
   };
 }
@@ -471,10 +470,10 @@ function buildExploreDecision(
     action: "explore",
     intent: "explore",
     confidence: Math.max(confidence, 72),
-    message: "Here are opportunities aligned with your profile",
-    opportunities: DEFAULT_OPPORTUNITIES,
+    message: "Here are opportunities for you",
+    opportunities: EXPLORE_OPPORTUNITIES,
     reason:
-      "You asked to find opportunities — these ideas match common growth, value, and diversification themes for your profile.",
+      "You asked to find opportunities — these ideas span stability, growth, and diversification.",
     confidence_factors: [
       "You selected Find Opportunities as today's intent",
       hasProfile
@@ -489,9 +488,18 @@ function buildExploreDecision(
   };
 }
 
-function evaluateDefaultDecision(
+function mapDecisionAction(
+  action: DecisionActionType,
+  intent: Intent,
+): DecisionActionType {
+  if (intent === "risk" && action === "reduce") {
+    return "sell";
+  }
+  return action;
+}
+
+function buildRiskDecision(
   input: DecisionEngineInput,
-  intent: Intent | null | undefined,
 ): DailyDecisionOutput {
   const { portfolioSnapshot, financialProfile, lastMentorOutput } = input;
   const hasProfile = Boolean(financialProfile);
@@ -502,7 +510,6 @@ function evaluateDefaultDecision(
   const topHoldingPnl = topHolding?.pnl;
   const concentrated = isPortfolioConcentrated(topWeight);
   const highlyConcentrated = isHighlyConcentrated(topWeight);
-  const allowBuy = portfolioAllowsBuy(topWeight, holdingsCount);
   const stock =
     concentrated && topHolding ? topHolding.symbol : undefined;
 
@@ -515,6 +522,7 @@ function evaluateDefaultDecision(
         : "Your portfolio looks balanced for now — staying steady is reasonable.";
   let suggestion: string | undefined;
   let reduceIntelligence: ReduceIntelligence | undefined;
+  let suggestedSellOverride: number | undefined;
   let underInvested = false;
   const expensesHigh = Boolean(
     financialProfile && expensesMeetOrExceedIncome(financialProfile),
@@ -524,6 +532,21 @@ function evaluateDefaultDecision(
     decision = "WAIT";
     reason =
       "Your expenses look equal to or higher than income — pausing new investments protects cash flow before you deploy more capital.";
+  } else if (
+    allocation !== undefined &&
+    allocation > HIGH_CONCENTRATION_THRESHOLD &&
+    stock &&
+    topHoldingPnl !== undefined
+  ) {
+    decision = "REDUCE";
+    suggestedSellOverride = 25;
+    suggestion = "Reduce risk exposure";
+    reason = "High concentration risk";
+    reduceIntelligence = {
+      suggestion: "Reduce risk exposure",
+      reason: "High concentration risk",
+      message: "Sell 25% to reduce concentration",
+    };
   } else if (
     concentrated &&
     stock &&
@@ -535,27 +558,19 @@ function evaluateDefaultDecision(
     suggestion = reduceDecision.suggestion;
     reason = reduceDecision.reason;
     reduceIntelligence = reduceDecision.reduceIntelligence;
-  } else if (financialProfile && allowBuy) {
-    const surplus = getInvestableSurplus(financialProfile);
-    const targetInvested = surplus * 9;
-
-    if (surplus > 0 && portfolioSnapshot.total_value < targetInvested) {
-      decision = "BUY_MORE";
-      underInvested = true;
-      reason =
-        "Your portfolio is diversified with room to grow — steady investing from your monthly surplus could help.";
-    }
   } else if (highlyConcentrated) {
     decision = "HOLD";
     reason =
       "Your portfolio is heavily concentrated — hold off on new buys until allocation improves.";
   }
 
-  const action = decisionToAction(decision);
+  const rawAction = decisionToAction(decision);
   const suggested_sell_percent =
-    action === "reduce" && allocation !== undefined && topHoldingPnl !== undefined
-      ? suggestedSellPercent(allocation, topHoldingPnl > 0)
+    rawAction === "reduce" && allocation !== undefined && topHoldingPnl !== undefined
+      ? suggestedSellOverride ??
+        suggestedSellPercent(allocation, topHoldingPnl > 0)
       : undefined;
+  const action = mapDecisionAction(rawAction, "risk");
   const confidence = confidenceForDecision(
     decision,
     lastMentorOutput,
@@ -568,7 +583,7 @@ function evaluateDefaultDecision(
     },
   );
   const message = buildMessage(
-    action,
+    rawAction,
     stock,
     suggested_sell_percent,
     reduceIntelligence,
@@ -588,7 +603,7 @@ function evaluateDefaultDecision(
   return {
     decision,
     action,
-    intent: intent ?? "risk",
+    intent: "risk",
     stock,
     confidence,
     allocation,
@@ -603,19 +618,23 @@ function evaluateDefaultDecision(
   };
 }
 
+export function getDecision(input: DecisionEngineInput): DailyDecisionOutput {
+  return evaluateDailyDecision(input);
+}
+
 export function evaluateDailyDecision(
   input: DecisionEngineInput,
 ): DailyDecisionOutput {
-  const { intent, lastMentorOutput, financialProfile } = input;
-  const hasProfile = Boolean(financialProfile);
+  const intent = input.intent ?? "risk";
+  const hasProfile = Boolean(input.financialProfile);
 
   if (intent === "grow") {
-    return buildGrowDecision(input, hasProfile, lastMentorOutput);
+    return buildGrowDecision(input, hasProfile, input.lastMentorOutput);
   }
 
   if (intent === "explore") {
-    return buildExploreDecision(input, hasProfile, lastMentorOutput);
+    return buildExploreDecision(input, hasProfile, input.lastMentorOutput);
   }
 
-  return evaluateDefaultDecision(input, intent ?? null);
+  return buildRiskDecision({ ...input, intent: "risk" });
 }

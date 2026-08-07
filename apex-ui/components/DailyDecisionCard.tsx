@@ -7,6 +7,7 @@ import {
   decisionConfidenceBadge,
   decisionHeroActionText,
   decisionRiskMicrocopy,
+  isSellAction,
 } from "@/types/decision";
 import { computeSellImpact } from "@/lib/sellImpact";
 import ActionToast from "./ActionToast";
@@ -41,6 +42,7 @@ function actionVisuals(action: DecisionActionType): ActionVisual {
         headline: "text-emerald-50",
       };
     case "reduce":
+    case "sell":
       return {
         strip: "bg-red-500",
         iconBg: "bg-red-500/15 border-red-500/30",
@@ -102,7 +104,8 @@ export default function DailyDecisionCard({
   const [processing, setProcessing] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const canTrim = decision.action === "reduce" && Boolean(decision.stock);
+  const canTrim = isSellAction(decision.action) && Boolean(decision.stock);
+  const isBuy = decision.action === "buy";
   const isExplore = decision.action === "explore";
   const opportunities = decision.opportunities ?? [];
   const suggestedSellPercent = decision.suggested_sell_percent ?? 20;
@@ -131,7 +134,13 @@ export default function DailyDecisionCard({
     setSelectedSellPercent(null);
     setShowAdjust(false);
     setShowReasoning(false);
-  }, [decision.suggested_sell_percent, decision.stock]);
+  }, [decision.suggested_sell_percent, decision.stock, decision.action]);
+
+  const cardShadow = isBuy
+    ? "shadow-[0_0_60px_rgba(16,185,129,0.08)]"
+    : isExplore
+      ? "shadow-[0_0_60px_rgba(168,85,247,0.08)]"
+      : "shadow-[0_0_60px_rgba(239,68,68,0.08)]";
 
   useEffect(() => {
     if (!toastMessage) return;
@@ -172,15 +181,15 @@ export default function DailyDecisionCard({
 
   const primaryLabel = canTrim
     ? `Sell ${activeSellPercent}% Now`
-    : isExplore
-      ? "Review ideas"
-      : decision.action === "buy"
-        ? "Start investing"
+    : isBuy
+      ? "Start Investing"
+      : isExplore
+        ? "Review ideas"
         : "Got it";
 
   return (
     <>
-      <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 shadow-[0_0_60px_rgba(239,68,68,0.08)]">
+      <div className={`relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 ${cardShadow}`}>
         <div
           className={`absolute left-0 top-0 bottom-0 w-1.5 ${visuals.strip}`}
           aria-hidden
@@ -217,28 +226,45 @@ export default function DailyDecisionCard({
             <p className="text-sm text-gray-400">{decision.suggestion}</p>
           )}
 
-          <div className="space-y-3">
+          <div className="space-y-3 min-h-[7.5rem]">
             {isExplore ? (
-              <ul className="space-y-3">
-                {opportunities.map((opportunity) => (
-                  <li
-                    key={opportunity.name}
-                    className="flex items-start justify-between gap-4 rounded-xl border border-purple-500/20 bg-purple-500/5 px-4 py-3"
-                  >
-                    <div>
-                      <p className="text-sm font-medium text-purple-50">
-                        {opportunity.name}
-                      </p>
-                      <p className="text-xs text-purple-200/70 mt-1">
-                        {opportunity.reason}
-                      </p>
-                    </div>
-                    <span className="shrink-0 rounded-full border border-purple-500/30 bg-purple-500/10 px-2.5 py-1 text-[11px] font-medium text-purple-100">
-                      Idea
-                    </span>
-                  </li>
-                ))}
-              </ul>
+              <div className="space-y-3">
+                <p className="text-xs text-gray-500 uppercase tracking-wider">
+                  Opportunities
+                </p>
+                <ul className="space-y-2">
+                  {opportunities.map((opportunity) => (
+                    <li
+                      key={opportunity.name}
+                      className="flex items-start justify-between gap-4 rounded-xl border border-purple-500/20 bg-purple-500/5 px-4 py-3"
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-purple-50">
+                          {opportunity.name}
+                        </p>
+                        <p className="text-xs text-purple-200/70 mt-1">
+                          {opportunity.reason}
+                        </p>
+                      </div>
+                      <span className="shrink-0 rounded-full border border-purple-500/30 bg-purple-500/10 px-2.5 py-1 text-[11px] font-medium text-purple-100">
+                        Idea
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : isBuy ? (
+              <div className="space-y-3">
+                <p className="text-sm text-gray-300">
+                  Invest your available funds
+                </p>
+                <button
+                  type="button"
+                  className={`w-full px-5 py-3.5 rounded-xl text-sm font-semibold transition-all ${visuals.primaryButton}`}
+                >
+                  {primaryLabel}
+                </button>
+              </div>
             ) : (
               <>
                 <div className="flex flex-col sm:flex-row gap-3">
@@ -302,7 +328,9 @@ export default function DailyDecisionCard({
             <p className="text-xs text-gray-600">
               {isExplore
                 ? "Research ideas in your broker — guidance only, not a buy recommendation."
-                : "Guidance only — confirm to simulate; execute in your broker for real trades."}
+                : isBuy
+                  ? "Guidance only — execute purchases in your broker when ready."
+                  : "Guidance only — confirm to simulate; execute in your broker for real trades."}
             </p>
           </div>
 

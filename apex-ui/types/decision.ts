@@ -9,6 +9,7 @@ import { portfolioRiskFromAllocation } from "@/lib/portfolioRisk";
 import type { Intent } from "@/types/intent";
 
 export type DecisionActionType =
+  | "sell"
   | "reduce"
   | "buy"
   | "hold"
@@ -53,8 +54,14 @@ export type DecisionEngineInput = {
   intent?: Intent | null;
 };
 
+export function isSellAction(action: DecisionActionType): boolean {
+  return action === "sell" || action === "reduce";
+}
+
 export function decisionActionLabel(action: DecisionActionType): string {
   switch (action) {
+    case "sell":
+      return "Sell";
     case "reduce":
       return "Reduce";
     case "buy":
@@ -93,7 +100,7 @@ export function decisionHeadline(decision: DailyDecisionOutput): string {
   }
 
   if (
-    decision.action === "reduce" &&
+    isSellAction(decision.action) &&
     decision.stock &&
     decision.suggested_sell_percent !== undefined
   ) {
@@ -160,13 +167,13 @@ export function decisionHeroActionText(
     return decision.message ?? "Explore opportunities aligned with you";
   }
 
-  if (decision.action === "reduce" && decision.stock) {
+  if (isSellAction(decision.action) && decision.stock) {
     const pct = sellPercent ?? decision.suggested_sell_percent ?? 20;
-    return `Sell ${pct}% of ${decision.stock}`;
+    return decision.message ?? `Sell ${pct}% of ${decision.stock}`;
   }
 
   if (decision.action === "buy") {
-    return decision.message ?? "Invest your monthly surplus steadily";
+    return decision.message ?? "Invest gradually to grow your portfolio";
   }
 
   if (decision.action === "wait") {

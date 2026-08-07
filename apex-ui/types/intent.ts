@@ -8,3 +8,12 @@ export function parseUserIntent(
   }
   return null;
 }
+
+/** Default intent when none is selected — reduce-risk guidance. */
+export function resolveIntent(intent: Intent | null | undefined): Intent {
+  return intent ?? "risk";
+}
+
+export function decisionTodayApiPath(intent: Intent | null | undefined): string {
+  return `/api/decision/today?intent=${encodeURIComponent(resolveIntent(intent))}`;
+}
