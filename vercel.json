@@ -1,0 +1,12 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "cd apex-ui && npm install",
+  "buildCommand": "cd apex-ui && npm run build",
+  "devCommand": "cd apex-ui && npm run dev",
+  "crons": [
+    {
+      "path": "/api/cron/sync",
+      "schedule": "0 9 * * *"
+    }
+  ]
+}

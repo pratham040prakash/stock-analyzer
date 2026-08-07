@@ -1,0 +1,8 @@
+{
+  "private": true,
+  "name": "stock-analyzer",
+  "scripts": {
+    "vercel-build": "cd apex-ui && npm run build",
+    "build": "cd apex-ui && npm run build"
+  }
+}

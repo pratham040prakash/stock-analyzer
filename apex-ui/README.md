@@ -31,6 +31,24 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 
 ## Deploy on Vercel
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+This app lives in the **`apex-ui/`** subdirectory of the monorepo.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Recommended (simplest)
+
+1. Vercel → **Project Settings → General → Root Directory** → set to **`apex-ui`**
+2. Add environment variables from `.env.example`
+3. Redeploy
+
+### Alternative (repo root as Vercel root)
+
+The repo root includes `vercel.json` and `package.json` that run `cd apex-ui && npm run build` when Root Directory is left blank.
+
+### Required env vars
+
+See `apex-ui/.env.example` — include `NEXT_PUBLIC_APP_URL`, Supabase keys, Zerodha keys, `TOKEN_ENCRYPTION_KEY`, and `CRON_SECRET`.
+
+### Verify deploy
+
+`GET /api/health` should return `{ "supabase": "connected", "env": "ok" }`.
+
+Check out the [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
