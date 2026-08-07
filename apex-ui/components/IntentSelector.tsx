@@ -1,18 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import {
-  readStoredUserIntent,
-  storeUserIntent,
-} from "@/lib/userIntent";
-import {
-  decisionTodayApiPath,
-  resolveIntent,
-  type Intent,
-} from "@/types/intent";
+import type { Intent } from "@/types/intent";
 
 export type { Intent } from "@/types/intent";
-export { decisionTodayApiPath };
+export { decisionTodayApiPath } from "@/types/intent";
 
 const OPTIONS: { value: Intent; label: string }[] = [
   { value: "grow", label: "Grow Portfolio" },
@@ -39,28 +30,11 @@ function buttonClass(selected: boolean, value: Intent): string {
 }
 
 type Props = {
-  /** Called with resolved intent; use decisionTodayApiPath(intent) for the API URL. */
-  onIntentChange?: (intent: Intent) => void;
+  intent: Intent;
+  onIntentChange: (intent: Intent) => void;
 };
 
-export default function IntentSelector({ onIntentChange }: Props) {
-  const [intent, setIntent] = useState<Intent | null>(null);
-  const [hydrated, setHydrated] = useState(false);
-
-  useEffect(() => {
-    setIntent(readStoredUserIntent());
-    setHydrated(true);
-  }, []);
-
-  useEffect(() => {
-    if (!hydrated) {
-      return;
-    }
-
-    storeUserIntent(intent);
-    onIntentChange?.(resolveIntent(intent));
-  }, [intent, hydrated, onIntentChange]);
-
+export default function IntentSelector({ intent, onIntentChange }: Props) {
   return (
     <div className="rounded-2xl border border-white/10 bg-slate-900/40 p-5 space-y-4">
       <p className="text-sm font-medium text-gray-200">
@@ -76,7 +50,7 @@ export default function IntentSelector({ onIntentChange }: Props) {
               key={option.value}
               type="button"
               aria-pressed={selected}
-              onClick={() => setIntent(option.value)}
+              onClick={() => onIntentChange(option.value)}
               className={buttonClass(selected, option.value)}
             >
               {option.label}

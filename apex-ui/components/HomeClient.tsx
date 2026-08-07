@@ -24,10 +24,9 @@ import { decisionHeadline } from "@/types/decision";
 import type { PortfolioApiResponse } from "@/types/portfolioApi";
 import type { DailyInsight } from "@/types/dailyInsight";
 import type { DecisionHistoryEntry } from "@/types/decisionHistory";
-import { readStoredUserIntent } from "@/lib/userIntent";
-import { decisionTodayApiPath, resolveIntent, type Intent } from "@/types/intent";
 import { recordVisit, saveCachedPortfolio } from "@/lib/portfolioCache";
 import { portfolioRiskFromAllocation } from "@/lib/portfolioRisk";
+import { useIntentDecision } from "@/lib/useIntentDecision";
 import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
 import { useGreeting } from "@/lib/useGreeting";
 import { useZerodhaOAuth } from "@/lib/useZerodhaOAuth";
@@ -42,14 +41,6 @@ type Props = {
   initialFinancialProfile: FinancialProfile | null;
   zerodhaNotice?: string;
   zerodhaError?: string;
-};
-
-type DecisionResponse = {
-  decision: DailyDecisionOutput | null;
-  intent?: Intent | null;
-  action?: DailyDecisionOutput["action"];
-  message?: string | null;
-  opportunities?: DailyDecisionOutput["opportunities"];
 };
 
 type InsightResponse = {
@@ -122,9 +113,6 @@ export default function HomeClient({
     initialConnectionStatus,
   );
   const [completedFetchKey, setCompletedFetchKey] = useState<string | null>(
-    null,
-  );
-  const [dailyDecision, setDailyDecision] = useState<DailyDecisionOutput | null>(
     null,
   );
   const [dailyInsight, setDailyInsight] = useState<DailyInsight | null>(null);
@@ -284,39 +272,29 @@ export default function HomeClient({
     }
   }, [configured, user]);
 
-  const loadDailyDecision = useCallback(
-    async (intentOverride?: Intent | null) => {
-      if (!configured || !user) return;
+  const intentDecisionEnabled =
+    configured &&
+    Boolean(user) &&
+    !authLoading &&
+    !isCompletingOAuth &&
+    connectionStatus !== "NOT_CONNECTED";
 
-      try {
-        const intent = resolveIntent(
-          intentOverride !== undefined
-            ? intentOverride
-            : readStoredUserIntent(),
-        );
-        const res = await apiFetch(decisionTodayApiPath(intent), {
-          method: "GET",
-        });
-        const data = await parseApiJson<DecisionResponse>(
-          res,
-          "Daily decision",
-        );
-        if (!data) return;
-        setDailyDecision(data.decision);
-        void loadDecisionHistory();
-      } catch {
-        // Decision is optional on first connect — don't block the flow.
-      }
+  const {
+    intent: userIntent,
+    setIntent: setUserIntent,
+    decision: dailyDecision,
+    isRefreshing: decisionRefreshing,
+    refreshDecision,
+  } = useIntentDecision({
+    enabled: intentDecisionEnabled,
+    portfolioContext: {
+      stock: portfolioData?.top_symbol,
+      allocation: portfolioData?.top_allocation_pct,
     },
-    [configured, user, loadDecisionHistory],
-  );
-
-  const handleIntentChange = useCallback(
-    (intent: Intent) => {
-      void loadDailyDecision(intent);
+    onFetched: () => {
+      void loadDecisionHistory();
     },
-    [loadDailyDecision],
-  );
+  });
 
   const loadDailyInsight = useCallback(async () => {
     if (!configured || !user) return;
@@ -337,7 +315,7 @@ export default function HomeClient({
     try {
       console.log("Tab active → refreshing data");
       await loadPortfolio({ silent: true });
-      await loadDailyDecision();
+      refreshDecision();
       await loadDailyInsight();
       await loadDecisionHistory();
 
@@ -355,7 +333,7 @@ export default function HomeClient({
     authLoading,
     isCompletingOAuth,
     loadPortfolio,
-    loadDailyDecision,
+    refreshDecision,
     loadDailyInsight,
     loadDecisionHistory,
   ]);
@@ -369,7 +347,7 @@ export default function HomeClient({
 
     void loadPortfolio().finally(() => {
       setCompletedFetchKey(user.id);
-      void loadDailyDecision();
+      void refreshDecision();
       void loadDailyInsight();
       void loadDecisionHistory();
     });
@@ -379,7 +357,7 @@ export default function HomeClient({
     authLoading,
     isCompletingOAuth,
     loadPortfolio,
-    loadDailyDecision,
+    refreshDecision,
     loadDailyInsight,
     loadDecisionHistory,
   ]);
@@ -402,7 +380,6 @@ export default function HomeClient({
     void loadPortfolio({ isCancelled: () => cancelled }).finally(() => {
       if (!cancelled) {
         setCompletedFetchKey(portfolioFetchKey);
-        void loadDailyDecision();
         void loadDailyInsight();
         void loadDecisionHistory();
       }
@@ -415,7 +392,7 @@ export default function HomeClient({
     shouldFetchPortfolio,
     portfolioFetchKey,
     loadPortfolio,
-    loadDailyDecision,
+    refreshDecision,
     loadDailyInsight,
     loadDecisionHistory,
   ]);
@@ -573,7 +550,10 @@ export default function HomeClient({
 
           {showGuidance && (
             <>
-              <IntentSelector onIntentChange={handleIntentChange} />
+              <IntentSelector
+                intent={userIntent}
+                onIntentChange={setUserIntent}
+              />
               {portfolioLoading && !hasPortfolioData && (
                 <PortfolioSummarySkeleton />
               )}
@@ -685,24 +665,16 @@ export default function HomeClient({
               <FinancialProfileSetup
                 onComplete={(profile) => {
                   setFinancialProfile(profile);
-                  void loadDailyDecision();
+                  refreshDecision();
                   void loadDecisionHistory();
                 }}
               />
             )}
-            {dailyDecision ? (
-              <DailyDecisionCard
-                decision={dailyDecision}
-                totalValue={portfolioData?.total_value ?? 0}
-              />
-            ) : (
-              <div className="p-6 rounded-2xl border border-white/10 bg-slate-900/50 space-y-3">
-                <div className="h-2 w-24 rounded-full bg-white/10 animate-pulse" />
-                <p className="text-sm text-gray-400 italic">
-                  Setting things up for you…
-                </p>
-              </div>
-            )}
+            <DailyDecisionCard
+              decision={dailyDecision}
+              totalValue={portfolioData?.total_value ?? 0}
+              isRefreshing={decisionRefreshing}
+            />
             <DecisionHistoryPanel history={decisionHistory} />
           </>
         )}

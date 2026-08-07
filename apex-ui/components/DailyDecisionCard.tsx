@@ -16,6 +16,7 @@ import SellConfirmModal from "./SellConfirmModal";
 type Props = {
   decision: DailyDecisionOutput;
   totalValue?: number;
+  isRefreshing?: boolean;
 };
 
 type ActionVisual = {
@@ -92,6 +93,7 @@ function actionVisuals(action: DecisionActionType): ActionVisual {
 export default function DailyDecisionCard({
   decision,
   totalValue = 0,
+  isRefreshing = false,
 }: Props) {
   const [selectedSellPercent, setSelectedSellPercent] = useState<
     number | null
@@ -190,6 +192,12 @@ export default function DailyDecisionCard({
   return (
     <>
       <div className={`relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 ${cardShadow}`}>
+        {isRefreshing && (
+          <div
+            className="absolute inset-0 z-10 pointer-events-none bg-gradient-to-r from-transparent via-white/5 to-transparent animate-pulse"
+            aria-hidden
+          />
+        )}
         <div
           className={`absolute left-0 top-0 bottom-0 w-1.5 ${visuals.strip}`}
           aria-hidden
