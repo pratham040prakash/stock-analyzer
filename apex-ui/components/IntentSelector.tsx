@@ -1,49 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import {
+  readStoredUserIntent,
+  storeUserIntent,
+} from "@/lib/userIntent";
+import type { Intent } from "@/types/intent";
 
-export type Intent = "grow" | "risk" | "explore";
-
-const STORAGE_KEY = "apex_user_intent";
+export type { Intent } from "@/types/intent";
 
 const OPTIONS: { value: Intent; label: string }[] = [
   { value: "grow", label: "Grow Portfolio" },
   { value: "risk", label: "Reduce Risk" },
   { value: "explore", label: "Find Opportunities" },
 ];
-
-function readStoredIntent(): Intent | null {
-  if (typeof globalThis.window === "undefined") {
-    return null;
-  }
-
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw === "grow" || raw === "risk" || raw === "explore") {
-      return raw;
-    }
-  } catch {
-    return null;
-  }
-
-  return null;
-}
-
-function storeIntent(intent: Intent | null) {
-  if (typeof globalThis.window === "undefined") {
-    return;
-  }
-
-  try {
-    if (intent === null) {
-      localStorage.removeItem(STORAGE_KEY);
-    } else {
-      localStorage.setItem(STORAGE_KEY, intent);
-    }
-  } catch {
-    // Ignore storage failures (private mode, quota, etc.)
-  }
-}
 
 function buttonClass(selected: boolean, value: Intent): string {
   const base =
@@ -72,7 +42,7 @@ export default function IntentSelector({ onIntentChange }: Props) {
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    setIntent(readStoredIntent());
+    setIntent(readStoredUserIntent());
     setHydrated(true);
   }, []);
 
@@ -81,7 +51,7 @@ export default function IntentSelector({ onIntentChange }: Props) {
       return;
     }
 
-    storeIntent(intent);
+    storeUserIntent(intent);
     onIntentChange?.(intent);
   }, [intent, hydrated, onIntentChange]);
 

@@ -24,6 +24,8 @@ import { decisionHeadline } from "@/types/decision";
 import type { PortfolioApiResponse } from "@/types/portfolioApi";
 import type { DailyInsight } from "@/types/dailyInsight";
 import type { DecisionHistoryEntry } from "@/types/decisionHistory";
+import { readStoredUserIntent } from "@/lib/userIntent";
+import type { Intent } from "@/types/intent";
 import { recordVisit, saveCachedPortfolio } from "@/lib/portfolioCache";
 import { portfolioRiskFromAllocation } from "@/lib/portfolioRisk";
 import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
@@ -44,6 +46,10 @@ type Props = {
 
 type DecisionResponse = {
   decision: DailyDecisionOutput | null;
+  intent?: Intent | null;
+  action?: DailyDecisionOutput["action"];
+  message?: string | null;
+  opportunities?: DailyDecisionOutput["opportunities"];
 };
 
 type InsightResponse = {
@@ -278,19 +284,41 @@ export default function HomeClient({
     }
   }, [configured, user]);
 
-  const loadDailyDecision = useCallback(async () => {
-    if (!configured || !user) return;
+  const loadDailyDecision = useCallback(
+    async (intentOverride?: Intent | null) => {
+      if (!configured || !user) return;
 
-    try {
-      const res = await apiFetch("/api/decision/today", { method: "GET" });
-      const data = await parseApiJson<DecisionResponse>(res, "Daily decision");
-      if (!data) return;
-      setDailyDecision(data.decision);
-      void loadDecisionHistory();
-    } catch {
-      // Decision is optional on first connect — don't block the flow.
-    }
-  }, [configured, user, loadDecisionHistory]);
+      try {
+        const intent =
+          intentOverride !== undefined
+            ? intentOverride
+            : readStoredUserIntent();
+        const query = intent
+          ? `?intent=${encodeURIComponent(intent)}`
+          : "";
+        const res = await apiFetch(`/api/decision/today${query}`, {
+          method: "GET",
+        });
+        const data = await parseApiJson<DecisionResponse>(
+          res,
+          "Daily decision",
+        );
+        if (!data) return;
+        setDailyDecision(data.decision);
+        void loadDecisionHistory();
+      } catch {
+        // Decision is optional on first connect — don't block the flow.
+      }
+    },
+    [configured, user, loadDecisionHistory],
+  );
+
+  const handleIntentChange = useCallback(
+    (intent: Intent | null) => {
+      void loadDailyDecision(intent);
+    },
+    [loadDailyDecision],
+  );
 
   const loadDailyInsight = useCallback(async () => {
     if (!configured || !user) return;
@@ -547,7 +575,7 @@ export default function HomeClient({
 
           {showGuidance && (
             <>
-              <IntentSelector />
+              <IntentSelector onIntentChange={handleIntentChange} />
               {portfolioLoading && !hasPortfolioData && (
                 <PortfolioSummarySkeleton />
               )}

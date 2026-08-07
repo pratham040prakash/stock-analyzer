@@ -1,18 +1,36 @@
-export type DailyDecisionType = "BUY_MORE" | "HOLD" | "REDUCE" | "WAIT";
+export type DailyDecisionType =
+  | "BUY_MORE"
+  | "HOLD"
+  | "REDUCE"
+  | "WAIT"
+  | "EXPLORE";
 
 import { portfolioRiskFromAllocation } from "@/lib/portfolioRisk";
+import type { Intent } from "@/types/intent";
 
-export type DecisionActionType = "reduce" | "buy" | "hold" | "wait";
+export type DecisionActionType =
+  | "reduce"
+  | "buy"
+  | "hold"
+  | "wait"
+  | "explore";
+
+export type DecisionOpportunity = {
+  name: string;
+  reason: string;
+};
 
 export type DailyDecisionOutput = {
   decision: DailyDecisionType;
   action: DecisionActionType;
+  intent?: Intent | null;
   stock?: string;
   confidence: number;
   allocation?: number;
   suggested_sell_percent?: number;
   suggestion?: string;
   message?: string;
+  opportunities?: DecisionOpportunity[];
   reason: string;
   confidence_factors: string[];
   actions: string[];
@@ -32,6 +50,7 @@ export type DecisionEngineInput = {
   portfolioSnapshot: PortfolioSnapshotInput;
   financialProfile: import("@/lib/financialProfile").FinancialProfile | null;
   lastMentorOutput?: import("@/types/mentorDecision").MentorDecision | null;
+  intent?: Intent | null;
 };
 
 export function decisionActionLabel(action: DecisionActionType): string {
@@ -42,6 +61,8 @@ export function decisionActionLabel(action: DecisionActionType): string {
       return "Buy more";
     case "wait":
       return "Wait";
+    case "explore":
+      return "Explore";
     default:
       return "Hold";
   }
@@ -57,6 +78,8 @@ export function dailyDecisionTypeToAction(
       return "buy";
     case "WAIT":
       return "wait";
+    case "EXPLORE":
+      return "explore";
     default:
       return "hold";
   }
@@ -64,6 +87,10 @@ export function dailyDecisionTypeToAction(
 
 export function decisionHeadline(decision: DailyDecisionOutput): string {
   const confidence = displayConfidencePercent(decision.confidence);
+
+  if (decision.action === "explore") {
+    return `Explore opportunities (${confidence}%)`;
+  }
 
   if (
     decision.action === "reduce" &&
@@ -129,6 +156,10 @@ export function decisionHeroActionText(
   decision: DailyDecisionOutput,
   sellPercent?: number,
 ): string {
+  if (decision.action === "explore") {
+    return decision.message ?? "Explore opportunities aligned with you";
+  }
+
   if (decision.action === "reduce" && decision.stock) {
     const pct = sellPercent ?? decision.suggested_sell_percent ?? 20;
     return `Sell ${pct}% of ${decision.stock}`;

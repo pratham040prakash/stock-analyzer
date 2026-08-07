@@ -50,6 +50,8 @@ function actionTone(action: DecisionActionType): string {
       return "text-amber-300";
     case "buy":
       return "text-teal-300";
+    case "explore":
+      return "text-purple-300";
     case "wait":
       return "text-gray-300";
     default:

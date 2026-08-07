@@ -62,6 +62,17 @@ function actionVisuals(action: DecisionActionType): ActionVisual {
           "bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-lg shadow-amber-500/20",
         headline: "text-amber-50",
       };
+    case "explore":
+      return {
+        strip: "bg-purple-500",
+        iconBg: "bg-purple-500/15 border-purple-500/30",
+        iconText: "text-purple-200",
+        icon: "✦",
+        badge: "bg-purple-500/10 text-purple-100 border-purple-500/25",
+        primaryButton:
+          "bg-purple-500 hover:bg-purple-400 text-white shadow-lg shadow-purple-500/25",
+        headline: "text-purple-50",
+      };
     default:
       return {
         strip: "bg-amber-400",
@@ -92,6 +103,8 @@ export default function DailyDecisionCard({
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const canTrim = decision.action === "reduce" && Boolean(decision.stock);
+  const isExplore = decision.action === "explore";
+  const opportunities = decision.opportunities ?? [];
   const suggestedSellPercent = decision.suggested_sell_percent ?? 20;
   const sellOptions = buildSellPercentOptions(decision.suggested_sell_percent);
   const activeSellPercent = selectedSellPercent ?? suggestedSellPercent;
@@ -159,9 +172,11 @@ export default function DailyDecisionCard({
 
   const primaryLabel = canTrim
     ? `Sell ${activeSellPercent}% Now`
-    : decision.action === "buy"
-      ? "Start investing"
-      : "Got it";
+    : isExplore
+      ? "Review ideas"
+      : decision.action === "buy"
+        ? "Start investing"
+        : "Got it";
 
   return (
     <>
@@ -203,65 +218,91 @@ export default function DailyDecisionCard({
           )}
 
           <div className="space-y-3">
-            <div className="flex flex-col sm:flex-row gap-3">
-              <button
-                type="button"
-                disabled={processing}
-                onClick={() => {
-                  if (canTrim) {
-                    openConfirm(activeSellPercent);
-                  }
-                }}
-                className={`w-full sm:flex-1 px-5 py-3.5 rounded-xl text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed ${visuals.primaryButton}`}
-              >
-                {primaryLabel}
-              </button>
+            {isExplore ? (
+              <ul className="space-y-3">
+                {opportunities.map((opportunity) => (
+                  <li
+                    key={opportunity.name}
+                    className="flex items-start justify-between gap-4 rounded-xl border border-purple-500/20 bg-purple-500/5 px-4 py-3"
+                  >
+                    <div>
+                      <p className="text-sm font-medium text-purple-50">
+                        {opportunity.name}
+                      </p>
+                      <p className="text-xs text-purple-200/70 mt-1">
+                        {opportunity.reason}
+                      </p>
+                    </div>
+                    <span className="shrink-0 rounded-full border border-purple-500/30 bg-purple-500/10 px-2.5 py-1 text-[11px] font-medium text-purple-100">
+                      Idea
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <button
+                    type="button"
+                    disabled={processing}
+                    onClick={() => {
+                      if (canTrim) {
+                        openConfirm(activeSellPercent);
+                      }
+                    }}
+                    className={`w-full sm:flex-1 px-5 py-3.5 rounded-xl text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed ${visuals.primaryButton}`}
+                  >
+                    {primaryLabel}
+                  </button>
 
-              {canTrim && (
-                <button
-                  type="button"
-                  disabled={processing}
-                  onClick={() => setShowAdjust((open) => !open)}
-                  className="w-full sm:w-auto px-5 py-3.5 rounded-xl text-sm font-medium border border-white/15 bg-white/5 text-gray-200 hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Adjust amount
-                </button>
-              )}
-            </div>
-
-            {riskMicrocopy && (
-              <p className="text-sm text-gray-400">{riskMicrocopy}</p>
-            )}
-
-            {canTrim && showAdjust && (
-              <div className="flex flex-wrap gap-2 pt-1">
-                {sellOptions.map((percent) => {
-                  const isActive = activeSellPercent === percent;
-                  return (
+                  {canTrim && (
                     <button
-                      key={percent}
                       type="button"
                       disabled={processing}
-                      onClick={() => {
-                        setSelectedSellPercent(percent);
-                        openConfirm(percent);
-                      }}
-                      className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                        isActive
-                          ? "bg-red-500/20 border-red-500/40 text-red-100"
-                          : "bg-white/5 border-white/10 text-gray-300 hover:bg-white/10"
-                      }`}
+                      onClick={() => setShowAdjust((open) => !open)}
+                      className="w-full sm:w-auto px-5 py-3.5 rounded-xl text-sm font-medium border border-white/15 bg-white/5 text-gray-200 hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Sell {percent}%
+                      Adjust amount
                     </button>
-                  );
-                })}
-              </div>
+                  )}
+                </div>
+
+                {riskMicrocopy && (
+                  <p className="text-sm text-gray-400">{riskMicrocopy}</p>
+                )}
+
+                {canTrim && showAdjust && (
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {sellOptions.map((percent) => {
+                      const isActive = activeSellPercent === percent;
+                      return (
+                        <button
+                          key={percent}
+                          type="button"
+                          disabled={processing}
+                          onClick={() => {
+                            setSelectedSellPercent(percent);
+                            openConfirm(percent);
+                          }}
+                          className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                            isActive
+                              ? "bg-red-500/20 border-red-500/40 text-red-100"
+                              : "bg-white/5 border-white/10 text-gray-300 hover:bg-white/10"
+                          }`}
+                        >
+                          Sell {percent}%
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
             )}
 
             <p className="text-xs text-gray-600">
-              Guidance only — confirm to simulate; execute in your broker for
-              real trades.
+              {isExplore
+                ? "Research ideas in your broker — guidance only, not a buy recommendation."
+                : "Guidance only — confirm to simulate; execute in your broker for real trades."}
             </p>
           </div>
 

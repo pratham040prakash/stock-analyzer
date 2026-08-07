@@ -12,8 +12,9 @@ import {
   getLatestPortfolioSnapshotWithMetrics,
 } from "@/services/portfolio/repository";
 import { createClient } from "@/lib/supabase/server";
+import { parseUserIntent } from "@/types/intent";
 
-export async function GET() {
+export async function GET(request: Request) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -22,6 +23,9 @@ export async function GET() {
   if (!user) {
     return apiError("Unauthorized", 401);
   }
+
+  const { searchParams } = new URL(request.url);
+  const intent = parseUserIntent(searchParams.get("intent"));
 
   const stored = await getTodayDailyDecision(supabase, user.id);
 
@@ -35,11 +39,21 @@ export async function GET() {
       const { created_at, ...decision } = stored;
       return NextResponse.json({
         decision,
+        intent: decision.intent ?? null,
+        action: decision.action,
+        message: decision.message ?? null,
+        opportunities: decision.opportunities ?? null,
         source: "database",
         created_at,
       });
     }
-    return NextResponse.json({ decision: null });
+    return NextResponse.json({
+      decision: null,
+      intent: null,
+      action: null,
+      message: null,
+      opportunities: null,
+    });
   }
 
   const financialProfile = await getFinancialProfileFromDb(supabase, user.id);
@@ -54,6 +68,7 @@ export async function GET() {
     },
     financialProfile,
     lastMentorOutput,
+    intent,
   });
 
   try {
@@ -66,6 +81,10 @@ export async function GET() {
 
   return NextResponse.json({
     decision,
+    intent: decision.intent ?? intent ?? null,
+    action: decision.action,
+    message: decision.message ?? null,
+    opportunities: decision.opportunities ?? null,
     source: storedAfterSave ? "database" : "computed",
     created_at: storedAfterSave?.created_at ?? stored?.created_at,
   });

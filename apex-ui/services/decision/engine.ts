@@ -9,8 +9,10 @@ import type {
   DailyDecisionType,
   DecisionActionType,
   DecisionEngineInput,
+  DecisionOpportunity,
 } from "@/types/decision";
 import { dailyDecisionTypeToAction } from "@/types/decision";
+import type { Intent } from "@/types/intent";
 import type { MentorDecision } from "@/types/mentorDecision";
 import type { Holding } from "@/types/portfolio";
 
@@ -278,6 +280,7 @@ function confidenceForDecision(
     BUY_MORE: 78,
     REDUCE: 76,
     HOLD: 68,
+    EXPLORE: 74,
   };
 
   let confidence = base[decision];
@@ -415,8 +418,80 @@ function buildConfidenceFactors(
   return factors.slice(0, 5);
 }
 
-export function evaluateDailyDecision(
+const DEFAULT_OPPORTUNITIES: DecisionOpportunity[] = [
+  { name: "Stock A", reason: "Momentum" },
+  { name: "Stock B", reason: "Undervalued" },
+  { name: "ETF", reason: "Diversification" },
+];
+
+function buildGrowDecision(
+  _input: DecisionEngineInput,
+  hasProfile: boolean,
+  mentor: MentorDecision | null | undefined,
+): DailyDecisionOutput {
+  const mentorAligned = mentor?.action === "add";
+  const confidence = confidenceForDecision("BUY_MORE", mentor, hasProfile, {});
+
+  return {
+    decision: "BUY_MORE",
+    action: "buy",
+    intent: "grow",
+    confidence,
+    message: "Invest gradually into your portfolio",
+    suggestion: "Use available funds for accumulation",
+    reason:
+      "You chose to grow — steady accumulation from your surplus builds long-term wealth without forcing a single big bet.",
+    confidence_factors: [
+      "You selected Grow Portfolio as today's intent",
+      hasProfile
+        ? "Financial profile is available for sizing guidance"
+        : "Add your financial profile to refine investable surplus",
+      mentorAligned
+        ? "Mentor view supports adding steadily"
+        : "Small, regular steps beat timing the market",
+    ],
+    actions: [
+      "Invest your monthly surplus in steady, small steps",
+      "Spread new money across sectors instead of one concentrated bet",
+    ],
+  };
+}
+
+function buildExploreDecision(
+  _input: DecisionEngineInput,
+  hasProfile: boolean,
+  mentor: MentorDecision | null | undefined,
+): DailyDecisionOutput {
+  const mentorAligned =
+    mentor?.action === "add" || mentor?.action === "observe";
+  const confidence = confidenceForDecision("HOLD", mentor, hasProfile, {});
+
+  return {
+    decision: "EXPLORE",
+    action: "explore",
+    intent: "explore",
+    confidence: Math.max(confidence, 72),
+    message: "Here are opportunities aligned with your profile",
+    opportunities: DEFAULT_OPPORTUNITIES,
+    reason:
+      "You asked to find opportunities — these ideas match common growth, value, and diversification themes for your profile.",
+    confidence_factors: [
+      "You selected Find Opportunities as today's intent",
+      hasProfile
+        ? "Ideas are framed around your stated risk and income profile"
+        : "Complete your profile for sharper opportunity matching",
+      mentorAligned ? "Mentor view supports exploring new ideas" : "Research before acting — guidance only",
+    ],
+    actions: [
+      "Review each idea against your existing holdings",
+      "Start with a small position if something fits your plan",
+    ],
+  };
+}
+
+function evaluateDefaultDecision(
   input: DecisionEngineInput,
+  intent: Intent | null | undefined,
 ): DailyDecisionOutput {
   const { portfolioSnapshot, financialProfile, lastMentorOutput } = input;
   const hasProfile = Boolean(financialProfile);
@@ -513,6 +588,7 @@ export function evaluateDailyDecision(
   return {
     decision,
     action,
+    intent: intent ?? "risk",
     stock,
     confidence,
     allocation,
@@ -525,4 +601,21 @@ export function evaluateDailyDecision(
     focusSymbol: stock,
     focusAllocationPct: allocation,
   };
+}
+
+export function evaluateDailyDecision(
+  input: DecisionEngineInput,
+): DailyDecisionOutput {
+  const { intent, lastMentorOutput, financialProfile } = input;
+  const hasProfile = Boolean(financialProfile);
+
+  if (intent === "grow") {
+    return buildGrowDecision(input, hasProfile, lastMentorOutput);
+  }
+
+  if (intent === "explore") {
+    return buildExploreDecision(input, hasProfile, lastMentorOutput);
+  }
+
+  return evaluateDefaultDecision(input, intent ?? null);
 }
