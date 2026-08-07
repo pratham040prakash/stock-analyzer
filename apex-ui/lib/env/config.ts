@@ -87,9 +87,14 @@ export function getAuthCallbackUrl(): string {
   );
 }
 
+export function getZerodhaCallbackUrl(fallbackOrigin?: string): string {
+  const base = resolveAppBaseUrl(fallbackOrigin);
+  return base ? `${base}/api/zerodha/callback` : "/api/zerodha/callback";
+}
+
+/** @deprecated Kite Connect redirect must use getZerodhaCallbackUrl in the developer portal. */
 export function getZerodhaRedirectUrl(): string {
-  const base = getClientAppBaseUrl();
-  return base ? `${base}/` : "/";
+  return getZerodhaCallbackUrl();
 }
 
 export function isAppUrlConfigured(): boolean {

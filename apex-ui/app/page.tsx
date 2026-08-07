@@ -8,7 +8,24 @@ import { createClient } from "@/lib/supabase/server";
 import type { ConnectionStatus } from "@/lib/broker/zerodha";
 import { getFinancialProfileFromDb } from "@/services/portfolio/repository";
 
-export default async function Home() {
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
+  const requestToken = params.request_token;
+
+  if (typeof requestToken === "string" && requestToken.trim()) {
+    const qs = new URLSearchParams();
+    qs.set("request_token", requestToken.trim());
+    const status = params.status;
+    if (typeof status === "string") {
+      qs.set("status", status);
+    }
+    redirect(`/api/zerodha/callback?${qs.toString()}`);
+  }
+
   const supabaseConfigured = isSystemConfigured();
 
   if (!supabaseConfigured) {

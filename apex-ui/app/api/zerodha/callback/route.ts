@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { apiError } from "@/lib/api/response";
 import {
   exchangeRequestToken,
   KITE_ACCESS_TOKEN_COOKIE,
@@ -11,13 +10,23 @@ import { upsertBrokerConnection } from "@/services/broker/connections";
 import { syncUserPortfolio } from "@/services/portfolio/sync";
 import { createClient } from "@/lib/supabase/server";
 
+function redirectHome(baseUrl: string, params?: Record<string, string>) {
+  const url = new URL("/", baseUrl);
+  if (params) {
+    for (const [key, value] of Object.entries(params)) {
+      url.searchParams.set(key, value);
+    }
+  }
+  return NextResponse.redirect(url);
+}
+
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const requestToken = url.searchParams.get("request_token");
-  const baseUrl = resolveAppBaseUrl(url.origin);
+  const baseUrl = resolveAppBaseUrl(url.origin) || url.origin;
 
   if (!requestToken) {
-    return apiError("Missing request_token", 400);
+    return redirectHome(baseUrl, { zerodha_error: "missing_request_token" });
   }
 
   const supabase = await createClient();
@@ -26,13 +35,19 @@ export async function GET(req: Request) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    const redirectUrl = new URL("/login", baseUrl || url.origin);
+    const redirectUrl = new URL("/login", baseUrl);
     redirectUrl.searchParams.set("next", "/");
+    redirectUrl.searchParams.set(
+      "zerodha",
+      "Sign in to APEX first, then connect Zerodha again.",
+    );
     return NextResponse.redirect(redirectUrl);
   }
 
   if (!isTokenEncryptionConfigured()) {
-    return apiError("TOKEN_ENCRYPTION_KEY is not configured", 500);
+    return redirectHome(baseUrl, {
+      zerodha_error: "token_encryption_not_configured",
+    });
   }
 
   try {
@@ -40,7 +55,7 @@ export async function GET(req: Request) {
     await upsertBrokerConnection(supabase, user.id, "zerodha", accessToken);
     await syncUserPortfolio(supabase, user.id);
 
-    const res = NextResponse.redirect(new URL("/", baseUrl || url.origin));
+    const res = redirectHome(baseUrl, { zerodha: "connected" });
     res.cookies.set(
       KITE_ACCESS_TOKEN_COOKIE,
       accessToken,
@@ -50,6 +65,6 @@ export async function GET(req: Request) {
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "Token exchange failed";
-    return apiError(message, 502);
+    return redirectHome(baseUrl, { zerodha_error: message });
   }
 }

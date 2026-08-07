@@ -12,6 +12,7 @@ function readRequestToken(): string | null {
   return new URLSearchParams(window.location.search).get("request_token");
 }
 
+/** Legacy fallback: forward homepage request_token hits to the server callback route. */
 export function useZerodhaOAuth(): OAuthState {
   const [state, setState] = useState<OAuthState>({
     isCompletingOAuth: false,
@@ -22,45 +23,11 @@ export function useZerodhaOAuth(): OAuthState {
     const requestToken = readRequestToken();
     if (!requestToken) return;
 
-    let cancelled = false;
+    setState({ isCompletingOAuth: true, oauthError: null });
 
-    async function completeLogin() {
-      setState({ isCompletingOAuth: true, oauthError: null });
-
-      try {
-        const res = await fetch("/api/zerodha/session", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ request_token: requestToken }),
-        });
-
-        const data = (await res.json().catch(() => null)) as {
-          error?: string;
-        } | null;
-
-        if (!res.ok) {
-          throw new Error(data?.error ?? "Session creation failed");
-        }
-
-        if (cancelled) return;
-
-        window.history.replaceState({}, "", "/");
-        window.location.reload();
-      } catch (err) {
-        if (cancelled) return;
-
-        const message =
-          err instanceof Error ? err.message : "OAuth connection failed";
-        console.error("OAuth error:", err);
-        setState({ isCompletingOAuth: false, oauthError: message });
-      }
-    }
-
-    void completeLogin();
-
-    return () => {
-      cancelled = true;
-    };
+    const params = new URLSearchParams(window.location.search);
+    params.set("request_token", requestToken);
+    window.location.replace(`/api/zerodha/callback?${params.toString()}`);
   }, []);
 
   return state;

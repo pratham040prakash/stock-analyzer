@@ -52,7 +52,7 @@ export const KITE_ACCESS_TOKEN_COOKIE = "kite_access_token";
 
 export const kiteAccessTokenCookieOptions = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
+  secure: process.env.NODE_ENV === "production" || Boolean(process.env.VERCEL),
   sameSite: "lax" as const,
   path: "/",
   maxAge: 60 * 60 * 24,
