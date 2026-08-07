@@ -107,6 +107,9 @@ export default function HomeClient({
     null,
   );
   const [portfolioError, setPortfolioError] = useState<string | null>(null);
+  const [portfolioLoading, setPortfolioLoading] = useState(
+    () => initialPortfolio.holdings.length === 0,
+  );
   const [brokerMessage, setBrokerMessage] = useState<string | null>(
     zerodhaNotice === "connected"
       ? "Zerodha connected — syncing your portfolio now."
@@ -165,7 +168,8 @@ export default function HomeClient({
     (data: PortfolioApiResponse) => {
       setPortfolioData(data);
 
-      if (data.status === "OK" && data.holdings.length > 0) {
+      if (data.holdings.length > 0) {
+        setPortfolioError(null);
         updatePortfolio({
           holdings: data.holdings.map((h) => ({
             symbol: h.tradingsymbol,
@@ -177,6 +181,59 @@ export default function HomeClient({
       }
     },
     [updatePortfolio],
+  );
+
+  const handlePortfolioResult = useCallback(
+    (data: PortfolioApiResponse) => {
+      applyPortfolioResponse(data);
+
+      if (data.status === "OK" && data.holdings.length > 0) {
+        setConnectionStatus("CONNECTED");
+        setBrokerMessage("Your portfolio is synced and ready.");
+        setPortfolioError(null);
+      } else if (data.status === "TOKEN_EXPIRED") {
+        setConnectionStatus("TOKEN_EXPIRED");
+        if (data.holdings.length > 0) {
+          setPortfolioError(null);
+        }
+      } else if (data.status === "NOT_CONNECTED") {
+        setConnectionStatus("NOT_CONNECTED");
+      }
+    },
+    [applyPortfolioResponse],
+  );
+
+  const loadPortfolio = useCallback(
+    async (isCancelled?: () => boolean) => {
+      setPortfolioLoading(true);
+
+      try {
+        const res = await apiFetch("/api/portfolio", { method: "GET" });
+        const data = await parseApiJson<PortfolioApiResponse>(res, "Portfolio");
+
+        if (isCancelled?.()) return;
+
+        if (!data) {
+          throw new Error("Could not load portfolio");
+        }
+        if (!res.ok && data.status !== "TOKEN_EXPIRED") {
+          throw new Error(data.message ?? "Could not load portfolio");
+        }
+
+        handlePortfolioResult(data);
+      } catch (err) {
+        if (isCancelled?.()) return;
+        console.error("Portfolio load failed:", err);
+        setPortfolioError(
+          err instanceof Error ? err.message : "Could not load portfolio",
+        );
+      } finally {
+        if (!isCancelled?.()) {
+          setPortfolioLoading(false);
+        }
+      }
+    },
+    [handlePortfolioResult],
   );
 
   const loadDailyDecision = useCallback(async () => {
@@ -199,44 +256,16 @@ export default function HomeClient({
     setBrokerMessage(null);
     setCompletedFetchKey(null);
 
-    apiFetch("/api/portfolio", { method: "GET" })
-      .then(async (res) => {
-        const data = await parseApiJson<PortfolioApiResponse>(res, "Portfolio");
-        if (!data) {
-          throw new Error("Could not load portfolio");
-        }
-        if (!res.ok && data.status !== "TOKEN_EXPIRED") {
-          throw new Error(data.message ?? "Could not load portfolio");
-        }
-        return data;
-      })
-      .then((data) => {
-        applyPortfolioResponse(data);
-
-        if (data.status === "OK" && data.holdings.length > 0) {
-          setConnectionStatus("CONNECTED");
-          setBrokerMessage("Your portfolio is synced and ready.");
-        } else if (data.status === "TOKEN_EXPIRED") {
-          setConnectionStatus("TOKEN_EXPIRED");
-        } else if (data.status === "NOT_CONNECTED") {
-          setConnectionStatus("NOT_CONNECTED");
-        }
-      })
-      .catch((err: unknown) => {
-        const message =
-          err instanceof Error ? err.message : "Could not load portfolio";
-        setPortfolioError(message);
-      })
-      .finally(() => {
-        setCompletedFetchKey(user.id);
-        void loadDailyDecision();
-      });
+    void loadPortfolio().finally(() => {
+      setCompletedFetchKey(user.id);
+      void loadDailyDecision();
+    });
   }, [
     configured,
     user,
     authLoading,
     isCompletingOAuth,
-    applyPortfolioResponse,
+    loadPortfolio,
     loadDailyDecision,
   ]);
 
@@ -255,44 +284,12 @@ export default function HomeClient({
 
     recordVisit();
 
-    apiFetch("/api/portfolio", { method: "GET" })
-      .then(async (res) => {
-        const data = await parseApiJson<PortfolioApiResponse>(res, "Portfolio");
-        if (!data) {
-          throw new Error("Could not load portfolio");
-        }
-        if (!res.ok && data.status !== "TOKEN_EXPIRED") {
-          throw new Error(data.message ?? "Could not load portfolio");
-        }
-        return data;
-      })
-      .then((data) => {
-        if (cancelled) return;
-
-        applyPortfolioResponse(data);
-
-        if (data.status === "OK" && data.holdings.length > 0) {
-          setConnectionStatus("CONNECTED");
-          setBrokerMessage("Your portfolio is synced and ready.");
-        } else if (data.status === "TOKEN_EXPIRED") {
-          setConnectionStatus("TOKEN_EXPIRED");
-        } else if (data.status === "NOT_CONNECTED") {
-          setConnectionStatus("NOT_CONNECTED");
-        }
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) {
-          const message =
-            err instanceof Error ? err.message : "Could not load portfolio";
-          setPortfolioError(message);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setCompletedFetchKey(portfolioFetchKey);
-          void loadDailyDecision();
-        }
-      });
+    void loadPortfolio(() => cancelled).finally(() => {
+      if (!cancelled) {
+        setCompletedFetchKey(portfolioFetchKey);
+        void loadDailyDecision();
+      }
+    });
 
     return () => {
       cancelled = true;
@@ -300,7 +297,7 @@ export default function HomeClient({
   }, [
     shouldFetchPortfolio,
     portfolioFetchKey,
-    applyPortfolioResponse,
+    loadPortfolio,
     loadDailyDecision,
   ]);
 
@@ -344,6 +341,9 @@ export default function HomeClient({
         top_allocation_pct: top?.allocation_pct,
       };
     });
+
+    setPortfolioError(null);
+    setPortfolioLoading(false);
   }, [initialPortfolio]);
 
   if (authLoading) {
@@ -374,7 +374,10 @@ export default function HomeClient({
 
   const isOnboarding = connectionStatus === "NOT_CONNECTED";
   const showGuidance = !isOnboarding && !isCompletingOAuth;
-  const showPortfolioError = Boolean(portfolioError);
+  const hasPortfolioData = Boolean(
+    portfolioData && portfolioData.holdings.length > 0,
+  );
+  const showPortfolioError = Boolean(portfolioError) && !hasPortfolioData;
   const showBrokerError =
     Boolean(brokerMessage) &&
     !brokerMessage?.includes("synced") &&
@@ -487,8 +490,17 @@ export default function HomeClient({
               Your portfolio is synced and ready.
             </div>
 
-            {portfolioData &&
-              portfolioData.holdings.length > 0 &&
+            {portfolioLoading && !hasPortfolioData && (
+              <div className="p-6 rounded-2xl border border-white/10 bg-slate-900/50 space-y-3">
+                <div className="h-2 w-24 rounded-full bg-white/10 animate-pulse" />
+                <p className="text-sm text-gray-400 italic">
+                  Loading your portfolio…
+                </p>
+              </div>
+            )}
+
+            {hasPortfolioData &&
+              portfolioData &&
               portfolioData.total_value !== undefined &&
               portfolioData.total_pnl !== undefined && (
                 <PortfolioCard
