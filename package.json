@@ -1,9 +1,4 @@
 {
-  "private": true,
-  "name": "stock-analyzer",
-  "scripts": {
-    "postinstall": "npm install --prefix apex-ui",
-    "build": "npm run build --prefix apex-ui",
-    "dev": "npm run dev --prefix apex-ui"
-  }
+  "name": "root",
+  "private": true
 }
