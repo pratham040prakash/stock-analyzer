@@ -18,11 +18,26 @@ function isPlaceholderValue(value: string | undefined): boolean {
   return PLACEHOLDER_MARKERS.some((marker) => normalized.includes(marker));
 }
 
+function isLocalhostUrl(url: string): boolean {
+  try {
+    const host = new URL(url).hostname;
+    return host === "localhost" || host === "127.0.0.1";
+  } catch {
+    return false;
+  }
+}
+
+function isProductionDeploy(): boolean {
+  return process.env.NODE_ENV === "production" || Boolean(process.env.VERCEL);
+}
+
 /** Canonical public app URL for OAuth redirects (Vercel production/preview). */
 export function getAppBaseUrl(): string {
   const configured = process.env.NEXT_PUBLIC_APP_URL?.trim();
   if (configured && !isPlaceholderValue(configured)) {
-    return configured.replace(/\/$/, "");
+    if (!isProductionDeploy() || !isLocalhostUrl(configured)) {
+      return configured.replace(/\/$/, "");
+    }
   }
 
   const vercelUrl = process.env.VERCEL_URL?.trim();
@@ -41,23 +56,35 @@ export function resolveAppBaseUrl(fallbackOrigin?: string): string {
   return "";
 }
 
-/** Client-safe base URL: env first, then current origin. */
+/** Client-safe base URL: env first, then current origin (non-localhost on Vercel). */
 export function getClientAppBaseUrl(): string {
   const configured = process.env.NEXT_PUBLIC_APP_URL?.trim();
   if (configured && !isPlaceholderValue(configured)) {
-    return configured.replace(/\/$/, "");
+    if (!isProductionDeploy() || !isLocalhostUrl(configured)) {
+      return configured.replace(/\/$/, "");
+    }
   }
 
   if (typeof window !== "undefined") {
-    return window.location.origin;
+    const origin = window.location.origin.replace(/\/$/, "");
+    if (!isProductionDeploy() || !isLocalhostUrl(origin)) {
+      return origin;
+    }
   }
 
   return getAppBaseUrl();
 }
 
-export function getAuthCallbackUrl(): string {
-  const base = getClientAppBaseUrl();
+/** Server/client auth callback URL — prefers env, then Vercel URL, then request origin. */
+export function resolveAuthCallbackUrl(fallbackOrigin?: string): string {
+  const base = resolveAppBaseUrl(fallbackOrigin);
   return base ? `${base}/auth/callback` : "/auth/callback";
+}
+
+export function getAuthCallbackUrl(): string {
+  return resolveAuthCallbackUrl(
+    typeof window !== "undefined" ? window.location.origin : undefined,
+  );
 }
 
 export function getZerodhaRedirectUrl(): string {

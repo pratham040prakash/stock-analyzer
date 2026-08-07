@@ -192,36 +192,41 @@ export default function LoginForm() {
     authLog("Email login click", { email: trimmedEmail });
 
     try {
-      const redirectTo = getAuthCallbackUrl();
-      authLog("Email OTP request", { redirectTo });
-
-      const { error: signInError } = await supabase.auth.signInWithOtp({
-        email: trimmedEmail,
-        options: {
-          emailRedirectTo: redirectTo,
-          shouldCreateUser: true,
-        },
+      const response = await fetch("/api/auth/otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: trimmedEmail }),
       });
 
-      if (signInError) {
-        authError("Email login error", { message: signInError.message });
+      const payload = (await response.json()) as {
+        status?: string;
+        message?: string;
+        redirectTo?: string;
+      };
 
-        if (isRateLimitError(signInError.message)) {
+      if (!response.ok) {
+        const errMessage = payload.message ?? "Unable to sign in. Try again.";
+        authError("Email login error", { message: errMessage });
+
+        if (isRateLimitError(errMessage)) {
           setMessage(RATE_LIMIT_MESSAGE);
           beginOtpCooldown();
           return;
         }
 
-        if (isNetworkErrorMessage(signInError.message)) {
-          setError(mapAuthErrorMessage(signInError));
+        if (isNetworkErrorMessage(errMessage)) {
+          setError(mapAuthErrorMessage({ message: errMessage }));
           return;
         }
 
-        setError(mapAuthErrorMessage(signInError));
+        setError(mapAuthErrorMessage({ message: errMessage }));
         return;
       }
 
-      authLog("Email OTP sent", { email: trimmedEmail });
+      authLog("Email OTP sent", {
+        email: trimmedEmail,
+        redirectTo: payload.redirectTo,
+      });
       setMessage(OTP_SUCCESS_MESSAGE);
       beginOtpCooldown();
     } catch (err) {
