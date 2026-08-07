@@ -5,7 +5,8 @@ import {
   deployableFundsForIntent,
   getAllocation,
 } from "@/lib/allocation";
-import { formatInr } from "@/lib/funds";
+import ExecutionPlan from "@/components/decision/ExecutionPlan";
+import OpportunitiesList from "@/components/decision/OpportunitiesList";
 import type { PortfolioRiskLevel } from "@/lib/portfolioRisk";
 import type { DailyDecisionOutput, DecisionActionType } from "@/types/decision";
 import type { Intent } from "@/types/intent";
@@ -20,6 +21,8 @@ import { computeSellImpact } from "@/lib/sellImpact";
 import ActionToast from "./ActionToast";
 import SellConfirmModal from "./SellConfirmModal";
 
+type CardView = "summary" | "execution" | "opportunities";
+
 type Props = {
   decision: DailyDecisionOutput;
   totalValue?: number;
@@ -27,6 +30,7 @@ type Props = {
   intent?: Intent;
   availableCash?: number;
   riskLevel?: PortfolioRiskLevel;
+  onIntentChange?: (intent: Intent) => void;
 };
 
 type ActionVisual = {
@@ -100,6 +104,13 @@ function actionVisuals(action: DecisionActionType): ActionVisual {
   }
 }
 
+function scrollToExecutionSection() {
+  document.getElementById("execution-section")?.scrollIntoView({
+    behavior: "smooth",
+    block: "nearest",
+  });
+}
+
 export default function DailyDecisionCard({
   decision,
   totalValue = 0,
@@ -107,7 +118,9 @@ export default function DailyDecisionCard({
   intent,
   availableCash,
   riskLevel = "Low",
+  onIntentChange,
 }: Props) {
+  const [view, setView] = useState<CardView>("summary");
   const [selectedSellPercent, setSelectedSellPercent] = useState<
     number | null
   >(null);
@@ -158,8 +171,7 @@ export default function DailyDecisionCard({
     riskLevel,
   ]);
 
-  const showRecommendedPlan =
-    recommendedPlan.length > 0 && (isBuy || isExplore);
+  const opportunities = decision.opportunities ?? [];
 
   const sellImpact =
     pendingSellPercent !== null &&
@@ -173,10 +185,16 @@ export default function DailyDecisionCard({
       : null;
 
   useEffect(() => {
+    setView("summary");
     setSelectedSellPercent(null);
     setShowAdjust(false);
     setShowReasoning(false);
-  }, [decision.suggested_sell_percent, decision.stock, decision.action]);
+  }, [
+    decision.suggested_sell_percent,
+    decision.stock,
+    decision.action,
+    intent,
+  ]);
 
   const cardShadow = isBuy
     ? "shadow-[0_0_60px_rgba(16,185,129,0.08)]"
@@ -220,6 +238,17 @@ export default function DailyDecisionCard({
       setProcessing(false);
     }
   }, [pendingSellPercent, processing]);
+
+  const onStartInvesting = useCallback(() => {
+    setView("execution");
+    requestAnimationFrame(scrollToExecutionSection);
+  }, []);
+
+  const onReviewIdeas = useCallback(() => {
+    onIntentChange?.("explore");
+    setView("opportunities");
+    requestAnimationFrame(scrollToExecutionSection);
+  }, [onIntentChange]);
 
   const primaryLabel = canTrim
     ? `Sell ${activeSellPercent}% Now`
@@ -270,138 +299,135 @@ export default function DailyDecisionCard({
             </div>
           </div>
 
-          {decision.suggestion && (
+          {decision.suggestion && view === "summary" && (
             <p className="text-sm text-gray-400">{decision.suggestion}</p>
           )}
 
-          <div className="space-y-3 min-h-[7.5rem]">
-            {isBuy || isExplore ? (
-              <div className="space-y-3">
-                {isBuy && (
+          <div id="execution-section" className="space-y-3 min-h-[7.5rem]">
+            {view === "execution" && (
+              <ExecutionPlan
+                items={recommendedPlan}
+                onBack={() => setView("summary")}
+              />
+            )}
+
+            {view === "opportunities" && (
+              <OpportunitiesList
+                opportunities={opportunities}
+                plan={recommendedPlan}
+                onBack={() => setView("summary")}
+              />
+            )}
+
+            {view === "summary" && (
+              <>
+                {isBuy || isExplore ? (
+                  <div className="space-y-3">
+                    {isBuy && (
+                      <>
+                        <p className="text-sm text-gray-300">
+                          Invest your available funds
+                        </p>
+                        <button
+                          type="button"
+                          onClick={onStartInvesting}
+                          className={`w-full px-5 py-3.5 rounded-xl text-sm font-semibold transition-all active:scale-[0.99] ${visuals.primaryButton}`}
+                        >
+                          {primaryLabel}
+                        </button>
+                      </>
+                    )}
+
+                    {isExplore && (
+                      <button
+                        type="button"
+                        onClick={onReviewIdeas}
+                        className={`w-full px-5 py-3.5 rounded-xl text-sm font-semibold transition-all active:scale-[0.99] ${visuals.primaryButton}`}
+                      >
+                        {primaryLabel}
+                      </button>
+                    )}
+                  </div>
+                ) : (
                   <>
-                    <p className="text-sm text-gray-300">
-                      Invest your available funds
-                    </p>
-                    <button
-                      type="button"
-                      className={`w-full px-5 py-3.5 rounded-xl text-sm font-semibold transition-all ${visuals.primaryButton}`}
-                    >
-                      {primaryLabel}
-                    </button>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <button
+                        type="button"
+                        disabled={processing}
+                        onClick={() => {
+                          if (canTrim) {
+                            openConfirm(activeSellPercent);
+                          }
+                        }}
+                        className={`w-full sm:flex-1 px-5 py-3.5 rounded-xl text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.99] ${visuals.primaryButton}`}
+                      >
+                        {primaryLabel}
+                      </button>
+
+                      {canTrim && (
+                        <button
+                          type="button"
+                          disabled={processing}
+                          onClick={() => setShowAdjust((open) => !open)}
+                          className="w-full sm:w-auto px-5 py-3.5 rounded-xl text-sm font-medium border border-white/15 bg-white/5 text-gray-200 hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Adjust amount
+                        </button>
+                      )}
+                    </div>
+
+                    {riskMicrocopy && (
+                      <p className="text-sm text-gray-400">{riskMicrocopy}</p>
+                    )}
+
+                    {canTrim && showAdjust && (
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        {sellOptions.map((percent) => {
+                          const isActive = activeSellPercent === percent;
+                          return (
+                            <button
+                              key={percent}
+                              type="button"
+                              disabled={processing}
+                              onClick={() => {
+                                setSelectedSellPercent(percent);
+                                openConfirm(percent);
+                              }}
+                              className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                                isActive
+                                  ? "bg-red-500/20 border-red-500/40 text-red-100"
+                                  : "bg-white/5 border-white/10 text-gray-300 hover:bg-white/10"
+                              }`}
+                            >
+                              Sell {percent}%
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </>
                 )}
 
-                {isExplore && (
-                  <button
-                    type="button"
-                    className={`w-full px-5 py-3.5 rounded-xl text-sm font-semibold transition-all ${visuals.primaryButton}`}
-                  >
-                    {primaryLabel}
-                  </button>
-                )}
-
-                {showRecommendedPlan && (
-                  <div
-                    className={`rounded-xl border px-4 py-3 space-y-2 ${
-                      isExplore
-                        ? "border-purple-500/20 bg-purple-500/5"
-                        : "border-emerald-500/20 bg-emerald-500/5"
-                    }`}
-                  >
-                    <p className="text-xs text-gray-500 uppercase tracking-wider">
-                      Recommended Plan
-                    </p>
-                    <ul className="space-y-1.5">
-                      {recommendedPlan.map((item) => (
-                        <li
-                          key={item.name}
-                          className={`text-sm ${
-                            isExplore ? "text-purple-50" : "text-emerald-50"
-                          }`}
-                        >
-                          {formatInr(item.amount)} → {item.name}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <>
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <button
-                    type="button"
-                    disabled={processing}
-                    onClick={() => {
-                      if (canTrim) {
-                        openConfirm(activeSellPercent);
-                      }
-                    }}
-                    className={`w-full sm:flex-1 px-5 py-3.5 rounded-xl text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed ${visuals.primaryButton}`}
-                  >
-                    {primaryLabel}
-                  </button>
-
-                  {canTrim && (
-                    <button
-                      type="button"
-                      disabled={processing}
-                      onClick={() => setShowAdjust((open) => !open)}
-                      className="w-full sm:w-auto px-5 py-3.5 rounded-xl text-sm font-medium border border-white/15 bg-white/5 text-gray-200 hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Adjust amount
-                    </button>
-                  )}
-                </div>
-
-                {riskMicrocopy && (
-                  <p className="text-sm text-gray-400">{riskMicrocopy}</p>
-                )}
-
-                {canTrim && showAdjust && (
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    {sellOptions.map((percent) => {
-                      const isActive = activeSellPercent === percent;
-                      return (
-                        <button
-                          key={percent}
-                          type="button"
-                          disabled={processing}
-                          onClick={() => {
-                            setSelectedSellPercent(percent);
-                            openConfirm(percent);
-                          }}
-                          className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                            isActive
-                              ? "bg-red-500/20 border-red-500/40 text-red-100"
-                              : "bg-white/5 border-white/10 text-gray-300 hover:bg-white/10"
-                          }`}
-                        >
-                          Sell {percent}%
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
+                <p className="text-xs text-gray-600">
+                  {isBuy || isExplore
+                    ? "Guidance only — execute in your broker when ready."
+                    : "Guidance only — confirm to simulate; execute in your broker for real trades."}
+                </p>
               </>
             )}
-
-            <p className="text-xs text-gray-600">
-              {isBuy || isExplore
-                ? "Guidance only — execute in your broker when ready."
-                : "Guidance only — confirm to simulate; execute in your broker for real trades."}
-            </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setShowReasoning((open) => !open)}
-            className="text-sm text-gray-400 hover:text-gray-200 transition-colors"
-          >
-            {showReasoning ? "Hide reasoning ↑" : "See reasoning →"}
-          </button>
+          {view === "summary" && (
+            <button
+              type="button"
+              onClick={() => setShowReasoning((open) => !open)}
+              className="text-sm text-gray-400 hover:text-gray-200 transition-colors"
+            >
+              {showReasoning ? "Hide reasoning ↑" : "See reasoning →"}
+            </button>
+          )}
 
-          {showReasoning && (
+          {view === "summary" && showReasoning && (
             <div className="space-y-4 pt-2 border-t border-white/10">
               <div>
                 <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">

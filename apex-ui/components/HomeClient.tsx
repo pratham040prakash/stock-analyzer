@@ -717,6 +717,7 @@ export default function HomeClient({
               intent={userIntent}
               availableCash={availableCash ?? undefined}
               riskLevel={portfolioData?.risk_level}
+              onIntentChange={setUserIntent}
             />
             <DecisionHistoryPanel history={decisionHistory} />
           </>
