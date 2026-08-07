@@ -387,18 +387,20 @@ export default function DailyDecisionCard({
                 <p className="text-xs text-gray-500 uppercase tracking-wider">
                   Recommended allocation
                 </p>
-                <ul className="space-y-1.5">
+                <ul className="space-y-2">
                   {recommendedAllocation.map((item) => (
-                    <li
-                      key={item.label}
-                      className="text-sm text-gray-200 flex items-center gap-2"
-                    >
-                      <span className="text-gray-500" aria-hidden>
+                    <li key={item.name} className="flex items-start gap-2">
+                      <span className="text-gray-500 mt-0.5" aria-hidden>
                         •
                       </span>
-                      <span>
-                        {formatInr(item.amount)} → {item.label}
-                      </span>
+                      <div>
+                        <p className="text-sm text-gray-200">
+                          {formatInr(item.amount)} → {item.name}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {item.reason}
+                        </p>
+                      </div>
                     </li>
                   ))}
                 </ul>

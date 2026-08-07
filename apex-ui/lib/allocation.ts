@@ -1,10 +1,12 @@
 import { safeInvestAmount } from "@/lib/funds";
+import { getRecommendations } from "@/lib/recommendations";
 import type { PortfolioRiskLevel } from "@/lib/portfolioRisk";
+import type { RecommendedAllocationItem } from "@/types/decision";
 import type { Intent } from "@/types/intent";
 
-export type AllocationItem = {
-  label: string;
-  amount: number;
+const ALLOCATION_WEIGHTS: Partial<Record<Intent, number[]>> = {
+  grow: [0.6, 0.4],
+  explore: [0.4, 0.3, 0.3],
 };
 
 export function roundAllocationAmount(amount: number): number {
@@ -17,15 +19,15 @@ export function roundAllocationAmount(amount: number): number {
 }
 
 function normalizeAllocationItems(
-  items: AllocationItem[],
+  items: RecommendedAllocationItem[],
   totalFunds: number,
-): AllocationItem[] {
+): RecommendedAllocationItem[] {
   if (totalFunds <= 0 || items.length === 0) {
     return [];
   }
 
   const rounded = items.map((item) => ({
-    label: item.label,
+    ...item,
     amount: roundAllocationAmount(item.amount),
   }));
 
@@ -64,34 +66,23 @@ export function getAllocation(
   funds: number,
   intent: Intent,
   risk: PortfolioRiskLevel,
-): AllocationItem[] {
-  void risk;
-
+): RecommendedAllocationItem[] {
   if (funds <= 0) {
     return [];
   }
 
-  if (intent === "grow") {
-    return normalizeAllocationItems(
-      [
-        { label: "ETF", amount: funds * 0.5 },
-        { label: "Large Cap", amount: funds * 0.3 },
-        { label: "Cash Buffer", amount: funds * 0.2 },
-      ],
-      funds,
-    );
+  const recommendations = getRecommendations(intent, risk);
+  const weights = ALLOCATION_WEIGHTS[intent];
+
+  if (!recommendations.length || !weights) {
+    return [];
   }
 
-  if (intent === "explore") {
-    return normalizeAllocationItems(
-      [
-        { label: "HDFC Bank", amount: funds * 0.4 },
-        { label: "Infosys", amount: funds * 0.3 },
-        { label: "Nifty 50 ETF", amount: funds * 0.3 },
-      ],
-      funds,
-    );
-  }
+  const items = recommendations.map((recommendation, index) => ({
+    name: recommendation.name,
+    amount: funds * (weights[index] ?? 0),
+    reason: recommendation.reason,
+  }));
 
-  return [];
+  return normalizeAllocationItems(items, funds);
 }

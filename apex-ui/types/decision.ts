@@ -22,8 +22,9 @@ export type DecisionOpportunity = {
 };
 
 export type RecommendedAllocationItem = {
-  label: string;
+  name: string;
   amount: number;
+  reason: string;
 };
 
 export type DailyDecisionOutput = {

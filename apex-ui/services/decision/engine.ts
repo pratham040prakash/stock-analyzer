@@ -4,6 +4,7 @@ import {
   getInvestableSurplus,
   type FinancialProfile,
 } from "@/lib/financialProfile";
+import { getExploreOpportunities } from "@/lib/recommendations";
 import type {
   DailyDecisionOutput,
   DailyDecisionType,
@@ -418,11 +419,7 @@ function buildConfidenceFactors(
   return factors.slice(0, 5);
 }
 
-const EXPLORE_OPPORTUNITIES: DecisionOpportunity[] = [
-  { name: "HDFC Bank", reason: "Stable large cap" },
-  { name: "Infosys", reason: "Strong IT sector" },
-  { name: "Nifty 50 ETF", reason: "Diversification" },
-];
+const EXPLORE_OPPORTUNITIES: DecisionOpportunity[] = getExploreOpportunities();
 
 function buildGrowDecision(
   _input: DecisionEngineInput,

@@ -2,15 +2,12 @@ import {
   deployableFundsForIntent,
   getAllocation,
 } from "@/lib/allocation";
+import { getExploreOpportunities } from "@/lib/recommendations";
 import type { PortfolioRiskLevel } from "@/lib/portfolioRisk";
-import type { DailyDecisionOutput, DecisionOpportunity } from "@/types/decision";
+import type { DailyDecisionOutput } from "@/types/decision";
 import type { Intent } from "@/types/intent";
 
-const EXPLORE_OPPORTUNITIES: DecisionOpportunity[] = [
-  { name: "HDFC Bank", reason: "Stable large cap" },
-  { name: "Infosys", reason: "Strong IT sector" },
-  { name: "Nifty 50 ETF", reason: "Diversification" },
-];
+const EXPLORE_OPPORTUNITIES = getExploreOpportunities();
 
 export type OptimisticDecisionContext = {
   stock?: string;
