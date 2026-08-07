@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   deployableFundsForIntent,
   getAllocation,
+  instrumentPlanWithoutFunds,
 } from "@/lib/allocation";
 import ExecutionPlan from "@/components/decision/ExecutionPlan";
 import OpportunitiesList from "@/components/decision/OpportunitiesList";
@@ -146,32 +147,47 @@ export default function DailyDecisionCard({
       ? decisionRiskMicrocopy(decision.allocation, activeSellPercent)
       : null;
 
+  const opportunities = decision.opportunities ?? [];
+
   const recommendedPlan = useMemo(() => {
+    if (!isBuy && !isExplore) {
+      return [];
+    }
+
     if (decision.recommended_allocation?.length) {
       return decision.recommended_allocation;
     }
 
-    if (
-      !intent ||
-      availableCash === undefined ||
-      availableCash <= 0 ||
-      (!isBuy && !isExplore)
-    ) {
-      return [];
+    if (intent && availableCash !== undefined && availableCash > 0) {
+      const deployable = deployableFundsForIntent(availableCash, intent);
+      const plan = getAllocation(deployable, intent, riskLevel);
+      if (plan.length > 0) {
+        return plan;
+      }
     }
 
-    const deployable = deployableFundsForIntent(availableCash, intent);
-    return getAllocation(deployable, intent, riskLevel);
+    if (opportunities.length > 0) {
+      return opportunities.map((opportunity) => ({
+        name: opportunity.name,
+        amount: 0,
+        reason: opportunity.type,
+      }));
+    }
+
+    if (intent) {
+      return instrumentPlanWithoutFunds(intent, riskLevel);
+    }
+
+    return [];
   }, [
     availableCash,
     decision.recommended_allocation,
     intent,
     isBuy,
     isExplore,
+    opportunities,
     riskLevel,
   ]);
-
-  const opportunities = decision.opportunities ?? [];
 
   const sellImpact =
     pendingSellPercent !== null &&

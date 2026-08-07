@@ -12,13 +12,45 @@ const ALLOCATION_WEIGHTS: Partial<Record<Intent, number[]>> = {
   explore: [0.4, 0.3, 0.3],
 };
 
-export function roundAllocationAmount(amount: number): number {
+function allocationStep(totalFunds: number): number {
+  if (totalFunds >= 10000) {
+    return 1000;
+  }
+  if (totalFunds >= 5000) {
+    return 500;
+  }
+  if (totalFunds >= 1000) {
+    return 100;
+  }
+  return 1;
+}
+
+export function roundAllocationAmount(
+  amount: number,
+  totalFunds?: number,
+): number {
   if (amount <= 0) {
     return 0;
   }
 
-  const step = amount >= 10000 ? 1000 : 500;
+  const step = allocationStep(totalFunds ?? amount);
   return Math.round(amount / step) * step;
+}
+
+function distributeRemainder(
+  items: RecommendedAllocationItem[],
+  totalFunds: number,
+): RecommendedAllocationItem[] {
+  let sum = items.reduce((acc, item) => acc + item.amount, 0);
+  let index = 0;
+
+  while (sum < totalFunds && index < 10_000) {
+    items[index % items.length].amount += 1;
+    sum += 1;
+    index += 1;
+  }
+
+  return items;
 }
 
 function normalizeAllocationItems(
@@ -29,9 +61,22 @@ function normalizeAllocationItems(
     return [];
   }
 
+  if (totalFunds < 1000) {
+    const exact = distributeRemainder(
+      items.map((item) => ({
+        ...item,
+        amount: Math.floor(item.amount),
+      })),
+      totalFunds,
+    );
+
+    return exact.filter((item) => item.amount > 0);
+  }
+
+  const step = allocationStep(totalFunds);
   const rounded = items.map((item) => ({
     ...item,
-    amount: roundAllocationAmount(item.amount),
+    amount: Math.round(item.amount / step) * step,
   }));
 
   const sum = rounded.reduce((acc, item) => acc + item.amount, 0);
@@ -40,10 +85,21 @@ function normalizeAllocationItems(
   if (remainder !== 0 && rounded.length > 0) {
     const last = rounded[rounded.length - 1];
     last.amount = Math.max(0, last.amount + remainder);
-    last.amount = roundAllocationAmount(last.amount);
+    last.amount = roundAllocationAmount(last.amount, totalFunds);
   }
 
   return rounded.filter((item) => item.amount > 0);
+}
+
+export function instrumentPlanWithoutFunds(
+  intent: Intent,
+  risk: PortfolioRiskLevel,
+): RecommendedAllocationItem[] {
+  return getOpportunities(intent, risk).map((opportunity) => ({
+    name: opportunity.name,
+    amount: 0,
+    reason: opportunity.type,
+  }));
 }
 
 export function deployableFundsForIntent(
