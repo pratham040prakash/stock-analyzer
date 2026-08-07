@@ -53,9 +53,12 @@ export async function GET() {
         holdings: formatted.holdings,
         total_value: formatted.total_value,
         total_pnl: formatted.total_pnl,
+        day_pnl: formatted.day_pnl,
         concentrated: formatted.concentrated,
         top_symbol: formatted.top_symbol ?? undefined,
         top_allocation_pct: formatted.top_allocation_pct,
+        risk_score: formatted.risk_score,
+        risk_level: formatted.risk_level,
       });
     }
 
@@ -77,9 +80,12 @@ export async function GET() {
         holdings: formatted.holdings,
         total_value: formatted.total_value,
         total_pnl: formatted.total_pnl,
+        day_pnl: formatted.day_pnl,
         concentrated: formatted.concentrated,
         top_symbol: formatted.top_symbol ?? undefined,
         top_allocation_pct: formatted.top_allocation_pct,
+        risk_score: formatted.risk_score,
+        risk_level: formatted.risk_level,
       });
     }
 
@@ -95,9 +101,12 @@ export async function GET() {
           holdings: formatted.holdings,
           total_value: formatted.total_value,
           total_pnl: formatted.total_pnl,
+          day_pnl: formatted.day_pnl,
           concentrated: formatted.concentrated,
           top_symbol: formatted.top_symbol ?? undefined,
           top_allocation_pct: formatted.top_allocation_pct,
+          risk_score: formatted.risk_score,
+          risk_level: formatted.risk_level,
         },
         true,
       );
@@ -119,8 +128,11 @@ export async function GET() {
     holdings: formatted.holdings,
     total_value: formatted.total_value,
     total_pnl: formatted.total_pnl,
+    day_pnl: formatted.day_pnl,
     concentrated: formatted.concentrated,
     top_symbol: formatted.top_symbol ?? undefined,
     top_allocation_pct: formatted.top_allocation_pct,
+    risk_score: formatted.risk_score,
+    risk_level: formatted.risk_level,
   });
 }

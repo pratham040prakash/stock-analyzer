@@ -7,6 +7,7 @@ export type KiteHolding = {
   quantity: number;
   average_price: number;
   last_price: number;
+  close_price?: number;
 };
 
 export type FetchHoldingsResult =
@@ -21,8 +22,27 @@ export function mapKiteHoldingsToPortfolio(holdings: KiteHolding[]): Portfolio {
       quantity: h.quantity,
       avgPrice: h.average_price,
       currentPrice: h.last_price,
+      closePrice:
+        typeof h.close_price === "number" && h.close_price > 0
+          ? h.close_price
+          : undefined,
     })),
   };
+}
+
+export function computePortfolioDayPnl(portfolio: Portfolio): number | null {
+  let total = 0;
+  let hasDayData = false;
+
+  for (const h of portfolio.holdings) {
+    if (h.closePrice === undefined) {
+      continue;
+    }
+    hasDayData = true;
+    total += (h.currentPrice - h.closePrice) * h.quantity;
+  }
+
+  return hasDayData ? total : null;
 }
 
 export function computePortfolioMetrics(portfolio: Portfolio): {

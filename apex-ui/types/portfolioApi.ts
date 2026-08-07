@@ -13,9 +13,12 @@ export type PortfolioApiResponse = {
   holdings: PortfolioHoldingRow[];
   total_value?: number;
   total_pnl?: number;
+  day_pnl?: number | null;
   concentrated?: boolean;
   top_symbol?: string;
   top_allocation_pct?: number;
+  risk_score?: number;
+  risk_level?: "High" | "Medium" | "Low";
   message?: string;
   stale?: boolean;
 };

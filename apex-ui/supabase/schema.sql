@@ -57,15 +57,22 @@ create index if not exists mentor_outputs_user_created_idx
 create table if not exists public.decisions (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
+  decision_date date not null default (timezone('utc', now()))::date,
   decision text not null check (decision in ('BUY_MORE', 'HOLD', 'REDUCE', 'WAIT')),
+  action text not null default 'hold',
+  stock text,
   confidence numeric not null check (confidence >= 0 and confidence <= 100),
   reason text not null,
   actions jsonb not null default '[]'::jsonb,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  unique (user_id, decision_date)
 );
 
 create index if not exists decisions_user_created_idx
   on public.decisions (user_id, created_at desc);
+
+create index if not exists decisions_user_decision_date_idx
+  on public.decisions (user_id, decision_date desc);
 
 alter table public.broker_connections enable row level security;
 alter table public.portfolio_snapshots enable row level security;

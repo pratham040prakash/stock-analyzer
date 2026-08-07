@@ -1,5 +1,7 @@
 import type { PortfolioHoldingRow } from "@/types/portfolioApi";
 import type { Portfolio } from "@/types/portfolio";
+import { portfolioRiskFromAllocation } from "@/lib/portfolioRisk";
+import { computePortfolioDayPnl } from "@/services/brokers/zerodha";
 
 const CONCENTRATION_THRESHOLD = 50;
 
@@ -9,9 +11,12 @@ export function formatPortfolioHoldings(
   holdings: PortfolioHoldingRow[];
   total_value: number;
   total_pnl: number;
+  day_pnl: number | null;
   concentrated: boolean;
   top_symbol: string | null;
   top_allocation_pct: number;
+  risk_score: number;
+  risk_level: import("@/lib/portfolioRisk").PortfolioRiskLevel;
 } {
   const total_value = portfolio.holdings.reduce(
     (sum, h) => sum + h.quantity * h.currentPrice,
@@ -45,14 +50,19 @@ export function formatPortfolioHoldings(
   const top = holdings[0];
   const top_allocation_pct = top?.allocation_pct ?? 0;
   const concentrated = top_allocation_pct > CONCENTRATION_THRESHOLD;
+  const { risk_score, risk_level } = portfolioRiskFromAllocation(top_allocation_pct);
+  const day_pnl = computePortfolioDayPnl(portfolio);
 
   return {
     holdings,
     total_value,
     total_pnl,
+    day_pnl,
     concentrated,
     top_symbol: top?.tradingsymbol ?? null,
     top_allocation_pct,
+    risk_score,
+    risk_level,
   };
 }
 

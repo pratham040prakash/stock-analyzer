@@ -4,9 +4,14 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ConnectZerodhaCard from "./ConnectZerodhaCard";
 import DailyDecisionCard from "./DailyDecisionCard";
+import DecisionHistoryPanel from "./DecisionHistoryPanel";
+import DailyInsightBanner from "./DailyInsightBanner";
 import FinancialProfileSetup from "./FinancialProfileSetup";
 import LoginCTA from "./LoginCTA";
 import PortfolioCard from "./PortfolioCard";
+import PortfolioSummary, {
+  PortfolioSummarySkeleton,
+} from "./PortfolioSummary";
 import { useAuth } from "@/components/AuthProvider";
 import { authDebug } from "@/lib/auth/log";
 import type { Portfolio } from "@/types/portfolio";
@@ -14,8 +19,12 @@ import type { ConnectionStatus } from "@/lib/broker/zerodha";
 import type { FinancialProfile } from "@/lib/financialProfile";
 import { isProfileComplete } from "@/lib/financialProfile";
 import type { DailyDecisionOutput } from "@/types/decision";
+import { decisionHeadline } from "@/types/decision";
 import type { PortfolioApiResponse } from "@/types/portfolioApi";
+import type { DailyInsight } from "@/types/dailyInsight";
+import type { DecisionHistoryEntry } from "@/types/decisionHistory";
 import { recordVisit, saveCachedPortfolio } from "@/lib/portfolioCache";
+import { portfolioRiskFromAllocation } from "@/lib/portfolioRisk";
 import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
 import { useGreeting } from "@/lib/useGreeting";
 import { useZerodhaOAuth } from "@/lib/useZerodhaOAuth";
@@ -34,6 +43,14 @@ type Props = {
 
 type DecisionResponse = {
   decision: DailyDecisionOutput | null;
+};
+
+type InsightResponse = {
+  insight: DailyInsight;
+};
+
+type DecisionHistoryResponse = {
+  history: DecisionHistoryEntry[];
 };
 
 type ZerodhaSessionResponse = {
@@ -102,6 +119,10 @@ export default function HomeClient({
   );
   const [dailyDecision, setDailyDecision] = useState<DailyDecisionOutput | null>(
     null,
+  );
+  const [dailyInsight, setDailyInsight] = useState<DailyInsight | null>(null);
+  const [decisionHistory, setDecisionHistory] = useState<DecisionHistoryEntry[]>(
+    [],
   );
   const [portfolioData, setPortfolioData] = useState<PortfolioApiResponse | null>(
     null,
@@ -238,6 +259,24 @@ export default function HomeClient({
     [handlePortfolioResult],
   );
 
+  const loadDecisionHistory = useCallback(async () => {
+    if (!configured || !user) return;
+
+    try {
+      const res = await apiFetch("/api/decision/history?days=3", {
+        method: "GET",
+      });
+      const data = await parseApiJson<DecisionHistoryResponse>(
+        res,
+        "Decision history",
+      );
+      if (!data?.history) return;
+      setDecisionHistory(data.history);
+    } catch {
+      // History is optional on first visit.
+    }
+  }, [configured, user]);
+
   const loadDailyDecision = useCallback(async () => {
     if (!configured || !user) return;
 
@@ -246,8 +285,22 @@ export default function HomeClient({
       const data = await parseApiJson<DecisionResponse>(res, "Daily decision");
       if (!data) return;
       setDailyDecision(data.decision);
+      void loadDecisionHistory();
     } catch {
       // Decision is optional on first connect — don't block the flow.
+    }
+  }, [configured, user, loadDecisionHistory]);
+
+  const loadDailyInsight = useCallback(async () => {
+    if (!configured || !user) return;
+
+    try {
+      const res = await apiFetch("/api/insight/today", { method: "GET" });
+      const data = await parseApiJson<InsightResponse>(res, "Daily insight");
+      if (!data?.insight) return;
+      setDailyInsight(data.insight);
+    } catch {
+      // Insight is optional — don't block the dashboard.
     }
   }, [configured, user]);
 
@@ -258,6 +311,8 @@ export default function HomeClient({
       console.log("Tab active → refreshing data");
       await loadPortfolio({ silent: true });
       await loadDailyDecision();
+      await loadDailyInsight();
+      await loadDecisionHistory();
 
       const res = await apiFetch("/api/zerodha/session", { method: "GET" });
       const data = await parseApiJson<ZerodhaSessionResponse>(res, "Zerodha session");
@@ -274,6 +329,8 @@ export default function HomeClient({
     isCompletingOAuth,
     loadPortfolio,
     loadDailyDecision,
+    loadDailyInsight,
+    loadDecisionHistory,
   ]);
 
   const refreshPortfolio = useCallback(() => {
@@ -286,6 +343,8 @@ export default function HomeClient({
     void loadPortfolio().finally(() => {
       setCompletedFetchKey(user.id);
       void loadDailyDecision();
+      void loadDailyInsight();
+      void loadDecisionHistory();
     });
   }, [
     configured,
@@ -294,6 +353,8 @@ export default function HomeClient({
     isCompletingOAuth,
     loadPortfolio,
     loadDailyDecision,
+    loadDailyInsight,
+    loadDecisionHistory,
   ]);
 
   const shouldFetchPortfolio =
@@ -315,6 +376,8 @@ export default function HomeClient({
       if (!cancelled) {
         setCompletedFetchKey(portfolioFetchKey);
         void loadDailyDecision();
+        void loadDailyInsight();
+        void loadDecisionHistory();
       }
     });
 
@@ -326,6 +389,8 @@ export default function HomeClient({
     portfolioFetchKey,
     loadPortfolio,
     loadDailyDecision,
+    loadDailyInsight,
+    loadDecisionHistory,
   ]);
 
   useEffect(() => {
@@ -357,15 +422,20 @@ export default function HomeClient({
         .sort((a, b) => b.value - a.value);
 
       const top = holdings[0];
+      const top_allocation_pct = top?.allocation_pct ?? 0;
+      const { risk_score, risk_level } =
+        portfolioRiskFromAllocation(top_allocation_pct);
 
       return {
         status: "OK",
         holdings,
         total_value,
         total_pnl: holdings.reduce((sum, h) => sum + h.pnl, 0),
-        concentrated: (top?.allocation_pct ?? 0) > 50,
+        concentrated: top_allocation_pct > 50,
         top_symbol: top?.tradingsymbol,
-        top_allocation_pct: top?.allocation_pct,
+        top_allocation_pct,
+        risk_score,
+        risk_level,
       };
     });
 
@@ -469,10 +539,32 @@ export default function HomeClient({
               {isOnboarding
                 ? VALUE_STATEMENT
                 : dailyDecision
-                  ? `Today: ${dailyDecision.decision.replaceAll("_", " ").toLowerCase()} (${dailyDecision.confidence}% confidence)`
+                  ? decisionHeadline(dailyDecision)
                   : "Setting things up for you…"}
             </p>
           </div>
+
+          {showGuidance && (
+            <>
+              {portfolioLoading && !hasPortfolioData && (
+                <PortfolioSummarySkeleton />
+              )}
+              {hasPortfolioData &&
+                portfolioData &&
+                portfolioData.total_value !== undefined && (
+                  <PortfolioSummary
+                    totalValue={portfolioData.total_value}
+                    dayPnl={
+                      portfolioData.day_pnl ?? dailyInsight?.day_pnl ?? null
+                    }
+                    riskScore={portfolioData.risk_score ?? 4}
+                    riskLevel={portfolioData.risk_level ?? "Low"}
+                    topSymbol={portfolioData.top_symbol}
+                    topAllocationPct={portfolioData.top_allocation_pct}
+                  />
+                )}
+            </>
+          )}
 
           {!isOnboarding && !isCompletingOAuth && (
             <div className="text-sm text-gray-500 italic">
@@ -528,6 +620,8 @@ export default function HomeClient({
 
         {connectionStatus === "CONNECTED" && !isCompletingOAuth && (
           <div className="space-y-4">
+            {dailyInsight && <DailyInsightBanner insight={dailyInsight} />}
+
             <div className="text-xs text-teal-400/80">
               Your portfolio is synced and ready.
             </div>
@@ -564,11 +658,15 @@ export default function HomeClient({
                 onComplete={(profile) => {
                   setFinancialProfile(profile);
                   void loadDailyDecision();
+                  void loadDecisionHistory();
                 }}
               />
             )}
             {dailyDecision ? (
-              <DailyDecisionCard decision={dailyDecision} />
+              <DailyDecisionCard
+                decision={dailyDecision}
+                totalValue={portfolioData?.total_value ?? 0}
+              />
             ) : (
               <div className="p-6 rounded-2xl border border-white/10 bg-slate-900/50 space-y-3">
                 <div className="h-2 w-24 rounded-full bg-white/10 animate-pulse" />
@@ -577,6 +675,7 @@ export default function HomeClient({
                 </p>
               </div>
             )}
+            <DecisionHistoryPanel history={decisionHistory} />
           </>
         )}
 

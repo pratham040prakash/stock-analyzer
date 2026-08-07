@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { apiError } from "@/lib/api/response";
 import { evaluateDailyDecision } from "@/services/decision/engine";
-import { getTodayDailyDecision } from "@/services/decision/repository";
+import {
+  getTodayDailyDecision,
+  saveDailyDecision,
+} from "@/services/decision/repository";
 import { computePortfolioMetrics } from "@/services/brokers/zerodha";
 import {
   getFinancialProfileFromDb,
@@ -21,14 +24,6 @@ export async function GET() {
   }
 
   const stored = await getTodayDailyDecision(supabase, user.id);
-  if (stored) {
-    const { created_at, ...decision } = stored;
-    return NextResponse.json({
-      decision,
-      source: "database",
-      created_at,
-    });
-  }
 
   const snapshot = await getLatestPortfolioSnapshotWithMetrics(
     supabase,
@@ -36,6 +31,14 @@ export async function GET() {
   );
 
   if (!snapshot) {
+    if (stored) {
+      const { created_at, ...decision } = stored;
+      return NextResponse.json({
+        decision,
+        source: "database",
+        created_at,
+      });
+    }
     return NextResponse.json({ decision: null });
   }
 
@@ -53,8 +56,17 @@ export async function GET() {
     lastMentorOutput,
   });
 
+  try {
+    await saveDailyDecision(supabase, user.id, decision);
+  } catch {
+    // History persistence should not block today's decision.
+  }
+
+  const storedAfterSave = await getTodayDailyDecision(supabase, user.id);
+
   return NextResponse.json({
     decision,
-    source: "computed",
+    source: storedAfterSave ? "database" : "computed",
+    created_at: storedAfterSave?.created_at ?? stored?.created_at,
   });
 }

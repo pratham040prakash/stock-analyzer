@@ -1,21 +1,39 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
-import type { DailyDecisionOutput, DailyDecisionType } from "@/types/decision";
+import type {
+  DailyDecisionOutput,
+  DailyDecisionType,
+  DecisionActionType,
+} from "@/types/decision";
+import { dailyDecisionTypeToAction } from "@/types/decision";
+import type { DecisionHistoryEntry } from "@/types/decisionHistory";
 
 type Client = SupabaseClient<Database>;
+
+function utcDateString(date = new Date()): string {
+  return date.toISOString().slice(0, 10);
+}
 
 export async function saveDailyDecision(
   supabase: Client,
   userId: string,
   output: DailyDecisionOutput,
 ): Promise<void> {
-  const { error } = await supabase.from("decisions").insert({
-    user_id: userId,
-    decision: output.decision,
-    confidence: output.confidence,
-    reason: output.reason,
-    actions: output.actions,
-  });
+  const decisionDate = utcDateString();
+
+  const { error } = await supabase.from("decisions").upsert(
+    {
+      user_id: userId,
+      decision_date: decisionDate,
+      decision: output.decision,
+      action: output.action,
+      stock: output.stock ?? null,
+      confidence: output.confidence,
+      reason: output.reason,
+      actions: output.actions,
+    },
+    { onConflict: "user_id,decision_date" },
+  );
 
   if (error) {
     throw new Error(error.message);
@@ -28,9 +46,11 @@ export async function getLatestDailyDecision(
 ): Promise<DailyDecisionOutput | null> {
   const { data, error } = await supabase
     .from("decisions")
-    .select("decision, confidence, reason, actions, created_at")
+    .select(
+      "decision, action, stock, confidence, reason, actions, created_at, decision_date",
+    )
     .eq("user_id", userId)
-    .order("created_at", { ascending: false })
+    .order("decision_date", { ascending: false })
     .limit(1)
     .maybeSingle();
 
@@ -38,13 +58,30 @@ export async function getLatestDailyDecision(
     return null;
   }
 
+  return mapStoredDecision(data);
+}
+
+function mapStoredDecision(data: {
+  decision: string;
+  action?: string | null;
+  stock?: string | null;
+  confidence: number;
+  reason: string;
+  actions: unknown;
+}): DailyDecisionOutput {
+  const decision = data.decision as DailyDecisionType;
+  const action =
+    (data.action as DecisionActionType | null) ??
+    dailyDecisionTypeToAction(decision);
+
   return {
-    decision: data.decision as DailyDecisionType,
+    decision,
+    action,
+    stock: data.stock ?? undefined,
     confidence: Number(data.confidence),
     reason: data.reason,
-    actions: Array.isArray(data.actions)
-      ? (data.actions as string[])
-      : [],
+    confidence_factors: [],
+    actions: Array.isArray(data.actions) ? (data.actions as string[]) : [],
   };
 }
 
@@ -52,16 +89,15 @@ export async function getTodayDailyDecision(
   supabase: Client,
   userId: string,
 ): Promise<(DailyDecisionOutput & { created_at: string }) | null> {
-  const startOfDay = new Date();
-  startOfDay.setUTCHours(0, 0, 0, 0);
+  const today = utcDateString();
 
   const { data, error } = await supabase
     .from("decisions")
-    .select("decision, confidence, reason, actions, created_at")
+    .select(
+      "decision, action, stock, confidence, reason, actions, created_at, decision_date",
+    )
     .eq("user_id", userId)
-    .gte("created_at", startOfDay.toISOString())
-    .order("created_at", { ascending: false })
-    .limit(1)
+    .eq("decision_date", today)
     .maybeSingle();
 
   if (error || !data) {
@@ -69,12 +105,31 @@ export async function getTodayDailyDecision(
   }
 
   return {
-    decision: data.decision as DailyDecisionType,
-    confidence: Number(data.confidence),
-    reason: data.reason,
-    actions: Array.isArray(data.actions)
-      ? (data.actions as string[])
-      : [],
+    ...mapStoredDecision(data),
     created_at: data.created_at,
   };
+}
+
+export async function getDecisionHistory(
+  supabase: Client,
+  userId: string,
+  days = 3,
+): Promise<DecisionHistoryEntry[]> {
+  const { data, error } = await supabase
+    .from("decisions")
+    .select("decision_date, action, stock, confidence")
+    .eq("user_id", userId)
+    .order("decision_date", { ascending: false })
+    .limit(days);
+
+  if (error || !data) {
+    return [];
+  }
+
+  return data.map((row) => ({
+    date: row.decision_date,
+    action: (row.action as DecisionActionType) || "hold",
+    stock: row.stock ?? undefined,
+    confidence: Number(row.confidence),
+  }));
 }

@@ -3,6 +3,7 @@ export type Holding = {
   quantity: number;
   avgPrice: number;
   currentPrice: number;
+  closePrice?: number;
 };
 
 export type Portfolio = {

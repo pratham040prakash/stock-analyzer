@@ -120,7 +120,10 @@ export type Database = {
         Row: {
           id: string;
           user_id: string;
+          decision_date: string;
           decision: DailyDecisionType;
+          action: string;
+          stock: string | null;
           confidence: number;
           reason: string;
           actions: string[];
@@ -129,14 +132,20 @@ export type Database = {
         Insert: {
           id?: string;
           user_id: string;
+          decision_date?: string;
           decision: DailyDecisionType;
+          action?: string;
+          stock?: string | null;
           confidence: number;
           reason: string;
           actions?: string[];
           created_at?: string;
         };
         Update: {
+          decision_date?: string;
           decision?: DailyDecisionType;
+          action?: string;
+          stock?: string | null;
           confidence?: number;
           reason?: string;
           actions?: string[];
