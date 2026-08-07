@@ -55,8 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
 
       if (session && event === "SIGNED_IN") {
-        authLog("Session active — refreshing app state");
-        window.location.reload();
+        authLog("Session active — client state updated");
       }
     });
 
@@ -71,7 +70,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const onVisibilityChange = () => {
       if (document.visibilityState === "visible") {
         void supabase.auth.startAutoRefresh();
-        window.location.reload();
       } else {
         supabase.auth.stopAutoRefresh();
       }

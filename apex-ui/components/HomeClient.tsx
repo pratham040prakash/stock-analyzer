@@ -204,14 +204,16 @@ export default function HomeClient({
   );
 
   const loadPortfolio = useCallback(
-    async (isCancelled?: () => boolean) => {
-      setPortfolioLoading(true);
+    async (options?: { isCancelled?: () => boolean; silent?: boolean }) => {
+      if (!options?.silent) {
+        setPortfolioLoading(true);
+      }
 
       try {
         const res = await apiFetch("/api/portfolio", { method: "GET" });
         const data = await parseApiJson<PortfolioApiResponse>(res, "Portfolio");
 
-        if (isCancelled?.()) return;
+        if (options?.isCancelled?.()) return;
 
         if (!data) {
           throw new Error("Could not load portfolio");
@@ -222,13 +224,13 @@ export default function HomeClient({
 
         handlePortfolioResult(data);
       } catch (err) {
-        if (isCancelled?.()) return;
+        if (options?.isCancelled?.()) return;
         console.error("Portfolio load failed:", err);
         setPortfolioError(
           err instanceof Error ? err.message : "Could not load portfolio",
         );
       } finally {
-        if (!isCancelled?.()) {
+        if (!options?.isCancelled?.() && !options?.silent) {
           setPortfolioLoading(false);
         }
       }
@@ -248,6 +250,31 @@ export default function HomeClient({
       // Decision is optional on first connect — don't block the flow.
     }
   }, [configured, user]);
+
+  const refreshDashboard = useCallback(async () => {
+    if (!configured || !user || authLoading || isCompletingOAuth) return;
+
+    try {
+      console.log("Tab active → refreshing data");
+      await loadPortfolio({ silent: true });
+      await loadDailyDecision();
+
+      const res = await apiFetch("/api/zerodha/session", { method: "GET" });
+      const data = await parseApiJson<ZerodhaSessionResponse>(res, "Zerodha session");
+      if (data?.connected) {
+        setConnectionStatus("CONNECTED");
+      }
+    } catch (err) {
+      console.error("Refresh failed", err);
+    }
+  }, [
+    configured,
+    user,
+    authLoading,
+    isCompletingOAuth,
+    loadPortfolio,
+    loadDailyDecision,
+  ]);
 
   const refreshPortfolio = useCallback(() => {
     if (!configured || !user || authLoading || isCompletingOAuth) return;
@@ -284,7 +311,7 @@ export default function HomeClient({
 
     recordVisit();
 
-    void loadPortfolio(() => cancelled).finally(() => {
+    void loadPortfolio({ isCancelled: () => cancelled }).finally(() => {
       if (!cancelled) {
         setCompletedFetchKey(portfolioFetchKey);
         void loadDailyDecision();
@@ -345,6 +372,21 @@ export default function HomeClient({
     setPortfolioError(null);
     setPortfolioLoading(false);
   }, [initialPortfolio]);
+
+  useEffect(() => {
+    if (!configured || !user || authLoading) return;
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void refreshDashboard();
+      }
+    };
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [configured, user, authLoading, refreshDashboard]);
 
   if (authLoading) {
     return <LoadingState />;
