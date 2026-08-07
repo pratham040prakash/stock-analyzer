@@ -16,6 +16,58 @@ import type { Holding } from "@/types/portfolio";
 
 const CONCENTRATION_REDUCE_THRESHOLD = 50;
 const HIGH_CONCENTRATION_THRESHOLD = 80;
+const BUY_MAX_ALLOCATION_THRESHOLD = 50;
+const MIN_HOLDINGS_FOR_BUY = 2;
+
+function isPortfolioConcentrated(topWeight: number): boolean {
+  return topWeight > CONCENTRATION_REDUCE_THRESHOLD;
+}
+
+function isHighlyConcentrated(topWeight: number): boolean {
+  return topWeight > HIGH_CONCENTRATION_THRESHOLD;
+}
+
+function isPortfolioDiversified(
+  topWeight: number,
+  holdingsCount: number,
+): boolean {
+  return (
+    holdingsCount >= MIN_HOLDINGS_FOR_BUY &&
+    topWeight < BUY_MAX_ALLOCATION_THRESHOLD
+  );
+}
+
+function portfolioAllowsBuy(topWeight: number, holdingsCount: number): boolean {
+  return (
+    !isHighlyConcentrated(topWeight) &&
+    !isPortfolioConcentrated(topWeight) &&
+    isPortfolioDiversified(topWeight, holdingsCount)
+  );
+}
+
+function applyReduceDecision(
+  stock: string,
+  allocation: number,
+  topHoldingPnl: number,
+): {
+  suggestion: string;
+  reason: string;
+  reduceIntelligence: ReduceIntelligence;
+} {
+  const sellPercent = suggestedSellPercent(allocation, topHoldingPnl > 0);
+  const reduceIntelligence = buildReduceIntelligence(
+    stock,
+    allocation,
+    topHoldingPnl,
+    sellPercent,
+  );
+
+  return {
+    suggestion: reduceIntelligence.suggestion,
+    reason: reduceIntelligence.reason,
+    reduceIntelligence,
+  };
+}
 
 function clampConfidence(value: number): number {
   return Math.min(100, Math.max(0, Math.round(value)));
@@ -308,6 +360,7 @@ function buildConfidenceFactors(
 
     if (context.allocation > 80) {
       factors.push("High downside risk");
+      factors.push("Buying more is not allowed above 80% concentration");
     } else if (context.allocation > 60) {
       factors.push("Elevated concentration risk");
     }
@@ -334,9 +387,16 @@ function buildConfidenceFactors(
       factors.push("Investable surplus is available each month");
       factors.push("Portfolio size is below a steady long-term target");
     }
-    if (context.allocation !== undefined && context.allocation < 40) {
-      factors.push("Allocation looks spread — room to invest steadily");
+    if (context.holdingsCount >= MIN_HOLDINGS_FOR_BUY) {
+      factors.push("Holdings are spread across multiple positions");
     }
+    if (context.allocation !== undefined && context.allocation < BUY_MAX_ALLOCATION_THRESHOLD) {
+      factors.push("Top holding is below 50% — room to invest steadily");
+    }
+  } else if (decision === "HOLD" && context.allocation !== undefined && context.allocation > HIGH_CONCENTRATION_THRESHOLD) {
+    factors.push(`Portfolio is ${context.allocation}% in one stock`);
+    factors.push("No diversification");
+    factors.push("Buying more is not allowed at this concentration");
   } else {
     factors.push("Portfolio allocation looks reasonably balanced");
     if (context.holdingsCount >= 3) {
@@ -360,34 +420,47 @@ export function evaluateDailyDecision(
 ): DailyDecisionOutput {
   const { portfolioSnapshot, financialProfile, lastMentorOutput } = input;
   const hasProfile = Boolean(financialProfile);
+  const holdingsCount = portfolioSnapshot.holdings.length;
   const topHolding = getTopHolding(portfolioSnapshot.holdings);
   const topWeight = topHolding?.weight ?? 0;
-  const stock =
-    topWeight > CONCENTRATION_REDUCE_THRESHOLD && topHolding
-      ? topHolding.symbol
-      : undefined;
-  const allocation =
-    topWeight > CONCENTRATION_REDUCE_THRESHOLD
-      ? Math.round(topWeight)
-      : undefined;
+  const allocation = topWeight > 0 ? Math.round(topWeight) : undefined;
   const topHoldingPnl = topHolding?.pnl;
+  const concentrated = isPortfolioConcentrated(topWeight);
+  const highlyConcentrated = isHighlyConcentrated(topWeight);
+  const allowBuy = portfolioAllowsBuy(topWeight, holdingsCount);
+  const stock =
+    concentrated && topHolding ? topHolding.symbol : undefined;
 
   let decision: DailyDecisionType = "HOLD";
   let reason =
-    "Your portfolio looks balanced for now — staying steady is reasonable.";
+    highlyConcentrated
+      ? "Your portfolio is heavily concentrated — adding more is not advisable until you rebalance."
+      : concentrated
+        ? "Concentration is elevated — reducing exposure comes before buying more."
+        : "Your portfolio looks balanced for now — staying steady is reasonable.";
   let suggestion: string | undefined;
   let reduceIntelligence: ReduceIntelligence | undefined;
   let underInvested = false;
   const expensesHigh = Boolean(
     financialProfile && expensesMeetOrExceedIncome(financialProfile),
   );
-  const holdingsCount = portfolioSnapshot.holdings.length;
 
   if (financialProfile && expensesMeetOrExceedIncome(financialProfile)) {
     decision = "WAIT";
     reason =
       "Your expenses look equal to or higher than income — pausing new investments protects cash flow before you deploy more capital.";
-  } else if (financialProfile) {
+  } else if (
+    concentrated &&
+    stock &&
+    allocation !== undefined &&
+    topHoldingPnl !== undefined
+  ) {
+    decision = "REDUCE";
+    const reduceDecision = applyReduceDecision(stock, allocation, topHoldingPnl);
+    suggestion = reduceDecision.suggestion;
+    reason = reduceDecision.reason;
+    reduceIntelligence = reduceDecision.reduceIntelligence;
+  } else if (financialProfile && allowBuy) {
     const surplus = getInvestableSurplus(financialProfile);
     const targetInvested = surplus * 9;
 
@@ -395,41 +468,12 @@ export function evaluateDailyDecision(
       decision = "BUY_MORE";
       underInvested = true;
       reason =
-        "You have investable surplus and your portfolio is below a comfortable long-term level — steady investing could help.";
-    } else if (
-      stock &&
-      allocation !== undefined &&
-      topHoldingPnl !== undefined
-    ) {
-      decision = "REDUCE";
-      const sellPercent = suggestedSellPercent(
-        allocation,
-        topHoldingPnl > 0,
-      );
-      reduceIntelligence = buildReduceIntelligence(
-        stock,
-        allocation,
-        topHoldingPnl,
-        sellPercent,
-      );
-      suggestion = reduceIntelligence.suggestion;
-      reason = reduceIntelligence.reason;
+        "Your portfolio is diversified with room to grow — steady investing from your monthly surplus could help.";
     }
-  } else if (
-    stock &&
-    allocation !== undefined &&
-    topHoldingPnl !== undefined
-  ) {
-    decision = "REDUCE";
-    const sellPercent = suggestedSellPercent(allocation, topHoldingPnl > 0);
-    reduceIntelligence = buildReduceIntelligence(
-      stock,
-      allocation,
-      topHoldingPnl,
-      sellPercent,
-    );
-    suggestion = reduceIntelligence.suggestion;
-    reason = reduceIntelligence.reason;
+  } else if (highlyConcentrated) {
+    decision = "HOLD";
+    reason =
+      "Your portfolio is heavily concentrated — hold off on new buys until allocation improves.";
   }
 
   const action = decisionToAction(decision);
