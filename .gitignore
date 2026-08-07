@@ -2,7 +2,7 @@
 .venv/
 __pycache__/
 *.pyc
-data/
+/data/
 logs/
 .pytest_cache/
 *.egg-info/
