@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import ConnectZerodhaCard from "./ConnectZerodhaCard";
 import DailyDecisionCard from "./DailyDecisionCard";
 import FinancialProfileSetup from "./FinancialProfileSetup";
@@ -24,6 +25,8 @@ type Props = {
   connectionStatus: ConnectionStatus;
   userName: string;
   initialFinancialProfile: FinancialProfile | null;
+  zerodhaNotice?: string;
+  zerodhaError?: string;
 };
 
 type HoldingsResponse = {
@@ -48,12 +51,16 @@ function LoadingState() {
   );
 }
 
-function ErrorBanner({ onRetry }: { onRetry?: () => void }) {
+function ErrorBanner({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry?: () => void;
+}) {
   return (
     <div className="p-4 rounded-xl border border-red-500/20 bg-red-500/5">
-      <p className="text-sm text-red-200/90">
-        Something went wrong. Please try again.
-      </p>
+      <p className="text-sm text-red-200/90">{message}</p>
       {onRetry && (
         <button
           type="button"
@@ -71,7 +78,11 @@ export default function HomeClient({
   connectionStatus: initialConnectionStatus,
   userName,
   initialFinancialProfile,
+  zerodhaNotice,
+  zerodhaError,
 }: Props) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, loading: authLoading, configured, signOut, supabase } = useAuth();
 
   const [financialProfile, setFinancialProfile] = useState<FinancialProfile | null>(
@@ -88,9 +99,31 @@ export default function HomeClient({
   const [dailyDecision, setDailyDecision] = useState<DailyDecisionOutput | null>(
     null,
   );
-  const [loadError, setLoadError] = useState(false);
+  const [portfolioError, setPortfolioError] = useState<string | null>(null);
+  const [brokerMessage, setBrokerMessage] = useState<string | null>(
+    zerodhaNotice === "connected"
+      ? "Zerodha connected — syncing your portfolio now."
+      : zerodhaError ?? null,
+  );
   const greeting = useGreeting(userName);
-  const { isCompletingOAuth, oauthError } = useZerodhaOAuth();
+  const { isCompletingOAuth } = useZerodhaOAuth();
+
+  useEffect(() => {
+    const notice = searchParams.get("zerodha");
+    const error = searchParams.get("zerodha_error");
+
+    if (notice === "connected") {
+      setConnectionStatus("CONNECTED");
+      setBrokerMessage("Zerodha connected — syncing your portfolio now.");
+      setPortfolioError(null);
+    } else if (error) {
+      setBrokerMessage(decodeURIComponent(error));
+    }
+
+    if (notice || error) {
+      router.replace("/", { scroll: false });
+    }
+  }, [router, searchParams]);
 
   useEffect(() => {
     if (!supabase) return;
@@ -112,30 +145,34 @@ export default function HomeClient({
 
     try {
       const res = await fetch("/api/decision/today");
-      if (!res.ok) {
-        setLoadError(true);
-        return;
-      }
+      if (!res.ok) return;
       const data = (await res.json()) as DecisionResponse;
       setDailyDecision(data.decision);
-      setLoadError(false);
     } catch {
-      setLoadError(true);
+      // Decision is optional on first connect — don't block the flow.
     }
   }, [configured, user]);
 
   const refreshPortfolio = useCallback(() => {
     if (!configured || !user || authLoading || isCompletingOAuth) return;
 
-    setLoadError(false);
+    setPortfolioError(null);
+    setBrokerMessage(null);
     setCompletedFetchKey(null);
 
     fetch("/api/zerodha/holdings")
-      .then((res) => res.json())
-      .then((data: HoldingsResponse) => {
+      .then(async (res) => {
+        const data = (await res.json()) as HoldingsResponse & { message?: string };
+        if (!res.ok) {
+          throw new Error(data.message ?? "Could not load portfolio");
+        }
+        return data;
+      })
+      .then((data) => {
         if (data.status === "OK" && data.portfolio) {
           updatePortfolio(data.portfolio);
           setConnectionStatus("CONNECTED");
+          setBrokerMessage("Your portfolio is synced and ready.");
         } else if (data.status === "TOKEN_EXPIRED") {
           setConnectionStatus("TOKEN_EXPIRED");
           if (data.portfolio) {
@@ -145,8 +182,10 @@ export default function HomeClient({
           setConnectionStatus("NOT_CONNECTED");
         }
       })
-      .catch(() => {
-        setLoadError(true);
+      .catch((err: unknown) => {
+        const message =
+          err instanceof Error ? err.message : "Could not load portfolio";
+        setPortfolioError(message);
       })
       .finally(() => {
         setCompletedFetchKey(user.id);
@@ -177,13 +216,20 @@ export default function HomeClient({
     recordVisit();
 
     fetch("/api/zerodha/holdings")
-      .then((res) => res.json())
-      .then((data: HoldingsResponse) => {
+      .then(async (res) => {
+        const data = (await res.json()) as HoldingsResponse & { message?: string };
+        if (!res.ok) {
+          throw new Error(data.message ?? "Could not load portfolio");
+        }
+        return data;
+      })
+      .then((data) => {
         if (cancelled) return;
 
         if (data.status === "OK" && data.portfolio) {
           updatePortfolio(data.portfolio);
           setConnectionStatus("CONNECTED");
+          setBrokerMessage("Your portfolio is synced and ready.");
         } else if (data.status === "TOKEN_EXPIRED") {
           setConnectionStatus("TOKEN_EXPIRED");
           if (data.portfolio) {
@@ -193,9 +239,11 @@ export default function HomeClient({
           setConnectionStatus("NOT_CONNECTED");
         }
       })
-      .catch(() => {
+      .catch((err: unknown) => {
         if (!cancelled) {
-          setLoadError(true);
+          const message =
+            err instanceof Error ? err.message : "Could not load portfolio";
+          setPortfolioError(message);
         }
       })
       .finally(() => {
@@ -243,7 +291,16 @@ export default function HomeClient({
 
   const isOnboarding = connectionStatus === "NOT_CONNECTED";
   const showGuidance = !isOnboarding && !isCompletingOAuth;
-  const showError = Boolean(oauthError) || loadError;
+  const showPortfolioError = Boolean(portfolioError);
+  const showBrokerError =
+    Boolean(brokerMessage) &&
+    !brokerMessage?.includes("synced") &&
+    !brokerMessage?.includes("syncing");
+  const showBrokerSuccess =
+    Boolean(brokerMessage) &&
+    (brokerMessage?.includes("synced") ||
+      brokerMessage?.includes("syncing") ||
+      brokerMessage?.includes("connected"));
 
   return (
     <main className="relative min-h-screen bg-slate-950 text-gray-200 px-6 py-10">
@@ -296,8 +353,21 @@ export default function HomeClient({
           )}
         </div>
 
-        {showError && (
-          <ErrorBanner onRetry={refreshPortfolio} />
+        {showPortfolioError && (
+          <ErrorBanner
+            message={portfolioError ?? "Could not load portfolio. Please try again."}
+            onRetry={refreshPortfolio}
+          />
+        )}
+
+        {showBrokerError && (
+          <ErrorBanner message={brokerMessage ?? "Broker connection failed."} />
+        )}
+
+        {showBrokerSuccess && (
+          <div className="p-4 rounded-xl border border-teal-500/20 bg-teal-500/5">
+            <p className="text-sm text-teal-200/90">{brokerMessage}</p>
+          </div>
         )}
 
         {isCompletingOAuth && (
@@ -334,7 +404,7 @@ export default function HomeClient({
           </div>
         )}
 
-        {showGuidance && !showError && (
+        {showGuidance && !showPortfolioError && (
           <>
             {!profileComplete && (
               <FinancialProfileSetup

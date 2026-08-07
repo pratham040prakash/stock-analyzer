@@ -71,12 +71,23 @@ export default async function Home({
     user.email?.split("@")[0] ??
     "there";
 
+  const zerodhaNotice =
+    typeof params.zerodha === "string" ? params.zerodha : undefined;
+  const zerodhaError =
+    typeof params.zerodha_error === "string" ? params.zerodha_error : undefined;
+
+  if (zerodhaNotice === "connected") {
+    connectionStatus = "CONNECTED";
+  }
+
   return (
     <HomeClient
       initialPortfolio={initialPortfolio}
       connectionStatus={connectionStatus}
       userName={userName}
       initialFinancialProfile={initialFinancialProfile}
+      zerodhaNotice={zerodhaNotice}
+      zerodhaError={zerodhaError}
     />
   );
 }

@@ -62,7 +62,10 @@ export async function GET() {
     if (cached) {
       return NextResponse.json({ status: "OK", portfolio: cached, stale: true });
     }
-    return apiError(holdingsResult.message, 502);
+    return NextResponse.json(
+      { status: "NOT_CONNECTED", message: holdingsResult.message },
+      { status: 200 },
+    );
   }
 
   const portfolio = mapKiteHoldingsToPortfolio(holdingsResult.data);

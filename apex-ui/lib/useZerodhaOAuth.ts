@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 
 type OAuthState = {
   isCompletingOAuth: boolean;
-  oauthError: string | null;
 };
 
 function readRequestToken(): string | null {
@@ -14,21 +13,20 @@ function readRequestToken(): string | null {
 
 /** Legacy fallback: forward homepage request_token hits to the server callback route. */
 export function useZerodhaOAuth(): OAuthState {
-  const [state, setState] = useState<OAuthState>({
-    isCompletingOAuth: false,
-    oauthError: null,
-  });
+  const [isCompletingOAuth, setIsCompletingOAuth] = useState(
+    () => Boolean(readRequestToken()),
+  );
 
   useEffect(() => {
     const requestToken = readRequestToken();
     if (!requestToken) return;
 
-    setState({ isCompletingOAuth: true, oauthError: null });
+    setIsCompletingOAuth(true);
 
     const params = new URLSearchParams(window.location.search);
     params.set("request_token", requestToken);
     window.location.replace(`/api/zerodha/callback?${params.toString()}`);
   }, []);
 
-  return state;
+  return { isCompletingOAuth };
 }
