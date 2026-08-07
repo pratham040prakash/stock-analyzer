@@ -1,3 +1,8 @@
+import {
+  deployableFundsForIntent,
+  getAllocation,
+} from "@/lib/allocation";
+import type { PortfolioRiskLevel } from "@/lib/portfolioRisk";
 import type { DailyDecisionOutput, DecisionOpportunity } from "@/types/decision";
 import type { Intent } from "@/types/intent";
 
@@ -10,7 +15,23 @@ const EXPLORE_OPPORTUNITIES: DecisionOpportunity[] = [
 export type OptimisticDecisionContext = {
   stock?: string;
   allocation?: number;
+  availableCash?: number;
+  riskLevel?: PortfolioRiskLevel;
 };
+
+function optimisticAllocation(
+  intent: Intent,
+  context: OptimisticDecisionContext,
+): DailyDecisionOutput["recommended_allocation"] {
+  const { availableCash, riskLevel = "Low" } = context;
+
+  if (!availableCash || availableCash <= 0) {
+    return [];
+  }
+
+  const deployable = deployableFundsForIntent(availableCash, intent);
+  return getAllocation(deployable, intent, riskLevel);
+}
 
 /** Instant placeholder while the API refines the decision. */
 export function createOptimisticDecision(
@@ -32,6 +53,7 @@ export function createOptimisticDecision(
       message: "Invest gradually to grow your portfolio",
       suggestion: "Use available funds to accumulate quality stocks",
       reason: "Portfolio size can be increased steadily",
+      recommended_allocation: optimisticAllocation(intent, context),
     };
   }
 
@@ -43,6 +65,7 @@ export function createOptimisticDecision(
       message: "Here are opportunities for you",
       opportunities: EXPLORE_OPPORTUNITIES,
       reason: "Finding ideas aligned with your profile",
+      recommended_allocation: optimisticAllocation(intent, context),
     };
   }
 

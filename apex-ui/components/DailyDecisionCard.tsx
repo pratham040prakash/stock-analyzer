@@ -1,7 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  deployableFundsForIntent,
+  getAllocation,
+} from "@/lib/allocation";
+import { formatInr } from "@/lib/funds";
+import type { PortfolioRiskLevel } from "@/lib/portfolioRisk";
 import type { DailyDecisionOutput, DecisionActionType } from "@/types/decision";
+import type { Intent } from "@/types/intent";
 import {
   buildSellPercentOptions,
   decisionConfidenceBadge,
@@ -17,6 +24,9 @@ type Props = {
   decision: DailyDecisionOutput;
   totalValue?: number;
   isRefreshing?: boolean;
+  intent?: Intent;
+  availableCash?: number;
+  riskLevel?: PortfolioRiskLevel;
 };
 
 type ActionVisual = {
@@ -94,6 +104,9 @@ export default function DailyDecisionCard({
   decision,
   totalValue = 0,
   isRefreshing = false,
+  intent,
+  availableCash,
+  riskLevel = "Low",
 }: Props) {
   const [selectedSellPercent, setSelectedSellPercent] = useState<
     number | null
@@ -120,6 +133,34 @@ export default function DailyDecisionCard({
     canTrim && decision.allocation !== undefined
       ? decisionRiskMicrocopy(decision.allocation, activeSellPercent)
       : null;
+
+  const recommendedAllocation = useMemo(() => {
+    if (decision.recommended_allocation?.length) {
+      return decision.recommended_allocation;
+    }
+
+    if (
+      !intent ||
+      availableCash === undefined ||
+      availableCash <= 0 ||
+      (!isBuy && !isExplore)
+    ) {
+      return [];
+    }
+
+    const deployable = deployableFundsForIntent(availableCash, intent);
+    return getAllocation(deployable, intent, riskLevel);
+  }, [
+    availableCash,
+    decision.recommended_allocation,
+    intent,
+    isBuy,
+    isExplore,
+    riskLevel,
+  ]);
+
+  const showRecommendedAllocation =
+    recommendedAllocation.length > 0 && (isBuy || isExplore);
 
   const sellImpact =
     pendingSellPercent !== null &&
@@ -340,6 +381,29 @@ export default function DailyDecisionCard({
                   ? "Guidance only — execute purchases in your broker when ready."
                   : "Guidance only — confirm to simulate; execute in your broker for real trades."}
             </p>
+
+            {showRecommendedAllocation && (
+              <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 space-y-2">
+                <p className="text-xs text-gray-500 uppercase tracking-wider">
+                  Recommended allocation
+                </p>
+                <ul className="space-y-1.5">
+                  {recommendedAllocation.map((item) => (
+                    <li
+                      key={item.label}
+                      className="text-sm text-gray-200 flex items-center gap-2"
+                    >
+                      <span className="text-gray-500" aria-hidden>
+                        •
+                      </span>
+                      <span>
+                        {formatInr(item.amount)} → {item.label}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
 
           <button

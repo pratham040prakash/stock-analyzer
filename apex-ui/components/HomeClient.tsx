@@ -314,6 +314,8 @@ export default function HomeClient({
     portfolioContext: {
       stock: portfolioData?.top_symbol,
       allocation: portfolioData?.top_allocation_pct,
+      availableCash: availableCash ?? undefined,
+      riskLevel: portfolioData?.risk_level,
     },
     onFetched: () => {
       void loadDecisionHistory();
@@ -712,6 +714,9 @@ export default function HomeClient({
               decision={dailyDecision}
               totalValue={portfolioData?.total_value ?? 0}
               isRefreshing={decisionRefreshing}
+              intent={userIntent}
+              availableCash={availableCash ?? undefined}
+              riskLevel={portfolioData?.risk_level}
             />
             <DecisionHistoryPanel history={decisionHistory} />
           </>

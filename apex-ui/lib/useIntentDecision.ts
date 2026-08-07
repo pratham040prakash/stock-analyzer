@@ -14,6 +14,8 @@ type DecisionResponse = {
 type PortfolioContext = {
   stock?: string;
   allocation?: number;
+  availableCash?: number;
+  riskLevel?: import("@/lib/portfolioRisk").PortfolioRiskLevel;
 };
 
 type Options = {

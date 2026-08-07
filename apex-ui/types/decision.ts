@@ -21,17 +21,24 @@ export type DecisionOpportunity = {
   reason: string;
 };
 
+export type RecommendedAllocationItem = {
+  label: string;
+  amount: number;
+};
+
 export type DailyDecisionOutput = {
   decision: DailyDecisionType;
   action: DecisionActionType;
   intent?: Intent | null;
   stock?: string;
   confidence: number;
+  /** Top holding weight % — not fund allocation suggestions. */
   allocation?: number;
   suggested_sell_percent?: number;
   suggestion?: string;
   message?: string;
   opportunities?: DecisionOpportunity[];
+  recommended_allocation?: RecommendedAllocationItem[];
   reason: string;
   confidence_factors: string[];
   actions: string[];
