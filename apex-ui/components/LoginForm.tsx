@@ -5,7 +5,6 @@ import { useSearchParams } from "next/navigation";
 import DemoDecisionCard from "@/components/DemoDecisionCard";
 import { useAuth } from "@/components/AuthProvider";
 import {
-  getAuthCallbackUrl,
   SYSTEM_CONFIG_INCOMPLETE_MESSAGE,
 } from "@/lib/env/config";
 import {
@@ -266,7 +265,7 @@ export default function LoginForm() {
     authLog("Google login click");
 
     try {
-      const redirectTo = getAuthCallbackUrl();
+      const redirectTo = `${window.location.origin}/auth/callback`;
       authLog("Google OAuth redirect", { redirectTo });
 
       const { data, error: signInError } = await supabase.auth.signInWithOAuth({
@@ -285,6 +284,11 @@ export default function LoginForm() {
         setError(mapAuthErrorMessage(signInError));
         googleRequestInFlight.current = false;
         setIsGoogleLoading(false);
+        return;
+      }
+
+      if (data.url) {
+        window.location.assign(data.url);
         return;
       }
 
