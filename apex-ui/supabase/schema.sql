@@ -5,11 +5,17 @@ create table if not exists public.broker_connections (
   user_id uuid not null references auth.users(id) on delete cascade,
   broker text not null default 'zerodha',
   access_token_encrypted text not null,
+  public_token_encrypted text,
+  kite_user_id text,
   status text not null default 'active' check (status in ('active', 'expired', 'revoked')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (user_id, broker)
 );
+
+-- If upgrading an existing project, run:
+-- alter table public.broker_connections add column if not exists public_token_encrypted text;
+-- alter table public.broker_connections add column if not exists kite_user_id text;
 
 create table if not exists public.portfolio_snapshots (
   id uuid primary key default gen_random_uuid(),

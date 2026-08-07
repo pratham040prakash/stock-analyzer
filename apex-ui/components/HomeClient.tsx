@@ -38,6 +38,11 @@ type DecisionResponse = {
   decision: DailyDecisionOutput | null;
 };
 
+type ZerodhaSessionResponse = {
+  status?: string;
+  connected?: boolean;
+};
+
 function LoadingState() {
   return (
     <main className="min-h-screen bg-slate-950 text-gray-200 flex items-center justify-center px-6">
@@ -135,6 +140,21 @@ export default function HomeClient({
       });
     });
   }, [supabase]);
+
+  useEffect(() => {
+    if (!configured || !user || authLoading || isCompletingOAuth) return;
+
+    fetch("/api/zerodha/session")
+      .then((res) => res.json())
+      .then((data: ZerodhaSessionResponse) => {
+        if (data.connected) {
+          setConnectionStatus("CONNECTED");
+        }
+      })
+      .catch(() => {
+        // Holdings fetch remains the fallback source of truth.
+      });
+  }, [configured, user, authLoading, isCompletingOAuth]);
 
   const updatePortfolio = useCallback((next: Portfolio) => {
     saveCachedPortfolio(next);

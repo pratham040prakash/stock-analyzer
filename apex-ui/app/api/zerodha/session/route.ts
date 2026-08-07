@@ -1,17 +1,47 @@
 import { apiError, apiOk } from "@/lib/api/response";
+import { brokerLog } from "@/lib/broker/log";
 import {
   exchangeRequestToken,
   KITE_ACCESS_TOKEN_COOKIE,
   kiteAccessTokenCookieOptions,
 } from "@/lib/broker/zerodhaSession";
 import { isTokenEncryptionConfigured } from "@/lib/crypto/encrypt";
-import { upsertBrokerConnection } from "@/services/broker/connections";
+import {
+  getBrokerConnectionStatus,
+  upsertBrokerConnection,
+} from "@/services/broker/connections";
 import { syncUserPortfolio } from "@/services/portfolio/sync";
 import { createClient } from "@/lib/supabase/server";
 
 type SessionRequest = {
   request_token?: string;
 };
+
+export async function GET() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return apiOk({ connected: false, authenticated: false });
+  }
+
+  const status = await getBrokerConnectionStatus(supabase, user.id);
+
+  brokerLog("Zerodha session status", {
+    user_id: user.id,
+    connected: status.connected,
+    kite_user_id: status.kiteUserId,
+  });
+
+  return apiOk({
+    connected: status.connected,
+    authenticated: true,
+    status: status.status,
+    kite_user_id: status.kiteUserId,
+  });
+}
 
 export async function POST(req: Request) {
   let body: SessionRequest;
@@ -42,17 +72,21 @@ export async function POST(req: Request) {
   }
 
   try {
-    const accessToken = await exchangeRequestToken(requestToken);
+    const session = await exchangeRequestToken(requestToken);
 
-    await upsertBrokerConnection(supabase, user.id, "zerodha", accessToken);
+    await upsertBrokerConnection(supabase, user.id, "zerodha", {
+      accessToken: session.accessToken,
+      publicToken: session.publicToken,
+      kiteUserId: session.kiteUserId,
+    });
 
     const syncResult = await syncUserPortfolio(supabase, user.id);
 
-    const res = apiOk({ sync: syncResult.status });
+    const res = apiOk({ connected: true, sync: syncResult.status });
 
     res.cookies.set(
       KITE_ACCESS_TOKEN_COOKIE,
-      accessToken,
+      session.accessToken,
       kiteAccessTokenCookieOptions,
     );
 

@@ -10,8 +10,8 @@ export async function updateSession(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
 
-  // Let the callback route read PKCE verifier cookies and exchange the code.
-  if (pathname === "/auth/callback") {
+  // Let OAuth callback routes handle tokens without middleware interference.
+  if (pathname === "/auth/callback" || pathname === "/api/zerodha/callback") {
     return NextResponse.next({ request });
   }
 
