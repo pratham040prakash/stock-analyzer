@@ -2,7 +2,7 @@ import { formatInr } from "@/lib/funds";
 
 export type ExecutionPlanInput = {
   stock: string;
-  price: number;
+  currentPrice: number;
   breakoutLevel: number;
   supportLevel: number;
   allocationAmount: number;
@@ -11,16 +11,30 @@ export type ExecutionPlanInput = {
   probability: number;
 };
 
+export type ExecutionPlanEntryType = "aggressive" | "confirmed";
+
 export type ExecutionPlanOutput = {
   steps: string[];
+  stopLoss: number;
+  entryType: ExecutionPlanEntryType;
   riskNote: string;
   confidenceNote: string;
-  firstTranchePercent: number;
-  secondTranchePercent: number;
 };
 
-const CAUTIOUS_STRUCTURE_THRESHOLD = 60;
-const STRONG_PROBABILITY_THRESHOLD = 75;
+export type ExecutionPlanSafeOutput = {
+  steps: string[];
+  stopLoss: number | null;
+  entryType: ExecutionPlanEntryType;
+  riskNote: string;
+  confidenceNote: string;
+};
+
+const WEAK_STRUCTURE_THRESHOLD = 60;
+const AGGRESSIVE_STRUCTURE_THRESHOLD = 70;
+const HIGH_PROBABILITY_THRESHOLD = 75;
+const MODERATE_PROBABILITY_THRESHOLD = 60;
+const FIRST_ENTRY_PERCENT = 50;
+const SECOND_ENTRY_PERCENT = 50;
 
 function clampPercent(value: number): number {
   return Math.max(0, Math.min(100, Math.round(value)));
@@ -28,10 +42,12 @@ function clampPercent(value: number): number {
 
 function normalizeProbability(probability: number): number {
   if (!Number.isFinite(probability)) {
-    return 50;
+    return 0;
   }
 
-  return probability <= 1 ? clampPercent(probability * 100) : clampPercent(probability);
+  return probability <= 1
+    ? clampPercent(probability * 100)
+    : clampPercent(probability);
 }
 
 function roundPrice(value: number): number {
@@ -42,111 +58,125 @@ function roundPrice(value: number): number {
   return value >= 1000 ? Math.round(value) : Math.round(value * 100) / 100;
 }
 
-function formatLevel(value: number): string {
+function formatPrice(value: number): string {
   const rounded = roundPrice(value);
-  return rounded > 0 ? formatInr(rounded) : "your stop level";
+  return rounded > 0 ? formatInr(rounded) : "—";
 }
 
-function trancheSplit(
+function halfAllocation(allocationAmount: number): string {
+  if (!Number.isFinite(allocationAmount) || allocationAmount <= 0) {
+    return "your planned half";
+  }
+
+  return formatInr(Math.round(allocationAmount / 2));
+}
+
+function resolveEntryType(
   structureScore: number,
   probabilityPct: number,
-): { first: number; second: number } {
-  const cautious = structureScore < CAUTIOUS_STRUCTURE_THRESHOLD;
-  const strong = probabilityPct > STRONG_PROBABILITY_THRESHOLD;
-
-  if (cautious && strong) {
-    return { first: 40, second: 60 };
+): ExecutionPlanEntryType {
+  if (
+    structureScore >= AGGRESSIVE_STRUCTURE_THRESHOLD &&
+    probabilityPct >= HIGH_PROBABILITY_THRESHOLD
+  ) {
+    return "aggressive";
   }
 
-  if (cautious) {
-    return { first: 40, second: 60 };
-  }
-
-  if (strong) {
-    return { first: 55, second: 45 };
-  }
-
-  return { first: 50, second: 50 };
+  return "confirmed";
 }
 
-function formatEntryStep(allocationAmount: number, percent: number): string {
-  if (allocationAmount <= 0) {
-    return `Enter ${percent}% position`;
-  }
-
-  const amount = Math.round((allocationAmount * percent) / 100);
-  return `Enter ${percent}% position (${formatInr(amount)})`;
+function buildConfirmedSteps(input: ExecutionPlanInput): string[] {
+  return [
+    `Wait for breakout above ${formatPrice(input.breakoutLevel)}`,
+    `Enter ${FIRST_ENTRY_PERCENT}% (${halfAllocation(input.allocationAmount)}) after breakout`,
+    `Add remaining ${SECOND_ENTRY_PERCENT}% on continuation`,
+    `Exit if price falls below ${formatPrice(input.supportLevel)}`,
+  ];
 }
 
-function formatAddStep(allocationAmount: number, percent: number): string {
-  if (allocationAmount <= 0) {
-    return `Add remaining ${percent}% on continuation`;
-  }
-
-  const amount = Math.round((allocationAmount * percent) / 100);
-  return `Add remaining ${percent}% (${formatInr(amount)}) on continuation`;
+function buildAggressiveSteps(input: ExecutionPlanInput): string[] {
+  return [
+    `Enter ${FIRST_ENTRY_PERCENT}% near current price ${formatPrice(input.currentPrice)}`,
+    `Add remaining ${SECOND_ENTRY_PERCENT}% on breakout above ${formatPrice(input.breakoutLevel)}`,
+    `Exit if price falls below ${formatPrice(input.supportLevel)}`,
+  ];
 }
 
-function buildRiskNote(structureScore: number, supportLevel: number): string {
-  const stop = formatLevel(supportLevel);
-
-  if (structureScore < CAUTIOUS_STRUCTURE_THRESHOLD) {
-    return `Structure is still forming — keep size small and exit below ${stop} without hesitation.`;
+function buildRiskNote(structureScore: number): string {
+  if (structureScore < WEAK_STRUCTURE_THRESHOLD) {
+    return "Structure is weak — reduce position size";
   }
 
-  return `Protect capital first. If price closes below ${stop}, exit the position.`;
+  return "Risk is controlled with defined exit";
 }
 
-function buildConfidenceNote(probabilityPct: number, structureScore: number): string {
-  const strong = probabilityPct > STRONG_PROBABILITY_THRESHOLD;
-  const cautious = structureScore < CAUTIOUS_STRUCTURE_THRESHOLD;
-
-  if (strong && !cautious) {
-    return "Strong conviction — edge is clear, but scale in. Never deploy everything at once.";
+function buildConfidenceNote(probabilityPct: number): string {
+  if (probabilityPct > HIGH_PROBABILITY_THRESHOLD) {
+    return "High probability setup with momentum";
   }
 
-  if (strong && cautious) {
-    return "Probability is high, but structure needs confirmation — stay patient and sized down.";
+  if (probabilityPct > MODERATE_PROBABILITY_THRESHOLD) {
+    return "Moderate probability — wait for confirmation";
   }
 
-  if (cautious) {
-    return "Patience matters more than speed here. Wait for price to prove the setup.";
-  }
+  return "Low conviction — trade cautiously";
+}
 
-  return "Moderate edge — follow the steps and let price confirm before adding size.";
+function assertValidInput(input: ExecutionPlanInput): void {
+  if (
+    !input.stock ||
+    !Number.isFinite(input.currentPrice) ||
+    input.currentPrice <= 0 ||
+    !Number.isFinite(input.breakoutLevel) ||
+    !Number.isFinite(input.supportLevel) ||
+    !Number.isFinite(input.allocationAmount) ||
+    !Number.isFinite(input.structureScore) ||
+    !Number.isFinite(input.probability)
+  ) {
+    throw new Error("Invalid execution plan input");
+  }
 }
 
 /**
- * Converts a BUY decision into human-readable execution steps.
+ * Converts a BUY decision into a staged, human-readable execution plan.
  * Never suggests full capital deployment in a single entry.
  */
-export function generateExecutionPlan(input: ExecutionPlanInput): ExecutionPlanOutput {
-  const probabilityPct = normalizeProbability(input.probability);
+export function generateExecutionPlan(
+  input: ExecutionPlanInput,
+): ExecutionPlanOutput {
+  assertValidInput(input);
+
   const structureScore = clampPercent(input.structureScore);
-  const { first, second } = trancheSplit(structureScore, probabilityPct);
+  const probabilityPct = normalizeProbability(input.probability);
+  const entryType = resolveEntryType(structureScore, probabilityPct);
+  const stopLoss = roundPrice(input.supportLevel);
 
-  const breakout = formatLevel(input.breakoutLevel);
-  const support = formatLevel(input.supportLevel);
-
-  const steps: string[] = [];
-
-  if (structureScore < CAUTIOUS_STRUCTURE_THRESHOLD) {
-    steps.push(
-      `Wait for a clean breakout above ${breakout} — don't chase early`,
-    );
-  } else {
-    steps.push(`Wait for breakout above ${breakout}`);
-  }
-
-  steps.push(formatEntryStep(input.allocationAmount, first));
-  steps.push(formatAddStep(input.allocationAmount, second));
-  steps.push(`Exit below ${support}`);
+  const steps =
+    entryType === "aggressive"
+      ? buildAggressiveSteps(input)
+      : buildConfirmedSteps(input);
 
   return {
     steps,
-    riskNote: buildRiskNote(structureScore, input.supportLevel),
-    confidenceNote: buildConfidenceNote(probabilityPct, structureScore),
-    firstTranchePercent: first,
-    secondTranchePercent: second,
+    stopLoss,
+    entryType,
+    riskNote: buildRiskNote(structureScore),
+    confidenceNote: buildConfidenceNote(probabilityPct),
   };
+}
+
+export function generateExecutionPlanSafe(
+  input: ExecutionPlanInput,
+): ExecutionPlanSafeOutput {
+  try {
+    return generateExecutionPlan(input);
+  } catch {
+    return {
+      steps: [],
+      stopLoss: null,
+      entryType: "confirmed",
+      riskNote: "Execution unavailable",
+      confidenceNote: "",
+    };
+  }
 }

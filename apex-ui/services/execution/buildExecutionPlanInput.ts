@@ -98,7 +98,7 @@ export async function buildExecutionPlanInput(
 
     return {
       stock: decision.stock,
-      price,
+      currentPrice: price,
       breakoutLevel: pickBreakoutLevel(
         price,
         structure.resistanceLevels,

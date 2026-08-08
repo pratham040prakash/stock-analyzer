@@ -11,8 +11,8 @@ import type { EntryTimingState } from "@/components/decision/ExecutionPlanCard";
 import type { ExecutionPlanDecision } from "@/components/decision/ExecutionPlanCard";
 import { buildExecutionPlanInput } from "@/services/execution/buildExecutionPlanInput";
 import {
-  generateExecutionPlan,
-  type ExecutionPlanOutput,
+  generateExecutionPlanSafe,
+  type ExecutionPlanSafeOutput,
 } from "@/services/execution/executionPlanEngine";
 
 export type ExecutionPlanModalProps = {
@@ -41,7 +41,7 @@ export default function ExecutionPlanModal({
   decision,
   entryTiming,
 }: ExecutionPlanModalProps) {
-  const [plan, setPlan] = useState<ExecutionPlanOutput | null>(null);
+  const [plan, setPlan] = useState<ExecutionPlanSafeOutput | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -62,7 +62,7 @@ export default function ExecutionPlanModal({
       }
 
       if (input) {
-        setPlan(generateExecutionPlan(input));
+        setPlan(generateExecutionPlanSafe(input));
       }
 
       setLoading(false);
@@ -132,12 +132,21 @@ export default function ExecutionPlanModal({
           <p className="text-[13px] font-semibold text-apex-text">Your steps</p>
           {loading ? (
             <ApexBody className="mt-3">Building your plan…</ApexBody>
-          ) : plan ? (
-            <ol className="mt-4 space-y-3">
-              {plan.steps.map((step, index) => (
-                <StepRow key={step} index={index + 1} text={step} />
-              ))}
-            </ol>
+          ) : plan && plan.steps.length > 0 ? (
+            <>
+              <p className="mt-3 text-[12px] uppercase tracking-wider text-apex-muted">
+                Entry:{" "}
+                {plan.entryType === "aggressive" ? "Aggressive" : "Confirmed"}
+                {plan.stopLoss !== null
+                  ? ` · Stop ${formatInr(plan.stopLoss)}`
+                  : null}
+              </p>
+              <ol className="mt-4 space-y-3">
+                {plan.steps.map((step, index) => (
+                  <StepRow key={step} index={index + 1} text={step} />
+                ))}
+              </ol>
+            </>
           ) : (
             <ApexBody className="mt-3">
               Plan unavailable — check back after market data loads.
@@ -145,7 +154,7 @@ export default function ExecutionPlanModal({
           )}
         </section>
 
-        {plan ? (
+        {plan && plan.steps.length > 0 ? (
           <>
             <section className="mt-6 rounded-xl border border-apex-border/40 bg-apex-bg/40 px-4 py-3.5">
               <p className="text-[12px] font-semibold uppercase tracking-wider text-apex-muted">
