@@ -32,6 +32,7 @@ import {
   ApexTitle,
 } from "@/components/ui/apex";
 import ActionToast from "./ActionToast";
+import DailyDisciplineLoop from "./decision/DailyDisciplineLoop";
 import SellConfirmModal from "./SellConfirmModal";
 
 type CardView = "summary" | "execution" | "opportunities";
@@ -45,6 +46,7 @@ type Props = {
   riskLevel?: PortfolioRiskLevel;
   portfolioContext?: RecommendationPortfolio;
   onIntentChange?: (intent: Intent) => void;
+  updatedAt?: string | null;
 };
 
 type BadgeTone = "success" | "waiting" | "neutral" | "risk" | "insight";
@@ -81,6 +83,7 @@ export default function DailyDecisionCard({
   riskLevel = "Low",
   portfolioContext = {},
   onIntentChange,
+  updatedAt,
 }: Props) {
   const [view, setView] = useState<CardView>("summary");
   const [selectedSellPercent, setSelectedSellPercent] = useState<
@@ -256,7 +259,8 @@ export default function DailyDecisionCard({
 
   return (
     <>
-      <ApexCard className="relative">
+      <div className="space-y-4">
+        <ApexCard className="relative">
         {isRefreshing ? (
           <div
             className="pointer-events-none absolute inset-0 z-10 rounded-2xl bg-white/[0.02] animate-pulse"
@@ -415,7 +419,12 @@ export default function DailyDecisionCard({
             </div>
           </>
         ) : null}
-      </ApexCard>
+        </ApexCard>
+
+        {view === "summary" ? (
+          <DailyDisciplineLoop updatedAt={updatedAt} />
+        ) : null}
+      </div>
 
       {decision.stock && sellImpact ? (
         <SellConfirmModal

@@ -15,6 +15,7 @@ export type EntryTimingState = {
 type DecisionResponse = {
   decision: DailyDecisionOutput | null;
   entryTiming?: EntryTimingState;
+  created_at?: string | null;
 };
 
 const DEFAULT_ENTRY_TIMING: EntryTimingState = {
@@ -50,6 +51,9 @@ export function useIntentDecision({
   const [isRefreshing, setIsRefreshing] = useState(enabled);
   const [entryTiming, setEntryTiming] = useState<EntryTimingState>(
     DEFAULT_ENTRY_TIMING,
+  );
+  const [decisionUpdatedAt, setDecisionUpdatedAt] = useState<string | null>(
+    null,
   );
 
   const cacheRef = useRef<Partial<Record<Intent, DailyDecisionOutput>>>({});
@@ -112,6 +116,7 @@ export function useIntentDecision({
           cacheRef.current[targetIntent] = data.decision;
           setDecision(data.decision);
           setEntryTiming(data.entryTiming ?? DEFAULT_ENTRY_TIMING);
+          setDecisionUpdatedAt(data.created_at ?? new Date().toISOString());
           onFetchedRef.current?.();
         }
       } catch {
@@ -144,6 +149,7 @@ export function useIntentDecision({
     setIntent,
     decision,
     entryTiming,
+    decisionUpdatedAt,
     isRefreshing,
     refreshDecision,
   };

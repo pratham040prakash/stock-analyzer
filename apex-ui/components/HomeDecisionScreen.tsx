@@ -8,11 +8,10 @@ import {
   ApexBody,
   ApexButton,
   ApexCard,
-  ApexInsight,
-  ApexRow,
-  ApexSection,
+  ApexEyebrow,
   ApexTitle,
 } from "@/components/ui/apex";
+import DailyDisciplineLoop from "@/components/decision/DailyDisciplineLoop";
 
 export type HomeDecision = {
   action: DecisionActionType | string;
@@ -22,6 +21,12 @@ export type HomeDecision = {
   structureScore?: number;
   confidenceMetrics?: {
     expectedReturn?: number;
+    probability?: number;
+    edgeScore?: number;
+    expectedDrawdown?: number;
+  };
+  validation?: {
+    risk_ok?: boolean;
   };
 };
 
@@ -34,6 +39,7 @@ export type HomeDecisionScreenProps = {
   decision: HomeDecision;
   entryTiming: EntryTimingState;
   portfolio: HomePortfolioSnapshot;
+  updatedAt?: string | null;
   onViewExecutionPlan?: () => void;
   className?: string;
 };
@@ -41,6 +47,11 @@ export type HomeDecisionScreenProps = {
 type StatusChip = {
   label: "WAITING" | "READY" | "NO TRADE";
   tone: "waiting" | "success" | "neutral";
+};
+
+type StrengthMetric = {
+  label: string;
+  value: number;
 };
 
 function heroText(decision: HomeDecision, entryTiming: EntryTimingState): string {
@@ -54,19 +65,19 @@ function heroText(decision: HomeDecision, entryTiming: EntryTimingState): string
     return `${prefix} ${amountLabel} in ${stock}`;
   }
 
-  if (action === "wait") {
-    return "Do nothing today";
+  if (action === "wait" || action === "hold") {
+    return "Stay in cash today.";
   }
 
   if (isSellAction(action as DecisionActionType) || action === "sell") {
-    return `Exit position in ${stock}`;
+    return `Reduce ${stock} today.`;
   }
 
   if (action === "explore") {
-    return "Explore opportunities today";
+    return "Watch the market today.";
   }
 
-  return "Hold steady today";
+  return "Stay in cash today.";
 }
 
 function mentorSubtext(
@@ -77,19 +88,23 @@ function mentorSubtext(
 
   if (action === "buy") {
     return entryTiming.enter
-      ? "Opportunity identified — execute with discipline"
-      : "Conditions are not ready yet — wait for confirmation";
+      ? "This setup is worth acting on — move with discipline."
+      : "The idea is sound. Wait for the market to confirm.";
   }
 
-  if (action === "wait") {
-    return "No strong opportunities today — capital is safe";
+  if (action === "wait" || action === "hold") {
+    return "Nothing in the market is worth your capital today.";
   }
 
   if (isSellAction(action as DecisionActionType) || action === "sell") {
-    return "Protect capital by reducing exposure when risk is elevated";
+    return "Reduce exposure now before risk compounds.";
   }
 
-  return "Stay patient — your plan is still on track";
+  if (action === "explore") {
+    return "Worth watching — nothing to force today.";
+  }
+
+  return "Nothing in the market is worth your capital today.";
 }
 
 function statusChip(
@@ -116,45 +131,127 @@ function statusChip(
 }
 
 function buildWhyBullets(decision: HomeDecision): string[] {
-  const bullets: string[] = [];
+  const action = decision.action;
+  const confidence = decision.confidence ?? 0;
+  const structure = decision.structureScore ?? 0;
+  const expectedReturn = decision.confidenceMetrics?.expectedReturn ?? 0;
 
-  if ((decision.confidence ?? 0) >= 65) {
-    bullets.push("Strong trend");
-  }
-
-  if ((decision.structureScore ?? 0) >= 55) {
-    bullets.push("Good market structure");
-  }
-
-  if ((decision.confidenceMetrics?.expectedReturn ?? 0) > 0) {
-    bullets.push("Positive expected return");
-  }
-
-  if (bullets.length === 0) {
+  if (action === "wait" || action === "hold") {
     return [
-      "Balanced risk profile",
-      "Capital preservation first",
-      "Wait for clearer alignment",
+      "Setups are weak across the market",
+      "Breakouts are failing to follow through",
+      "Risk is higher than reward right now",
     ];
   }
 
-  while (bullets.length < 3) {
-    if (!bullets.includes("Positive expected return")) {
-      bullets.push("Positive expected return");
-    } else if (!bullets.includes("Good market structure")) {
-      bullets.push("Good market structure");
+  if (action === "buy") {
+    const bullets: string[] = [];
+
+    if (structure >= 55) {
+      bullets.push("Price is holding above key levels");
     } else {
-      bullets.push("Disciplined execution");
+      bullets.push("Structure is still forming — patience required");
     }
+
+    if (confidence >= 65) {
+      bullets.push("Trend is pushing in your favor");
+    } else {
+      bullets.push("Conviction is building, not confirmed yet");
+    }
+
+    if (expectedReturn > 0) {
+      bullets.push("Reward outweighs the downside from here");
+    } else {
+      bullets.push("Edge is present but still early");
+    }
+
+    return bullets.slice(0, 3);
   }
 
-  return bullets.slice(0, 3);
+  if (isSellAction(action as DecisionActionType) || action === "sell") {
+    return [
+      "Exposure has crept too high for comfort",
+      "Downside pressure is building on this position",
+      "Trimming now protects the rest of your portfolio",
+    ];
+  }
+
+  if (action === "explore") {
+    return [
+      "A few names are worth tracking closely",
+      "Nothing is ready for immediate action",
+      "Patience keeps you ahead of the crowd",
+    ];
+  }
+
+  return [
+    "Setups are weak across the market",
+    "Breakouts are failing to follow through",
+    "Risk is higher than reward right now",
+  ];
+}
+
+function clampPercent(value: number): number {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function buildDecisionStrength(decision: HomeDecision): StrengthMetric[] {
+  const metrics = decision.confidenceMetrics;
+  const probability =
+    metrics?.probability !== undefined
+      ? clampPercent(metrics.probability * 100)
+      : clampPercent(decision.confidence ?? 50);
+  const structure = clampPercent(decision.structureScore ?? 50);
+
+  let riskControl = 70;
+  if (decision.validation?.risk_ok) {
+    riskControl = 80;
+  }
+  if (metrics?.edgeScore !== undefined) {
+    riskControl = clampPercent(metrics.edgeScore * 100);
+  } else if (metrics?.expectedDrawdown !== undefined) {
+    riskControl = clampPercent(100 - metrics.expectedDrawdown * 100);
+  }
+
+  return [
+    { label: "Probability", value: probability },
+    { label: "Structure", value: structure },
+    { label: "Risk Control", value: riskControl },
+  ];
+}
+
+function strengthBar(filledSlots: number): string {
+  const filled = Math.max(0, Math.min(10, filledSlots));
+  return `${"█".repeat(filled)}${"░".repeat(10 - filled)}`;
+}
+
+function DecisionStrength({ metrics }: { metrics: StrengthMetric[] }) {
+  return (
+    <section className="mt-8">
+      <ApexEyebrow className="mb-4">Decision Strength</ApexEyebrow>
+      <ul className="space-y-3">
+        {metrics.map((metric) => (
+          <li
+            key={metric.label}
+            className="grid grid-cols-[5.5rem_1fr_2.5rem] items-center gap-3 text-[13px]"
+          >
+            <span className="text-apex-muted">{metric.label}</span>
+            <span className="font-mono text-[12px] tracking-tight text-apex-text/70">
+              {strengthBar(Math.round(metric.value / 10))}
+            </span>
+            <span className="text-right text-apex-muted">{metric.value}%</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
 }
 
 export default function HomeDecisionScreen({
   decision,
   entryTiming,
   portfolio,
+  updatedAt,
   onViewExecutionPlan,
   className = "",
 }: HomeDecisionScreenProps) {
@@ -162,47 +259,71 @@ export default function HomeDecisionScreen({
   const subtext = mentorSubtext(decision, entryTiming);
   const chip = statusChip(decision, entryTiming);
   const whyBullets = buildWhyBullets(decision);
+  const strengthMetrics = buildDecisionStrength(decision);
   const canViewPlan = decision.action === "buy";
 
   return (
-    <div className={className}>
-      <ApexCard>
-        <div className="mb-5">
+    <div className={`space-y-5 ${className}`.trim()}>
+      <ApexCard hover={false} className="border-apex-border/50 shadow-none">
+        <div className="mb-6">
           <ApexBadge tone={chip.tone}>{chip.label}</ApexBadge>
         </div>
 
-        <ApexTitle>{headline}</ApexTitle>
-        <ApexBody className="mt-3">{subtext}</ApexBody>
+        <ApexTitle className="text-[28px] sm:text-[30px]">{headline}</ApexTitle>
+        <ApexBody className="mt-4 text-[15px] text-apex-text/80">
+          {subtext}
+        </ApexBody>
 
-        <ApexInsight title="Why this decision?" className="mt-6">
-          <ul className="space-y-2">
+        <section className="mt-8 rounded-xl border border-apex-border/40 bg-apex-bg/30 px-4 py-4">
+          <p className="text-[13px] font-semibold text-apex-text/90">
+            Why this stands out
+          </p>
+          <ul className="mt-3 space-y-2.5">
             {whyBullets.map((bullet) => (
               <li
                 key={bullet}
-                className="flex gap-2 text-[13px] text-blue-100/75"
+                className="flex gap-2 text-[13px] leading-relaxed text-apex-muted"
               >
-                <span className="text-blue-400/90">•</span>
+                <span className="text-apex-muted/70">•</span>
                 {bullet}
               </li>
             ))}
           </ul>
-        </ApexInsight>
+        </section>
 
-        <ApexSection className="mt-5 rounded-xl border border-apex-border px-4">
-          <ApexRow label="Portfolio" value={formatInr(portfolio.value)} />
-          <ApexRow label="Cash" value={formatInr(portfolio.cash)} />
-        </ApexSection>
+        <DecisionStrength metrics={strengthMetrics} />
+
+        <div className="mt-8 space-y-2 border-t border-apex-border/40 pt-6">
+          <div className="flex items-baseline justify-between gap-4 text-[14px]">
+            <span className="text-apex-muted">Portfolio</span>
+            <span className="font-medium text-apex-text">
+              {formatInr(portfolio.value)}
+            </span>
+          </div>
+          <div className="flex items-baseline justify-between gap-4 text-[14px]">
+            <span className="text-apex-muted">Cash</span>
+            <span className="font-medium text-apex-text">
+              {formatInr(portfolio.cash)}
+            </span>
+          </div>
+        </div>
 
         {decision.action === "buy" ? (
           <ApexButton
-            className="mt-6"
+            className="mt-8"
             variant={canViewPlan ? "primary" : "secondary"}
             onClick={onViewExecutionPlan}
           >
             View Execution Plan
           </ApexButton>
         ) : null}
+
+        <p className="mt-8 text-center text-[12px] italic text-apex-muted/80">
+          Most days, doing nothing is the edge.
+        </p>
       </ApexCard>
+
+      <DailyDisciplineLoop updatedAt={updatedAt} />
     </div>
   );
 }

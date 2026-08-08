@@ -318,6 +318,7 @@ export default function HomeClient({
     setIntent: setUserIntent,
     decision: dailyDecision,
     entryTiming,
+    decisionUpdatedAt,
     isRefreshing: decisionRefreshing,
     refreshDecision,
   } = useIntentDecision({
@@ -593,7 +594,8 @@ export default function HomeClient({
             ) : null}
             {hasPortfolioData &&
             portfolioData &&
-            portfolioData.total_value !== undefined ? (
+            portfolioData.total_value !== undefined &&
+            !showHomeDecision ? (
               <PortfolioSummary
                 totalValue={portfolioData.total_value}
                 dayPnl={portfolioData.day_pnl ?? dailyInsight?.day_pnl ?? null}
@@ -658,6 +660,7 @@ export default function HomeClient({
               <HomeDecisionScreen
                 decision={dailyDecision}
                 entryTiming={entryTiming}
+                updatedAt={decisionUpdatedAt}
                 portfolio={{
                   value: portfolioData?.total_value ?? 0,
                   cash: availableCash ?? 0,
@@ -692,6 +695,7 @@ export default function HomeClient({
               riskLevel={portfolioData?.risk_level}
               portfolioContext={recommendationPortfolio}
               onIntentChange={setUserIntent}
+              updatedAt={decisionUpdatedAt}
             />
           ) : null}
 
