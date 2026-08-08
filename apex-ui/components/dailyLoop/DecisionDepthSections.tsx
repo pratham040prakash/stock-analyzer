@@ -7,16 +7,52 @@ import type {
 } from "@/lib/dailyLoop/decisionDepth";
 import { convictionLabel } from "@/lib/dailyLoop/decisionDepth";
 
+type SectionTier = "primary" | "support" | "context" | "background";
+
+const TIER_CLASS: Record<SectionTier, string> = {
+  primary: "mb-5 space-y-3 animate-apex-fade-in",
+  support: "mb-3 space-y-2 animate-apex-fade-in",
+  context: "mt-4 opacity-60 animate-apex-fade-in",
+  background: "mt-6 space-y-2 animate-apex-fade-in",
+};
+
+function TierBlock({
+  tier,
+  delayMs,
+  children,
+  className = "",
+}: {
+  tier: SectionTier;
+  delayMs: number;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <section
+      className={[TIER_CLASS[tier], className].filter(Boolean).join(" ")}
+      style={{ animationDelay: `${delayMs}ms` }}
+    >
+      {children}
+    </section>
+  );
+}
+
+function SupportLabel({ children }: { children: ReactNode }) {
+  return (
+    <p className="text-sm font-medium text-apex-muted">{children}</p>
+  );
+}
+
 function BulletList({ items }: { items: string[] }) {
   if (items.length === 0) {
     return null;
   }
 
   return (
-    <ul className="space-y-2">
+    <ul className="space-y-1.5">
       {items.map((item) => (
-        <li key={item} className="flex gap-2 text-[14px] leading-snug text-apex-text/90">
-          <span className="text-apex-muted" aria-hidden>
+        <li key={item} className="flex gap-2 text-sm leading-snug text-apex-text/85">
+          <span className="text-apex-muted/70" aria-hidden>
             •
           </span>
           <span>{item}</span>
@@ -26,57 +62,45 @@ function BulletList({ items }: { items: string[] }) {
   );
 }
 
-export function DepthSection({
-  title,
-  delayMs,
-  children,
-}: {
-  title: string;
-  delayMs: number;
-  children: ReactNode;
-}) {
-  return (
-    <section
-      className="animate-apex-fade-in space-y-3 border-t border-apex-border/20 pt-5"
-      style={{ animationDelay: `${delayMs}ms` }}
-    >
-      <h2 className="text-[13px] font-medium tracking-wide text-apex-muted">
-        {title}
-      </h2>
-      {children}
-    </section>
-  );
-}
-
-export function WhyThisDecisionSection({
+export function WhySection({
   bullets,
   delayMs,
 }: {
   bullets: string[];
   delayMs: number;
 }) {
+  if (bullets.length === 0) {
+    return null;
+  }
+
   return (
-    <DepthSection title="Why this decision" delayMs={delayMs}>
+    <TierBlock tier="support" delayMs={delayMs}>
+      <SupportLabel>Why</SupportLabel>
       <BulletList items={bullets} />
-    </DepthSection>
+    </TierBlock>
   );
 }
 
-export function WhatToWatchSection({
+export function WatchSection({
   items,
   delayMs,
 }: {
   items: string[];
   delayMs: number;
 }) {
+  if (items.length === 0) {
+    return null;
+  }
+
   return (
-    <DepthSection title="What to watch next" delayMs={delayMs}>
+    <TierBlock tier="support" delayMs={delayMs}>
+      <SupportLabel>Watch</SupportLabel>
       <BulletList items={items} />
-    </DepthSection>
+    </TierBlock>
   );
 }
 
-export function SystemContextSection({
+export function SystemContextLine({
   depth,
   delayMs,
 }: {
@@ -84,33 +108,113 @@ export function SystemContextSection({
   delayMs: number;
 }) {
   const conviction = convictionLabel(depth.systemContext.conviction);
+  const parts = [
+    `${depth.systemContext.confidenceLevel} confidence`,
+    `${depth.systemContext.marketRegime} regime`,
+  ];
+
+  if (conviction) {
+    parts.push(`${conviction} conviction`);
+  }
 
   return (
-    <DepthSection title="System context" delayMs={delayMs}>
-      <div className="flex flex-wrap gap-x-5 gap-y-2 text-[13px] text-apex-text/90">
-        <span>
-          Confidence{" "}
-          <span className="font-medium text-apex-text">
-            {depth.systemContext.confidenceLevel}
-          </span>
-        </span>
-        <span>
-          Regime{" "}
-          <span className="font-medium text-apex-text">
-            {depth.systemContext.marketRegime}
-          </span>
-        </span>
-        {conviction ? (
-          <span>
-            Conviction{" "}
-            <span className="font-medium text-apex-text">{conviction}</span>
-          </span>
-        ) : null}
-      </div>
-    </DepthSection>
+    <TierBlock tier="context" delayMs={delayMs}>
+      <p className="text-xs text-apex-muted">{parts.join(" · ")}</p>
+    </TierBlock>
   );
 }
 
+export function ProtectPrimaryBlock({
+  reason,
+  riskElevated,
+  insight,
+  delayMs,
+}: {
+  reason?: string;
+  riskElevated: boolean;
+  insight?: ProtectAllocationInsight;
+  delayMs: number;
+}) {
+  return (
+    <TierBlock tier="primary" delayMs={delayMs}>
+      <p className="text-lg font-medium leading-snug text-apex-text">
+        {reason ?? "Conditions are not strong enough to risk capital today."}
+      </p>
+      {insight ? (
+        <div className="space-y-2 text-sm text-apex-text/85">
+          <p>
+            <span className="font-medium text-apex-text">
+              {insight.topSymbol ?? "Top holding"}
+            </span>
+            {" · "}
+            {insight.currentPct}% now → ideal ≤ {insight.idealPct}%
+          </p>
+          <p>{insight.sellExplanation}</p>
+        </div>
+      ) : null}
+      {riskElevated ? (
+        <p className="text-sm text-amber-200/80">
+          Portfolio risk is elevated — protecting capital comes first.
+        </p>
+      ) : null}
+    </TierBlock>
+  );
+}
+
+export function ExplorePrimaryBlock({
+  setups,
+  delayMs,
+}: {
+  setups: string[];
+  delayMs: number;
+}) {
+  return (
+    <TierBlock tier="primary" delayMs={delayMs}>
+      {setups.length > 0 ? (
+        <ul className="space-y-3">
+          {setups.map((setup) => (
+            <li
+              key={setup}
+              className="text-lg font-medium leading-snug text-apex-text"
+            >
+              {setup}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-lg font-medium leading-snug text-apex-text/90">
+          Nothing stands out sharply — mixed markets often reward patience.
+        </p>
+      )}
+      <p className="text-sm text-blue-200/75">No action yet</p>
+    </TierBlock>
+  );
+}
+
+export function BackgroundNote({
+  text,
+  delayMs,
+}: {
+  text: string;
+  delayMs: number;
+}) {
+  return (
+    <TierBlock tier="background" delayMs={delayMs}>
+      <p className="text-sm leading-relaxed text-apex-text/75">{text}</p>
+    </TierBlock>
+  );
+}
+
+/** @deprecated Use WhySection */
+export const WhyThisDecisionSection = WhySection;
+
+/** @deprecated Use WatchSection */
+export const WhatToWatchSection = WatchSection;
+
+/** @deprecated Use SystemContextLine */
+export const SystemContextSection = SystemContextLine;
+
+/** @deprecated Use ProtectPrimaryBlock */
 export function ProtectAllocationSection({
   insight,
   delayMs,
@@ -118,67 +222,23 @@ export function ProtectAllocationSection({
   insight: ProtectAllocationInsight;
   delayMs: number;
 }) {
-  const label = insight.topSymbol ?? "Top holding";
-
   return (
-    <DepthSection title="Allocation balance" delayMs={delayMs}>
-      <div className="grid grid-cols-2 gap-3 text-[13px]">
-        <div>
-          <p className="text-apex-muted">Current</p>
-          <p className="mt-1 font-medium tabular-nums text-apex-text">
-            {label} · {insight.currentPct}%
-          </p>
-        </div>
-        <div>
-          <p className="text-apex-muted">Ideal</p>
-          <p className="mt-1 font-medium tabular-nums text-apex-text">
-            ≤ {insight.idealPct}% per name
-          </p>
-        </div>
-      </div>
-      <p className="text-[14px] leading-relaxed text-apex-text/85">
-        {insight.sellExplanation}
-      </p>
-    </DepthSection>
+    <ProtectPrimaryBlock
+      insight={insight}
+      riskElevated={false}
+      delayMs={delayMs}
+    />
   );
 }
 
+/** @deprecated Use ExplorePrimaryBlock */
 export function ExploreInterestingSection({
   setups,
   delayMs,
-  showTitle = true,
 }: {
   setups: string[];
   delayMs: number;
   showTitle?: boolean;
 }) {
-  const content = (
-    <>
-      {setups.length > 0 ? (
-        <BulletList items={setups} />
-      ) : (
-        <p className="text-[14px] leading-relaxed text-apex-text/85">
-          Nothing stands out sharply — mixed markets often reward patience.
-        </p>
-      )}
-      <p className="text-[13px] font-medium text-blue-200/80">No action yet</p>
-    </>
-  );
-
-  if (!showTitle) {
-    return (
-      <section
-        className="animate-apex-fade-in space-y-3 border-t border-apex-border/20 pt-5"
-        style={{ animationDelay: `${delayMs}ms` }}
-      >
-        {content}
-      </section>
-    );
-  }
-
-  return (
-    <DepthSection title="What is interesting today" delayMs={delayMs}>
-      {content}
-    </DepthSection>
-  );
+  return <ExplorePrimaryBlock setups={setups} delayMs={delayMs} />;
 }

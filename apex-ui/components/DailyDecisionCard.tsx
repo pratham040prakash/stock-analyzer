@@ -9,10 +9,10 @@ import {
 } from "@/lib/allocation";
 import { buildDecisionDepth } from "@/lib/dailyLoop/decisionDepth";
 import {
-  ProtectAllocationSection,
-  SystemContextSection,
-  WhatToWatchSection,
-  WhyThisDecisionSection,
+  ProtectPrimaryBlock,
+  SystemContextLine,
+  WatchSection,
+  WhySection,
 } from "@/components/dailyLoop/DecisionDepthSections";
 import {
   getAllRecommendations,
@@ -21,7 +21,7 @@ import {
 import ExecutionPlan from "@/components/decision/ExecutionPlan";
 import OpportunitiesList from "@/components/decision/OpportunitiesList";
 import type { PortfolioRiskLevel } from "@/lib/portfolioRisk";
-import type { DailyDecisionOutput, DecisionActionType } from "@/types/decision";
+import type { DailyDecisionOutput } from "@/types/decision";
 import type { Intent } from "@/types/intent";
 import { resolveIntent } from "@/types/intent";
 import {
@@ -32,7 +32,6 @@ import {
 } from "@/types/decision";
 import { computeSellImpact } from "@/lib/sellImpact";
 import {
-  ApexBadge,
   ApexBody,
   ApexButton,
   ApexCard,
@@ -56,24 +55,6 @@ type Props = {
   onIntentChange?: (intent: Intent) => void;
   updatedAt?: string | null;
 };
-
-type BadgeTone = "success" | "waiting" | "neutral" | "risk" | "insight";
-
-function actionBadgeTone(action: DecisionActionType): BadgeTone {
-  switch (action) {
-    case "buy":
-      return "success";
-    case "reduce":
-    case "sell":
-      return "risk";
-    case "wait":
-      return "waiting";
-    case "explore":
-      return "insight";
-    default:
-      return "neutral";
-  }
-}
 
 function scrollToExecutionSection() {
   document.getElementById("execution-section")?.scrollIntoView({
@@ -112,7 +93,6 @@ export default function DailyDecisionCard({
   const sellOptions = buildSellPercentOptions(decision.suggested_sell_percent);
   const activeSellPercent = selectedSellPercent ?? suggestedSellPercent;
   const heroAction = decisionHeroActionText(decision, activeSellPercent);
-  const badgeTone = actionBadgeTone(decision.action);
   const riskMicrocopy =
     canTrim && decision.allocation !== undefined
       ? decisionRiskMicrocopy(decision.allocation, activeSellPercent)
@@ -302,29 +282,27 @@ export default function DailyDecisionCard({
 
         {view === "summary" ? (
           <>
-            <div className="mb-4">
-              <ApexBadge tone={badgeTone}>
-                {decision.action.toUpperCase()}
-              </ApexBadge>
-            </div>
+            <header className="mb-6 space-y-2">
+              <ApexTitle className="text-3xl sm:text-4xl">{heroAction}</ApexTitle>
+              {decision.suggestion ? (
+                <ApexBody className="text-sm text-apex-muted">
+                  {decision.suggestion}
+                </ApexBody>
+              ) : null}
+            </header>
 
-            <ApexTitle>{heroAction}</ApexTitle>
-
-            {decision.suggestion ? (
-              <ApexBody className="mt-3">{decision.suggestion}</ApexBody>
+            {canTrim ? (
+              <ProtectPrimaryBlock
+                reason={decision.reason ?? decision.message}
+                riskElevated={decision.validation?.risk_ok === false}
+                insight={decisionDepth.protectAllocation}
+                delayMs={0}
+              />
             ) : null}
 
-            <div className="mt-5 space-y-0">
-              <WhyThisDecisionSection bullets={decisionDepth.whyBullets} delayMs={0} />
-              {decisionDepth.protectAllocation ? (
-                <ProtectAllocationSection
-                  insight={decisionDepth.protectAllocation}
-                  delayMs={0}
-                />
-              ) : null}
-              <WhatToWatchSection items={decisionDepth.watchNext} delayMs={0} />
-              <SystemContextSection depth={decisionDepth} delayMs={0} />
-            </div>
+            <WhySection bullets={decisionDepth.whyBullets} delayMs={0} />
+            <WatchSection items={decisionDepth.watchNext} delayMs={0} />
+            <SystemContextLine depth={decisionDepth} delayMs={0} />
           </>
         ) : null}
 

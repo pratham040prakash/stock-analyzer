@@ -7,13 +7,15 @@ import { getIntentExperience } from "@/lib/dailyLoop/intentExperience";
 import { useDailyLoop } from "@/lib/useDailyLoop";
 import type { EntryTimingState } from "@/components/decision/ExecutionPlanCard";
 import {
-  ExploreInterestingSection,
-  ProtectAllocationSection,
-  SystemContextSection,
-  WhatToWatchSection,
-  WhyThisDecisionSection,
+  BackgroundNote,
+  ExplorePrimaryBlock,
+  ProtectPrimaryBlock,
+  SystemContextLine,
+  WatchSection,
+  WhySection,
 } from "@/components/dailyLoop/DecisionDepthSections";
-import { ApexBody, ApexCard } from "@/components/ui/apex";
+import { ApexCard } from "@/components/ui/apex";
+import { isSellAction, type DecisionActionType } from "@/types/decision";
 import type { StockPick } from "@/types/decision";
 import type { UserIntent } from "@/types/intent";
 
@@ -82,24 +84,49 @@ function formatOutcome(outcome: "win" | "loss" | "breakeven"): string {
   return "Breakeven";
 }
 
-function LoopSection({
-  title,
+function ExecutionPrimaryBlock({
+  planLoading,
+  hasPlan,
+  plan,
   delayMs,
-  children,
 }: {
-  title: string;
+  planLoading: boolean;
+  hasPlan: boolean;
+  plan: ReturnType<typeof useDailyLoop>["plan"];
   delayMs: number;
-  children: React.ReactNode;
 }) {
   return (
     <section
-      className="animate-apex-fade-in space-y-3 border-t border-apex-border/20 pt-5"
+      className="mb-5 space-y-3 animate-apex-fade-in"
       style={{ animationDelay: `${delayMs}ms` }}
     >
-      <h2 className="text-[13px] font-medium tracking-wide text-apex-muted">
-        {title}
-      </h2>
-      {children}
+      {planLoading ? (
+        <p className="text-lg font-medium text-apex-text/80">Building your plan…</p>
+      ) : hasPlan && plan ? (
+        <>
+          <ol className="space-y-3">
+            {plan.steps.map((step, index) => (
+              <li
+                key={step}
+                className="flex gap-3 text-lg font-medium leading-snug text-apex-text"
+              >
+                <span className="mt-1 text-sm tabular-nums text-apex-muted">
+                  {index + 1}.
+                </span>
+                {step}
+              </li>
+            ))}
+          </ol>
+          <p className="text-sm text-apex-muted">
+            Stop {plan.stopLoss !== null ? formatInr(plan.stopLoss) : "—"} · Entry{" "}
+            {formatEntryType(plan.entryType)}
+          </p>
+        </>
+      ) : (
+        <p className="text-lg font-medium text-apex-text/80">
+          Plan unavailable — check back shortly.
+        </p>
+      )}
     </section>
   );
 }
@@ -138,17 +165,33 @@ export default function HomeDecisionScreen({
 
   const isBuy = decision.action === "buy";
   const isExplore = intent === "explore";
+  const isProtect = intent === "protect";
+  const isGrow = intent === "grow";
+  const isSell =
+    isSellAction(decision.action as DecisionActionType) ||
+    decision.action === "sell" ||
+    decision.action === "reduce";
   const hasPlan = Boolean(plan && plan.steps.length > 0);
-  let sectionIndex = 1;
+  let sectionDelay = 80;
+
+  const nextDelay = () => {
+    const value = sectionDelay;
+    sectionDelay += 80;
+    return value;
+  };
 
   const heroTitle = isExplore ? "What is interesting today" : actionText;
+  const protectReason =
+    decision.message ??
+    decision.reason ??
+    "Conditions are not strong enough to risk capital today.";
 
   return (
     <div className={`mx-auto w-full max-w-[600px] ${className}`.trim()}>
       <ApexCard
         hover={false}
         padding="none"
-        className="relative overflow-hidden border-apex-border/30 shadow-none animate-apex-rise-in"
+        className="relative overflow-hidden border-apex-border/20 shadow-none animate-apex-rise-in"
       >
         <div
           className={[
@@ -157,187 +200,131 @@ export default function HomeDecisionScreen({
           ].join(" ")}
         />
 
-        <div className="relative flex flex-col gap-5 p-6">
-          <div
-            className="animate-apex-fade-in space-y-2"
+        <div className="relative p-6">
+          <header
+            className="mb-6 animate-apex-fade-in space-y-2"
             style={{ animationDelay: "0ms" }}
           >
-            <p className="text-[12px] font-medium uppercase tracking-[0.14em] text-apex-muted">
+            <p className="text-xs font-medium uppercase tracking-[0.14em] text-apex-muted">
               {experience.tagline}
             </p>
-            <h1 className="text-[28px] font-semibold leading-tight tracking-tight text-apex-text sm:text-[30px]">
+            <h1 className="text-3xl font-semibold leading-tight tracking-tight text-apex-text sm:text-4xl">
               {heroTitle}
             </h1>
             {isExplore && decision.reason ? (
-              <p className="text-[14px] leading-relaxed text-apex-muted">
+              <p className="text-sm leading-relaxed text-apex-muted">
                 {decision.reason}
               </p>
             ) : null}
-          </div>
+          </header>
 
           {isExplore ? (
-            <ExploreInterestingSection
+            <ExplorePrimaryBlock
               setups={resolvedDepth.exploreSetups}
-              delayMs={sectionIndex++ * 100}
-              showTitle={false}
+              delayMs={nextDelay()}
             />
-          ) : (
-            <>
-              <WhyThisDecisionSection
-                bullets={resolvedDepth.whyBullets}
-                delayMs={sectionIndex++ * 100}
-              />
+          ) : null}
 
-              {intent === "protect" && resolvedDepth.protectAllocation ? (
-                <ProtectAllocationSection
-                  insight={resolvedDepth.protectAllocation}
-                  delayMs={sectionIndex++ * 100}
-                />
-              ) : null}
+          {isGrow && isBuy ? (
+            <ExecutionPrimaryBlock
+              planLoading={planLoading}
+              hasPlan={hasPlan}
+              plan={plan}
+              delayMs={nextDelay()}
+            />
+          ) : null}
 
-              {experience.showSafety ? (
-                <LoopSection
-                  title={experience.safetyTitle}
-                  delayMs={sectionIndex++ * 100}
-                >
-                  <p className="text-[15px] leading-relaxed text-apex-text/85">
-                    {decision.reason ??
-                      "Conditions are not strong enough to risk capital today."}
-                  </p>
-                  {decision.validation?.risk_ok === false ? (
-                    <p className="text-[13px] text-amber-200/80">
-                      Portfolio risk is elevated — protecting capital comes first.
-                    </p>
-                  ) : null}
-                </LoopSection>
-              ) : null}
+          {isProtect ? (
+            <ProtectPrimaryBlock
+              reason={protectReason}
+              riskElevated={decision.validation?.risk_ok === false}
+              insight={resolvedDepth.protectAllocation}
+              delayMs={nextDelay()}
+            />
+          ) : null}
 
-              {experience.showExecution && isBuy ? (
-                <LoopSection
-                  title={experience.executionTitle}
-                  delayMs={sectionIndex++ * 100}
-                >
-                  {planLoading ? (
-                    <ApexBody>Building your plan…</ApexBody>
-                  ) : hasPlan && plan ? (
-                    <div className="space-y-4">
-                      <ol className="space-y-3">
-                        {plan.steps.map((step, index) => (
-                          <li
-                            key={step}
-                            className="flex gap-3 text-[14px] leading-snug text-apex-text/90"
-                          >
-                            <span className="mt-0.5 text-[12px] tabular-nums text-apex-muted">
-                              {index + 1}.
-                            </span>
-                            {step}
-                          </li>
-                        ))}
-                      </ol>
-                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-apex-muted">
-                        <span>
-                          Stop{" "}
-                          {plan.stopLoss !== null
-                            ? formatInr(plan.stopLoss)
-                            : "—"}
-                        </span>
-                        <span>Entry {formatEntryType(plan.entryType)}</span>
-                      </div>
-                    </div>
-                  ) : (
-                    <ApexBody>Plan unavailable — check back shortly.</ApexBody>
-                  )}
-                </LoopSection>
-              ) : null}
-
-              <WhatToWatchSection
-                items={resolvedDepth.watchNext}
-                delayMs={sectionIndex++ * 100}
-              />
-            </>
-          )}
-
-          <SystemContextSection
-            depth={resolvedDepth}
-            delayMs={sectionIndex++ * 100}
-          />
-
-          {hasPlan && plan?.behaviorNote && intent === "grow" ? (
-            <LoopSection
-              title={experience.mindsetTitle}
-              delayMs={sectionIndex++ * 100}
+          {isGrow && !isBuy ? (
+            <section
+              className="mb-5 animate-apex-fade-in"
+              style={{ animationDelay: `${nextDelay()}ms` }}
             >
-              <p className="text-[15px] leading-relaxed text-apex-text/85">
-                {plan.behaviorNote}
+              <p className="text-lg font-medium leading-snug text-apex-text">
+                {decision.reason ?? decision.message ?? actionText}
               </p>
-            </LoopSection>
+            </section>
+          ) : null}
+
+          {!isExplore ? (
+            <>
+              <WhySection bullets={resolvedDepth.whyBullets} delayMs={nextDelay()} />
+              <WatchSection items={resolvedDepth.watchNext} delayMs={nextDelay()} />
+            </>
+          ) : null}
+
+          <SystemContextLine depth={resolvedDepth} delayMs={nextDelay()} />
+
+          {hasPlan && plan?.behaviorNote && isGrow ? (
+            <BackgroundNote text={plan.behaviorNote} delayMs={nextDelay()} />
           ) : null}
 
           {isExplore ? (
-            <LoopSection
-              title={experience.mindsetTitle}
-              delayMs={sectionIndex++ * 100}
-            >
-              <p className="text-[15px] leading-relaxed text-apex-text/85">
-                Observation builds judgment. You do not need to act on every idea.
-              </p>
-            </LoopSection>
+            <BackgroundNote
+              text="Observation builds judgment. You do not need to act on every idea."
+              delayMs={nextDelay()}
+            />
           ) : null}
 
-          {intent === "protect" && !experience.showSafety ? (
-            <LoopSection
-              title={experience.mindsetTitle}
-              delayMs={sectionIndex++ * 100}
-            >
-              <p className="text-[15px] leading-relaxed text-apex-text/85">
-                Patience protects capital. Wait for clarity before deploying.
-              </p>
-            </LoopSection>
+          {isProtect && isSell ? (
+            <BackgroundNote
+              text="Trim first, then wait for a cleaner setup before adding back."
+              delayMs={nextDelay()}
+            />
           ) : null}
 
-          <LoopSection
-            title={experience.trustTitle}
-            delayMs={sectionIndex++ * 100}
+          <section
+            className="mt-6 space-y-1 animate-apex-fade-in"
+            style={{ animationDelay: `${nextDelay()}ms` }}
           >
             <div className="flex items-baseline justify-between gap-4">
-              <p className="text-[32px] font-semibold tabular-nums tracking-tight text-apex-text">
+              <p className="text-2xl font-semibold tabular-nums tracking-tight text-apex-text">
                 {trustScore}
               </p>
-              <p className="text-[14px]">
+              <p className="text-sm">
                 <TrustDelta delta={trustDelta} />
               </p>
             </div>
-            <p className="text-[14px] leading-relaxed text-apex-muted">
-              {trustMessage}
-            </p>
-          </LoopSection>
+            <p className="text-sm text-apex-muted">{trustMessage}</p>
+          </section>
 
           {lastOutcome ? (
-            <LoopSection title="Your evolution" delayMs={sectionIndex * 100}>
-              <div className="grid grid-cols-3 gap-3 text-[13px]">
+            <section
+              className="mt-6 space-y-3 animate-apex-fade-in opacity-90"
+              style={{ animationDelay: `${nextDelay()}ms` }}
+            >
+              <div className="grid grid-cols-3 gap-3 text-xs text-apex-muted">
                 <div>
-                  <p className="text-apex-muted">Discipline</p>
-                  <p className="mt-1 font-medium text-apex-text">
+                  <p>Discipline</p>
+                  <p className="mt-1 text-sm font-medium text-apex-text">
                     {lastOutcome.disciplineScore}
                   </p>
                 </div>
                 <div>
-                  <p className="text-apex-muted">Execution</p>
-                  <p className="mt-1 font-medium text-apex-text">
+                  <p>Execution</p>
+                  <p className="mt-1 text-sm font-medium text-apex-text">
                     {lastOutcome.executionQuality}
                   </p>
                 </div>
                 <div>
-                  <p className="text-apex-muted">Outcome</p>
-                  <p className="mt-1 font-medium text-apex-text">
+                  <p>Outcome</p>
+                  <p className="mt-1 text-sm font-medium text-apex-text">
                     {formatOutcome(lastOutcome.outcome)}
                   </p>
                 </div>
               </div>
-              <p className="text-[14px] leading-relaxed text-apex-text/85">
+              <p className="text-sm leading-relaxed text-apex-text/75">
                 {lastOutcome.summary}
               </p>
-            </LoopSection>
+            </section>
           ) : null}
         </div>
       </ApexCard>
