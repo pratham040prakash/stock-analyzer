@@ -4,9 +4,14 @@ import {
   buildEntryInputFromMarketData,
   type EntryInput,
 } from "@/services/execution/entryTiming";
-import type { ExecutionPlanInput } from "@/services/execution/executionPlanEngine";
+import { resolveExecutionPlanMarketRegime } from "@/services/execution/executionPlanEngine";
+import type {
+  ExecutionPlanInput,
+  ExecutionPlanMarketRegime,
+} from "@/services/execution/executionPlanEngine";
 
 export type ExecutionPlanDecisionSource = {
+  action?: string;
   stock?: string;
   amount?: number;
   structureScore?: number;
@@ -14,6 +19,11 @@ export type ExecutionPlanDecisionSource = {
   confidenceMetrics?: {
     probability?: number;
   };
+};
+
+export type BuildExecutionPlanInputOptions = {
+  entryTiming?: { enter: boolean };
+  marketRegime?: ExecutionPlanMarketRegime;
 };
 
 function levelsAbove(price: number, levels: number[]): number[] {
@@ -77,6 +87,7 @@ function resolveProbability(decision: ExecutionPlanDecisionSource): number {
 /** Builds engine input from a BUY decision and live market structure. */
 export async function buildExecutionPlanInput(
   decision: ExecutionPlanDecisionSource,
+  options: BuildExecutionPlanInputOptions = {},
 ): Promise<ExecutionPlanInput | null> {
   if (!decision.stock) {
     return null;
@@ -96,6 +107,10 @@ export async function buildExecutionPlanInput(
       return null;
     }
 
+    const marketRegime =
+      options.marketRegime ??
+      resolveExecutionPlanMarketRegime(decision, options.entryTiming);
+
     return {
       stock: decision.stock,
       currentPrice: price,
@@ -112,6 +127,7 @@ export async function buildExecutionPlanInput(
       allocationAmount: Math.max(0, decision.amount ?? 0),
       structureScore: decision.structureScore ?? structure.structureScore,
       probability: resolveProbability(decision),
+      marketRegime,
     };
   } catch (error) {
     console.error("Execution plan input build failed:", error);

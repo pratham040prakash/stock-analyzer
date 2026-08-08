@@ -5,13 +5,13 @@ import { formatInr } from "@/lib/funds";
 import {
   ApexBody,
   ApexButton,
-  ApexEyebrow,
 } from "@/components/ui/apex";
 import type { EntryTimingState } from "@/components/decision/ExecutionPlanCard";
 import type { ExecutionPlanDecision } from "@/components/decision/ExecutionPlanCard";
 import { buildExecutionPlanInput } from "@/services/execution/buildExecutionPlanInput";
 import {
   generateExecutionPlanSafe,
+  type ExecutionPlanConviction,
   type ExecutionPlanSafeOutput,
 } from "@/services/execution/executionPlanEngine";
 
@@ -21,6 +21,18 @@ export type ExecutionPlanModalProps = {
   decision: ExecutionPlanDecision;
   entryTiming: EntryTimingState;
 };
+
+function convictionLabel(conviction: ExecutionPlanConviction): string {
+  if (conviction === "strong") {
+    return "Strong";
+  }
+
+  if (conviction === "moderate") {
+    return "Moderate";
+  }
+
+  return "Weak";
+}
 
 function StepRow({ index, text }: { index: number; text: string }) {
   return (
@@ -55,7 +67,7 @@ export default function ExecutionPlanModal({
     setPlan(null);
 
     void (async () => {
-      const input = await buildExecutionPlanInput(decision);
+      const input = await buildExecutionPlanInput(decision, { entryTiming });
 
       if (cancelled) {
         return;
@@ -71,7 +83,7 @@ export default function ExecutionPlanModal({
     return () => {
       cancelled = true;
     };
-  }, [open, decision]);
+  }, [open, decision, entryTiming]);
 
   if (!open || decision.action !== "buy" || !decision.stock) {
     return null;
@@ -97,13 +109,13 @@ export default function ExecutionPlanModal({
         aria-labelledby="execution-plan-title"
         className="relative max-h-[85vh] w-full max-w-md overflow-y-auto rounded-2xl border border-apex-border/50 bg-apex-card p-6 shadow-2xl animate-apex-rise-in"
       >
-        <ApexEyebrow>Execution plan</ApexEyebrow>
         <h2
           id="execution-plan-title"
-          className="mt-2 text-lg font-semibold tracking-tight text-apex-text"
+          className="text-lg font-semibold tracking-tight text-apex-text"
         >
-          {decision.stock}
+          How to act today
         </h2>
+        <p className="mt-1 text-[13px] text-apex-muted">{decision.stock}</p>
         <p className="mt-2 text-[15px] font-medium leading-snug text-apex-text">
           {headline}
         </p>
@@ -128,6 +140,17 @@ export default function ExecutionPlanModal({
           </p>
         </div>
 
+        {plan?.behaviorNote ? (
+          <section className="mt-6 rounded-xl border border-apex-border/40 bg-apex-bg/40 px-4 py-3.5">
+            <p className="text-[12px] font-semibold uppercase tracking-wider text-apex-muted">
+              Mindset for this trade
+            </p>
+            <p className="mt-2 text-[14px] leading-relaxed text-apex-text/90">
+              {plan.behaviorNote}
+            </p>
+          </section>
+        ) : null}
+
         <section className="mt-6">
           <p className="text-[13px] font-semibold text-apex-text">Your steps</p>
           {loading ? (
@@ -137,6 +160,8 @@ export default function ExecutionPlanModal({
               <p className="mt-3 text-[12px] uppercase tracking-wider text-apex-muted">
                 Entry:{" "}
                 {plan.entryType === "aggressive" ? "Aggressive" : "Confirmed"}
+                {" · "}
+                Conviction: {convictionLabel(plan.conviction)}
                 {plan.stopLoss !== null
                   ? ` · Stop ${formatInr(plan.stopLoss)}`
                   : null}

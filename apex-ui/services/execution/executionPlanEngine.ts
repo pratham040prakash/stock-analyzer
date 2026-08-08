@@ -1,5 +1,9 @@
 import { formatInr } from "@/lib/funds";
 
+export type ExecutionPlanMarketRegime = "Favorable" | "Neutral" | "Unfavorable";
+
+export type ExecutionPlanConviction = "strong" | "moderate" | "weak";
+
 export type ExecutionPlanInput = {
   stock: string;
   currentPrice: number;
@@ -9,6 +13,7 @@ export type ExecutionPlanInput = {
   structureScore: number;
   /** Success probability — accepts 0–1 or 0–100. */
   probability: number;
+  marketRegime: ExecutionPlanMarketRegime;
 };
 
 export type ExecutionPlanEntryType = "aggressive" | "confirmed";
@@ -17,20 +22,25 @@ export type ExecutionPlanOutput = {
   steps: string[];
   stopLoss: number;
   entryType: ExecutionPlanEntryType;
+  conviction: ExecutionPlanConviction;
   riskNote: string;
   confidenceNote: string;
+  behaviorNote: string;
 };
 
 export type ExecutionPlanSafeOutput = {
   steps: string[];
   stopLoss: number | null;
   entryType: ExecutionPlanEntryType;
+  conviction: ExecutionPlanConviction;
   riskNote: string;
   confidenceNote: string;
+  behaviorNote: string;
 };
 
 const WEAK_STRUCTURE_THRESHOLD = 60;
 const AGGRESSIVE_STRUCTURE_THRESHOLD = 70;
+const STRONG_STRUCTURE_THRESHOLD = 70;
 const HIGH_PROBABILITY_THRESHOLD = 75;
 const MODERATE_PROBABILITY_THRESHOLD = 60;
 const FIRST_ENTRY_PERCENT = 50;
@@ -85,10 +95,43 @@ function resolveEntryType(
   return "confirmed";
 }
 
+function resolveConviction(
+  probabilityPct: number,
+  structureScore: number,
+): ExecutionPlanConviction {
+  if (
+    probabilityPct > HIGH_PROBABILITY_THRESHOLD &&
+    structureScore > STRONG_STRUCTURE_THRESHOLD
+  ) {
+    return "strong";
+  }
+
+  if (probabilityPct > MODERATE_PROBABILITY_THRESHOLD) {
+    return "moderate";
+  }
+
+  return "weak";
+}
+
+function buildBehaviorNote(
+  input: ExecutionPlanInput,
+  entryType: ExecutionPlanEntryType,
+): string {
+  if (input.allocationAmount === 0) {
+    return "The best decision today is not acting.";
+  }
+
+  if (entryType === "confirmed") {
+    return "Patience here protects capital. Wait for confirmation.";
+  }
+
+  return "This is an early entry. Be prepared for volatility.";
+}
+
 function buildConfirmedSteps(input: ExecutionPlanInput): string[] {
   return [
     `Wait for breakout above ${formatPrice(input.breakoutLevel)}`,
-    `Enter ${FIRST_ENTRY_PERCENT}% (${halfAllocation(input.allocationAmount)}) after breakout`,
+    `Start with ${FIRST_ENTRY_PERCENT}% (${halfAllocation(input.allocationAmount)}) after breakout`,
     `Add remaining ${SECOND_ENTRY_PERCENT}% on continuation`,
     `Exit if price falls below ${formatPrice(input.supportLevel)}`,
   ];
@@ -96,26 +139,33 @@ function buildConfirmedSteps(input: ExecutionPlanInput): string[] {
 
 function buildAggressiveSteps(input: ExecutionPlanInput): string[] {
   return [
-    `Enter ${FIRST_ENTRY_PERCENT}% near current price ${formatPrice(input.currentPrice)}`,
+    `Start with ${FIRST_ENTRY_PERCENT}% near current price ${formatPrice(input.currentPrice)}`,
     `Add remaining ${SECOND_ENTRY_PERCENT}% on breakout above ${formatPrice(input.breakoutLevel)}`,
     `Exit if price falls below ${formatPrice(input.supportLevel)}`,
   ];
 }
 
-function buildRiskNote(structureScore: number): string {
+function buildRiskNote(
+  structureScore: number,
+  marketRegime: ExecutionPlanMarketRegime,
+): string {
   if (structureScore < WEAK_STRUCTURE_THRESHOLD) {
     return "Structure is weak — reduce position size";
+  }
+
+  if (marketRegime === "Unfavorable") {
+    return "Market conditions are unfavorable — keep size small";
   }
 
   return "Risk is controlled with defined exit";
 }
 
-function buildConfidenceNote(probabilityPct: number): string {
-  if (probabilityPct > HIGH_PROBABILITY_THRESHOLD) {
+function buildConfidenceNote(conviction: ExecutionPlanConviction): string {
+  if (conviction === "strong") {
     return "High probability setup with momentum";
   }
 
-  if (probabilityPct > MODERATE_PROBABILITY_THRESHOLD) {
+  if (conviction === "moderate") {
     return "Moderate probability — wait for confirmation";
   }
 
@@ -130,8 +180,10 @@ function assertValidInput(input: ExecutionPlanInput): void {
     !Number.isFinite(input.breakoutLevel) ||
     !Number.isFinite(input.supportLevel) ||
     !Number.isFinite(input.allocationAmount) ||
+    input.allocationAmount < 0 ||
     !Number.isFinite(input.structureScore) ||
-    !Number.isFinite(input.probability)
+    !Number.isFinite(input.probability) ||
+    !input.marketRegime
   ) {
     throw new Error("Invalid execution plan input");
   }
@@ -149,6 +201,7 @@ export function generateExecutionPlan(
   const structureScore = clampPercent(input.structureScore);
   const probabilityPct = normalizeProbability(input.probability);
   const entryType = resolveEntryType(structureScore, probabilityPct);
+  const conviction = resolveConviction(probabilityPct, structureScore);
   const stopLoss = roundPrice(input.supportLevel);
 
   const steps =
@@ -160,8 +213,10 @@ export function generateExecutionPlan(
     steps,
     stopLoss,
     entryType,
-    riskNote: buildRiskNote(structureScore),
-    confidenceNote: buildConfidenceNote(probabilityPct),
+    conviction,
+    riskNote: buildRiskNote(structureScore, input.marketRegime),
+    confidenceNote: buildConfidenceNote(conviction),
+    behaviorNote: buildBehaviorNote(input, entryType),
   };
 }
 
@@ -175,8 +230,47 @@ export function generateExecutionPlanSafe(
       steps: [],
       stopLoss: null,
       entryType: "confirmed",
+      conviction: "weak",
       riskNote: "Execution unavailable",
       confidenceNote: "",
+      behaviorNote: "",
     };
   }
+}
+
+export function resolveExecutionPlanMarketRegime(
+  decision: {
+    action?: string;
+    structureScore?: number;
+    confidence?: number;
+  },
+  entryTiming?: { enter: boolean },
+): ExecutionPlanMarketRegime {
+  const action = decision.action;
+
+  if (action === "wait" || action === "hold") {
+    return "Unfavorable";
+  }
+
+  if (action === "buy") {
+    return entryTiming?.enter ? "Favorable" : "Neutral";
+  }
+
+  if (action === "sell" || action === "reduce") {
+    return "Unfavorable";
+  }
+
+  const structure = decision.structureScore ?? 50;
+  const confidence = decision.confidence ?? 50;
+  const composite = (structure + confidence) / 2;
+
+  if (composite >= 65) {
+    return "Favorable";
+  }
+
+  if (composite >= 45) {
+    return "Neutral";
+  }
+
+  return "Unfavorable";
 }
