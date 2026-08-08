@@ -11,6 +11,8 @@ import {
 } from "@/services/execution/executionPlanEngine";
 import type { OutcomeEvaluationOutput } from "@/services/learning/outcomeEngine";
 import { getTrustDisplay } from "@/services/learning/trustEngine";
+import type { StockPick } from "@/types/decision";
+import type { UserIntent } from "@/types/intent";
 
 export type DailyLoopDecision = {
   action: string;
@@ -18,9 +20,16 @@ export type DailyLoopDecision = {
   amount?: number;
   structureScore?: number;
   confidence?: number;
+  reason?: string;
+  message?: string;
+  confidence_factors?: string[];
+  validation?: {
+    risk_ok?: boolean;
+  };
   confidenceMetrics?: {
     probability?: number;
   };
+  picks?: StockPick[];
 };
 
 type DailyLoopState = {
@@ -36,6 +45,7 @@ type DailyLoopState = {
 export function useDailyLoop(
   decision: DailyLoopDecision,
   entryTiming: EntryTimingState,
+  intent: UserIntent,
 ): DailyLoopState {
   const [plan, setPlan] = useState<ExecutionPlanSafeOutput | null>(null);
   const [planLoading, setPlanLoading] = useState(false);
@@ -46,8 +56,8 @@ export function useDailyLoop(
   );
 
   const actionText = useMemo(
-    () => getDecisionActionText(decision, entryTiming),
-    [decision, entryTiming],
+    () => getDecisionActionText(decision, entryTiming, intent),
+    [decision, entryTiming, intent],
   );
 
   const trustMessage = useMemo(
@@ -62,7 +72,12 @@ export function useDailyLoop(
   }, []);
 
   useEffect(() => {
-    if (decision.action !== "buy" || !decision.stock) {
+    const shouldLoadPlan =
+      intent === "grow" &&
+      decision.action === "buy" &&
+      Boolean(decision.stock);
+
+    if (!shouldLoadPlan) {
       setPlan(null);
       setPlanLoading(false);
       return;
@@ -73,7 +88,10 @@ export function useDailyLoop(
     setPlan(null);
 
     void (async () => {
-      const input = await buildExecutionPlanInput(decision, { entryTiming });
+      const input = await buildExecutionPlanInput(decision, {
+        entryTiming,
+        intent,
+      });
 
       if (cancelled) {
         return;
@@ -89,7 +107,7 @@ export function useDailyLoop(
     return () => {
       cancelled = true;
     };
-  }, [decision, entryTiming]);
+  }, [decision, entryTiming, intent]);
 
   return {
     actionText,

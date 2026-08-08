@@ -1,5 +1,7 @@
 import { formatInr } from "@/lib/funds";
 
+import type { UserIntent } from "@/types/intent";
+
 export type ExecutionPlanMarketRegime = "Favorable" | "Neutral" | "Unfavorable";
 
 export type ExecutionPlanConviction = "strong" | "moderate" | "weak";
@@ -14,6 +16,8 @@ export type ExecutionPlanInput = {
   /** Success probability — accepts 0–1 or 0–100. */
   probability: number;
   marketRegime: ExecutionPlanMarketRegime;
+  /** Drives cautious vs exploratory execution framing. */
+  intent?: UserIntent;
 };
 
 export type ExecutionPlanEntryType = "aggressive" | "confirmed";

@@ -6,10 +6,10 @@ import { ApexCard, ApexEyebrow } from "@/components/ui/apex";
 export type { Intent } from "@/types/intent";
 export { decisionTodayApiPath } from "@/types/intent";
 
-const OPTIONS: { value: Intent; label: string }[] = [
-  { value: "grow", label: "Grow" },
-  { value: "risk", label: "Protect" },
-  { value: "explore", label: "Explore" },
+const OPTIONS: { value: Intent; label: string; hint: string }[] = [
+  { value: "grow", label: "Grow", hint: "Deploy when setups qualify" },
+  { value: "protect", label: "Protect", hint: "Capital safety first" },
+  { value: "explore", label: "Explore", hint: "Observe without acting" },
 ];
 
 type Props = {
@@ -33,13 +33,16 @@ export default function IntentSelector({ intent, onIntentChange }: Props) {
               aria-pressed={selected}
               onClick={() => onIntentChange(option.value)}
               className={[
-                "flex-1 rounded-xl border px-4 py-3 text-[14px] font-medium transition-all duration-200 ease-out",
+                "flex-1 rounded-xl border px-4 py-3 text-left transition-all duration-200 ease-out",
                 selected
                   ? "border-blue-500/30 bg-blue-500/10 text-blue-100"
                   : "border-apex-border bg-apex-bg text-apex-muted hover:bg-white/[0.03] hover:text-apex-text",
               ].join(" ")}
             >
-              {option.label}
+              <span className="block text-[14px] font-medium">{option.label}</span>
+              <span className="mt-0.5 block text-[11px] font-normal opacity-70">
+                {option.hint}
+              </span>
             </button>
           );
         })}

@@ -9,6 +9,7 @@ import type {
   ExecutionPlanInput,
   ExecutionPlanMarketRegime,
 } from "@/services/execution/executionPlanEngine";
+import type { UserIntent } from "@/types/intent";
 
 export type ExecutionPlanDecisionSource = {
   action?: string;
@@ -24,6 +25,7 @@ export type ExecutionPlanDecisionSource = {
 export type BuildExecutionPlanInputOptions = {
   entryTiming?: { enter: boolean };
   marketRegime?: ExecutionPlanMarketRegime;
+  intent?: UserIntent;
 };
 
 function levelsAbove(price: number, levels: number[]): number[] {
@@ -93,6 +95,10 @@ export async function buildExecutionPlanInput(
     return null;
   }
 
+  if (options.intent === "explore") {
+    return null;
+  }
+
   try {
     const data = await fetchStockData(decision.stock);
     const structure = computeStructureScore(data.prices);
@@ -128,6 +134,7 @@ export async function buildExecutionPlanInput(
       structureScore: decision.structureScore ?? structure.structureScore,
       probability: resolveProbability(decision),
       marketRegime,
+      intent: options.intent,
     };
   } catch (error) {
     console.error("Execution plan input build failed:", error);

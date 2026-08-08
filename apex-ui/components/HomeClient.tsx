@@ -540,9 +540,8 @@ export default function HomeClient({
 
   const needsActionCard =
     Boolean(dailyDecision) &&
-    (isSellAction(dailyDecision.action) ||
-      dailyDecision.action === "sell" ||
-      dailyDecision.action === "explore");
+    userIntent !== "explore" &&
+    (isSellAction(dailyDecision.action) || dailyDecision.action === "sell");
 
   const showHomeDecision =
     Boolean(dailyDecision) &&
@@ -648,6 +647,7 @@ export default function HomeClient({
             <HomeDecisionScreen
               decision={dailyDecision}
               entryTiming={entryTiming}
+              intent={userIntent}
             />
           ) : null}
 

@@ -2,9 +2,12 @@
 
 import type { ReactNode } from "react";
 import { formatInr } from "@/lib/funds";
+import { getIntentExperience } from "@/lib/dailyLoop/intentExperience";
 import { useDailyLoop } from "@/lib/useDailyLoop";
 import type { EntryTimingState } from "@/components/decision/ExecutionPlanCard";
 import { ApexBody, ApexCard } from "@/components/ui/apex";
+import type { StockPick } from "@/types/decision";
+import type { UserIntent } from "@/types/intent";
 
 export type HomeDecision = {
   action: string;
@@ -12,6 +15,9 @@ export type HomeDecision = {
   amount?: number;
   confidence?: number;
   structureScore?: number;
+  reason?: string;
+  message?: string;
+  confidence_factors?: string[];
   confidenceMetrics?: {
     expectedReturn?: number;
     probability?: number;
@@ -21,11 +27,13 @@ export type HomeDecision = {
   validation?: {
     risk_ok?: boolean;
   };
+  picks?: StockPick[];
 };
 
 export type HomeDecisionScreenProps = {
   decision: HomeDecision;
   entryTiming: EntryTimingState;
+  intent: UserIntent;
   className?: string;
 };
 
@@ -79,11 +87,65 @@ function formatOutcome(outcome: "win" | "loss" | "breakeven"): string {
   return "Breakeven";
 }
 
+function ExploreInsightList({ picks }: { picks: StockPick[] }) {
+  const visible = picks.slice(0, 3);
+
+  if (visible.length === 0) {
+    return <ApexBody>Nothing stands out sharply today — that is useful information too.</ApexBody>;
+  }
+
+  return (
+    <ul className="space-y-3">
+      {visible.map((pick) => (
+        <li key={pick.stock} className="text-[14px] leading-snug text-apex-text/90">
+          <span className="font-medium text-apex-text">{pick.stock}</span>
+          <span className="text-apex-muted">
+            {" "}
+            — trend {pick.signals.trend}, momentum {pick.signals.momentum}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function SafetyBlock({ decision }: { decision: HomeDecision }) {
+  const factors = decision.confidence_factors?.slice(0, 3) ?? [];
+  const riskOk = decision.validation?.risk_ok;
+
+  return (
+    <div className="space-y-3">
+      <p className="text-[15px] leading-relaxed text-apex-text/85">
+        {decision.reason ??
+          "Conditions are not strong enough to risk capital today."}
+      </p>
+      <ul className="space-y-2">
+        {factors.map((factor) => (
+          <li key={factor} className="text-[13px] text-apex-muted">
+            • {factor}
+          </li>
+        ))}
+      </ul>
+      {riskOk === false ? (
+        <p className="text-[13px] text-amber-200/80">
+          Portfolio risk is elevated — protecting capital comes first.
+        </p>
+      ) : (
+        <p className="text-[13px] text-apex-muted">
+          No action is the right action when the setup is not clear.
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function HomeDecisionScreen({
   decision,
   entryTiming,
+  intent,
   className = "",
 }: HomeDecisionScreenProps) {
+  const experience = getIntentExperience(intent);
   const {
     actionText,
     plan,
@@ -92,7 +154,7 @@ export default function HomeDecisionScreen({
     trustDelta,
     trustMessage,
     lastOutcome,
-  } = useDailyLoop(decision, entryTiming);
+  } = useDailyLoop(decision, entryTiming, intent);
 
   const isBuy = decision.action === "buy";
   const hasPlan = Boolean(plan && plan.steps.length > 0);
@@ -103,21 +165,33 @@ export default function HomeDecisionScreen({
       <ApexCard
         hover={false}
         padding="none"
-        className="relative overflow-hidden border-apex-border/30 shadow-none animate-apex-rise-in"
+        className={[
+          "relative overflow-hidden border-apex-border/30 shadow-none animate-apex-rise-in",
+        ].join(" ")}
       >
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/[0.03] to-transparent" />
+        <div
+          className={[
+            "pointer-events-none absolute inset-0 bg-gradient-to-b to-transparent",
+            experience.cardGradient,
+          ].join(" ")}
+        />
 
         <div className="relative flex flex-col gap-5 p-6">
-          <h1
-            className="animate-apex-fade-in text-[28px] font-semibold leading-tight tracking-tight text-apex-text sm:text-[30px]"
+          <div
+            className="animate-apex-fade-in space-y-2"
             style={{ animationDelay: "0ms" }}
           >
-            {actionText}
-          </h1>
+            <p className="text-[12px] font-medium uppercase tracking-[0.14em] text-apex-muted">
+              {experience.tagline}
+            </p>
+            <h1 className="text-[28px] font-semibold leading-tight tracking-tight text-apex-text sm:text-[30px]">
+              {actionText}
+            </h1>
+          </div>
 
-          {isBuy ? (
+          {experience.showExecution && isBuy ? (
             <LoopSection
-              title="How to act today"
+              title={experience.executionTitle}
               delayMs={sectionIndex++ * 100}
             >
               {planLoading ? (
@@ -153,15 +227,66 @@ export default function HomeDecisionScreen({
             </LoopSection>
           ) : null}
 
-          {hasPlan && plan?.behaviorNote ? (
-            <LoopSection title="Mindset" delayMs={sectionIndex++ * 100}>
+          {experience.showExploreInsights ? (
+            <LoopSection
+              title={experience.exploreTitle}
+              delayMs={sectionIndex++ * 100}
+            >
+              {decision.reason ? (
+                <p className="text-[14px] leading-relaxed text-apex-text/85">
+                  {decision.reason}
+                </p>
+              ) : null}
+              <ExploreInsightList picks={decision.picks ?? []} />
+            </LoopSection>
+          ) : null}
+
+          {experience.showSafety ? (
+            <LoopSection
+              title={experience.safetyTitle}
+              delayMs={sectionIndex++ * 100}
+            >
+              <SafetyBlock decision={decision} />
+            </LoopSection>
+          ) : null}
+
+          {hasPlan && plan?.behaviorNote && intent === "grow" ? (
+            <LoopSection
+              title={experience.mindsetTitle}
+              delayMs={sectionIndex++ * 100}
+            >
               <p className="text-[15px] leading-relaxed text-apex-text/85">
                 {plan.behaviorNote}
               </p>
             </LoopSection>
           ) : null}
 
-          <LoopSection title="Your discipline" delayMs={sectionIndex++ * 100}>
+          {intent === "explore" ? (
+            <LoopSection
+              title={experience.mindsetTitle}
+              delayMs={sectionIndex++ * 100}
+            >
+              <p className="text-[15px] leading-relaxed text-apex-text/85">
+                Observation builds judgment. You do not need to act on every idea.
+              </p>
+            </LoopSection>
+          ) : null}
+
+          {intent === "protect" && !experience.showSafety ? (
+            <LoopSection
+              title={experience.mindsetTitle}
+              delayMs={sectionIndex++ * 100}
+            >
+              <p className="text-[15px] leading-relaxed text-apex-text/85">
+                Patience protects capital. Wait for clarity before deploying.
+              </p>
+            </LoopSection>
+          ) : null}
+
+          <LoopSection
+            title={experience.trustTitle}
+            delayMs={sectionIndex++ * 100}
+          >
             <div className="flex items-baseline justify-between gap-4">
               <p className="text-[32px] font-semibold tabular-nums tracking-tight text-apex-text">
                 {trustScore}

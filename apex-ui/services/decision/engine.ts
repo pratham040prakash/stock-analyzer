@@ -28,7 +28,7 @@ import type {
   StockPick,
   ValidationResult,
 } from "@/types/decision";
-import { dailyDecisionTypeToAction } from "@/types/decision";
+import { dailyDecisionTypeToAction, isSellAction } from "@/types/decision";
 import type { Intent } from "@/types/intent";
 import type { MentorDecision } from "@/types/mentorDecision";
 import type { Holding } from "@/types/portfolio";
@@ -482,6 +482,43 @@ export function validateDecision({
   };
 }
 
+const PROTECT_MIN_CONFIDENCE = 80;
+const GROW_MEDIUM_CONFIDENCE = 55;
+const GROW_STRONG_CONFIDENCE = 70;
+
+/** Grow: medium + strong setups. Protect: strong only (>80). Explore: never buys here. */
+export function isActionableForIntent(
+  intent: Intent,
+  validation: ValidationResult,
+): boolean {
+  const { confidence, breakdown } = validation;
+
+  if (intent === "grow") {
+    return (
+      (confidence >= GROW_MEDIUM_CONFIDENCE && breakdown.signal_agreement) ||
+      confidence >= GROW_STRONG_CONFIDENCE
+    );
+  }
+
+  if (intent === "protect") {
+    return confidence > PROTECT_MIN_CONFIDENCE && breakdown.signal_agreement;
+  }
+
+  return false;
+}
+
+function waitReasonForIntent(intent: Intent): string {
+  if (intent === "protect") {
+    return "No setup strong enough today — capital stays protected";
+  }
+
+  if (intent === "grow") {
+    return "Signals are not strong enough to deploy capital today";
+  }
+
+  return "Signals are not strong enough to act today";
+}
+
 function resolveSignals(signals?: Partial<Signals>): Signals {
   return {
     trend: signals?.trend ?? 50,
@@ -547,7 +584,7 @@ function buildWaitDecisionFromValidation(
     message: "No strong opportunity today",
     validation: validation.breakdown,
     picks,
-    reason: "Signals are not strong enough to act today",
+    reason: waitReasonForIntent(intent),
     confidence_factors: [
       `Signal strength: ${validation.breakdown.signal_strength}/100`,
       validation.breakdown.signal_agreement
@@ -597,7 +634,7 @@ async function buildGrowDecision(
 
   console.log("Decision Validation:", validation);
 
-  if (!validation.isValid) {
+  if (!isActionableForIntent("grow", validation)) {
     return enrichWithConfidenceMetrics(
       buildWaitDecisionFromValidation(
         "grow",
@@ -672,19 +709,10 @@ async function buildExploreDecision(
 
   console.log("Decision Validation:", validation);
 
-  if (!validation.isValid) {
-    return enrichWithConfidenceMetrics(
-      buildWaitDecisionFromValidation(
-        "explore",
-        validation,
-        hasProfile,
-        topPicks,
-      ),
-      best?.signals ?? resolveSignals(),
-      marketTrend,
-      input,
-    );
-  }
+  const explanation =
+    best !== undefined
+      ? `${best.stock} leads today — trend ${best.signals.trend}, momentum ${best.signals.momentum}. Observation only, no action required.`
+      : "Markets are mixed — use today to study setups without committing capital.";
 
   return enrichWithConfidenceMetrics(
     {
@@ -693,23 +721,26 @@ async function buildExploreDecision(
       intent: "explore",
       stock: best?.stock,
       confidence: validation.confidence,
-      message: best ? `Top opportunity: ${best.stock}` : "Strong opportunity based on aligned signals",
+      message: best ? `Worth watching: ${best.stock}` : "Ideas to observe today",
       validation: validation.breakdown,
       picks: topPicks,
       opportunities: getOpportunities("explore", risk, portfolio),
-      reason:
-        "You asked to find opportunities — these ideas span stability, growth, and diversification.",
+      reason: explanation,
       confidence_factors: [
-        "You selected Find Opportunities as today's intent",
-        "Signals are aligned — trend, momentum, and market trend agree",
+        "Explore mode — no trades suggested today",
+        best
+          ? `${best.stock} scores highest on aligned signals`
+          : "Review the list and note what would need to confirm",
         hasProfile
           ? "Ideas are framed around your stated risk and income profile"
           : "Complete your profile for sharper opportunity matching",
-        mentorAligned ? "Mentor view supports exploring new ideas" : "Research before acting — guidance only",
+        mentorAligned
+          ? "Mentor view supports learning without acting"
+          : "Patience now builds better decisions later",
       ],
       actions: [
-        "Review each idea against your existing holdings",
-        "Start with a small position if something fits your plan",
+        "Review each idea without committing capital",
+        "Note what would need to confirm before any future action",
       ],
     },
     best?.signals ?? resolveSignals(),
@@ -722,7 +753,7 @@ function mapDecisionAction(
   action: DecisionActionType,
   intent: Intent,
 ): DecisionActionType {
-  if (intent === "risk" && action === "reduce") {
+  if (intent === "protect" && action === "reduce") {
     return "sell";
   }
   return action;
@@ -800,7 +831,7 @@ function buildRiskDecision(
       ? suggestedSellOverride ??
         suggestedSellPercent(allocation, topHoldingPnl > 0)
       : undefined;
-  const action = mapDecisionAction(rawAction, "risk");
+  const action = mapDecisionAction(rawAction, "protect");
   const confidence = confidenceForDecision(
     decision,
     lastMentorOutput,
@@ -833,7 +864,7 @@ function buildRiskDecision(
   return {
     decision,
     action,
-    intent: "risk",
+    intent: "protect",
     stock,
     confidence,
     allocation,
@@ -854,10 +885,103 @@ export async function getDecision(
   return evaluateDailyDecision(input);
 }
 
+async function buildProtectDecision(
+  input: DecisionEngineInput,
+  hasProfile: boolean,
+  mentor: MentorDecision | null | undefined,
+): Promise<DailyDecisionOutput> {
+  const riskBase = buildRiskDecision({ ...input, intent: "protect" });
+
+  if (isSellAction(riskBase.action) || riskBase.action === "reduce") {
+    return {
+      ...riskBase,
+      intent: "protect",
+      confidence_factors: [
+        "Capital protection mode — reduce exposure before adding risk",
+        ...riskBase.confidence_factors.slice(0, 3),
+      ],
+    };
+  }
+
+  if (riskBase.action === "wait") {
+    return {
+      ...riskBase,
+      intent: "protect",
+      message: riskBase.message ?? "Capital protection mode — stay in cash",
+    };
+  }
+
+  const portfolio = recommendationPortfolioFromSnapshot(input);
+  const scoringPortfolio = portfolioScoringContextFromRecommendation(portfolio);
+  const { risk_level: risk, risk_score: portfolioRiskScore } =
+    portfolioRiskFromAllocation(portfolio.top_allocation_pct ?? 0);
+  const topPicks = await getTopPicks(
+    5,
+    scoringPortfolio,
+    input.adaptiveSignalWeights,
+  );
+  const best = topPicks[0];
+  const { marketTrend, portfolioRisk } =
+    await getValidationMarketContext(portfolioRiskScore);
+  const validation = validateDecision({
+    signals: best?.signals ?? resolveSignals(),
+    marketTrend,
+    portfolioRisk,
+  });
+
+  if (isActionableForIntent("protect", validation) && best) {
+    return enrichWithConfidenceMetrics(
+      {
+        decision: "BUY_MORE",
+        action: "buy",
+        intent: "protect",
+        stock: best.stock,
+        confidence: validation.confidence,
+        message: `Rare strong setup: ${best.stock}`,
+        validation: validation.breakdown,
+        picks: topPicks,
+        suggestion: "Only act with strict risk controls",
+        opportunities: getOpportunities("protect", risk, portfolio),
+        reason:
+          "Setup clears the 80% bar — still treat this as capital protection, not aggression",
+        confidence_factors: [
+          "Capital protection mode — only exceptional setups qualify",
+          `Confidence ${validation.confidence}% exceeds the protection threshold`,
+          hasProfile
+            ? "Size down versus grow mode if you proceed"
+            : "Add your profile before sizing any position",
+          mentor?.action === "add"
+            ? "Mentor view supports cautious action"
+            : "Default remains patience unless you confirm the edge",
+        ],
+        actions: [
+          "Confirm the setup before committing capital",
+          "Keep size smaller than you would in grow mode",
+        ],
+      },
+      best.signals,
+      marketTrend,
+      input,
+    );
+  }
+
+  return enrichWithConfidenceMetrics(
+    buildWaitDecisionFromValidation(
+      "protect",
+      validation,
+      hasProfile,
+      topPicks,
+    ),
+    best?.signals ?? resolveSignals(),
+    marketTrend,
+    input,
+  );
+}
+
 export async function evaluateDailyDecision(
   input: DecisionEngineInput,
 ): Promise<DailyDecisionOutput> {
-  const intent = input.intent ?? "risk";
+  const intent = input.intent ?? "protect";
   const hasProfile = Boolean(input.financialProfile);
 
   if (intent === "grow") {
@@ -868,5 +992,5 @@ export async function evaluateDailyDecision(
     return buildExploreDecision(input, hasProfile, input.lastMentorOutput);
   }
 
-  return buildRiskDecision({ ...input, intent: "risk" });
+  return buildProtectDecision(input, hasProfile, input.lastMentorOutput);
 }
