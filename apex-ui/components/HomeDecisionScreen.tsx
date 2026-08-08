@@ -13,6 +13,7 @@ import {
 } from "@/lib/dailyLoop/apexVoice";
 import { getIntentExperience } from "@/lib/dailyLoop/intentExperience";
 import { useDailyLoop } from "@/lib/useDailyLoop";
+import { useDisciplineStreak } from "@/lib/useDisciplineStreak";
 import { useIntentTransition } from "@/lib/useIntentTransition";
 import type { EntryTimingState } from "@/components/decision/ExecutionPlanCard";
 import {
@@ -162,6 +163,11 @@ export default function HomeDecisionScreen({
     trustMessage,
     lastOutcome,
   } = useDailyLoop(decision, entryTiming, intent);
+  const retention = useDisciplineStreak({
+    intent: renderIntent,
+    action: decision.action,
+    stock: decision.stock,
+  });
 
   const resolvedDepth = useMemo(
     () =>
@@ -244,6 +250,9 @@ export default function HomeDecisionScreen({
 
         <div className={`relative p-6 ${contentClassName}`}>
           <header className="mb-6 space-y-2">
+            <p className="text-xs text-apex-muted/60">
+              {retention.dailyContextLabel}
+            </p>
             <p className="text-xs font-medium uppercase tracking-[0.14em] text-apex-muted">
               {experience.tagline}
             </p>
@@ -348,6 +357,34 @@ export default function HomeDecisionScreen({
               <p className="text-xs text-apex-muted">{trustMessage}</p>
             </section>
           ) : null}
+
+          <section
+            className="mt-5 space-y-2 animate-apex-fade-in"
+            style={{ animationDelay: `${nextDelay()}ms` }}
+          >
+            <p className="text-sm text-apex-text/80">{retention.streakMessage}</p>
+            {retention.pressureLine && !retention.committedToday ? (
+              <p className="text-xs text-apex-muted/80">{retention.pressureLine}</p>
+            ) : null}
+            <button
+              type="button"
+              onClick={retention.commitFollowed}
+              disabled={retention.committedToday}
+              className={[
+                "text-left text-sm text-apex-text/85 transition-transform duration-150",
+                retention.committedToday
+                  ? "cursor-default opacity-70"
+                  : "hover:text-apex-text active:scale-[0.98]",
+              ].join(" ")}
+            >
+              {retention.committedToday
+                ? "✓ Followed today"
+                : "✓ I followed APEX today"}
+            </button>
+            {retention.rewardHook && retention.isWaitMode ? (
+              <p className="text-xs text-apex-muted/50">{retention.rewardHook}</p>
+            ) : null}
+          </section>
 
           {lastOutcome && !isExploreEmpty ? (
             <section
