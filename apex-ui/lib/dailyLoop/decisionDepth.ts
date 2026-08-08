@@ -10,6 +10,11 @@ import {
   type DecisionActionType,
 } from "@/types/decision";
 import type { UserIntent } from "@/types/intent";
+import {
+  formatSetupWatchInsight,
+  generateSetupInsightFromPick,
+  type SetupInsight,
+} from "@/lib/dailyLoop/setupInsight";
 
 export const IDEAL_MAX_SINGLE_HOLDING_PCT = 25;
 
@@ -33,7 +38,7 @@ export type DecisionDepth = {
   };
   protectAllocation?: ProtectAllocationInsight;
   exploreSetups: string[];
-  exploreSetupItems: ExploreSetupItem[];
+  exploreSetupItems: SetupInsight[];
 };
 
 export type DecisionDepthInput = {
@@ -109,27 +114,10 @@ function regimeNote(regime: ExecutionPlanMarketRegime): string {
 }
 
 function formatSetupObservation(pick: StockPick): string {
-  return `${pick.stock} — trend ${pick.signals.trend}, momentum ${pick.signals.momentum}, alignment score ${Math.round(pick.score)}`;
+  return formatSetupWatchInsight(generateSetupInsightFromPick(pick));
 }
 
-export type ExploreSetupItem = {
-  title: string;
-  insight: string;
-};
-
-function buildExploreSetupItem(pick: StockPick): ExploreSetupItem {
-  const agreement =
-    pick.signals.trend >= 60 && pick.signals.momentum >= 60
-      ? "Signals are aligning — worth studying the chart."
-      : pick.signals.trend >= pick.signals.momentum
-        ? "Trend leads — watch whether momentum catches up."
-        : "Momentum is active — see if trend confirms it.";
-
-  return {
-    title: pick.stock,
-    insight: agreement,
-  };
-}
+export type { SetupInsight as ExploreSetupItem } from "@/lib/dailyLoop/setupInsight";
 
 function isNoTradeAction(action: string): boolean {
   return (
@@ -356,7 +344,7 @@ export function buildDecisionDepth(input: DecisionDepthInput): DecisionDepth {
     },
     protectAllocation: buildProtectAllocation(input),
     exploreSetups: topPicks.map(formatSetupObservation),
-    exploreSetupItems: topPicks.map(buildExploreSetupItem),
+    exploreSetupItems: topPicks.map(generateSetupInsightFromPick),
   };
 }
 

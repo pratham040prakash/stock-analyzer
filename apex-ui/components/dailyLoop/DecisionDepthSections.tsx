@@ -3,9 +3,9 @@
 import type { ReactNode } from "react";
 import type {
   DecisionDepth,
-  ExploreSetupItem,
   ProtectAllocationInsight,
 } from "@/lib/dailyLoop/decisionDepth";
+import type { SetupInsight } from "@/lib/dailyLoop/setupInsight";
 import { convictionLabel } from "@/lib/dailyLoop/decisionDepth";
 
 type SectionTier = "primary" | "support" | "context" | "background";
@@ -177,19 +177,25 @@ export function ExplorePrimaryBlock({
   setupItems,
   delayMs,
 }: {
-  setupItems: ExploreSetupItem[];
+  setupItems: SetupInsight[];
   delayMs: number;
 }) {
   return (
     <TierBlock tier="primary" delayMs={delayMs}>
       {setupItems.length > 0 ? (
-        <ul className="space-y-4">
+        <ul className="space-y-5">
           {setupItems.map((item) => (
             <li key={item.title}>
-              <p className="text-lg font-medium leading-snug text-apex-text">
+              <p className="text-lg font-semibold leading-snug text-apex-text">
                 {item.title}
               </p>
-              <p className="mt-1 text-xs text-apex-muted">{item.insight}</p>
+              <p className="mt-1 text-sm font-medium leading-snug text-apex-text/90">
+                {item.line1}
+              </p>
+              <p className="mt-0.5 text-sm leading-snug text-apex-text/75">
+                {item.line2}
+              </p>
+              <p className="mt-1 text-xs text-apex-muted">{item.tag}</p>
             </li>
           ))}
         </ul>
@@ -198,9 +204,10 @@ export function ExplorePrimaryBlock({
           <p className="text-lg font-medium leading-snug text-apex-text/90">
             Nothing stands out sharply
           </p>
-          <p className="mt-1 text-xs text-apex-muted">
+          <p className="mt-1 text-sm text-apex-text/75">
             Mixed markets often reward patience over action.
           </p>
+          <p className="mt-1 text-xs text-apex-muted">Wait</p>
         </div>
       )}
       <p className="text-sm text-blue-200/75">No action yet</p>
@@ -259,7 +266,12 @@ export function ExploreInterestingSection({
 }) {
   return (
     <ExplorePrimaryBlock
-      setupItems={setups.map((title) => ({ title, insight: "" }))}
+      setupItems={setups.map((title) => ({
+        title,
+        line1: "Developing trend with building momentum",
+        line2: "Reasonable setup",
+        tag: "Early" as const,
+      }))}
       delayMs={delayMs}
     />
   );

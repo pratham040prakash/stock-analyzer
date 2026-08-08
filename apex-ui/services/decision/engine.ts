@@ -16,6 +16,7 @@ import {
   portfolioScoringContextFromRecommendation,
 } from "@/services/decision/stockScoring";
 import { computeConfidenceSafe } from "@/services/decision/confidenceEngine";
+import { generateSetupInsightFromPick } from "@/lib/dailyLoop/setupInsight";
 import { computeStructureScoreSafe } from "@/services/market/structureEngine";
 import type {
   DailyDecisionOutput,
@@ -711,7 +712,10 @@ async function buildExploreDecision(
 
   const explanation =
     best !== undefined
-      ? `${best.stock} leads today — trend ${best.signals.trend}, momentum ${best.signals.momentum}. Observation only, no action required.`
+      ? (() => {
+          const insight = generateSetupInsightFromPick(best);
+          return `${insight.title} leads today — ${insight.line1}. ${insight.line2}. Observation only.`;
+        })()
       : "Markets are mixed — use today to study setups without committing capital.";
 
   return enrichWithConfidenceMetrics(
@@ -729,7 +733,7 @@ async function buildExploreDecision(
       confidence_factors: [
         "Explore mode — no trades suggested today",
         best
-          ? `${best.stock} scores highest on aligned signals`
+          ? `${best.stock} stands out on signal alignment today`
           : "Review the list and note what would need to confirm",
         hasProfile
           ? "Ideas are framed around your stated risk and income profile"
