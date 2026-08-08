@@ -5,6 +5,12 @@ import { formatInr } from "@/lib/funds";
 import { buildDecisionDepth } from "@/lib/dailyLoop/decisionDepth";
 import { getDisciplineInterpretation } from "@/lib/dailyLoop/disciplineCopy";
 import { getHeroTone } from "@/lib/dailyLoop/heroTone";
+import {
+  EXPLORE_EMPTY_BODY,
+  EXPLORE_EMPTY_HEADLINE,
+  formatJudgment,
+  getApexHeroSignature,
+} from "@/lib/dailyLoop/apexVoice";
 import { getIntentExperience } from "@/lib/dailyLoop/intentExperience";
 import { useDailyLoop } from "@/lib/useDailyLoop";
 import { useIntentTransition } from "@/lib/useIntentTransition";
@@ -185,6 +191,10 @@ export default function HomeDecisionScreen({
     isSellAction(decision.action as DecisionActionType) ||
     decision.action === "sell" ||
     decision.action === "reduce";
+  const hasPicks = (decision.picks?.length ?? 0) > 0;
+  const isExploreEmpty = isExplore && !hasPicks;
+  const isNoTradeHero =
+    (decision.action === "wait" || decision.action === "hold") && !hasPicks;
   const hasPlan = Boolean(plan && plan.steps.length > 0);
   let sectionDelay = 80;
 
@@ -194,16 +204,29 @@ export default function HomeDecisionScreen({
     return value;
   };
 
-  const heroTitle = isExplore ? "What is interesting today" : actionText;
-  const heroTone = getHeroTone({
+  const heroTitle = isExploreEmpty
+    ? EXPLORE_EMPTY_HEADLINE
+    : isExplore
+      ? "What is interesting today"
+      : isNoTradeHero
+        ? EXPLORE_EMPTY_HEADLINE
+        : actionText;
+  const heroTone = isExploreEmpty || isNoTradeHero
+    ? EXPLORE_EMPTY_BODY
+    : getHeroTone({
+        intent: renderIntent,
+        action: decision.action,
+      });
+  const heroSignature = getApexHeroSignature({
     intent: renderIntent,
     action: decision.action,
+    seed: `${renderIntent}:${decision.action}:${decision.stock ?? "none"}`,
   });
   const disciplineLine = getDisciplineInterpretation(trustScore);
   const protectReason =
     decision.message ??
     decision.reason ??
-    "Conditions are not strong enough to risk capital today.";
+    formatJudgment("Nothing is clean enough to risk capital", "patience matters");
 
   return (
     <div className={`mx-auto w-full max-w-[600px] ${className}`.trim()}>
@@ -228,9 +251,12 @@ export default function HomeDecisionScreen({
               {heroTitle}
             </h1>
             <p className="mt-2 text-sm text-apex-muted">{heroTone}</p>
+            {heroSignature ? (
+              <p className="text-xs text-apex-muted/80">{heroSignature}</p>
+            ) : null}
           </header>
 
-          {isExplore ? (
+          {isExplore && !isExploreEmpty ? (
             <ExplorePrimaryBlock
               setupItems={resolvedDepth.exploreSetupItems}
               delayMs={nextDelay()}
@@ -275,15 +301,20 @@ export default function HomeDecisionScreen({
             </>
           ) : null}
 
-          <SystemContextLine depth={resolvedDepth} delayMs={nextDelay()} />
+          {!isExploreEmpty ? (
+            <SystemContextLine depth={resolvedDepth} delayMs={nextDelay()} />
+          ) : null}
 
           {hasPlan && plan?.behaviorNote && isGrow ? (
             <BackgroundNote text={plan.behaviorNote} delayMs={nextDelay()} />
           ) : null}
 
-          {isExplore ? (
+          {isExplore && !isExploreEmpty ? (
             <BackgroundNote
-              text="Observation builds judgment. You do not need to act on every idea."
+              text={formatJudgment(
+                "Observation builds judgment",
+                "patience matters",
+              )}
               delayMs={nextDelay()}
             />
           ) : null}
@@ -295,28 +326,30 @@ export default function HomeDecisionScreen({
             />
           ) : null}
 
-          <section
-            className="mt-6 space-y-1 animate-apex-fade-in"
-            style={{ animationDelay: `${nextDelay()}ms` }}
-          >
-            <div className="flex items-baseline justify-between gap-4">
-              <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-apex-muted">
-                  Discipline
-                </p>
-                <p className="text-3xl font-semibold tabular-nums tracking-tight text-apex-text">
-                  {trustScore}
+          {!isExploreEmpty ? (
+            <section
+              className="mt-6 space-y-1 animate-apex-fade-in"
+              style={{ animationDelay: `${nextDelay()}ms` }}
+            >
+              <div className="flex items-baseline justify-between gap-4">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-apex-muted">
+                    Discipline
+                  </p>
+                  <p className="text-3xl font-semibold tabular-nums tracking-tight text-apex-text">
+                    {trustScore}
+                  </p>
+                </div>
+                <p className="text-sm">
+                  <TrustDelta delta={trustDelta} />
                 </p>
               </div>
-              <p className="text-sm">
-                <TrustDelta delta={trustDelta} />
-              </p>
-            </div>
-            <p className="text-sm text-apex-text/80">{disciplineLine}</p>
-            <p className="text-xs text-apex-muted">{trustMessage}</p>
-          </section>
+              <p className="text-sm text-apex-text/80">{disciplineLine}</p>
+              <p className="text-xs text-apex-muted">{trustMessage}</p>
+            </section>
+          ) : null}
 
-          {lastOutcome ? (
+          {lastOutcome && !isExploreEmpty ? (
             <section
               className="mt-6 space-y-3 animate-apex-fade-in opacity-90"
               style={{ animationDelay: `${nextDelay()}ms` }}

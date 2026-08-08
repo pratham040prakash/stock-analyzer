@@ -17,6 +17,7 @@ import {
 } from "@/services/decision/stockScoring";
 import { computeConfidenceSafe } from "@/services/decision/confidenceEngine";
 import { generateSetupInsightFromPick } from "@/lib/dailyLoop/setupInsight";
+import { formatJudgment } from "@/lib/dailyLoop/apexVoice";
 import { computeStructureScoreSafe } from "@/services/market/structureEngine";
 import type {
   DailyDecisionOutput,
@@ -510,14 +511,14 @@ export function isActionableForIntent(
 
 function waitReasonForIntent(intent: Intent): string {
   if (intent === "protect") {
-    return "No setup strong enough today — capital stays protected";
+    return formatJudgment("Capital stays protected today", "patience matters");
   }
 
   if (intent === "grow") {
-    return "Signals are not strong enough to deploy capital today";
+    return formatJudgment("Nothing is clean enough to deploy", "patience matters");
   }
 
-  return "Signals are not strong enough to act today";
+  return formatJudgment("Nothing is clean enough to act", "patience matters");
 }
 
 function resolveSignals(signals?: Partial<Signals>): Signals {
@@ -582,7 +583,7 @@ function buildWaitDecisionFromValidation(
     action: "wait",
     intent,
     confidence: validation.confidence,
-    message: "No strong opportunity today",
+    message: formatJudgment("Nothing is clean today", "patience matters"),
     validation: validation.breakdown,
     picks,
     reason: waitReasonForIntent(intent),
@@ -656,12 +657,14 @@ async function buildGrowDecision(
       intent: "grow",
       stock: best?.stock,
       confidence: validation.confidence,
-      message: best ? `Top opportunity: ${best.stock}` : "Strong opportunity based on aligned signals",
+      message: best
+        ? formatJudgment(`${best.stock} leads the field`, "worth tracking")
+        : formatJudgment("Structure is aligned", "worth tracking"),
       validation: validation.breakdown,
       picks: topPicks,
       suggestion: "Use available funds to accumulate quality stocks",
       opportunities: getOpportunities("grow", risk, portfolio),
-      reason: "Portfolio size can be increased steadily",
+      reason: formatJudgment("Book size can increase steadily", "worth tracking"),
       confidence_factors: [
         "You selected Grow Portfolio as today's intent",
         "Signals are aligned — trend, momentum, and market trend agree",
@@ -713,10 +716,10 @@ async function buildExploreDecision(
   const explanation =
     best !== undefined
       ? (() => {
-          const insight = generateSetupInsightFromPick(best);
-          return `${insight.title} leads today — ${insight.line1}. ${insight.line2}. Observation only.`;
+          const insight = generateSetupInsightFromPick(best, "explore");
+          return `${insight.title} leads today. ${insight.line1} ${insight.line2}`;
         })()
-      : "Markets are mixed — use today to study setups without committing capital.";
+      : formatJudgment("Nothing is clean today", "patience matters");
 
   return enrichWithConfidenceMetrics(
     {
@@ -725,7 +728,9 @@ async function buildExploreDecision(
       intent: "explore",
       stock: best?.stock,
       confidence: validation.confidence,
-      message: best ? `Worth watching: ${best.stock}` : "Ideas to observe today",
+      message: best
+        ? formatJudgment(`${best.stock} is worth tracking`, "worth tracking")
+        : formatJudgment("Observe without acting", "patience matters"),
       validation: validation.breakdown,
       picks: topPicks,
       opportunities: getOpportunities("explore", risk, portfolio),

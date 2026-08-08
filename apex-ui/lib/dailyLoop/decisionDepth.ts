@@ -1,5 +1,17 @@
 import type { EntryTimingState } from "@/components/decision/ExecutionPlanCard";
 import {
+  formatJudgment,
+  sanitizeVoiceText,
+  voiceRegimeJudgment,
+  voiceRegimeObservation,
+  voiceRiskJudgment,
+  voiceRiskObservation,
+  voiceSignalJudgment,
+  voiceSignalObservation,
+  voiceStructureJudgment,
+  voiceStructureObservation,
+} from "@/lib/dailyLoop/apexVoice";
+import {
   resolveExecutionPlanMarketRegime,
   type ExecutionPlanConviction,
   type ExecutionPlanMarketRegime,
@@ -102,19 +114,11 @@ export function resolveConfidenceLevel(
 }
 
 function regimeNote(regime: ExecutionPlanMarketRegime): string {
-  if (regime === "Favorable") {
-    return "conditions support thoughtful action";
-  }
-
-  if (regime === "Neutral") {
-    return "mixed signals — patience has an edge";
-  }
-
-  return "headwinds dominate — defense first";
+  return voiceRegimeObservation(regime);
 }
 
-function formatSetupObservation(pick: StockPick): string {
-  return formatSetupWatchInsight(generateSetupInsightFromPick(pick));
+function formatSetupObservation(pick: StockPick, intent?: UserIntent): string {
+  return formatSetupWatchInsight(generateSetupInsightFromPick(pick, intent));
 }
 
 export type { SetupInsight as ExploreSetupItem } from "@/lib/dailyLoop/setupInsight";
@@ -127,108 +131,50 @@ function isNoTradeAction(action: string): boolean {
   );
 }
 
-function buildStructureBullet(structureScore?: number): string | null {
-  if (structureScore === undefined) {
-    return null;
-  }
-
-  const tone =
-    structureScore >= 70
-      ? "constructive"
-      : structureScore >= 50
-        ? "mixed"
-        : "weak";
-
-  return `Structure ${structureScore}/100 — price positioning looks ${tone}`;
-}
-
-function buildProbabilityBullet(
-  confidence?: number,
-  probability?: number,
-): string | null {
-  const pct = normalizePercent(probability ?? confidence);
-
-  if (pct === undefined) {
-    return null;
-  }
-
-  if (probability !== undefined) {
-    return `Estimated success probability ${pct}%`;
-  }
-
-  return `Signal confidence ${pct}%`;
-}
-
-function buildRegimeBullet(
-  input: DecisionDepthInput,
-  marketRegime: ExecutionPlanMarketRegime,
-): string {
-  return `Market regime ${marketRegime} — ${regimeNote(marketRegime)}`;
-}
-
 function buildWhyBullets(
   input: DecisionDepthInput,
   marketRegime: ExecutionPlanMarketRegime,
 ): string[] {
-  if (input.intent === "explore") {
-    const bullets: string[] = [
-      "Scanning aligned trend and momentum without requiring a trade",
-      buildRegimeBullet(input, marketRegime),
-    ];
-
-    const top = input.picks?.[0];
-    if (top) {
-      bullets.unshift(
-        `${top.stock} leads the watchlist on signal alignment today`,
-      );
-    }
-
-    return bullets.slice(0, 3);
-  }
-
   const bullets: string[] = [];
 
-  const structureBullet = buildStructureBullet(input.structureScore);
-  if (structureBullet) {
-    bullets.push(structureBullet);
-  }
-
-  const probabilityBullet = buildProbabilityBullet(
-    input.confidence,
-    input.confidenceMetrics?.probability,
+  const structureObservation = voiceStructureObservation(input.structureScore);
+  const structureJudgment = voiceStructureJudgment(
+    input.structureScore,
+    input.intent,
   );
-  if (probabilityBullet) {
-    bullets.push(probabilityBullet);
+
+  if (structureObservation && structureJudgment) {
+    bullets.push(`${structureObservation} ${structureJudgment}`);
   }
 
-  bullets.push(buildRegimeBullet(input, marketRegime));
+  const signalObservation = voiceSignalObservation(
+    input.validation?.signal_agreement,
+  );
+  const signalJudgment = voiceSignalJudgment(
+    input.validation?.signal_agreement,
+    input.intent,
+  );
 
-  if (bullets.length < 3 && input.validation) {
-    if (input.validation.signal_agreement) {
-      bullets.push("Trend and momentum agree — the setup is internally consistent");
-    } else if (bullets.length < 3) {
-      bullets.push("Trend and momentum diverge — the edge is not clean");
-    }
-
-    if (bullets.length < 3 && input.validation.risk_ok === false) {
-      bullets.push("Portfolio risk is elevated relative to your limits");
-    }
+  if (signalObservation && signalJudgment && bullets.length < 3) {
+    bullets.push(`${signalObservation} ${signalJudgment}`);
   }
 
-  if (bullets.length < 2 && input.confidence_factors?.length) {
-    for (const factor of input.confidence_factors) {
-      if (bullets.length >= 3) {
-        break;
-      }
+  bullets.push(
+    `${voiceRegimeObservation(marketRegime)} ${voiceRegimeJudgment(marketRegime, input.intent)}`,
+  );
 
-      if (!bullets.includes(factor)) {
-        bullets.push(factor);
-      }
-    }
+  const riskObservation = voiceRiskObservation(input.validation?.risk_ok);
+  if (riskObservation && bullets.length < 3) {
+    bullets.push(`${riskObservation} ${voiceRiskJudgment(input.intent)}`);
   }
 
-  if (bullets.length === 0 && input.reason) {
-    bullets.push(input.reason);
+  if (input.intent === "explore" && input.picks?.[0] && bullets.length < 3) {
+    const lead = generateSetupInsightFromPick(input.picks[0], input.intent);
+    bullets.unshift(`${lead.title} leads the field. ${lead.line2}`);
+  }
+
+  if (bullets.length < 2 && input.reason) {
+    bullets.push(sanitizeVoiceText(input.reason));
   }
 
   return bullets.slice(0, 3);
@@ -239,48 +185,54 @@ function buildWatchNext(input: DecisionDepthInput): string[] {
   const picks = input.picks ?? [];
 
   if (isSellAction(action) || action === "reduce" || action === "sell") {
-    const symbol = input.stock ?? "this position";
+    const symbol = input.stock ?? "this name";
     return [
-      `Re-enter ${symbol} only if single-name weight falls below ${IDEAL_MAX_SINGLE_HOLDING_PCT}%`,
-      "Trend and momentum need to realign after the trim",
-      "Market regime should shift to Neutral or Favorable before adding back",
+      formatJudgment(`Re-entry in ${symbol} waits for a lighter book`, "patience matters"),
+      "Trend and momentum must realign after the trim.",
+      voiceRegimeJudgment("Unfavorable", input.intent),
     ].slice(0, 3);
   }
 
   if (isNoTradeAction(action)) {
     if (picks.length === 0) {
       return [
-        "Watch for trend and momentum to converge on a leader",
-        "Note when market regime moves from Unfavorable to Neutral",
-        "Track whether portfolio risk eases back into limits",
+        formatJudgment("Nothing is clean today", "patience matters"),
+        voiceRegimeJudgment(
+          resolveExecutionPlanMarketRegime(input, input.entryTiming),
+          input.intent,
+        ),
       ];
     }
 
-    return picks.slice(0, 3).map(formatSetupObservation);
+    return picks
+      .slice(0, 3)
+      .map((pick) => formatSetupObservation(pick, input.intent));
   }
 
   if (action === "buy") {
     const items: string[] = [];
 
     if (input.entryTiming?.enter) {
-      items.push("Follow the staged entry — do not rush the full size");
+      items.push(formatJudgment("Stage the entry", "worth tracking"));
     } else {
       items.push(
         input.stock
-          ? `Wait for ${input.stock} to confirm before full deployment`
-          : "Wait for price confirmation before full deployment",
+          ? formatJudgment(`${input.stock} still needs confirmation`, "not ready yet")
+          : formatJudgment("Price still needs confirmation", "not ready yet"),
       );
     }
 
     const alternates = picks
       .filter((pick) => pick.stock !== input.stock)
       .slice(0, 2)
-      .map(formatSetupObservation);
+      .map((pick) => formatSetupObservation(pick, input.intent));
 
     return [...items, ...alternates].slice(0, 3);
   }
 
-  return picks.slice(0, 3).map(formatSetupObservation);
+  return picks
+    .slice(0, 3)
+    .map((pick) => formatSetupObservation(pick, input.intent));
 }
 
 function buildProtectAllocation(
@@ -302,16 +254,27 @@ function buildProtectAllocation(
   const sellPercent = input.suggested_sell_percent;
   const idealPct = IDEAL_MAX_SINGLE_HOLDING_PCT;
 
-  let sellExplanation =
-    "Ideal diversification keeps any single holding near 25% or below.";
+  let sellExplanation = formatJudgment(
+    "Concentration needs air",
+    "worth tracking",
+  );
 
   if (sellPercent !== undefined && topSymbol) {
     sellExplanation =
       sellPercent === 25
-        ? `${topSymbol} is above 80% of the portfolio — a 25% trim is the first step toward a healthier ${idealPct}% cap.`
-        : `Trimming ${sellPercent}% of ${topSymbol} reduces concentration toward the ${idealPct}% ideal per holding.`;
+        ? formatJudgment(
+            `${topSymbol} is too heavy in the book — trim first`,
+            "worth tracking",
+          )
+        : formatJudgment(
+            `A ${sellPercent}% trim in ${topSymbol} rebalances the book`,
+            "worth tracking",
+          );
   } else if (currentPct > idealPct && topSymbol) {
-    sellExplanation = `${topSymbol} at ${currentPct}% exceeds the ${idealPct}% ideal — reducing size protects against single-stock shock.`;
+    sellExplanation = formatJudgment(
+      `${topSymbol} still dominates the book`,
+      "avoid for now",
+    );
   }
 
   return {
@@ -343,8 +306,10 @@ export function buildDecisionDepth(input: DecisionDepthInput): DecisionDepth {
       conviction: input.planConviction,
     },
     protectAllocation: buildProtectAllocation(input),
-    exploreSetups: topPicks.map(formatSetupObservation),
-    exploreSetupItems: topPicks.map(generateSetupInsightFromPick),
+    exploreSetups: topPicks.map((pick) => formatSetupObservation(pick, input.intent)),
+    exploreSetupItems: topPicks.map((pick) =>
+      generateSetupInsightFromPick(pick, input.intent),
+    ),
   };
 }
 

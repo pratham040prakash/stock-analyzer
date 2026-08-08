@@ -1,4 +1,8 @@
 import type { EntryTimingState } from "@/components/decision/ExecutionPlanCard";
+import {
+  EXPLORE_EMPTY_HEADLINE,
+  formatJudgment,
+} from "@/lib/dailyLoop/apexVoice";
 import { isSellAction, type DecisionActionType } from "@/types/decision";
 import type { UserIntent } from "@/types/intent";
 
@@ -16,43 +20,46 @@ export function getDecisionActionText(
   const stock = decision.stock;
 
   if (intent === "explore") {
-    return "Watch and learn today.";
+    return "What is interesting today";
   }
 
   if (intent === "protect") {
     if (action === "wait" || action === "hold") {
-      return "Stay in cash today.";
+      return EXPLORE_EMPTY_HEADLINE;
     }
 
     if (isSellAction(action as DecisionActionType) || action === "sell") {
-      return stock ? `Protect capital — reduce ${stock}.` : "Protect capital today.";
+      return stock
+        ? formatJudgment(`Trim ${stock} to protect capital`, "worth tracking")
+        : formatJudgment("Trim exposure to protect capital", "worth tracking");
     }
 
     if (action === "buy" && stock) {
-      return `Only act if ${stock} confirms.`;
+      return formatJudgment(`${stock} must confirm first`, "not ready yet");
     }
 
-    return "Stay in cash today.";
+    return EXPLORE_EMPTY_HEADLINE;
   }
 
-  // grow
   if (action === "buy" && stock) {
     return entryTiming.enter
-      ? `Deploy into ${stock} today.`
-      : `Prepare to buy ${stock}.`;
+      ? formatJudgment(`Stage entry in ${stock}`, "worth tracking")
+      : formatJudgment(`${stock} needs confirmation`, "not ready yet");
   }
 
   if (action === "wait" || action === "hold") {
-    return "Stay in cash today.";
+    return EXPLORE_EMPTY_HEADLINE;
   }
 
   if (isSellAction(action as DecisionActionType) || action === "sell") {
-    return stock ? `Reduce ${stock} today.` : "Reduce exposure today.";
+    return stock
+      ? formatJudgment(`Reduce ${stock} today`, "worth tracking")
+      : formatJudgment("Reduce exposure today", "worth tracking");
   }
 
   if (action === "explore") {
-    return "Watch and learn today.";
+    return "What is interesting today";
   }
 
-  return "Stay in cash today.";
+  return EXPLORE_EMPTY_HEADLINE;
 }

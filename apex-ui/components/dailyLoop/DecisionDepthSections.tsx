@@ -7,6 +7,12 @@ import type {
 } from "@/lib/dailyLoop/decisionDepth";
 import type { SetupInsight } from "@/lib/dailyLoop/setupInsight";
 import { convictionLabel } from "@/lib/dailyLoop/decisionDepth";
+import {
+  EXPLORE_EMPTY_BODY,
+  EXPLORE_EMPTY_HEADLINE,
+  formatJudgment,
+  voiceConfidenceContext,
+} from "@/lib/dailyLoop/apexVoice";
 
 type SectionTier = "primary" | "support" | "context" | "background";
 
@@ -120,18 +126,15 @@ export function SystemContextLine({
   delayMs: number;
 }) {
   const conviction = convictionLabel(depth.systemContext.conviction);
-  const parts = [
-    `${depth.systemContext.confidenceLevel} confidence`,
-    `${depth.systemContext.marketRegime} regime`,
-  ];
-
-  if (conviction) {
-    parts.push(`${conviction} conviction`);
-  }
+  const line = voiceConfidenceContext(
+    depth.systemContext.confidenceLevel,
+    depth.systemContext.marketRegime,
+    Boolean(conviction),
+  );
 
   return (
     <TierBlock tier="context" delayMs={delayMs}>
-      <p className="text-xs text-apex-muted">{parts.join(" · ")}</p>
+      <p className="text-xs text-apex-muted">{line}</p>
     </TierBlock>
   );
 }
@@ -150,7 +153,8 @@ export function ProtectPrimaryBlock({
   return (
     <TierBlock tier="primary" delayMs={delayMs}>
       <p className="text-lg font-medium leading-snug text-apex-text">
-        {reason ?? "Conditions are not strong enough to risk capital today."}
+        {reason ??
+          formatJudgment("Nothing is clean enough to risk capital", "patience matters")}
       </p>
       {insight ? (
         <div className="space-y-2 text-sm text-apex-text/85">
@@ -166,7 +170,7 @@ export function ProtectPrimaryBlock({
       ) : null}
       {riskElevated ? (
         <p className="text-sm text-amber-200/80">
-          Portfolio risk is elevated — protecting capital comes first.
+          {formatJudgment("Portfolio risk is elevated", "avoid for now")}
         </p>
       ) : null}
     </TierBlock>
@@ -195,22 +199,22 @@ export function ExplorePrimaryBlock({
               <p className="mt-0.5 text-sm leading-snug text-apex-text/75">
                 {item.line2}
               </p>
-              <p className="mt-1 text-xs text-apex-muted">{item.tag}</p>
             </li>
           ))}
         </ul>
       ) : (
         <div>
-          <p className="text-lg font-medium leading-snug text-apex-text/90">
-            Nothing stands out sharply
+          <p className="text-lg font-medium leading-snug text-apex-text">
+            {EXPLORE_EMPTY_HEADLINE}
           </p>
-          <p className="mt-1 text-sm text-apex-text/75">
-            Mixed markets often reward patience over action.
+          <p className="mt-2 text-sm leading-snug text-apex-text/75">
+            {EXPLORE_EMPTY_BODY}
           </p>
-          <p className="mt-1 text-xs text-apex-muted">Wait</p>
         </div>
       )}
-      <p className="text-sm text-blue-200/75">No action yet</p>
+      <p className="mt-3 text-sm text-blue-200/75">
+        {formatJudgment("Observation only", "patience matters")}
+      </p>
     </TierBlock>
   );
 }
@@ -268,9 +272,9 @@ export function ExploreInterestingSection({
     <ExplorePrimaryBlock
       setupItems={setups.map((title) => ({
         title,
-        line1: "Developing trend with building momentum",
-        line2: "Reasonable setup",
-        tag: "Early" as const,
+        line1: "Trend is developing. Momentum is building.",
+        line2: formatJudgment("Structure is forming", "not ready yet"),
+        ending: "not ready yet" as const,
       }))}
       delayMs={delayMs}
     />

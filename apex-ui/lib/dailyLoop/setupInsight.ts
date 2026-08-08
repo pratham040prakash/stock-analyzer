@@ -1,88 +1,87 @@
 import type { StockPick } from "@/types/decision";
+import type { UserIntent } from "@/types/intent";
+import {
+  formatJudgment,
+  resolveIntentEnding,
+  type IntentEnding,
+} from "@/lib/dailyLoop/apexVoice";
 
-export type SetupInsightTag = "Watch closely" | "Early" | "Wait";
+export type SetupInsight = {
+  title: string;
+  line1: string;
+  line2: string;
+  ending: IntentEnding;
+};
 
 export type SetupInsightInput = {
   stockName: string;
   trendScore: number;
   momentumScore: number;
   alignmentScore: number;
+  intent?: UserIntent;
 };
 
-export type SetupInsight = {
-  title: string;
-  line1: string;
-  line2: string;
-  tag: SetupInsightTag;
-};
-
-function trendPhrase(score: number): string {
+function trendObservation(score: number): string {
   if (score > 75) {
-    return "Strong trend";
+    return "Trend is strong.";
   }
 
   if (score >= 60) {
-    return "Developing trend";
+    return "Trend is developing.";
   }
 
-  return "Weak trend";
+  return "Trend is soft.";
 }
 
-function momentumPhrase(score: number): string {
+function momentumObservation(score: number): string {
   if (score > 75) {
-    return "with strong momentum";
+    return "Momentum is holding.";
   }
 
   if (score >= 60) {
-    return "with building momentum";
+    return "Momentum is building.";
   }
 
-  return "with fading momentum";
+  return "Momentum is fading.";
 }
 
-function alignmentPhrase(score: number): string {
+function structureJudgment(score: number): string {
   if (score > 80) {
-    return "Well aligned setup";
+    return "Structure is aligned";
   }
 
   if (score >= 65) {
-    return "Reasonable setup";
+    return "Structure is forming";
   }
 
-  return "Not fully aligned";
+  return "Structure is mixed";
 }
 
-function resolveTag(alignmentScore: number): SetupInsightTag {
-  if (alignmentScore > 80) {
-    return "Watch closely";
-  }
-
-  if (alignmentScore >= 65) {
-    return "Early";
-  }
-
-  return "Wait";
-}
-
-/** Converts internal signal scores into calm, human-readable setup insight. */
+/** Converts internal signal scores into APEX observation + judgment voice. */
 export function generateSetupInsight(setup: SetupInsightInput): SetupInsight {
+  const ending = resolveIntentEnding(setup.alignmentScore, setup.intent);
+
   return {
     title: setup.stockName,
-    line1: `${trendPhrase(setup.trendScore)} ${momentumPhrase(setup.momentumScore)}`,
-    line2: alignmentPhrase(setup.alignmentScore),
-    tag: resolveTag(setup.alignmentScore),
+    line1: `${trendObservation(setup.trendScore)} ${momentumObservation(setup.momentumScore)}`,
+    line2: formatJudgment(structureJudgment(setup.alignmentScore), ending),
+    ending,
   };
 }
 
-export function generateSetupInsightFromPick(pick: StockPick): SetupInsight {
+export function generateSetupInsightFromPick(
+  pick: StockPick,
+  intent?: UserIntent,
+): SetupInsight {
   return generateSetupInsight({
     stockName: pick.stock,
     trendScore: pick.signals.trend,
     momentumScore: pick.signals.momentum,
     alignmentScore: Math.round(pick.score),
+    intent,
   });
 }
 
 export function formatSetupWatchInsight(insight: SetupInsight): string {
-  return `${insight.title} — ${insight.line1}. ${insight.line2}.`;
+  return `${insight.line1} ${insight.line2}`;
 }

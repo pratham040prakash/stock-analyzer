@@ -1,3 +1,4 @@
+import { formatJudgment } from "@/lib/dailyLoop/apexVoice";
 import type { UserIntent } from "@/types/intent";
 
 type HeroToneInput = {
@@ -7,24 +8,28 @@ type HeroToneInput = {
 
 export function getHeroTone({ intent, action }: HeroToneInput): string {
   if (intent === "explore") {
-    return "Observe without pressure — clarity beats speed.";
+    return "Observe the field. Act only when clarity arrives.";
   }
 
   if (intent === "protect") {
     if (action === "sell" || action === "reduce") {
-      return "Protecting what you've built comes first.";
+      return "Reduce exposure before the market asks you to.";
     }
 
     if (action === "buy") {
-      return "Only exceptional setups clear the bar today.";
+      return "Only a rare setup clears the protection bar.";
     }
 
-    return "Nothing strong enough deserves risk.";
+    return formatJudgment("Nothing is clean enough to risk capital", "patience matters");
   }
 
   if (action === "buy") {
-    return "A clear setup — move with intention, not urgency.";
+    return "Move with intention. Not urgency.";
   }
 
-  return "Calm conditions matter more than action.";
+  if (action === "wait" || action === "hold") {
+    return formatJudgment("Conditions are not ready", "patience matters");
+  }
+
+  return formatJudgment("Calm beats action today", "patience matters");
 }
