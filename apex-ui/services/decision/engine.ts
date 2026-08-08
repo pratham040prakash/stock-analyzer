@@ -16,7 +16,10 @@ import {
   portfolioScoringContextFromRecommendation,
 } from "@/services/decision/stockScoring";
 import { computeConfidenceSafe } from "@/services/decision/confidenceEngine";
-import { generateSetupInsightFromPick } from "@/lib/dailyLoop/setupInsight";
+import {
+  formatSetupWatchInsight,
+  generateSetupInsightFromPick,
+} from "@/lib/dailyLoop/setupInsight";
 import { formatJudgment } from "@/lib/dailyLoop/apexVoice";
 import { computeStructureScoreSafe } from "@/services/market/structureEngine";
 import type {
@@ -717,7 +720,7 @@ async function buildExploreDecision(
     best !== undefined
       ? (() => {
           const insight = generateSetupInsightFromPick(best, "explore");
-          return `${insight.title} leads today. ${insight.line1} ${insight.line2}`;
+          return `${insight.title} leads today. ${formatSetupWatchInsight(insight)}`;
         })()
       : formatJudgment("Nothing is clean today", "patience matters");
 

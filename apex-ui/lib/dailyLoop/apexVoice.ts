@@ -4,6 +4,7 @@ import type { ExecutionPlanMarketRegime } from "@/services/execution/executionPl
 export type IntentEnding =
   | "worth tracking"
   | "not ready yet"
+  | "wait for clarity"
   | "avoid for now"
   | "patience matters";
 

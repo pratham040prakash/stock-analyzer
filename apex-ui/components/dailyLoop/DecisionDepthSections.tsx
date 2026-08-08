@@ -196,9 +196,11 @@ export function ExplorePrimaryBlock({
               <p className="mt-1 text-sm font-medium leading-snug text-apex-text/90">
                 {item.line1}
               </p>
-              <p className="mt-0.5 text-sm leading-snug text-apex-text/75">
-                {item.line2}
-              </p>
+              {item.line2 ? (
+                <p className="mt-0.5 text-sm leading-snug text-apex-text/75">
+                  {item.line2}
+                </p>
+              ) : null}
             </li>
           ))}
         </ul>
@@ -272,9 +274,10 @@ export function ExploreInterestingSection({
     <ExplorePrimaryBlock
       setupItems={setups.map((title) => ({
         title,
-        line1: "Trend is developing. Momentum is building.",
-        line2: formatJudgment("Structure is forming", "not ready yet"),
+        line1: "Trend is developing. Momentum is picking up.",
+        line2: formatJudgment("Setup is taking shape", "not ready yet"),
         ending: "not ready yet" as const,
+        format: "split" as const,
       }))}
       delayMs={delayMs}
     />

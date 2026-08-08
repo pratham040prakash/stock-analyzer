@@ -170,7 +170,7 @@ function buildWhyBullets(
 
   if (input.intent === "explore" && input.picks?.[0] && bullets.length < 3) {
     const lead = generateSetupInsightFromPick(input.picks[0], input.intent);
-    bullets.unshift(`${lead.title} leads the field. ${lead.line2}`);
+    bullets.unshift(`${lead.title} leads the field. ${formatSetupWatchInsight(lead)}`);
   }
 
   if (bullets.length < 2 && input.reason) {
