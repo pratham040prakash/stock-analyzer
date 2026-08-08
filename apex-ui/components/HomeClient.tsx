@@ -577,14 +577,9 @@ export default function HomeClient({
           </div>
         </div>
 
-        <div className="space-y-2">
-          <ApexTitle>{greeting}</ApexTitle>
-          <ApexBody>
-            {isOnboarding
-              ? VALUE_STATEMENT
-              : "Here's your decision for today"}
-          </ApexBody>
-        </div>
+        {isOnboarding ? (
+          <ApexBody>{VALUE_STATEMENT}</ApexBody>
+        ) : null}
 
         {showGuidance ? (
           <>

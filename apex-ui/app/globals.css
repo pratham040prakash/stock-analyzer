@@ -20,6 +20,54 @@
   --color-apex-muted: var(--apex-muted);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  --animate-apex-rise-in: apex-rise-in 300ms ease-out both;
+  --animate-apex-fade-in: apex-fade-in 200ms ease-out both;
+  --animate-apex-chip-pulse: apex-chip-pulse 7s ease-in-out infinite;
+  --animate-apex-bullet-in: apex-bullet-in 400ms ease-out both;
+}
+
+@keyframes apex-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes apex-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes apex-chip-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 rgba(156, 163, 175, 0);
+    opacity: 1;
+  }
+  50% {
+    box-shadow: 0 0 18px rgba(156, 163, 175, 0.12);
+    opacity: 0.92;
+  }
+}
+
+@keyframes apex-bullet-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 body {
@@ -28,4 +76,14 @@ body {
   font-family: var(--font-geist-sans), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

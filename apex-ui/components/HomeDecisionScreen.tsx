@@ -1,10 +1,10 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import { formatInr } from "@/lib/funds";
 import { isSellAction, type DecisionActionType } from "@/types/decision";
 import type { EntryTimingState } from "@/components/decision/ExecutionPlanCard";
 import {
-  ApexBadge,
   ApexBody,
   ApexButton,
   ApexCard,
@@ -49,9 +49,28 @@ type StatusChip = {
   tone: "waiting" | "success" | "neutral";
 };
 
+type MarketRegime = "Favorable" | "Neutral" | "Unfavorable";
+
 type StrengthMetric = {
   label: string;
   value: number;
+  interpretation: string;
+};
+
+const SIGNATURE_LINES = [
+  "Most days, doing nothing is the edge.",
+  "Discipline beats activity.",
+  "Patience compounds.",
+  "The best trade is often no trade.",
+] as const;
+
+const CHIP_TONE_CLASS: Record<StatusChip["tone"], string> = {
+  success:
+    "border-emerald-500/20 bg-emerald-500/10 text-emerald-300 shadow-[0_0_20px_rgba(16,185,129,0.08)]",
+  waiting:
+    "border-amber-500/20 bg-amber-500/10 text-amber-200 shadow-[0_0_20px_rgba(245,158,11,0.08)]",
+  neutral:
+    "border-white/20 bg-apex-bg/80 text-apex-muted shadow-[0_0_20px_rgba(156,163,175,0.08)]",
 };
 
 function heroText(decision: HomeDecision, entryTiming: EntryTimingState): string {
@@ -93,7 +112,7 @@ function mentorSubtext(
   }
 
   if (action === "wait" || action === "hold") {
-    return "Nothing in the market is worth your capital today.";
+    return "Nothing today deserves your capital.";
   }
 
   if (isSellAction(action as DecisionActionType) || action === "sell") {
@@ -104,7 +123,7 @@ function mentorSubtext(
     return "Worth watching — nothing to force today.";
   }
 
-  return "Nothing in the market is worth your capital today.";
+  return "Nothing today deserves your capital.";
 }
 
 function statusChip(
@@ -130,6 +149,30 @@ function statusChip(
   return { label: "NO TRADE", tone: "neutral" };
 }
 
+function marketRegime(decision: HomeDecision, entryTiming: EntryTimingState): MarketRegime {
+  const action = decision.action;
+
+  if (action === "wait" || action === "hold") {
+    return "Unfavorable";
+  }
+
+  if (action === "buy") {
+    return entryTiming.enter ? "Favorable" : "Neutral";
+  }
+
+  if (isSellAction(action as DecisionActionType) || action === "sell") {
+    return "Unfavorable";
+  }
+
+  const structure = decision.structureScore ?? 50;
+  const confidence = decision.confidence ?? 50;
+  const composite = (structure + confidence) / 2;
+
+  if (composite >= 65) return "Favorable";
+  if (composite >= 45) return "Neutral";
+  return "Unfavorable";
+}
+
 function buildWhyBullets(decision: HomeDecision): string[] {
   const action = decision.action;
   const confidence = decision.confidence ?? 0;
@@ -140,7 +183,7 @@ function buildWhyBullets(decision: HomeDecision): string[] {
     return [
       "Setups are weak across the market",
       "Breakouts are failing to follow through",
-      "Risk is higher than reward right now",
+      "Risk is higher than reward",
     ];
   }
 
@@ -187,12 +230,33 @@ function buildWhyBullets(decision: HomeDecision): string[] {
   return [
     "Setups are weak across the market",
     "Breakouts are failing to follow through",
-    "Risk is higher than reward right now",
+    "Risk is higher than reward",
   ];
 }
 
 function clampPercent(value: number): number {
   return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function probabilityInterpretation(value: number): string {
+  if (value >= 75) return "Strong edge";
+  if (value >= 60) return "Moderate edge";
+  if (value >= 45) return "Limited edge";
+  return "Weak edge";
+}
+
+function structureInterpretation(value: number): string {
+  if (value >= 70) return "Strong";
+  if (value >= 55) return "Acceptable";
+  if (value >= 45) return "Not ideal";
+  return "Weak";
+}
+
+function riskControlInterpretation(value: number): string {
+  if (value >= 80) return "Strong";
+  if (value >= 65) return "Solid";
+  if (value >= 50) return "Moderate";
+  return "Limited";
 }
 
 function buildDecisionStrength(decision: HomeDecision): StrengthMetric[] {
@@ -214,9 +278,21 @@ function buildDecisionStrength(decision: HomeDecision): StrengthMetric[] {
   }
 
   return [
-    { label: "Probability", value: probability },
-    { label: "Structure", value: structure },
-    { label: "Risk Control", value: riskControl },
+    {
+      label: "Probability",
+      value: probability,
+      interpretation: probabilityInterpretation(probability),
+    },
+    {
+      label: "Structure",
+      value: structure,
+      interpretation: structureInterpretation(structure),
+    },
+    {
+      label: "Risk Control",
+      value: riskControl,
+      interpretation: riskControlInterpretation(riskControl),
+    },
   ];
 }
 
@@ -225,25 +301,164 @@ function strengthBar(filledSlots: number): string {
   return `${"█".repeat(filled)}${"░".repeat(10 - filled)}`;
 }
 
+function dailySignatureLine(): string {
+  return SIGNATURE_LINES[new Date().getDate() % SIGNATURE_LINES.length];
+}
+
+function isNoTradeAction(action: string): boolean {
+  return action === "wait" || action === "hold";
+}
+
+function LiveStatusChip({ chip }: { chip: StatusChip }) {
+  return (
+    <span
+      className={[
+        "inline-flex items-center rounded-full border px-2.5 py-1",
+        "text-[10px] font-semibold uppercase tracking-wider",
+        "animate-apex-chip-pulse",
+        CHIP_TONE_CLASS[chip.tone],
+      ].join(" ")}
+    >
+      {chip.label}
+    </span>
+  );
+}
+
+function InsightBullets({ bullets }: { bullets: string[] }) {
+  return (
+    <ul className="mt-3 space-y-2.5">
+      {bullets.map((bullet, index) => (
+        <li
+          key={bullet}
+          className="flex gap-2 text-[13px] leading-relaxed text-apex-muted animate-apex-bullet-in"
+          style={{ animationDelay: `${index * 120}ms` }}
+        >
+          <span className="text-apex-muted/70">•</span>
+          {bullet}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function AnimatedStrengthRow({
+  metric,
+  index,
+}: {
+  metric: StrengthMetric;
+  index: number;
+}) {
+  const [displayValue, setDisplayValue] = useState(0);
+
+  useEffect(() => {
+    let frame = 0;
+    const delay = index * 80;
+    const duration = 600;
+
+    setDisplayValue(0);
+
+    const timer = window.setTimeout(() => {
+      const start = performance.now();
+      const tick = (now: number) => {
+        const progress = Math.min(1, (now - start) / duration);
+        setDisplayValue(Math.round(metric.value * progress));
+        if (progress < 1) {
+          frame = window.requestAnimationFrame(tick);
+        }
+      };
+      frame = window.requestAnimationFrame(tick);
+    }, delay);
+
+    return () => {
+      window.clearTimeout(timer);
+      window.cancelAnimationFrame(frame);
+    };
+  }, [metric.value, index]);
+
+  return (
+    <li className="space-y-1">
+      <div className="grid grid-cols-[5.5rem_1fr_2.5rem] items-center gap-3 text-[13px]">
+        <span className="text-apex-muted">{metric.label}</span>
+        <span className="font-mono text-[12px] tracking-tight text-apex-text/70">
+          {strengthBar(Math.round(displayValue / 10))}
+        </span>
+        <span className="text-right text-apex-muted">{displayValue}%</span>
+      </div>
+      <p className="pl-[5.5rem] text-[11px] text-apex-muted/70">
+        ({metric.interpretation})
+      </p>
+    </li>
+  );
+}
+
 function DecisionStrength({ metrics }: { metrics: StrengthMetric[] }) {
   return (
     <section className="mt-8">
       <ApexEyebrow className="mb-4">Decision Strength</ApexEyebrow>
       <ul className="space-y-3">
-        {metrics.map((metric) => (
-          <li
-            key={metric.label}
-            className="grid grid-cols-[5.5rem_1fr_2.5rem] items-center gap-3 text-[13px]"
-          >
-            <span className="text-apex-muted">{metric.label}</span>
-            <span className="font-mono text-[12px] tracking-tight text-apex-text/70">
-              {strengthBar(Math.round(metric.value / 10))}
-            </span>
-            <span className="text-right text-apex-muted">{metric.value}%</span>
-          </li>
+        {metrics.map((metric, index) => (
+          <AnimatedStrengthRow key={metric.label} metric={metric} index={index} />
         ))}
       </ul>
     </section>
+  );
+}
+
+function StandByModal({
+  open,
+  onClose,
+  bullets,
+}: {
+  open: boolean;
+  onClose: () => void;
+  bullets: string[];
+}) {
+  useEffect(() => {
+    if (!open) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [open, onClose]);
+
+  if (!open) {
+    return null;
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center">
+      <button
+        type="button"
+        aria-label="Close"
+        onClick={onClose}
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="relative w-full max-w-md rounded-2xl border border-apex-border/50 bg-apex-card p-6 shadow-2xl animate-apex-rise-in"
+      >
+        <p className="text-[13px] font-semibold text-apex-text">Standing by</p>
+        <ApexBody className="mt-2">
+          No action today. Capital stays protected until conditions improve.
+        </ApexBody>
+        <ul className="mt-4 space-y-2">
+          {bullets.map((bullet) => (
+            <li key={bullet} className="text-[13px] text-apex-muted">
+              • {bullet}
+            </li>
+          ))}
+        </ul>
+        <ApexButton className="mt-6" variant="secondary" onClick={onClose}>
+          Got it
+        </ApexButton>
+      </div>
+    </div>
   );
 }
 
@@ -255,57 +470,72 @@ export default function HomeDecisionScreen({
   onViewExecutionPlan,
   className = "",
 }: HomeDecisionScreenProps) {
+  const [standByOpen, setStandByOpen] = useState(false);
   const headline = heroText(decision, entryTiming);
   const subtext = mentorSubtext(decision, entryTiming);
   const chip = statusChip(decision, entryTiming);
+  const regime = marketRegime(decision, entryTiming);
   const whyBullets = buildWhyBullets(decision);
   const strengthMetrics = buildDecisionStrength(decision);
+  const signatureLine = useMemo(() => dailySignatureLine(), []);
   const canViewPlan = decision.action === "buy";
+  const showStandBy = isNoTradeAction(decision.action);
+  const allCapitalDeployed = portfolio.cash <= 0;
 
   return (
     <div className={`space-y-5 ${className}`.trim()}>
-      <ApexCard hover={false} className="border-apex-border/50 shadow-none">
-        <div className="mb-6">
-          <ApexBadge tone={chip.tone}>{chip.label}</ApexBadge>
+      <ApexCard
+        hover={false}
+        className="animate-apex-rise-in border-apex-border/50 shadow-none"
+      >
+        <div className="mb-5 space-y-3">
+          <LiveStatusChip chip={chip} />
+          <p className="text-[12px] text-apex-muted/80">
+            Market regime: {regime}
+          </p>
         </div>
 
-        <ApexTitle className="text-[28px] sm:text-[30px]">{headline}</ApexTitle>
-        <ApexBody className="mt-4 text-[15px] text-apex-text/80">
+        <ApexTitle className="animate-apex-fade-in text-[28px] tracking-[0.01em] sm:text-[30px]">
+          {headline}
+        </ApexTitle>
+        <ApexBody
+          className="mt-4 animate-apex-fade-in text-[15px] text-apex-text/80"
+          style={{ animationDelay: "80ms" }}
+        >
           {subtext}
         </ApexBody>
 
-        <section className="mt-8 rounded-xl border border-apex-border/40 bg-apex-bg/30 px-4 py-4">
+        <section className="mt-8 rounded-xl border border-apex-border/30 bg-apex-bg/30 px-4 py-4">
           <p className="text-[13px] font-semibold text-apex-text/90">
             Why this stands out
           </p>
-          <ul className="mt-3 space-y-2.5">
-            {whyBullets.map((bullet) => (
-              <li
-                key={bullet}
-                className="flex gap-2 text-[13px] leading-relaxed text-apex-muted"
-              >
-                <span className="text-apex-muted/70">•</span>
-                {bullet}
-              </li>
-            ))}
-          </ul>
+          <InsightBullets bullets={whyBullets} />
         </section>
 
         <DecisionStrength metrics={strengthMetrics} />
 
-        <div className="mt-8 space-y-2 border-t border-apex-border/40 pt-6">
+        <div className="mt-8 space-y-2 border-t border-apex-border/30 pt-6">
           <div className="flex items-baseline justify-between gap-4 text-[14px]">
             <span className="text-apex-muted">Portfolio</span>
             <span className="font-medium text-apex-text">
               {formatInr(portfolio.value)}
             </span>
           </div>
-          <div className="flex items-baseline justify-between gap-4 text-[14px]">
-            <span className="text-apex-muted">Cash</span>
-            <span className="font-medium text-apex-text">
-              {formatInr(portfolio.cash)}
-            </span>
-          </div>
+          {allCapitalDeployed ? (
+            <div className="flex items-baseline justify-between gap-4 text-[14px]">
+              <span className="text-apex-muted">Status</span>
+              <span className="font-medium text-apex-text/80">
+                All capital deployed
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-baseline justify-between gap-4 text-[14px]">
+              <span className="text-apex-muted">Cash</span>
+              <span className="font-medium text-apex-text">
+                {formatInr(portfolio.cash)}
+              </span>
+            </div>
+          )}
         </div>
 
         {decision.action === "buy" ? (
@@ -318,12 +548,28 @@ export default function HomeDecisionScreen({
           </ApexButton>
         ) : null}
 
-        <p className="mt-8 text-center text-[12px] italic text-apex-muted/80">
-          Most days, doing nothing is the edge.
+        {showStandBy ? (
+          <ApexButton
+            className="mt-8"
+            variant="secondary"
+            onClick={() => setStandByOpen(true)}
+          >
+            Stand by
+          </ApexButton>
+        ) : null}
+
+        <p className="mt-8 text-center text-[11px] italic text-apex-muted/60">
+          {signatureLine}
         </p>
       </ApexCard>
 
       <DailyDisciplineLoop updatedAt={updatedAt} />
+
+      <StandByModal
+        open={standByOpen}
+        onClose={() => setStandByOpen(false)}
+        bullets={whyBullets}
+      />
     </div>
   );
 }
