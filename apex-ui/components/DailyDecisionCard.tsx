@@ -5,7 +5,12 @@ import {
   deployableFundsForIntent,
   getAllocation,
   instrumentPlanWithoutFunds,
+  recommendationsToPlanItems,
 } from "@/lib/allocation";
+import {
+  getAllRecommendations,
+  type RecommendationPortfolio,
+} from "@/lib/recommendations";
 import ExecutionPlan from "@/components/decision/ExecutionPlan";
 import OpportunitiesList from "@/components/decision/OpportunitiesList";
 import type { PortfolioRiskLevel } from "@/lib/portfolioRisk";
@@ -13,12 +18,19 @@ import type { DailyDecisionOutput, DecisionActionType } from "@/types/decision";
 import type { Intent } from "@/types/intent";
 import {
   buildSellPercentOptions,
-  decisionConfidenceBadge,
   decisionHeroActionText,
   decisionRiskMicrocopy,
   isSellAction,
 } from "@/types/decision";
 import { computeSellImpact } from "@/lib/sellImpact";
+import {
+  ApexBadge,
+  ApexBody,
+  ApexButton,
+  ApexCard,
+  ApexDivider,
+  ApexTitle,
+} from "@/components/ui/apex";
 import ActionToast from "./ActionToast";
 import SellConfirmModal from "./SellConfirmModal";
 
@@ -31,77 +43,25 @@ type Props = {
   intent?: Intent;
   availableCash?: number;
   riskLevel?: PortfolioRiskLevel;
+  portfolioContext?: RecommendationPortfolio;
   onIntentChange?: (intent: Intent) => void;
 };
 
-type ActionVisual = {
-  strip: string;
-  iconBg: string;
-  iconText: string;
-  icon: string;
-  badge: string;
-  primaryButton: string;
-  headline: string;
-};
+type BadgeTone = "success" | "waiting" | "neutral" | "risk" | "insight";
 
-function actionVisuals(action: DecisionActionType): ActionVisual {
+function actionBadgeTone(action: DecisionActionType): BadgeTone {
   switch (action) {
     case "buy":
-      return {
-        strip: "bg-emerald-500",
-        iconBg: "bg-emerald-500/15 border-emerald-500/30",
-        iconText: "text-emerald-300",
-        icon: "↑",
-        badge: "bg-emerald-500/10 text-emerald-200 border-emerald-500/25",
-        primaryButton:
-          "bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-lg shadow-emerald-500/20",
-        headline: "text-emerald-50",
-      };
+      return "success";
     case "reduce":
     case "sell":
-      return {
-        strip: "bg-red-500",
-        iconBg: "bg-red-500/15 border-red-500/30",
-        iconText: "text-red-300",
-        icon: "↓",
-        badge: "bg-red-500/10 text-red-100 border-red-500/25",
-        primaryButton:
-          "bg-red-500 hover:bg-red-400 text-white shadow-lg shadow-red-500/25",
-        headline: "text-white",
-      };
+      return "risk";
     case "wait":
-      return {
-        strip: "bg-amber-400",
-        iconBg: "bg-amber-500/15 border-amber-500/30",
-        iconText: "text-amber-200",
-        icon: "—",
-        badge: "bg-amber-500/10 text-amber-100 border-amber-500/25",
-        primaryButton:
-          "bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-lg shadow-amber-500/20",
-        headline: "text-amber-50",
-      };
+      return "waiting";
     case "explore":
-      return {
-        strip: "bg-purple-500",
-        iconBg: "bg-purple-500/15 border-purple-500/30",
-        iconText: "text-purple-200",
-        icon: "✦",
-        badge: "bg-purple-500/10 text-purple-100 border-purple-500/25",
-        primaryButton:
-          "bg-purple-500 hover:bg-purple-400 text-white shadow-lg shadow-purple-500/25",
-        headline: "text-purple-50",
-      };
+      return "insight";
     default:
-      return {
-        strip: "bg-amber-400",
-        iconBg: "bg-amber-500/15 border-amber-500/30",
-        iconText: "text-amber-200",
-        icon: "—",
-        badge: "bg-amber-500/10 text-amber-100 border-amber-500/25",
-        primaryButton:
-          "bg-slate-100 hover:bg-white text-slate-900 shadow-lg shadow-white/10",
-        headline: "text-slate-50",
-      };
+      return "neutral";
   }
 }
 
@@ -119,6 +79,7 @@ export default function DailyDecisionCard({
   intent,
   availableCash,
   riskLevel = "Low",
+  portfolioContext = {},
   onIntentChange,
 }: Props) {
   const [view, setView] = useState<CardView>("summary");
@@ -139,9 +100,8 @@ export default function DailyDecisionCard({
   const suggestedSellPercent = decision.suggested_sell_percent ?? 20;
   const sellOptions = buildSellPercentOptions(decision.suggested_sell_percent);
   const activeSellPercent = selectedSellPercent ?? suggestedSellPercent;
-  const visuals = actionVisuals(decision.action);
   const heroAction = decisionHeroActionText(decision, activeSellPercent);
-  const confidenceBadge = decisionConfidenceBadge(decision.confidence);
+  const badgeTone = actionBadgeTone(decision.action);
   const riskMicrocopy =
     canTrim && decision.allocation !== undefined
       ? decisionRiskMicrocopy(decision.allocation, activeSellPercent)
@@ -160,7 +120,7 @@ export default function DailyDecisionCard({
 
     if (intent && availableCash !== undefined && availableCash > 0) {
       const deployable = deployableFundsForIntent(availableCash, intent);
-      const plan = getAllocation(deployable, intent, riskLevel);
+      const plan = getAllocation(deployable, intent, riskLevel, portfolioContext);
       if (plan.length > 0) {
         return plan;
       }
@@ -175,7 +135,7 @@ export default function DailyDecisionCard({
     }
 
     if (intent) {
-      return instrumentPlanWithoutFunds(intent, riskLevel);
+      return instrumentPlanWithoutFunds(intent, riskLevel, portfolioContext);
     }
 
     return [];
@@ -186,8 +146,37 @@ export default function DailyDecisionCard({
     isBuy,
     isExplore,
     opportunities,
+    portfolioContext,
     riskLevel,
   ]);
+
+  const allRecommendations = useMemo(() => {
+    if (!intent || (!isBuy && !isExplore)) {
+      return [];
+    }
+
+    const amounts = new Map(
+      recommendedPlan.map((item) => [item.name, item.amount]),
+    );
+
+    return recommendationsToPlanItems(
+      getAllRecommendations(intent, riskLevel, portfolioContext),
+      amounts,
+    );
+  }, [intent, isBuy, isExplore, portfolioContext, recommendedPlan, riskLevel]);
+
+  const allOpportunities = useMemo(() => {
+    if (!intent || (!isBuy && !isExplore)) {
+      return opportunities;
+    }
+
+    return getAllRecommendations(intent, riskLevel, portfolioContext).map(
+      (recommendation) => ({
+        name: recommendation.name,
+        type: recommendation.type,
+      }),
+    );
+  }, [intent, isBuy, isExplore, opportunities, portfolioContext, riskLevel]);
 
   const sellImpact =
     pendingSellPercent !== null &&
@@ -212,12 +201,6 @@ export default function DailyDecisionCard({
     intent,
   ]);
 
-  const cardShadow = isBuy
-    ? "shadow-[0_0_60px_rgba(16,185,129,0.08)]"
-    : isExplore
-      ? "shadow-[0_0_60px_rgba(168,85,247,0.08)]"
-      : "shadow-[0_0_60px_rgba(239,68,68,0.08)]";
-
   useEffect(() => {
     if (!toastMessage) return;
 
@@ -228,13 +211,10 @@ export default function DailyDecisionCard({
     return () => window.clearTimeout(timer);
   }, [toastMessage]);
 
-  const openConfirm = useCallback(
-    (percent: number) => {
-      setSelectedSellPercent(percent);
-      setPendingSellPercent(percent);
-    },
-    [],
-  );
+  const openConfirm = useCallback((percent: number) => {
+    setSelectedSellPercent(percent);
+    setPendingSellPercent(percent);
+  }, []);
 
   const handleCancel = useCallback(() => {
     if (processing) return;
@@ -269,225 +249,175 @@ export default function DailyDecisionCard({
   const primaryLabel = canTrim
     ? `Sell ${activeSellPercent}% Now`
     : isBuy
-      ? "Start Investing"
+      ? "View Allocation Plan"
       : isExplore
-        ? "Review ideas"
-        : "Got it";
+        ? "Review Ideas"
+        : "Got It";
 
   return (
     <>
-      <div className={`relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 ${cardShadow}`}>
-        {isRefreshing && (
+      <ApexCard className="relative">
+        {isRefreshing ? (
           <div
-            className="absolute inset-0 z-10 pointer-events-none bg-gradient-to-r from-transparent via-white/5 to-transparent animate-pulse"
+            className="pointer-events-none absolute inset-0 z-10 rounded-2xl bg-white/[0.02] animate-pulse"
             aria-hidden
           />
-        )}
-        <div
-          className={`absolute left-0 top-0 bottom-0 w-1.5 ${visuals.strip}`}
-          aria-hidden
-        />
+        ) : null}
 
-        <div className="p-6 pl-8 space-y-6">
-          <p className="text-[11px] text-gray-500 uppercase tracking-[0.2em]">
-            Today&apos;s action
-          </p>
-
-          <div className="flex items-start gap-4">
-            <div
-              className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border text-xl font-semibold ${visuals.iconBg} ${visuals.iconText}`}
-              aria-hidden
-            >
-              {visuals.icon}
+        {view === "summary" ? (
+          <>
+            <div className="mb-4">
+              <ApexBadge tone={badgeTone}>
+                {decision.action.toUpperCase()}
+              </ApexBadge>
             </div>
 
-            <div className="space-y-3 min-w-0">
-              <h2
-                className={`text-3xl sm:text-4xl font-semibold leading-tight tracking-tight ${visuals.headline}`}
-              >
-                {heroAction}
-              </h2>
-              <span
-                className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium ${visuals.badge}`}
-              >
-                {confidenceBadge}
-              </span>
-            </div>
-          </div>
+            <ApexTitle>{heroAction}</ApexTitle>
 
-          {decision.suggestion && view === "summary" && (
-            <p className="text-sm text-gray-400">{decision.suggestion}</p>
-          )}
+            {decision.suggestion ? (
+              <ApexBody className="mt-3">{decision.suggestion}</ApexBody>
+            ) : null}
+          </>
+        ) : null}
 
-          <div id="execution-section" className="space-y-3 min-h-[7.5rem]">
-            {view === "execution" && (
-              <ExecutionPlan
-                items={recommendedPlan}
-                onBack={() => setView("summary")}
-              />
-            )}
+        <div id="execution-section" className="mt-5 min-h-[6rem] space-y-3">
+          {view === "execution" ? (
+            <ExecutionPlan
+              items={recommendedPlan}
+              allItems={allRecommendations}
+              onBack={() => setView("summary")}
+            />
+          ) : null}
 
-            {view === "opportunities" && (
-              <OpportunitiesList
-                opportunities={opportunities}
-                plan={recommendedPlan}
-                onBack={() => setView("summary")}
-              />
-            )}
+          {view === "opportunities" ? (
+            <OpportunitiesList
+              opportunities={opportunities}
+              allOpportunities={allOpportunities}
+              plan={recommendedPlan}
+              onBack={() => setView("summary")}
+            />
+          ) : null}
 
-            {view === "summary" && (
-              <>
-                {isBuy || isExplore ? (
-                  <div className="space-y-3">
-                    {isBuy && (
-                      <>
-                        <p className="text-sm text-gray-300">
-                          Invest your available funds
-                        </p>
-                        <button
-                          type="button"
-                          onClick={onStartInvesting}
-                          className={`w-full px-5 py-3.5 rounded-xl text-sm font-semibold transition-all active:scale-[0.99] ${visuals.primaryButton}`}
-                        >
-                          {primaryLabel}
-                        </button>
-                      </>
-                    )}
+          {view === "summary" ? (
+            <>
+              {isBuy || isExplore ? (
+                <ApexButton
+                  variant={isExplore ? "secondary" : "primary"}
+                  onClick={isBuy ? onStartInvesting : onReviewIdeas}
+                >
+                  {primaryLabel}
+                </ApexButton>
+              ) : (
+                <>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <ApexButton
+                      variant={canTrim ? "primary" : "secondary"}
+                      disabled={processing}
+                      onClick={() => {
+                        if (canTrim) {
+                          openConfirm(activeSellPercent);
+                        }
+                      }}
+                      className={
+                        canTrim
+                          ? "!bg-red-500 hover:!bg-red-400 !text-white"
+                          : undefined
+                      }
+                    >
+                      {primaryLabel}
+                    </ApexButton>
 
-                    {isExplore && (
-                      <button
-                        type="button"
-                        onClick={onReviewIdeas}
-                        className={`w-full px-5 py-3.5 rounded-xl text-sm font-semibold transition-all active:scale-[0.99] ${visuals.primaryButton}`}
-                      >
-                        {primaryLabel}
-                      </button>
-                    )}
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex flex-col sm:flex-row gap-3">
-                      <button
-                        type="button"
+                    {canTrim ? (
+                      <ApexButton
+                        variant="secondary"
                         disabled={processing}
-                        onClick={() => {
-                          if (canTrim) {
-                            openConfirm(activeSellPercent);
-                          }
-                        }}
-                        className={`w-full sm:flex-1 px-5 py-3.5 rounded-xl text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.99] ${visuals.primaryButton}`}
+                        fullWidth
+                        onClick={() => setShowAdjust((open) => !open)}
                       >
-                        {primaryLabel}
-                      </button>
+                        Adjust Amount
+                      </ApexButton>
+                    ) : null}
+                  </div>
 
-                      {canTrim && (
-                        <button
-                          type="button"
-                          disabled={processing}
-                          onClick={() => setShowAdjust((open) => !open)}
-                          className="w-full sm:w-auto px-5 py-3.5 rounded-xl text-sm font-medium border border-white/15 bg-white/5 text-gray-200 hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          Adjust amount
-                        </button>
-                      )}
+                  {riskMicrocopy ? (
+                    <ApexBody>{riskMicrocopy}</ApexBody>
+                  ) : null}
+
+                  {canTrim && showAdjust ? (
+                    <div className="flex flex-wrap gap-2">
+                      {sellOptions.map((percent) => {
+                        const isActive = activeSellPercent === percent;
+                        return (
+                          <button
+                            key={percent}
+                            type="button"
+                            disabled={processing}
+                            onClick={() => {
+                              setSelectedSellPercent(percent);
+                              openConfirm(percent);
+                            }}
+                            className={[
+                              "rounded-lg border px-3 py-2 text-[13px] font-medium transition-all duration-200",
+                              isActive
+                                ? "border-red-500/40 bg-red-500/15 text-red-100"
+                                : "border-apex-border bg-apex-bg text-apex-muted hover:bg-white/[0.03]",
+                            ].join(" ")}
+                          >
+                            Sell {percent}%
+                          </button>
+                        );
+                      })}
                     </div>
-
-                    {riskMicrocopy && (
-                      <p className="text-sm text-gray-400">{riskMicrocopy}</p>
-                    )}
-
-                    {canTrim && showAdjust && (
-                      <div className="flex flex-wrap gap-2 pt-1">
-                        {sellOptions.map((percent) => {
-                          const isActive = activeSellPercent === percent;
-                          return (
-                            <button
-                              key={percent}
-                              type="button"
-                              disabled={processing}
-                              onClick={() => {
-                                setSelectedSellPercent(percent);
-                                openConfirm(percent);
-                              }}
-                              className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                                isActive
-                                  ? "bg-red-500/20 border-red-500/40 text-red-100"
-                                  : "bg-white/5 border-white/10 text-gray-300 hover:bg-white/10"
-                              }`}
-                            >
-                              Sell {percent}%
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </>
-                )}
-
-                <p className="text-xs text-gray-600">
-                  {isBuy || isExplore
-                    ? "Guidance only — execute in your broker when ready."
-                    : "Guidance only — confirm to simulate; execute in your broker for real trades."}
-                </p>
-              </>
-            )}
-          </div>
-
-          {view === "summary" && (
-            <button
-              type="button"
-              onClick={() => setShowReasoning((open) => !open)}
-              className="text-sm text-gray-400 hover:text-gray-200 transition-colors"
-            >
-              {showReasoning ? "Hide reasoning ↑" : "See reasoning →"}
-            </button>
-          )}
-
-          {view === "summary" && showReasoning && (
-            <div className="space-y-4 pt-2 border-t border-white/10">
-              <div>
-                <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">
-                  Why this decision?
-                </p>
-                {decision.confidence_factors.length > 0 ? (
-                  <ul className="space-y-2">
-                    {decision.confidence_factors.map((factor) => (
-                      <li
-                        key={factor}
-                        className="text-sm text-gray-300 flex gap-2"
-                      >
-                        <span className="text-gray-500 shrink-0">•</span>
-                        <span>{factor}</span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-sm text-gray-300 leading-relaxed">
-                    {decision.reason}
-                  </p>
-                )}
-              </div>
-
-              {decision.actions.length > 0 && (
-                <div>
-                  <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">
-                    Suggested next steps
-                  </p>
-                  <ul className="space-y-2">
-                    {decision.actions.map((action) => (
-                      <li key={action} className="text-sm text-gray-400">
-                        • {action}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                  ) : null}
+                </>
               )}
-            </div>
-          )}
-        </div>
-      </div>
 
-      {decision.stock && sellImpact && (
+              <button
+                type="button"
+                onClick={() => setShowReasoning((open) => !open)}
+                className="text-[13px] text-apex-muted transition-colors hover:text-apex-text"
+              >
+                {showReasoning ? "Hide reasoning" : "See reasoning"}
+              </button>
+            </>
+          ) : null}
+        </div>
+
+        {view === "summary" && showReasoning ? (
+          <>
+            <ApexDivider className="my-4" />
+            <div className="space-y-4">
+              {decision.confidence_factors.length > 0 ? (
+                <ul className="space-y-2">
+                  {decision.confidence_factors.map((factor) => (
+                    <li
+                      key={factor}
+                      className="flex gap-2 text-[13px] text-apex-text/90"
+                    >
+                      <span className="text-apex-muted">•</span>
+                      {factor}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <ApexBody>{decision.reason}</ApexBody>
+              )}
+
+              {decision.actions.length > 0 ? (
+                <ul className="space-y-2">
+                  {decision.actions.map((action) => (
+                    <li key={action} className="text-[13px] text-apex-muted">
+                      • {action}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          </>
+        ) : null}
+      </ApexCard>
+
+      {decision.stock && sellImpact ? (
         <SellConfirmModal
           open={pendingSellPercent !== null}
           stock={decision.stock}
@@ -496,7 +426,7 @@ export default function DailyDecisionCard({
           onConfirm={() => void handleConfirm()}
           onCancel={handleCancel}
         />
-      )}
+      ) : null}
 
       <ActionToast message={toastMessage} />
     </>

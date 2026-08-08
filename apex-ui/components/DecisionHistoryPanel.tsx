@@ -3,9 +3,9 @@
 import type { DecisionHistoryEntry } from "@/types/decisionHistory";
 import {
   decisionActionLabel,
-  displayConfidencePercent,
   type DecisionActionType,
 } from "@/types/decision";
+import { ApexBody, ApexCard, ApexEyebrow } from "@/components/ui/apex";
 
 type Props = {
   history: DecisionHistoryEntry[];
@@ -37,26 +37,25 @@ function formatHistoryDate(date: string): string {
 
 function historyLabel(entry: DecisionHistoryEntry): string {
   const action = decisionActionLabel(entry.action as DecisionActionType);
-  const confidence = displayConfidencePercent(entry.confidence);
   if (entry.stock) {
-    return `${action} ${entry.stock} (${confidence}%)`;
+    return `${action} ${entry.stock}`;
   }
-  return `${action} (${confidence}%)`;
+  return action;
 }
 
 function actionTone(action: DecisionActionType): string {
   switch (action) {
     case "reduce":
     case "sell":
-      return "text-amber-300";
+      return "text-red-300";
     case "buy":
-      return "text-teal-300";
+      return "text-emerald-300";
     case "explore":
-      return "text-purple-300";
-    case "wait":
-      return "text-gray-300";
-    default:
       return "text-blue-200";
+    case "wait":
+      return "text-apex-muted";
+    default:
+      return "text-apex-text";
   }
 }
 
@@ -66,27 +65,23 @@ export default function DecisionHistoryPanel({ history }: Props) {
   }
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-slate-900/50 p-5 space-y-4">
-      <p className="text-xs text-gray-400 uppercase tracking-wider">
-        Past 3 days decisions
-      </p>
+    <ApexCard hover={false} padding="compact">
+      <ApexEyebrow className="mb-4">Recent decisions</ApexEyebrow>
       <ul className="space-y-3">
         {history.map((entry) => (
           <li
             key={entry.date}
-            className="flex items-center justify-between gap-4 border-b border-white/5 last:border-0 pb-3 last:pb-0"
+            className="flex items-center justify-between gap-4 border-b border-apex-border pb-3 last:border-0 last:pb-0"
           >
-            <span className="text-sm text-gray-500 shrink-0">
-              {formatHistoryDate(entry.date)}
-            </span>
+            <ApexBody>{formatHistoryDate(entry.date)}</ApexBody>
             <span
-              className={`text-sm font-medium text-right ${actionTone(entry.action)}`}
+              className={`text-[13px] font-medium text-right ${actionTone(entry.action)}`}
             >
               {historyLabel(entry)}
             </span>
           </li>
         ))}
       </ul>
-    </div>
+    </ApexCard>
   );
 }

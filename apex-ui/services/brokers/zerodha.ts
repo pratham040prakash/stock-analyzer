@@ -110,6 +110,123 @@ function kiteAuthHeaders(apiKey: string, accessToken: string) {
   };
 }
 
+export type FetchQuoteResult =
+  | { status: "OK"; lastPrice: number }
+  | { status: "TOKEN_EXPIRED" }
+  | { status: "ERROR"; message: string };
+
+export async function fetchZerodhaQuote(
+  accessToken: string,
+  tradingsymbol: string,
+  exchange = "NSE",
+): Promise<FetchQuoteResult> {
+  const config = getZerodhaConfig();
+
+  if (!config.configured) {
+    return { status: "ERROR", message: "Zerodha is not configured" };
+  }
+
+  try {
+    const instrument = `${exchange}:${tradingsymbol}`;
+    const res = await axios.get(
+      `https://api.kite.trade/quote?i=${encodeURIComponent(instrument)}`,
+      {
+        headers: kiteAuthHeaders(config.apiKey, accessToken),
+      },
+    );
+
+    const quote = res.data?.data?.[instrument];
+    const lastPrice = quote?.last_price;
+
+    if (typeof lastPrice !== "number" || Number.isNaN(lastPrice) || lastPrice <= 0) {
+      return { status: "ERROR", message: "Invalid quote response from Zerodha" };
+    }
+
+    return { status: "OK", lastPrice };
+  } catch (err) {
+    if (axios.isAxiosError(err) && err.response?.status === 401) {
+      return { status: "TOKEN_EXPIRED" };
+    }
+
+    const message =
+      err instanceof Error ? err.message : "Failed to fetch Zerodha quote";
+    return { status: "ERROR", message };
+  }
+}
+
+export type PlaceOrderResult =
+  | { status: "OK"; orderId: string }
+  | { status: "TOKEN_EXPIRED" }
+  | { status: "ERROR"; message: string };
+
+export async function placeZerodhaOrder(
+  accessToken: string,
+  params: {
+    tradingsymbol: string;
+    exchange?: string;
+    transaction_type: "BUY" | "SELL";
+    quantity: number;
+    order_type?: "MARKET" | "LIMIT";
+    product?: "CNC" | "MIS";
+  },
+): Promise<PlaceOrderResult> {
+  const config = getZerodhaConfig();
+
+  if (!config.configured) {
+    return { status: "ERROR", message: "Zerodha is not configured" };
+  }
+
+  if (params.quantity < 1) {
+    return { status: "ERROR", message: "Order quantity must be at least 1" };
+  }
+
+  try {
+    const form = new URLSearchParams({
+      exchange: params.exchange ?? "NSE",
+      tradingsymbol: params.tradingsymbol,
+      transaction_type: params.transaction_type,
+      quantity: String(params.quantity),
+      order_type: params.order_type ?? "MARKET",
+      product: params.product ?? "CNC",
+    });
+
+    const res = await axios.post(
+      "https://api.kite.trade/orders/regular",
+      form.toString(),
+      {
+        headers: {
+          ...kiteAuthHeaders(config.apiKey, accessToken),
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+      },
+    );
+
+    const orderId = res.data?.data?.order_id;
+    if (orderId === undefined || orderId === null || orderId === "") {
+      return { status: "ERROR", message: "Invalid order response from Zerodha" };
+    }
+
+    return { status: "OK", orderId: String(orderId) };
+  } catch (err) {
+    if (axios.isAxiosError(err) && err.response?.status === 401) {
+      return { status: "TOKEN_EXPIRED" };
+    }
+
+    const kiteMessage =
+      axios.isAxiosError(err) &&
+      typeof err.response?.data === "object" &&
+      err.response.data !== null &&
+      "message" in err.response.data
+        ? String((err.response.data as { message?: string }).message)
+        : null;
+
+    const message =
+      kiteMessage ??
+      (err instanceof Error ? err.message : "Failed to place Zerodha order");
+    return { status: "ERROR", message };
+  }
+}
+
 export async function fetchZerodhaMargins(
   accessToken: string,
 ): Promise<FetchMarginsResult> {

@@ -9,10 +9,37 @@ import {
   type IncomeRange,
 } from "@/lib/financialProfile";
 import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
+import {
+  ApexBody,
+  ApexCard,
+  ApexEyebrow,
+  ApexTitle,
+} from "@/components/ui/apex";
 
 type Props = {
   onComplete?: (profile: FinancialProfile) => void;
 };
+
+function OptionButton({
+  children,
+  disabled,
+  onClick,
+}: {
+  children: React.ReactNode;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className="rounded-xl border border-apex-border bg-apex-bg px-4 py-3 text-[14px] text-apex-text transition-all duration-200 hover:bg-white/[0.03] disabled:opacity-50"
+    >
+      {children}
+    </button>
+  );
+}
 
 export default function FinancialProfileSetup({ onComplete }: Props) {
   const [step, setStep] = useState<"income" | "expense">("income");
@@ -65,72 +92,63 @@ export default function FinancialProfileSetup({ onComplete }: Props) {
   }
 
   return (
-    <div className="p-6 rounded-2xl border border-white/10 bg-slate-900/50 space-y-4">
-      <p className="text-sm text-gray-400 italic">
-        I&apos;m trying to understand your full picture — not just your
-        portfolio.
-      </p>
+    <ApexCard hover={false}>
+      <ApexBody className="italic">
+        Help me understand your full picture — not just your portfolio.
+      </ApexBody>
 
       {step === "income" ? (
         <>
-          <div>
-            <h2 className="text-lg font-medium text-white mb-1">
-              What&apos;s your monthly income range?
-            </h2>
-            <p className="text-xs text-gray-500">
-              A rough range is enough — saved securely to your account.
-            </p>
-          </div>
+          <ApexTitle className="mt-4 text-[18px]">
+            What&apos;s your monthly income range?
+          </ApexTitle>
+          <ApexEyebrow className="mt-1">
+            A rough range is enough
+          </ApexEyebrow>
 
-          <div className="grid grid-cols-2 gap-2">
+          <div className="mt-4 grid grid-cols-2 gap-2">
             {INCOME_OPTIONS.map((option) => (
-              <button
+              <OptionButton
                 key={option}
-                type="button"
                 onClick={() => handleIncomeSelect(option)}
-                className="px-4 py-3 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20 text-sm text-gray-200 transition-all active:scale-95"
               >
                 {option === "<50K" ? "< ₹50K" : `₹${option}`}
-              </button>
+              </OptionButton>
             ))}
           </div>
         </>
       ) : (
         <>
-          <div>
-            <h2 className="text-lg font-medium text-white mb-1">
-              Roughly how much do you spend monthly?
-            </h2>
-            <p className="text-xs text-gray-500">
-              Include rent, bills, and everyday spending — an estimate is fine.
-            </p>
-          </div>
+          <ApexTitle className="mt-4 text-[18px]">
+            Roughly how much do you spend monthly?
+          </ApexTitle>
+          <ApexEyebrow className="mt-1">An estimate is fine</ApexEyebrow>
 
-          <div className="grid grid-cols-2 gap-2">
+          <div className="mt-4 grid grid-cols-2 gap-2">
             {EXPENSE_OPTIONS.map((option) => (
-              <button
+              <OptionButton
                 key={option}
-                type="button"
                 disabled={isSaving}
                 onClick={() => void handleExpenseSelect(option)}
-                className="px-4 py-3 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20 disabled:opacity-50 text-sm text-gray-200 transition-all active:scale-95"
               >
                 {option === "<30K" ? "< ₹30K" : `₹${option}`}
-              </button>
+              </OptionButton>
             ))}
           </div>
 
           <button
             type="button"
             onClick={() => setStep("income")}
-            className="text-xs text-gray-500 hover:text-gray-400"
+            className="mt-4 text-[13px] text-apex-muted transition-colors hover:text-apex-text"
           >
-            ← Back to income
+            Back to income
           </button>
         </>
       )}
 
-      {error && <p className="text-sm text-red-300/90">{error}</p>}
-    </div>
+      {error ? (
+        <p className="mt-4 text-[13px] text-red-300/90">{error}</p>
+      ) : null}
+    </ApexCard>
   );
 }

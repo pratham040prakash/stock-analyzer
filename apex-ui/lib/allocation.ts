@@ -1,5 +1,9 @@
 import { safeInvestAmount } from "@/lib/funds";
-import { getOpportunities } from "@/lib/recommendations";
+import {
+  getOpportunities,
+  getRecommendations,
+  type RecommendationPortfolio,
+} from "@/lib/recommendations";
 import type { PortfolioRiskLevel } from "@/lib/portfolioRisk";
 import type {
   DecisionOpportunity,
@@ -7,10 +11,25 @@ import type {
 } from "@/types/decision";
 import type { Intent } from "@/types/intent";
 
-const ALLOCATION_WEIGHTS: Partial<Record<Intent, number[]>> = {
-  grow: [0.6, 0.4],
-  explore: [0.4, 0.3, 0.3],
-};
+function weightsForCount(count: number, intent: Intent): number[] {
+  if (count <= 0) {
+    return [];
+  }
+
+  if (count === 1) {
+    return [1];
+  }
+
+  if (count === 2) {
+    return intent === "grow" ? [0.6, 0.4] : [0.55, 0.45];
+  }
+
+  if (intent === "grow") {
+    return [0.5, 0.3, 0.2];
+  }
+
+  return [0.4, 0.35, 0.25];
+}
 
 function allocationStep(totalFunds: number): number {
   if (totalFunds >= 10000) {
@@ -91,17 +110,6 @@ function normalizeAllocationItems(
   return rounded.filter((item) => item.amount > 0);
 }
 
-export function instrumentPlanWithoutFunds(
-  intent: Intent,
-  risk: PortfolioRiskLevel,
-): RecommendedAllocationItem[] {
-  return getOpportunities(intent, risk).map((opportunity) => ({
-    name: opportunity.name,
-    amount: 0,
-    reason: opportunity.type,
-  }));
-}
-
 export function deployableFundsForIntent(
   funds: number,
   intent: Intent,
@@ -126,13 +134,14 @@ export function buildExecutionPlan(
   funds: number,
   intent: Intent,
 ): RecommendedAllocationItem[] {
-  const weights = ALLOCATION_WEIGHTS[intent];
-
-  if (funds <= 0 || !weights?.length || !opportunities.length) {
+  if (funds <= 0 || !opportunities.length) {
     return [];
   }
 
-  const items = opportunities.map((opportunity, index) => ({
+  const weights = weightsForCount(opportunities.length, intent);
+  const count = Math.min(opportunities.length, weights.length);
+
+  const items = opportunities.slice(0, count).map((opportunity, index) => ({
     name: opportunity.name,
     amount: funds * (weights[index] ?? 0),
     reason: opportunity.type,
@@ -141,11 +150,35 @@ export function buildExecutionPlan(
   return normalizeAllocationItems(items, funds);
 }
 
+export function instrumentPlanWithoutFunds(
+  intent: Intent,
+  risk: PortfolioRiskLevel,
+  portfolio: RecommendationPortfolio = {},
+): RecommendedAllocationItem[] {
+  return getRecommendations(intent, risk, portfolio).map((recommendation) => ({
+    name: recommendation.name,
+    amount: 0,
+    reason: recommendation.type,
+  }));
+}
+
 export function getAllocation(
   funds: number,
   intent: Intent,
   risk: PortfolioRiskLevel,
+  portfolio: RecommendationPortfolio = {},
 ): RecommendedAllocationItem[] {
-  const opportunities = getOpportunities(intent, risk);
+  const opportunities = getOpportunities(intent, risk, portfolio);
   return buildExecutionPlan(opportunities, funds, intent);
+}
+
+export function recommendationsToPlanItems(
+  recommendations: ReturnType<typeof getRecommendations>,
+  amountsByName: Map<string, number> = new Map(),
+): RecommendedAllocationItem[] {
+  return recommendations.map((recommendation) => ({
+    name: recommendation.name,
+    amount: amountsByName.get(recommendation.name) ?? 0,
+    reason: recommendation.reason,
+  }));
 }

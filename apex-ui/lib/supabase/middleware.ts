@@ -42,6 +42,7 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const isPublicRoute =
+    pathname === "/" ||
     pathname.startsWith("/login") ||
     pathname.startsWith("/auth") ||
     pathname.startsWith("/api/zerodha/config") ||
@@ -55,9 +56,9 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
-  if (user && pathname === "/login") {
+  if (user && (pathname === "/login" || pathname === "/")) {
     const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = "/";
+    redirectUrl.pathname = "/app";
     redirectUrl.search = "";
     return NextResponse.redirect(redirectUrl);
   }

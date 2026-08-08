@@ -1,12 +1,14 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import HomeClient from "@/components/HomeClient";
-import { samplePortfolio } from "@/data/samplePortfolio";
-import { hasActiveBrokerConnection } from "@/services/broker/connections";
-import { getLatestPortfolioSnapshot } from "@/services/portfolio/repository";
-import { isSystemConfigured } from "@/lib/env/config";
+import LandingPage from "@/components/landing/LandingPage";
 import { createClient } from "@/lib/supabase/server";
-import type { ConnectionStatus } from "@/lib/broker/zerodha";
-import { getFinancialProfileFromDb } from "@/services/portfolio/repository";
+import { isSystemConfigured } from "@/lib/env/config";
+
+export const metadata: Metadata = {
+  title: "APEX — Your Investment Mentor",
+  description:
+    "Stop guessing your investments. APEX tells you when to buy, when to wait, and when to stay out — with discipline.",
+};
 
 export default async function Home({
   searchParams,
@@ -26,68 +28,16 @@ export default async function Home({
     redirect(`/api/zerodha/callback?${qs.toString()}`);
   }
 
-  const supabaseConfigured = isSystemConfigured();
+  if (isSystemConfigured()) {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  if (!supabaseConfigured) {
-    return (
-      <HomeClient
-        initialPortfolio={samplePortfolio}
-        connectionStatus="NOT_CONNECTED"
-        userName="there"
-        initialFinancialProfile={null}
-      />
-    );
+    if (user) {
+      redirect("/app");
+    }
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/login");
-  }
-
-  let connectionStatus: ConnectionStatus = "NOT_CONNECTED";
-  let initialPortfolio = samplePortfolio;
-
-  const isConnected = await hasActiveBrokerConnection(supabase, user.id);
-  if (isConnected) {
-    connectionStatus = "CONNECTED";
-  }
-
-  const snapshot = await getLatestPortfolioSnapshot(supabase, user.id);
-  if (snapshot && snapshot.holdings.length > 0) {
-    initialPortfolio = snapshot;
-  }
-
-  const initialFinancialProfile = await getFinancialProfileFromDb(
-    supabase,
-    user.id,
-  );
-
-  const userName =
-    (user.user_metadata?.full_name as string | undefined)?.split(" ")[0] ??
-    user.email?.split("@")[0] ??
-    "there";
-
-  const zerodhaNotice =
-    typeof params.zerodha === "string" ? params.zerodha : undefined;
-  const zerodhaError =
-    typeof params.zerodha_error === "string" ? params.zerodha_error : undefined;
-
-  if (zerodhaNotice === "connected") {
-    connectionStatus = "CONNECTED";
-  }
-
-  return (
-    <HomeClient
-      initialPortfolio={initialPortfolio}
-      connectionStatus={connectionStatus}
-      userName={userName}
-      initialFinancialProfile={initialFinancialProfile}
-      zerodhaNotice={zerodhaNotice}
-      zerodhaError={zerodhaError}
-    />
-  );
+  return <LandingPage />;
 }

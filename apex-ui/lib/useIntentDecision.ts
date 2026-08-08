@@ -7,8 +7,19 @@ import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
 import type { DailyDecisionOutput } from "@/types/decision";
 import { decisionTodayApiPath, resolveIntent, type Intent } from "@/types/intent";
 
+export type EntryTimingState = {
+  enter: boolean;
+  reason: string;
+};
+
 type DecisionResponse = {
   decision: DailyDecisionOutput | null;
+  entryTiming?: EntryTimingState;
+};
+
+const DEFAULT_ENTRY_TIMING: EntryTimingState = {
+  enter: false,
+  reason: "Waiting for confirmation",
 };
 
 type PortfolioContext = {
@@ -16,6 +27,7 @@ type PortfolioContext = {
   allocation?: number;
   availableCash?: number;
   riskLevel?: import("@/lib/portfolioRisk").PortfolioRiskLevel;
+  holdings?: { symbol: string; allocation_pct?: number }[];
 };
 
 type Options = {
@@ -36,6 +48,9 @@ export function useIntentDecision({
     createOptimisticDecision(initialIntent, portfolioContext ?? {}),
   );
   const [isRefreshing, setIsRefreshing] = useState(enabled);
+  const [entryTiming, setEntryTiming] = useState<EntryTimingState>(
+    DEFAULT_ENTRY_TIMING,
+  );
 
   const cacheRef = useRef<Partial<Record<Intent, DailyDecisionOutput>>>({});
   const intentRef = useRef(intent);
@@ -96,6 +111,7 @@ export function useIntentDecision({
         if (data?.decision) {
           cacheRef.current[targetIntent] = data.decision;
           setDecision(data.decision);
+          setEntryTiming(data.entryTiming ?? DEFAULT_ENTRY_TIMING);
           onFetchedRef.current?.();
         }
       } catch {
@@ -127,6 +143,7 @@ export function useIntentDecision({
     intent,
     setIntent,
     decision,
+    entryTiming,
     isRefreshing,
     refreshDecision,
   };

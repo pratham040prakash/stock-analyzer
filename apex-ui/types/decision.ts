@@ -6,6 +6,7 @@ export type DailyDecisionType =
   | "EXPLORE";
 
 import { portfolioRiskFromAllocation } from "@/lib/portfolioRisk";
+import { formatInr } from "@/lib/funds";
 import type { Intent } from "@/types/intent";
 
 export type DecisionActionType =
@@ -25,6 +26,40 @@ export type RecommendedAllocationItem = {
   name: string;
   amount: number;
   reason: string;
+};
+
+export type Signals = {
+  trend: number;
+  momentum: number;
+  volume: number;
+};
+
+export type MarketTrend = "bullish" | "bearish" | "sideways";
+
+export type DecisionValidationBreakdown = {
+  signal_strength: number;
+  signal_agreement: boolean;
+  market_alignment: boolean;
+  risk_ok: boolean;
+};
+
+export type ValidationResult = {
+  confidence: number;
+  isValid: boolean;
+  breakdown: DecisionValidationBreakdown;
+};
+
+export type ConfidenceResult = {
+  probability: number;
+  expectedReturn: number;
+  expectedDrawdown: number;
+  edgeScore: number;
+};
+
+export type StockPick = {
+  stock: string;
+  score: number;
+  signals: Signals;
 };
 
 export type DailyDecisionOutput = {
@@ -47,6 +82,18 @@ export type DailyDecisionOutput = {
   focusSymbol?: string;
   /** @deprecated use allocation */
   focusAllocationPct?: number;
+  validation?: DecisionValidationBreakdown;
+  picks?: StockPick[];
+  /** Suggested invest amount for the primary pick (buy intent). */
+  amount?: number;
+  /** Edge-based allocation as a fraction of portfolio (0–0.2). */
+  allocationPercent?: number;
+  /** Why this allocation size was chosen. */
+  allocationReason?: string;
+  /** Probabilistic confidence metrics from the confidence engine. */
+  confidenceMetrics?: ConfidenceResult;
+  /** Price structure score (0–100) from support/resistance positioning. */
+  structureScore?: number;
 };
 
 export type PortfolioSnapshotInput = {
@@ -60,6 +107,15 @@ export type DecisionEngineInput = {
   financialProfile: import("@/lib/financialProfile").FinancialProfile | null;
   lastMentorOutput?: import("@/types/mentorDecision").MentorDecision | null;
   intent?: Intent | null;
+  adaptiveSignalWeights?: {
+    trend: number;
+    momentum: number;
+    volume: number;
+  } | null;
+  supabase?: import("@supabase/supabase-js").SupabaseClient<
+    import("@/types/database").Database
+  >;
+  userId?: string;
 };
 
 export function isSellAction(action: DecisionActionType): boolean {
@@ -181,6 +237,9 @@ export function decisionHeroActionText(
   }
 
   if (decision.action === "buy") {
+    if (decision.stock && decision.amount && decision.amount > 0) {
+      return `Invest ${formatInr(decision.amount)} in ${decision.stock}`;
+    }
     return decision.message ?? "Invest gradually to grow your portfolio";
   }
 

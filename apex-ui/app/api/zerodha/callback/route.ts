@@ -16,7 +16,7 @@ import { syncUserPortfolio } from "@/services/portfolio/sync";
 import { createClient } from "@/lib/supabase/server";
 
 function redirectHome(baseUrl: string, params?: Record<string, string>) {
-  const url = new URL("/", baseUrl);
+  const url = new URL("/app", baseUrl);
   if (params) {
     for (const [key, value] of Object.entries(params)) {
       url.searchParams.set(key, value);

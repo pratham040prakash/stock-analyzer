@@ -1,30 +1,30 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ConnectZerodhaCard from "./ConnectZerodhaCard";
-import AvailableFundsCard from "./AvailableFundsCard";
 import DailyDecisionCard from "./DailyDecisionCard";
 import DecisionHistoryPanel from "./DecisionHistoryPanel";
-import DailyInsightBanner from "./DailyInsightBanner";
+import ExecutionPlanCard from "./decision/ExecutionPlanCard";
+import HomeDecisionScreen from "./HomeDecisionScreen";
 import FinancialProfileSetup from "./FinancialProfileSetup";
 import IntentSelector from "./IntentSelector";
 import LoginCTA from "./LoginCTA";
-import PortfolioCard from "./PortfolioCard";
 import PortfolioSummary, {
   PortfolioSummarySkeleton,
 } from "./PortfolioSummary";
 import { useAuth } from "@/components/AuthProvider";
+import { ApexBody, ApexCard, ApexShell, ApexTitle } from "@/components/ui/apex";
 import { authDebug } from "@/lib/auth/log";
 import type { Portfolio } from "@/types/portfolio";
 import type { ConnectionStatus } from "@/lib/broker/zerodha";
 import type { FinancialProfile } from "@/lib/financialProfile";
 import { isProfileComplete } from "@/lib/financialProfile";
 import type { DailyDecisionOutput } from "@/types/decision";
-import { decisionHeadline } from "@/types/decision";
-import type { PortfolioApiResponse } from "@/types/portfolioApi";
+import { isSellAction } from "@/types/decision";
 import type { DailyInsight } from "@/types/dailyInsight";
 import type { DecisionHistoryEntry } from "@/types/decisionHistory";
+import type { PortfolioApiResponse } from "@/types/portfolioApi";
 import { recordVisit, saveCachedPortfolio } from "@/lib/portfolioCache";
 import { portfolioRiskFromAllocation } from "@/lib/portfolioRisk";
 import { useIntentDecision } from "@/lib/useIntentDecision";
@@ -64,14 +64,11 @@ type FundsResponse = {
 
 function LoadingState() {
   return (
-    <main className="min-h-screen bg-slate-950 text-gray-200 flex items-center justify-center px-6">
-      <div className="space-y-3 text-center">
-        <div className="h-2 w-32 mx-auto rounded-full bg-white/10 animate-pulse" />
-        <p className="text-sm text-gray-400 italic">
-          Setting things up for you…
-        </p>
+    <ApexShell>
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <ApexBody className="text-center italic">Setting things up for you…</ApexBody>
       </div>
-    </main>
+    </ApexShell>
   );
 }
 
@@ -83,18 +80,18 @@ function ErrorBanner({
   onRetry?: () => void;
 }) {
   return (
-    <div className="p-4 rounded-xl border border-red-500/20 bg-red-500/5">
-      <p className="text-sm text-red-200/90">{message}</p>
-      {onRetry && (
+    <ApexCard hover={false} padding="compact" className="border-red-500/20">
+      <ApexBody className="text-red-200/90">{message}</ApexBody>
+      {onRetry ? (
         <button
           type="button"
           onClick={onRetry}
-          className="mt-3 text-xs text-teal-400 hover:text-teal-300"
+          className="mt-3 text-[13px] text-emerald-300 transition-colors hover:text-emerald-200"
         >
           Try again
         </button>
-      )}
-    </div>
+      ) : null}
+    </ApexCard>
   );
 }
 
@@ -139,6 +136,7 @@ export default function HomeClient({
       ? "Zerodha connected — syncing your portfolio now."
       : zerodhaError ?? null,
   );
+  const [showExecutionPlan, setShowExecutionPlan] = useState(false);
   const greeting = useGreeting(userName);
   const { isCompletingOAuth } = useZerodhaOAuth();
 
@@ -155,7 +153,7 @@ export default function HomeClient({
     }
 
     if (notice || error) {
-      router.replace("/", { scroll: false });
+      router.replace("/app", { scroll: false });
     }
   }, [router, searchParams]);
 
@@ -213,7 +211,7 @@ export default function HomeClient({
 
       if (data.status === "OK" && data.holdings.length > 0) {
         setConnectionStatus("CONNECTED");
-        setBrokerMessage("Your portfolio is synced and ready.");
+        setBrokerMessage(null);
         setPortfolioError(null);
       } else if (data.status === "TOKEN_EXPIRED") {
         setConnectionStatus("TOKEN_EXPIRED");
@@ -303,10 +301,23 @@ export default function HomeClient({
     !isCompletingOAuth &&
     connectionStatus !== "NOT_CONNECTED";
 
+  const recommendationPortfolio = useMemo(
+    () => ({
+      top_symbol: portfolioData?.top_symbol,
+      top_allocation_pct: portfolioData?.top_allocation_pct,
+      holdings: portfolioData?.holdings?.map((holding) => ({
+        symbol: holding.tradingsymbol,
+        allocation_pct: holding.allocation_pct,
+      })),
+    }),
+    [portfolioData],
+  );
+
   const {
     intent: userIntent,
     setIntent: setUserIntent,
     decision: dailyDecision,
+    entryTiming,
     isRefreshing: decisionRefreshing,
     refreshDecision,
   } = useIntentDecision({
@@ -316,6 +327,7 @@ export default function HomeClient({
       allocation: portfolioData?.top_allocation_pct,
       availableCash: availableCash ?? undefined,
       riskLevel: portfolioData?.risk_level,
+      holdings: recommendationPortfolio.holdings,
     },
     onFetched: () => {
       void loadDecisionHistory();
@@ -430,6 +442,10 @@ export default function HomeClient({
   ]);
 
   useEffect(() => {
+    setShowExecutionPlan(false);
+  }, [dailyDecision?.action, dailyDecision?.stock, userIntent]);
+
+  useEffect(() => {
     if (initialPortfolio.holdings.length === 0) return;
 
     setPortfolioData((current) => {
@@ -500,23 +516,14 @@ export default function HomeClient({
 
   if (!user) {
     return (
-      <main className="relative min-h-screen bg-slate-950 text-gray-200 px-6 py-10">
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/20 pointer-events-none" />
-        <div className="relative max-w-3xl mx-auto space-y-8">
-          <div className="space-y-4">
-            <div className="text-sm text-teal-400 tracking-wide">
-              APEX · Your Investment Mentor
-            </div>
-            <div className="space-y-2">
-              <h1 className="text-3xl font-semibold leading-tight">
-                {greeting}
-              </h1>
-              <p className="text-gray-400 max-w-xl">{VALUE_STATEMENT}</p>
-            </div>
-          </div>
-          <LoginCTA />
-        </div>
-      </main>
+      <ApexShell>
+        <header className="space-y-2">
+          <ApexBody>APEX · Your Investment Mentor</ApexBody>
+          <ApexTitle>{greeting}</ApexTitle>
+          <ApexBody>{VALUE_STATEMENT}</ApexBody>
+        </header>
+        <LoginCTA />
+      </ApexShell>
     );
   }
 
@@ -536,180 +543,146 @@ export default function HomeClient({
       brokerMessage?.includes("syncing") ||
       brokerMessage?.includes("connected"));
 
+  const needsActionCard =
+    Boolean(dailyDecision) &&
+    (isSellAction(dailyDecision.action) ||
+      dailyDecision.action === "sell" ||
+      dailyDecision.action === "explore");
+
+  const showHomeDecision =
+    Boolean(dailyDecision) &&
+    connectionStatus === "CONNECTED" &&
+    !needsActionCard;
+
   return (
-    <main className="relative min-h-screen bg-slate-950 text-gray-200 px-6 py-10">
-      <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/20 pointer-events-none" />
-
-      <div className="relative max-w-3xl mx-auto space-y-8">
-        <div className="space-y-4">
-          <div className="flex items-center justify-between gap-4">
-            <div className="text-sm text-teal-400 tracking-wide">
-              APEX · Your Investment Mentor
-            </div>
-            <div className="flex items-center gap-4">
-              {!isOnboarding && isRefreshing && !isCompletingOAuth && (
-                <div className="text-xs text-gray-500 italic">
-                  Updating your portfolio…
-                </div>
-              )}
-              {isCompletingOAuth && (
-                <div className="text-xs text-teal-400/80 italic">
-                  Connecting your portfolio…
-                </div>
-              )}
-              <button
-                type="button"
-                onClick={() => void signOut()}
-                className="text-xs text-gray-500 hover:text-gray-300"
-              >
-                Sign out
-              </button>
-            </div>
+    <ApexShell>
+      <header className="space-y-4">
+        <div className="flex items-center justify-between gap-4">
+          <ApexBody>APEX</ApexBody>
+          <div className="flex items-center gap-3">
+            {!isOnboarding && isRefreshing && !isCompletingOAuth ? (
+              <ApexBody className="italic">Updating…</ApexBody>
+            ) : null}
+            {isCompletingOAuth ? (
+              <ApexBody className="italic text-blue-200/80">Connecting…</ApexBody>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => void signOut()}
+              className="text-[13px] text-apex-muted transition-colors hover:text-apex-text"
+            >
+              Sign out
+            </button>
           </div>
-
-          <div className="space-y-2">
-            <h1 className="text-3xl font-semibold leading-tight">
-              {greeting}
-            </h1>
-            <p className="text-gray-400 max-w-xl">
-              {isOnboarding
-                ? VALUE_STATEMENT
-                : dailyDecision
-                  ? decisionHeadline(dailyDecision)
-                  : "Setting things up for you…"}
-            </p>
-          </div>
-
-          {showGuidance && (
-            <>
-              <IntentSelector
-                intent={userIntent}
-                onIntentChange={setUserIntent}
-              />
-              {portfolioLoading && !hasPortfolioData && (
-                <PortfolioSummarySkeleton />
-              )}
-              {hasPortfolioData &&
-                portfolioData &&
-                portfolioData.total_value !== undefined && (
-                  <PortfolioSummary
-                    totalValue={portfolioData.total_value}
-                    dayPnl={
-                      portfolioData.day_pnl ?? dailyInsight?.day_pnl ?? null
-                    }
-                    riskScore={portfolioData.risk_score ?? 4}
-                    riskLevel={portfolioData.risk_level ?? "Low"}
-                    topSymbol={portfolioData.top_symbol}
-                    topAllocationPct={portfolioData.top_allocation_pct}
-                  />
-                )}
-              {connectionStatus === "CONNECTED" &&
-                (fundsLoading || availableCash !== null) && (
-                  <AvailableFundsCard
-                    availableCash={availableCash ?? 0}
-                    intent={userIntent}
-                    loading={fundsLoading && availableCash === null}
-                  />
-                )}
-            </>
-          )}
-
-          {!isOnboarding && !isCompletingOAuth && (
-            <div className="text-sm text-gray-500 italic">
-              Take your time — this is guidance, not a command.
-            </div>
-          )}
         </div>
 
-        {showPortfolioError && (
-          <ErrorBanner
-            message={portfolioError ?? "Could not load portfolio. Please try again."}
-            onRetry={refreshPortfolio}
-          />
-        )}
+        <div className="space-y-2">
+          <ApexTitle>{greeting}</ApexTitle>
+          <ApexBody>
+            {isOnboarding
+              ? VALUE_STATEMENT
+              : "Here's your decision for today"}
+          </ApexBody>
+        </div>
 
-        {showBrokerError && (
-          <ErrorBanner message={brokerMessage ?? "Broker connection failed."} />
-        )}
-
-        {showBrokerSuccess && (
-          <div className="p-4 rounded-xl border border-teal-500/20 bg-teal-500/5">
-            <p className="text-sm text-teal-200/90">{brokerMessage}</p>
-          </div>
-        )}
-
-        {isCompletingOAuth && (
-          <div className="p-6 rounded-2xl border border-teal-500/20 bg-teal-500/5 text-center">
-            <p className="text-sm text-teal-200/90">
-              Setting things up for you…
-            </p>
-          </div>
-        )}
-
-        {isOnboarding && !isCompletingOAuth && (
-          <ConnectZerodhaCard />
-        )}
-
-        {connectionStatus === "TOKEN_EXPIRED" && !isCompletingOAuth && (
-          <div className="space-y-3">
-            <div className="p-4 rounded-xl border border-yellow-500/20 bg-yellow-500/5">
-              <p className="text-sm text-yellow-200/90 mb-3">
-                Your connection needs a quick refresh
-              </p>
-              <ConnectZerodhaCard
-                title="Let's refresh your connection"
-                description="A quick sign-in brings your portfolio back — same secure flow as before."
-                buttonLabel="Refresh connection"
-                subtext="Takes less than 10 seconds · No passwords stored"
-              />
-            </div>
-          </div>
-        )}
-
-        {connectionStatus === "CONNECTED" && !isCompletingOAuth && (
-          <div className="space-y-4">
-            {dailyInsight && <DailyInsightBanner insight={dailyInsight} />}
-
-            <div className="text-xs text-teal-400/80">
-              Your portfolio is synced and ready.
-            </div>
-
-            {portfolioLoading && !hasPortfolioData && (
-              <div className="p-6 rounded-2xl border border-white/10 bg-slate-900/50 space-y-3">
-                <div className="h-2 w-24 rounded-full bg-white/10 animate-pulse" />
-                <p className="text-sm text-gray-400 italic">
-                  Loading your portfolio…
-                </p>
-              </div>
-            )}
-
-            {hasPortfolioData &&
-              portfolioData &&
-              portfolioData.total_value !== undefined &&
-              portfolioData.total_pnl !== undefined && (
-                <PortfolioCard
-                  holdings={portfolioData.holdings}
-                  totalValue={portfolioData.total_value}
-                  totalPnl={portfolioData.total_pnl}
-                  concentrated={portfolioData.concentrated}
-                  topSymbol={portfolioData.top_symbol}
-                  topAllocationPct={portfolioData.top_allocation_pct}
-                />
-              )}
-          </div>
-        )}
-
-        {showGuidance && !showPortfolioError && (
+        {showGuidance ? (
           <>
-            {!profileComplete && (
-              <FinancialProfileSetup
-                onComplete={(profile) => {
-                  setFinancialProfile(profile);
-                  refreshDecision();
-                  void loadDecisionHistory();
+            <IntentSelector intent={userIntent} onIntentChange={setUserIntent} />
+            {portfolioLoading && !hasPortfolioData ? (
+              <PortfolioSummarySkeleton />
+            ) : null}
+            {hasPortfolioData &&
+            portfolioData &&
+            portfolioData.total_value !== undefined ? (
+              <PortfolioSummary
+                totalValue={portfolioData.total_value}
+                dayPnl={portfolioData.day_pnl ?? dailyInsight?.day_pnl ?? null}
+                riskScore={portfolioData.risk_score ?? 4}
+                riskLevel={portfolioData.risk_level ?? "Low"}
+              />
+            ) : null}
+          </>
+        ) : null}
+      </header>
+
+      {showPortfolioError ? (
+        <ErrorBanner
+          message={portfolioError ?? "Could not load portfolio. Please try again."}
+          onRetry={refreshPortfolio}
+        />
+      ) : null}
+
+      {showBrokerError ? (
+        <ErrorBanner message={brokerMessage ?? "Broker connection failed."} />
+      ) : null}
+
+      {showBrokerSuccess ? (
+        <ApexCard hover={false} padding="compact" className="border-emerald-500/20">
+          <ApexBody className="text-emerald-200/90">{brokerMessage}</ApexBody>
+        </ApexCard>
+      ) : null}
+
+      {isCompletingOAuth ? (
+        <ApexCard hover={false} padding="compact">
+          <ApexBody className="text-center italic">
+            Setting things up for you…
+          </ApexBody>
+        </ApexCard>
+      ) : null}
+
+      {isOnboarding && !isCompletingOAuth ? <ConnectZerodhaCard /> : null}
+
+      {connectionStatus === "TOKEN_EXPIRED" && !isCompletingOAuth ? (
+        <ConnectZerodhaCard
+          title="Refresh your connection"
+          description="A quick sign-in brings your portfolio back."
+          buttonLabel="Refresh connection"
+          subtext="Takes less than 10 seconds"
+        />
+      ) : null}
+
+      {showGuidance && !showPortfolioError ? (
+        <>
+          {!profileComplete ? (
+            <FinancialProfileSetup
+              onComplete={(profile) => {
+                setFinancialProfile(profile);
+                refreshDecision();
+                void loadDecisionHistory();
+              }}
+            />
+          ) : null}
+
+          {showHomeDecision && dailyDecision ? (
+            <>
+              <HomeDecisionScreen
+                decision={dailyDecision}
+                entryTiming={entryTiming}
+                portfolio={{
+                  value: portfolioData?.total_value ?? 0,
+                  cash: availableCash ?? 0,
+                }}
+                onViewExecutionPlan={() => {
+                  setShowExecutionPlan(true);
+                  requestAnimationFrame(() => {
+                    document
+                      .getElementById("execution-plan")
+                      ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+                  });
                 }}
               />
-            )}
+              {showExecutionPlan && dailyDecision.action === "buy" ? (
+                <div id="execution-plan">
+                  <ExecutionPlanCard
+                    decision={dailyDecision}
+                    entryTiming={entryTiming}
+                  />
+                </div>
+              ) : null}
+            </>
+          ) : null}
+
+          {needsActionCard && dailyDecision ? (
             <DailyDecisionCard
               decision={dailyDecision}
               totalValue={portfolioData?.total_value ?? 0}
@@ -717,17 +690,21 @@ export default function HomeClient({
               intent={userIntent}
               availableCash={availableCash ?? undefined}
               riskLevel={portfolioData?.risk_level}
+              portfolioContext={recommendationPortfolio}
               onIntentChange={setUserIntent}
             />
-            <DecisionHistoryPanel history={decisionHistory} />
-          </>
-        )}
+          ) : null}
 
-        <div className="pt-6 border-t border-white/10 text-sm text-gray-500">
+          <DecisionHistoryPanel history={decisionHistory} />
+        </>
+      ) : null}
+
+      <footer className="border-t border-apex-border pt-6">
+        <ApexBody>
           APEX supports your decisions — you own the final call. Not financial
           advice.
-        </div>
-      </div>
-    </main>
+        </ApexBody>
+      </footer>
+    </ApexShell>
   );
 }

@@ -1,74 +1,82 @@
+"use client";
+
+import { useState } from "react";
 import { formatInr } from "@/lib/funds";
 import type { RecommendedAllocationItem } from "@/types/decision";
+import { ApexBody, ApexButton, ApexEyebrow, ApexRow, ApexSection } from "@/components/ui/apex";
 
 type Props = {
   items: RecommendedAllocationItem[];
+  allItems?: RecommendedAllocationItem[];
   onBack: () => void;
 };
 
-export default function ExecutionPlan({ items, onBack }: Props) {
-  const total = items.reduce((sum, item) => sum + item.amount, 0);
-  const hasAmounts = total > 0;
+export default function ExecutionPlan({
+  items,
+  allItems,
+  onBack,
+}: Props) {
+  const [expanded, setExpanded] = useState(false);
+  const expandedList = allItems ?? items;
+  const visibleItems = expanded ? expandedList : items;
+  const hasAmounts = items.some((item) => item.amount > 0);
+  const canExpand = expandedList.length > items.length;
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-xs text-gray-500 uppercase tracking-wider">
-          Your execution plan
-        </p>
+        <ApexEyebrow>Allocation plan</ApexEyebrow>
         <button
           type="button"
           onClick={onBack}
-          className="text-xs text-gray-400 hover:text-gray-200 transition-colors"
+          className="text-[13px] text-apex-muted transition-colors hover:text-apex-text"
         >
-          ← Back
+          Back
         </button>
       </div>
 
       {hasAmounts ? (
-        <p className="text-sm text-emerald-200/90">
-          Deploy {formatInr(total)} across these instruments in your broker.
-        </p>
-      ) : items.length > 0 ? (
-        <p className="text-sm text-amber-200/90">
-          Target instruments for your next buy — add funds to see suggested
-          amounts.
-        </p>
+        <ApexBody className="text-emerald-200/80">
+          Deploy {formatInr(items.reduce((sum, item) => sum + item.amount, 0))}{" "}
+          when you are ready in your broker.
+        </ApexBody>
+      ) : visibleItems.length > 0 ? (
+        <ApexBody className="text-amber-200/80">
+          Target instruments for your next buy.
+        </ApexBody>
       ) : (
-        <p className="text-sm text-gray-400">
-          Syncing your available funds to build a plan…
-        </p>
+        <ApexBody>Building your plan…</ApexBody>
       )}
 
-      {items.length > 0 ? (
-        <ul className="space-y-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
-          {items.map((item) => (
-            <li
-              key={item.name}
-              className="flex items-start justify-between gap-4 py-1"
+      {visibleItems.length > 0 ? (
+        <>
+          <ApexSection className="rounded-xl border border-apex-border px-4">
+            {visibleItems.map((item) => (
+              <ApexRow
+                key={item.name}
+                label={item.name}
+                value={
+                  item.amount > 0 ? formatInr(item.amount) : item.reason
+                }
+              />
+            ))}
+          </ApexSection>
+
+          {canExpand ? (
+            <button
+              type="button"
+              onClick={() => setExpanded((open) => !open)}
+              className="text-[13px] text-blue-200/80 transition-colors hover:text-blue-100"
             >
-              <div>
-                <p className="text-sm font-medium text-emerald-50">
-                  {hasAmounts
-                    ? `${formatInr(item.amount)} → ${item.name}`
-                    : item.name}
-                </p>
-                <p className="text-xs text-emerald-200/70 mt-0.5">
-                  {item.reason}
-                </p>
-              </div>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-6 text-center text-sm text-gray-500">
-          No plan available yet. Check your Zerodha connection and try again.
-        </div>
-      )}
+              {expanded ? "Show less" : "Show all options"}
+            </button>
+          ) : null}
+        </>
+      ) : null}
 
-      <p className="text-xs text-gray-500">
-        Place these orders in Zerodha when you are ready — guidance only.
-      </p>
+      <ApexButton variant="secondary" onClick={onBack}>
+        Done
+      </ApexButton>
     </div>
   );
 }

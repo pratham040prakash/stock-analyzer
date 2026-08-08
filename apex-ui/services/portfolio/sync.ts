@@ -4,6 +4,9 @@ import {
   markBrokerConnectionExpired,
 } from "@/services/broker/connections";
 import { evaluateDailyDecision } from "@/services/decision/engine";
+import { logDecisionSafe } from "@/services/decision/decisionMemory";
+import { getAdaptiveWeightsSafe } from "@/services/decision/selfLearning";
+import { getMarketRegime } from "@/services/decision/stockScoring";
 import { saveDailyDecision } from "@/services/decision/repository";
 import {
   computePortfolioMetrics,
@@ -72,7 +75,7 @@ export async function syncUserPortfolio(
 
   await saveMentorOutput(supabase, userId, mentorResult);
 
-  const dailyDecision = evaluateDailyDecision({
+  const dailyDecision = await evaluateDailyDecision({
     portfolioSnapshot: {
       holdings: portfolio.holdings,
       total_value: metrics.totalValue,
@@ -80,6 +83,20 @@ export async function syncUserPortfolio(
     },
     financialProfile,
     lastMentorOutput: mentorResult.decision,
+    adaptiveSignalWeights: await getAdaptiveWeightsSafe(supabase, userId),
+    supabase,
+    userId,
+  });
+
+  const marketTrend = await getMarketRegime();
+  await logDecisionSafe(supabase, dailyDecision, {
+    userId,
+    marketTrend,
+    portfolioSnapshot: {
+      holdings: portfolio.holdings,
+      total_value: metrics.totalValue,
+      pnl: metrics.pnl,
+    },
   });
 
   await saveDailyDecision(supabase, userId, dailyDecision);

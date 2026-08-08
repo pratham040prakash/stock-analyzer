@@ -1,20 +1,25 @@
 import { Suspense } from "react";
 import LoginForm from "@/components/LoginForm";
+import { ApexBody, ApexShell } from "@/components/ui/apex";
 
 function LoginFallback() {
   return (
-    <main className="min-h-screen bg-slate-950 text-gray-200 flex items-center justify-center px-6 py-10">
-      <p className="text-sm text-gray-400 italic">Setting things up for you…</p>
-    </main>
+    <ApexShell>
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <ApexBody className="italic">Setting things up for you…</ApexBody>
+      </div>
+    </ApexShell>
   );
 }
 
 export default function LoginPage() {
   return (
-    <main className="min-h-screen bg-slate-950 text-gray-200 flex items-center justify-center px-6 py-10">
-      <Suspense fallback={<LoginFallback />}>
-        <LoginForm />
-      </Suspense>
-    </main>
+    <ApexShell>
+      <div className="flex min-h-[70vh] items-center justify-center">
+        <Suspense fallback={<LoginFallback />}>
+          <LoginForm />
+        </Suspense>
+      </div>
+    </ApexShell>
   );
 }

@@ -75,6 +75,7 @@ export type Database = {
           income_range: string;
           expense_range: string;
           investable_surplus: number;
+          auto_trading_enabled: boolean;
           updated_at: string;
         };
         Insert: {
@@ -82,12 +83,14 @@ export type Database = {
           income_range: string;
           expense_range: string;
           investable_surplus: number;
+          auto_trading_enabled?: boolean;
           updated_at?: string;
         };
         Update: {
           income_range?: string;
           expense_range?: string;
           investable_surplus?: number;
+          auto_trading_enabled?: boolean;
           updated_at?: string;
         };
         Relationships: [];
@@ -149,6 +152,65 @@ export type Database = {
           confidence?: number;
           reason?: string;
           actions?: string[];
+        };
+        Relationships: [];
+      };
+      decision_memory: {
+        Row: {
+          id: string;
+          user_id: string;
+          timestamp_ms: number;
+          decision_date: string;
+          intent: string | null;
+          stock: string | null;
+          action: string;
+          amount: number | null;
+          confidence: number;
+          signals: import("@/types/decision").Signals | null;
+          market_trend: string | null;
+          portfolio_snapshot: import("@/types/decision").PortfolioSnapshotInput | null;
+          entry_price: number | null;
+          exit_price: number | null;
+          stop_loss: number | null;
+          quantity: number | null;
+          take_profit_taken: boolean;
+          pnl: number | null;
+          success: boolean | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          timestamp_ms: number;
+          decision_date?: string;
+          intent?: string | null;
+          stock?: string | null;
+          action: string;
+          amount?: number | null;
+          confidence: number;
+          signals?: import("@/types/decision").Signals | null;
+          market_trend?: string | null;
+          portfolio_snapshot?: import("@/types/decision").PortfolioSnapshotInput | null;
+          entry_price?: number | null;
+          exit_price?: number | null;
+          stop_loss?: number | null;
+          quantity?: number | null;
+          take_profit_taken?: boolean;
+          pnl?: number | null;
+          success?: boolean | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          exit_price?: number | null;
+          stop_loss?: number | null;
+          quantity?: number | null;
+          take_profit_taken?: boolean;
+          signals?: import("@/types/decision").Signals | null;
+          pnl?: number | null;
+          success?: boolean | null;
+          updated_at?: string;
         };
         Relationships: [];
       };

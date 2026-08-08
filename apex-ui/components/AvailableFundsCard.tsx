@@ -2,6 +2,7 @@
 
 import { formatInr, fundsGuidanceText } from "@/lib/funds";
 import type { Intent } from "@/types/intent";
+import { ApexBody, ApexCard, ApexTitle } from "@/components/ui/apex";
 
 type Props = {
   availableCash: number;
@@ -11,11 +12,10 @@ type Props = {
 
 export function AvailableFundsCardSkeleton() {
   return (
-    <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-slate-900/80 to-slate-800/40 p-5 space-y-3">
+    <ApexCard hover={false} padding="compact">
       <div className="h-3 w-28 rounded bg-white/10 animate-pulse" />
-      <div className="h-9 w-32 rounded bg-white/10 animate-pulse" />
-      <div className="h-4 w-40 rounded bg-white/10 animate-pulse" />
-    </div>
+      <div className="mt-3 h-8 w-32 rounded bg-white/10 animate-pulse" />
+    </ApexCard>
   );
 }
 
@@ -32,24 +32,16 @@ export default function AvailableFundsCard({
   const isEmpty = availableCash <= 0;
 
   return (
-    <div className="rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 via-slate-900/80 to-slate-900/40 p-5">
-      <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">
-        Available to Invest
-      </p>
-      <p
-        className={`text-3xl font-semibold tracking-tight ${
-          isEmpty ? "text-gray-400" : "text-emerald-50"
-        }`}
-      >
+    <ApexCard hover={false} padding="compact">
+      <ApexBody>Cash available</ApexBody>
+      <ApexTitle className="mt-2 text-[22px]">
         {formatInr(availableCash)}
-      </p>
-      <p
-        className={`mt-2 text-sm ${
-          isEmpty ? "text-amber-200/90" : "text-emerald-200/80"
-        }`}
+      </ApexTitle>
+      <ApexBody
+        className={`mt-2 ${isEmpty ? "text-amber-200/80" : "text-emerald-200/70"}`}
       >
         {guidance}
-      </p>
-    </div>
+      </ApexBody>
+    </ApexCard>
   );
 }

@@ -4,13 +4,29 @@ import {
   getInvestableSurplus,
   type FinancialProfile,
 } from "@/lib/financialProfile";
-import { getOpportunities } from "@/lib/recommendations";
+import {
+  getOpportunities,
+  portfolioContextFromHoldings,
+  type RecommendationPortfolio,
+} from "@/lib/recommendations";
+import { portfolioRiskFromAllocation } from "@/lib/portfolioRisk";
+import {
+  getTopPicks,
+  getMarketRegime,
+  portfolioScoringContextFromRecommendation,
+} from "@/services/decision/stockScoring";
+import { computeConfidenceSafe } from "@/services/decision/confidenceEngine";
+import { computeStructureScoreSafe } from "@/services/market/structureEngine";
 import type {
   DailyDecisionOutput,
   DailyDecisionType,
   DecisionActionType,
   DecisionEngineInput,
   DecisionOpportunity,
+  MarketTrend,
+  Signals,
+  StockPick,
+  ValidationResult,
 } from "@/types/decision";
 import { dailyDecisionTypeToAction } from "@/types/decision";
 import type { Intent } from "@/types/intent";
@@ -419,72 +435,287 @@ function buildConfidenceFactors(
   return factors.slice(0, 5);
 }
 
-const EXPLORE_OPPORTUNITIES: DecisionOpportunity[] = getOpportunities("explore");
-const GROW_OPPORTUNITIES: DecisionOpportunity[] = getOpportunities("grow");
 
-function buildGrowDecision(
-  _input: DecisionEngineInput,
-  hasProfile: boolean,
-  mentor: MentorDecision | null | undefined,
-): DailyDecisionOutput {
-  const mentorAligned = mentor?.action === "add";
-  const confidence = confidenceForDecision("BUY_MORE", mentor, hasProfile, {});
+function recommendationPortfolioFromSnapshot(
+  input: DecisionEngineInput,
+): RecommendationPortfolio {
+  return portfolioContextFromHoldings(input.portfolioSnapshot.holdings);
+}
+
+export function validateDecision({
+  signals,
+  marketTrend,
+  portfolioRisk,
+}: {
+  signals: Signals;
+  marketTrend: MarketTrend;
+  portfolioRisk: number;
+}): ValidationResult {
+  const signalStrength =
+    (signals.trend + signals.momentum + signals.volume) / 3;
+
+  const signalAgreement =
+    signals.trend > 60 && signals.momentum > 60;
+
+  const marketAlignment =
+    marketTrend === "bullish" && signals.trend > 60;
+
+  const riskOk = portfolioRisk < 8;
+
+  const score =
+    signalStrength * 0.4 +
+    (signalAgreement ? 20 : 0) +
+    (marketAlignment ? 20 : 0) +
+    (riskOk ? 20 : 0);
+
+  const confidence = Math.min(100, Math.round(score));
 
   return {
-    decision: "BUY_MORE",
-    action: "buy",
-    intent: "grow",
     confidence,
-    message: "Invest gradually to grow your portfolio",
-    suggestion: "Use available funds to accumulate quality stocks",
-    opportunities: GROW_OPPORTUNITIES,
-    reason: "Portfolio size can be increased steadily",
-    confidence_factors: [
-      "You selected Grow Portfolio as today's intent",
-      hasProfile
-        ? "Financial profile is available for sizing guidance"
-        : "Add your financial profile to refine investable surplus",
-      mentorAligned
-        ? "Mentor view supports adding steadily"
-        : "Small, regular steps beat timing the market",
-    ],
-    actions: [
-      "Invest your available funds in steady, small steps",
-      "Spread new money across quality names instead of one concentrated bet",
-    ],
+    isValid: confidence > 65 && signalAgreement,
+    breakdown: {
+      signal_strength: Math.round(signalStrength),
+      signal_agreement: signalAgreement,
+      market_alignment: marketAlignment,
+      risk_ok: riskOk,
+    },
   };
 }
 
-function buildExploreDecision(
-  _input: DecisionEngineInput,
-  hasProfile: boolean,
-  mentor: MentorDecision | null | undefined,
-): DailyDecisionOutput {
-  const mentorAligned =
-    mentor?.action === "add" || mentor?.action === "observe";
-  const confidence = confidenceForDecision("HOLD", mentor, hasProfile, {});
+function resolveSignals(signals?: Partial<Signals>): Signals {
+  return {
+    trend: signals?.trend ?? 50,
+    momentum: signals?.momentum ?? 50,
+    volume: signals?.volume ?? 50,
+  };
+}
+
+function resolveMarketTrend(marketTrend?: MarketTrend): MarketTrend {
+  return marketTrend ?? "sideways";
+}
+
+function resolvePortfolioRisk(portfolioRisk?: number): number {
+  return portfolioRisk && portfolioRisk > 0 ? portfolioRisk : 7;
+}
+
+/** Market context for validation — uses detected NIFTY regime with safe defaults. */
+async function getValidationMarketContext(portfolioRiskScore: number): Promise<{
+  marketTrend: MarketTrend;
+  portfolioRisk: number;
+}> {
+  const marketTrend = await getMarketRegime();
 
   return {
-    decision: "EXPLORE",
-    action: "explore",
-    intent: "explore",
-    confidence: Math.max(confidence, 72),
-    message: "Here are opportunities for you",
-    opportunities: EXPLORE_OPPORTUNITIES,
-    reason:
-      "You asked to find opportunities — these ideas span stability, growth, and diversification.",
+    marketTrend: resolveMarketTrend(marketTrend),
+    portfolioRisk: resolvePortfolioRisk(portfolioRiskScore),
+  };
+}
+
+async function enrichWithConfidenceMetrics(
+  decision: DailyDecisionOutput,
+  signals: Signals,
+  marketTrend: MarketTrend,
+  input: DecisionEngineInput,
+): Promise<DailyDecisionOutput> {
+  const structureScore = await computeStructureScoreSafe(decision.stock);
+  const confidenceMetrics = await computeConfidenceSafe({
+    signals,
+    regime: marketTrend,
+    supabase: input.supabase ?? null,
+    userId: input.userId ?? null,
+    structureScore,
+  });
+
+  return {
+    ...decision,
+    structureScore,
+    confidenceMetrics,
+  };
+}
+
+function buildWaitDecisionFromValidation(
+  intent: Intent,
+  validation: ValidationResult,
+  hasProfile: boolean,
+  picks: StockPick[],
+): DailyDecisionOutput {
+  return {
+    decision: "WAIT",
+    action: "wait",
+    intent,
+    confidence: validation.confidence,
+    message: "No strong opportunity today",
+    validation: validation.breakdown,
+    picks,
+    reason: "Signals are not strong enough to act today",
     confidence_factors: [
-      "You selected Find Opportunities as today's intent",
+      `Signal strength: ${validation.breakdown.signal_strength}/100`,
+      validation.breakdown.signal_agreement
+        ? "Trend and momentum agree"
+        : "Trend and momentum do not align",
+      validation.breakdown.market_alignment
+        ? "Market trend supports new positions"
+        : "Market trend does not support new positions",
+      validation.breakdown.risk_ok
+        ? "Portfolio risk is within limits"
+        : "Portfolio risk is elevated",
       hasProfile
-        ? "Ideas are framed around your stated risk and income profile"
-        : "Complete your profile for sharper opportunity matching",
-      mentorAligned ? "Mentor view supports exploring new ideas" : "Research before acting — guidance only",
+        ? "Financial profile is available for sizing guidance"
+        : "Add your financial profile to refine guidance",
     ],
     actions: [
-      "Review each idea against your existing holdings",
-      "Start with a small position if something fits your plan",
+      "Pause new investments until signals strengthen",
+      "Review your portfolio allocation before acting",
     ],
+    opportunities: [],
   };
+}
+
+async function buildGrowDecision(
+  input: DecisionEngineInput,
+  hasProfile: boolean,
+  mentor: MentorDecision | null | undefined,
+): Promise<DailyDecisionOutput> {
+  const mentorAligned = mentor?.action === "add";
+  const portfolio = recommendationPortfolioFromSnapshot(input);
+  const scoringPortfolio = portfolioScoringContextFromRecommendation(portfolio);
+  const { risk_level: risk, risk_score: portfolioRiskScore } =
+    portfolioRiskFromAllocation(portfolio.top_allocation_pct ?? 0);
+  const topPicks = await getTopPicks(
+    5,
+    scoringPortfolio,
+    input.adaptiveSignalWeights,
+  );
+  const best = topPicks[0];
+  const { marketTrend, portfolioRisk } =
+    await getValidationMarketContext(portfolioRiskScore);
+  const validation = validateDecision({
+    signals: best?.signals ?? resolveSignals(),
+    marketTrend,
+    portfolioRisk,
+  });
+
+  console.log("Decision Validation:", validation);
+
+  if (!validation.isValid) {
+    return enrichWithConfidenceMetrics(
+      buildWaitDecisionFromValidation(
+        "grow",
+        validation,
+        hasProfile,
+        topPicks,
+      ),
+      best?.signals ?? resolveSignals(),
+      marketTrend,
+      input,
+    );
+  }
+
+  return enrichWithConfidenceMetrics(
+    {
+      decision: "BUY_MORE",
+      action: "buy",
+      intent: "grow",
+      stock: best?.stock,
+      confidence: validation.confidence,
+      message: best ? `Top opportunity: ${best.stock}` : "Strong opportunity based on aligned signals",
+      validation: validation.breakdown,
+      picks: topPicks,
+      suggestion: "Use available funds to accumulate quality stocks",
+      opportunities: getOpportunities("grow", risk, portfolio),
+      reason: "Portfolio size can be increased steadily",
+      confidence_factors: [
+        "You selected Grow Portfolio as today's intent",
+        "Signals are aligned — trend, momentum, and market trend agree",
+        hasProfile
+          ? "Financial profile is available for sizing guidance"
+          : "Add your financial profile to refine investable surplus",
+        mentorAligned
+          ? "Mentor view supports adding steadily"
+          : "Small, regular steps beat timing the market",
+      ],
+      actions: [
+        "Invest your available funds in steady, small steps",
+        "Spread new money across quality names instead of one concentrated bet",
+      ],
+    },
+    best?.signals ?? resolveSignals(),
+    marketTrend,
+    input,
+  );
+}
+
+async function buildExploreDecision(
+  input: DecisionEngineInput,
+  hasProfile: boolean,
+  mentor: MentorDecision | null | undefined,
+): Promise<DailyDecisionOutput> {
+  const mentorAligned =
+    mentor?.action === "add" || mentor?.action === "observe";
+  const portfolio = recommendationPortfolioFromSnapshot(input);
+  const scoringPortfolio = portfolioScoringContextFromRecommendation(portfolio);
+  const { risk_level: risk, risk_score: portfolioRiskScore } =
+    portfolioRiskFromAllocation(portfolio.top_allocation_pct ?? 0);
+  const topPicks = await getTopPicks(
+    5,
+    scoringPortfolio,
+    input.adaptiveSignalWeights,
+  );
+  const best = topPicks[0];
+  const { marketTrend, portfolioRisk } =
+    await getValidationMarketContext(portfolioRiskScore);
+  const validation = validateDecision({
+    signals: best?.signals ?? resolveSignals(),
+    marketTrend,
+    portfolioRisk,
+  });
+
+  console.log("Decision Validation:", validation);
+
+  if (!validation.isValid) {
+    return enrichWithConfidenceMetrics(
+      buildWaitDecisionFromValidation(
+        "explore",
+        validation,
+        hasProfile,
+        topPicks,
+      ),
+      best?.signals ?? resolveSignals(),
+      marketTrend,
+      input,
+    );
+  }
+
+  return enrichWithConfidenceMetrics(
+    {
+      decision: "EXPLORE",
+      action: "explore",
+      intent: "explore",
+      stock: best?.stock,
+      confidence: validation.confidence,
+      message: best ? `Top opportunity: ${best.stock}` : "Strong opportunity based on aligned signals",
+      validation: validation.breakdown,
+      picks: topPicks,
+      opportunities: getOpportunities("explore", risk, portfolio),
+      reason:
+        "You asked to find opportunities — these ideas span stability, growth, and diversification.",
+      confidence_factors: [
+        "You selected Find Opportunities as today's intent",
+        "Signals are aligned — trend, momentum, and market trend agree",
+        hasProfile
+          ? "Ideas are framed around your stated risk and income profile"
+          : "Complete your profile for sharper opportunity matching",
+        mentorAligned ? "Mentor view supports exploring new ideas" : "Research before acting — guidance only",
+      ],
+      actions: [
+        "Review each idea against your existing holdings",
+        "Start with a small position if something fits your plan",
+      ],
+    },
+    best?.signals ?? resolveSignals(),
+    marketTrend,
+    input,
+  );
 }
 
 function mapDecisionAction(
@@ -617,13 +848,15 @@ function buildRiskDecision(
   };
 }
 
-export function getDecision(input: DecisionEngineInput): DailyDecisionOutput {
+export async function getDecision(
+  input: DecisionEngineInput,
+): Promise<DailyDecisionOutput> {
   return evaluateDailyDecision(input);
 }
 
-export function evaluateDailyDecision(
+export async function evaluateDailyDecision(
   input: DecisionEngineInput,
-): DailyDecisionOutput {
+): Promise<DailyDecisionOutput> {
   const intent = input.intent ?? "risk";
   const hasProfile = Boolean(input.financialProfile);
 

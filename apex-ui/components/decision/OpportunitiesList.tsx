@@ -1,11 +1,16 @@
+"use client";
+
+import { useState } from "react";
 import { formatInr } from "@/lib/funds";
 import type {
   DecisionOpportunity,
   RecommendedAllocationItem,
 } from "@/types/decision";
+import { ApexBody, ApexButton, ApexEyebrow, ApexRow, ApexSection } from "@/components/ui/apex";
 
 type Props = {
   opportunities: DecisionOpportunity[];
+  allOpportunities?: DecisionOpportunity[];
   plan: RecommendedAllocationItem[];
   onBack: () => void;
 };
@@ -20,69 +25,63 @@ function amountForName(
 
 export default function OpportunitiesList({
   opportunities,
+  allOpportunities,
   plan,
   onBack,
 }: Props) {
+  const [expanded, setExpanded] = useState(false);
+  const expandedList = allOpportunities ?? opportunities;
+  const visibleOpportunities = expanded ? expandedList : opportunities;
+  const canExpand = expandedList.length > opportunities.length;
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-xs text-gray-500 uppercase tracking-wider">
-          Opportunities to explore
-        </p>
+        <ApexEyebrow>Ideas to explore</ApexEyebrow>
         <button
           type="button"
           onClick={onBack}
-          className="text-xs text-gray-400 hover:text-gray-200 transition-colors"
+          className="text-[13px] text-apex-muted transition-colors hover:text-apex-text"
         >
-          ← Back
+          Back
         </button>
       </div>
 
-      <ul className="space-y-2">
-        {opportunities.map((opportunity) => {
-          const amount = amountForName(plan, opportunity.name);
+      {visibleOpportunities.length > 0 ? (
+        <ApexSection className="rounded-xl border border-apex-border px-4">
+          {visibleOpportunities.map((opportunity) => {
+            const amount = amountForName(plan, opportunity.name);
 
-          return (
-            <li
-              key={opportunity.name}
-              className="rounded-xl border border-purple-500/20 bg-purple-500/5 px-4 py-3"
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-sm font-medium text-purple-50">
-                    {opportunity.name}
-                  </p>
-                  <p className="text-xs text-purple-200/70 mt-1">
-                    {opportunity.type}
-                  </p>
-                </div>
-                {amount !== null && amount > 0 && (
-                  <span className="shrink-0 text-sm font-medium text-purple-100">
-                    {formatInr(amount)}
-                  </span>
-                )}
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-
-      {plan.length > 0 && (
-        <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 space-y-1.5">
-          <p className="text-xs text-gray-500 uppercase tracking-wider">
-            Suggested allocation
-          </p>
-          {plan.map((item) => (
-            <p key={item.name} className="text-sm text-purple-50">
-              {formatInr(item.amount)} → {item.name}
-            </p>
-          ))}
-        </div>
+            return (
+              <ApexRow
+                key={opportunity.name}
+                label={opportunity.name}
+                value={
+                  amount && amount > 0
+                    ? formatInr(amount)
+                    : opportunity.type
+                }
+              />
+            );
+          })}
+        </ApexSection>
+      ) : (
+        <ApexBody>No opportunities surfaced today.</ApexBody>
       )}
 
-      <p className="text-xs text-gray-500">
-        Research in your broker first — guidance only, not a buy recommendation.
-      </p>
+      {canExpand ? (
+        <button
+          type="button"
+          onClick={() => setExpanded((open) => !open)}
+          className="text-[13px] text-blue-200/80 transition-colors hover:text-blue-100"
+        >
+          {expanded ? "Show less" : "Show all ideas"}
+        </button>
+      ) : null}
+
+      <ApexButton variant="secondary" onClick={onBack}>
+        Done
+      </ApexButton>
     </div>
   );
 }

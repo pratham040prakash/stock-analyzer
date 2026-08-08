@@ -5,6 +5,13 @@ import { useSearchParams } from "next/navigation";
 import DemoDecisionCard from "@/components/DemoDecisionCard";
 import { useAuth } from "@/components/AuthProvider";
 import {
+  ApexBody,
+  ApexButton,
+  ApexCard,
+  ApexDivider,
+  ApexTitle,
+} from "@/components/ui/apex";
+import {
   SYSTEM_CONFIG_INCOMPLETE_MESSAGE,
 } from "@/lib/env/config";
 import {
@@ -35,19 +42,10 @@ function ButtonSpinner() {
 
 function TrustIndicators() {
   return (
-    <ul className="space-y-2 text-sm text-gray-400 pt-2">
-      <li className="flex items-center gap-2">
-        <span className="text-green-400">✓</span>
-        Secure connection
-      </li>
-      <li className="flex items-center gap-2">
-        <span className="text-green-400">✓</span>
-        Read-only access
-      </li>
-      <li className="flex items-center gap-2">
-        <span className="text-green-400">✓</span>
-        No passwords stored
-      </li>
+    <ul className="space-y-2 pt-2 text-[13px] text-apex-muted">
+      <li>Secure connection</li>
+      <li>Read-only access</li>
+      <li>No passwords stored</li>
     </ul>
   );
 }
@@ -144,16 +142,16 @@ export default function LoginForm() {
     return (
       <div className="w-full max-w-md space-y-6">
         <div>
-          <h1 className="text-3xl font-semibold text-white mb-2">Welcome to APEX</h1>
-          <p className="text-sm text-gray-400">
+          <ApexTitle>Welcome to APEX</ApexTitle>
+          <ApexBody className="mt-2">
             Get one clear investment decision every day.
-          </p>
+          </ApexBody>
         </div>
-        <div className="p-4 rounded-xl border border-amber-500/20 bg-amber-500/5">
-          <p className="text-sm text-amber-200/90">
+        <ApexCard hover={false} padding="compact" className="border-amber-500/20">
+          <ApexBody className="text-amber-200/90">
             {SYSTEM_CONFIG_INCOMPLETE_MESSAGE}
-          </p>
-        </div>
+          </ApexBody>
+        </ApexCard>
       </div>
     );
   }
@@ -312,10 +310,10 @@ export default function LoginForm() {
   return (
     <div className="w-full max-w-md space-y-6">
       <div>
-        <h1 className="text-3xl font-semibold text-white mb-2">Welcome to APEX</h1>
-        <p className="text-sm text-gray-400">
+        <ApexTitle>Welcome to APEX</ApexTitle>
+        <ApexBody className="mt-2">
           Get one clear investment decision every day.
-        </p>
+        </ApexBody>
       </div>
 
       <DemoDecisionCard />
@@ -324,7 +322,7 @@ export default function LoginForm() {
         <div>
           <label
             htmlFor="email"
-            className="block text-xs text-gray-400 uppercase tracking-wider mb-2"
+            className="mb-2 block text-[13px] text-apex-muted"
           >
             Email
           </label>
@@ -339,68 +337,51 @@ export default function LoginForm() {
             }}
             placeholder="you@example.com"
             disabled={emailActionDisabled}
-            className="w-full px-4 py-3 rounded-lg bg-slate-900 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:border-teal-500/40 disabled:opacity-60"
+            className="w-full rounded-xl border border-apex-border bg-apex-card px-4 py-3 text-apex-text placeholder:text-apex-muted focus:border-blue-500/40 focus:outline-none disabled:opacity-60"
           />
-          <p className="mt-2 text-xs text-gray-500">
-            We&apos;ll create an account if you&apos;re new.
-          </p>
         </div>
 
-        <button
-          type="submit"
-          disabled={emailActionDisabled}
-          className="w-full px-4 py-3 rounded-lg bg-teal-600/90 hover:bg-teal-600 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-medium transition-all inline-flex items-center justify-center gap-2"
-        >
+        <ApexButton type="submit" disabled={emailActionDisabled}>
           {loading ? (
-            <>
+            <span className="inline-flex items-center justify-center gap-2">
               <ButtonSpinner />
-              <span>{getEmailButtonLabel()}</span>
-            </>
+              {getEmailButtonLabel()}
+            </span>
           ) : (
             getEmailButtonLabel()
           )}
-        </button>
+        </ApexButton>
       </form>
 
-      {message && (
+      {message ? (
         <div className="space-y-2">
-          <p className="text-sm text-teal-300/90">{message}</p>
-          {showEmailFallback && (
-            <p className="text-sm text-gray-400">{EMAIL_FALLBACK_MESSAGE}</p>
-          )}
+          <ApexBody className="text-emerald-200/90">{message}</ApexBody>
+          {showEmailFallback ? (
+            <ApexBody>{EMAIL_FALLBACK_MESSAGE}</ApexBody>
+          ) : null}
         </div>
-      )}
-      {displayError && <p className="text-sm text-red-300/90">{displayError}</p>}
+      ) : null}
+      {displayError ? (
+        <p className="text-[13px] text-red-300/90">{displayError}</p>
+      ) : null}
 
-      <div className="relative">
-        <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-white/10" />
-        </div>
-        <div className="relative flex justify-center text-xs">
-          <span className="bg-slate-950 px-3 text-gray-500">or</span>
-        </div>
-      </div>
+      <ApexDivider />
 
-      <div className="space-y-2">
-        <button
-          type="button"
-          onClick={() => void handleGoogleLogin()}
-          disabled={googleActionDisabled}
-          className="w-full px-4 py-3 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-medium transition-all inline-flex items-center justify-center gap-2"
-        >
-          {isGoogleLoading ? (
-            <>
-              <ButtonSpinner />
-              <span>Continuing with Google...</span>
-            </>
-          ) : (
-            "Continue with Google"
-          )}
-        </button>
-        <p className="text-xs text-gray-500 text-center">
-          No account? We&apos;ll create one instantly.
-        </p>
-      </div>
+      <ApexButton
+        type="button"
+        variant="secondary"
+        disabled={googleActionDisabled}
+        onClick={() => void handleGoogleLogin()}
+      >
+        {isGoogleLoading ? (
+          <span className="inline-flex items-center justify-center gap-2">
+            <ButtonSpinner />
+            Continuing with Google…
+          </span>
+        ) : (
+          "Continue with Google"
+        )}
+      </ApexButton>
 
       <TrustIndicators />
     </div>
