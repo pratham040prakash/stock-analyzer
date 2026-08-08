@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import ConnectZerodhaCard from "./ConnectZerodhaCard";
 import DailyDecisionCard from "./DailyDecisionCard";
 import DecisionHistoryPanel from "./DecisionHistoryPanel";
-import ExecutionPlanModal from "./decision/ExecutionPlanModal";
 import HomeDecisionScreen from "./HomeDecisionScreen";
 import FinancialProfileSetup from "./FinancialProfileSetup";
 import IntentSelector from "./IntentSelector";
@@ -136,7 +135,6 @@ export default function HomeClient({
       ? "Zerodha connected — syncing your portfolio now."
       : zerodhaError ?? null,
   );
-  const [showExecutionPlan, setShowExecutionPlan] = useState(false);
   const greeting = useGreeting(userName);
   const { isCompletingOAuth } = useZerodhaOAuth();
 
@@ -443,10 +441,6 @@ export default function HomeClient({
   ]);
 
   useEffect(() => {
-    setShowExecutionPlan(false);
-  }, [dailyDecision?.action, dailyDecision?.stock, userIntent]);
-
-  useEffect(() => {
     if (initialPortfolio.holdings.length === 0) return;
 
     setPortfolioData((current) => {
@@ -651,26 +645,10 @@ export default function HomeClient({
           ) : null}
 
           {showHomeDecision && dailyDecision ? (
-            <>
-              <HomeDecisionScreen
-                decision={dailyDecision}
-                entryTiming={entryTiming}
-                updatedAt={decisionUpdatedAt}
-                portfolio={{
-                  value: portfolioData?.total_value ?? 0,
-                  cash: availableCash ?? 0,
-                }}
-                onViewExecutionPlan={() => {
-                  setShowExecutionPlan(true);
-                }}
-              />
-              <ExecutionPlanModal
-                open={showExecutionPlan}
-                onClose={() => setShowExecutionPlan(false)}
-                decision={dailyDecision}
-                entryTiming={entryTiming}
-              />
-            </>
+            <HomeDecisionScreen
+              decision={dailyDecision}
+              entryTiming={entryTiming}
+            />
           ) : null}
 
           {needsActionCard && dailyDecision ? (
@@ -687,7 +665,9 @@ export default function HomeClient({
             />
           ) : null}
 
-          <DecisionHistoryPanel history={decisionHistory} />
+          {!showHomeDecision ? (
+            <DecisionHistoryPanel history={decisionHistory} />
+          ) : null}
         </>
       ) : null}
 

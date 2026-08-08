@@ -126,6 +126,21 @@ export function updateTrustScore(
   };
 }
 
+export function getTrustDisplay(trustScore: number): {
+  level: TrustLevel;
+  message: string;
+} {
+  const safeScore = Number.isFinite(trustScore)
+    ? clampTrustScore(trustScore)
+    : INITIAL_TRUST_SCORE;
+  const level = resolveLevel(safeScore);
+
+  return {
+    level,
+    message: buildMessage(level),
+  };
+}
+
 export function updateTrustScoreSafe(
   currentScore: number,
   outcome: TrustOutcomeInput,
