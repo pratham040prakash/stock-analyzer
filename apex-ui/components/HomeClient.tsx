@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import ConnectZerodhaCard from "./ConnectZerodhaCard";
 import DailyDecisionCard from "./DailyDecisionCard";
 import DecisionHistoryPanel from "./DecisionHistoryPanel";
-import ExecutionPlanCard from "./decision/ExecutionPlanCard";
+import ExecutionPlanModal from "./decision/ExecutionPlanModal";
 import HomeDecisionScreen from "./HomeDecisionScreen";
 import FinancialProfileSetup from "./FinancialProfileSetup";
 import IntentSelector from "./IntentSelector";
@@ -662,21 +662,14 @@ export default function HomeClient({
                 }}
                 onViewExecutionPlan={() => {
                   setShowExecutionPlan(true);
-                  requestAnimationFrame(() => {
-                    document
-                      .getElementById("execution-plan")
-                      ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-                  });
                 }}
               />
-              {showExecutionPlan && dailyDecision.action === "buy" ? (
-                <div id="execution-plan">
-                  <ExecutionPlanCard
-                    decision={dailyDecision}
-                    entryTiming={entryTiming}
-                  />
-                </div>
-              ) : null}
+              <ExecutionPlanModal
+                open={showExecutionPlan}
+                onClose={() => setShowExecutionPlan(false)}
+                decision={dailyDecision}
+                entryTiming={entryTiming}
+              />
             </>
           ) : null}
 

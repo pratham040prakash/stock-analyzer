@@ -498,12 +498,11 @@ export default function HomeDecisionScreen({
         <ApexTitle className="animate-apex-fade-in text-[28px] tracking-[0.01em] sm:text-[30px]">
           {headline}
         </ApexTitle>
-        <ApexBody
-          className="mt-4 animate-apex-fade-in text-[15px] text-apex-text/80"
-          style={{ animationDelay: "80ms" }}
+        <div
+          className="mt-4 animate-apex-fade-in text-[15px] text-apex-text/80 [animation-delay:80ms]"
         >
           {subtext}
-        </ApexBody>
+        </div>
 
         <section className="mt-8 rounded-xl border border-apex-border/30 bg-apex-bg/30 px-4 py-4">
           <p className="text-[13px] font-semibold text-apex-text/90">
