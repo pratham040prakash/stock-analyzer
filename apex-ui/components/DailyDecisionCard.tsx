@@ -7,6 +7,13 @@ import {
   instrumentPlanWithoutFunds,
   recommendationsToPlanItems,
 } from "@/lib/allocation";
+import { buildDecisionDepth } from "@/lib/dailyLoop/decisionDepth";
+import {
+  ProtectAllocationSection,
+  SystemContextSection,
+  WhatToWatchSection,
+  WhyThisDecisionSection,
+} from "@/components/dailyLoop/DecisionDepthSections";
 import {
   getAllRecommendations,
   type RecommendationPortfolio,
@@ -16,6 +23,7 @@ import OpportunitiesList from "@/components/decision/OpportunitiesList";
 import type { PortfolioRiskLevel } from "@/lib/portfolioRisk";
 import type { DailyDecisionOutput, DecisionActionType } from "@/types/decision";
 import type { Intent } from "@/types/intent";
+import { resolveIntent } from "@/types/intent";
 import {
   buildSellPercentOptions,
   decisionHeroActionText,
@@ -109,6 +117,30 @@ export default function DailyDecisionCard({
     canTrim && decision.allocation !== undefined
       ? decisionRiskMicrocopy(decision.allocation, activeSellPercent)
       : null;
+
+  const decisionDepth = useMemo(
+    () =>
+      buildDecisionDepth({
+        action: decision.action,
+        stock: decision.stock,
+        confidence: decision.confidence,
+        structureScore: decision.structureScore,
+        reason: decision.reason,
+        message: decision.message,
+        confidence_factors: decision.confidence_factors,
+        validation: decision.validation,
+        confidenceMetrics: decision.confidenceMetrics,
+        picks: decision.picks,
+        allocation: decision.allocation,
+        suggested_sell_percent: decision.suggested_sell_percent,
+        allocationPercent: decision.allocationPercent,
+        allocationReason: decision.allocationReason,
+        intent: resolveIntent(intent),
+        topSymbol: portfolioContext.top_symbol,
+        topAllocationPct: portfolioContext.top_allocation_pct,
+      }),
+    [decision, intent, portfolioContext.top_allocation_pct, portfolioContext.top_symbol],
+  );
 
   const opportunities = decision.opportunities ?? [];
 
@@ -281,6 +313,18 @@ export default function DailyDecisionCard({
             {decision.suggestion ? (
               <ApexBody className="mt-3">{decision.suggestion}</ApexBody>
             ) : null}
+
+            <div className="mt-5 space-y-0">
+              <WhyThisDecisionSection bullets={decisionDepth.whyBullets} delayMs={0} />
+              {decisionDepth.protectAllocation ? (
+                <ProtectAllocationSection
+                  insight={decisionDepth.protectAllocation}
+                  delayMs={0}
+                />
+              ) : null}
+              <WhatToWatchSection items={decisionDepth.watchNext} delayMs={0} />
+              <SystemContextSection depth={decisionDepth} delayMs={0} />
+            </div>
           </>
         ) : null}
 

@@ -648,6 +648,8 @@ export default function HomeClient({
               decision={dailyDecision}
               entryTiming={entryTiming}
               intent={userIntent}
+              topSymbol={portfolioData?.top_symbol}
+              topAllocationPct={portfolioData?.top_allocation_pct}
             />
           ) : null}
 
