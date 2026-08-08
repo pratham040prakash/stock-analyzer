@@ -3,12 +3,16 @@
 import { useMemo } from "react";
 import { formatInr } from "@/lib/funds";
 import { buildDecisionDepth } from "@/lib/dailyLoop/decisionDepth";
+import { getDisciplineInterpretation } from "@/lib/dailyLoop/disciplineCopy";
+import { getHeroTone } from "@/lib/dailyLoop/heroTone";
 import { getIntentExperience } from "@/lib/dailyLoop/intentExperience";
 import { useDailyLoop } from "@/lib/useDailyLoop";
+import { useIntentTransition } from "@/lib/useIntentTransition";
 import type { EntryTimingState } from "@/components/decision/ExecutionPlanCard";
 import {
   BackgroundNote,
   ExplorePrimaryBlock,
+  PrimaryEmphasis,
   ProtectPrimaryBlock,
   SystemContextLine,
   WatchSection,
@@ -97,36 +101,38 @@ function ExecutionPrimaryBlock({
 }) {
   return (
     <section
-      className="mb-5 space-y-3 animate-apex-fade-in"
+      className="mb-5 animate-apex-fade-in"
       style={{ animationDelay: `${delayMs}ms` }}
     >
-      {planLoading ? (
-        <p className="text-lg font-medium text-apex-text/80">Building your plan…</p>
-      ) : hasPlan && plan ? (
-        <>
-          <ol className="space-y-3">
-            {plan.steps.map((step, index) => (
-              <li
-                key={step}
-                className="flex gap-3 text-lg font-medium leading-snug text-apex-text"
-              >
-                <span className="mt-1 text-sm tabular-nums text-apex-muted">
-                  {index + 1}.
-                </span>
-                {step}
-              </li>
-            ))}
-          </ol>
-          <p className="text-sm text-apex-muted">
-            Stop {plan.stopLoss !== null ? formatInr(plan.stopLoss) : "—"} · Entry{" "}
-            {formatEntryType(plan.entryType)}
+      <PrimaryEmphasis>
+        {planLoading ? (
+          <p className="text-lg font-medium text-apex-text/80">Building your plan…</p>
+        ) : hasPlan && plan ? (
+          <>
+            <ol className="space-y-3">
+              {plan.steps.map((step, index) => (
+                <li
+                  key={step}
+                  className="flex gap-3 text-lg font-medium leading-snug text-apex-text"
+                >
+                  <span className="mt-1 text-sm tabular-nums text-apex-muted">
+                    {index + 1}.
+                  </span>
+                  {step}
+                </li>
+              ))}
+            </ol>
+            <p className="text-sm text-apex-muted">
+              Stop {plan.stopLoss !== null ? formatInr(plan.stopLoss) : "—"} · Entry{" "}
+              {formatEntryType(plan.entryType)}
+            </p>
+          </>
+        ) : (
+          <p className="text-lg font-medium text-apex-text/80">
+            Plan unavailable — check back shortly.
           </p>
-        </>
-      ) : (
-        <p className="text-lg font-medium text-apex-text/80">
-          Plan unavailable — check back shortly.
-        </p>
-      )}
+        )}
+      </PrimaryEmphasis>
     </section>
   );
 }
@@ -139,7 +145,8 @@ export default function HomeDecisionScreen({
   topAllocationPct,
   className = "",
 }: HomeDecisionScreenProps) {
-  const experience = getIntentExperience(intent);
+  const { renderIntent, contentClassName } = useIntentTransition(intent);
+  const experience = getIntentExperience(renderIntent);
   const {
     actionText,
     plan,
@@ -154,19 +161,26 @@ export default function HomeDecisionScreen({
     () =>
       buildDecisionDepth({
         ...decision,
-        intent,
+        intent: renderIntent,
         entryTiming,
         planConviction: plan?.conviction,
         topSymbol,
         topAllocationPct,
       }),
-    [decision, entryTiming, intent, plan?.conviction, topAllocationPct, topSymbol],
+    [
+      decision,
+      entryTiming,
+      plan?.conviction,
+      renderIntent,
+      topAllocationPct,
+      topSymbol,
+    ],
   );
 
   const isBuy = decision.action === "buy";
-  const isExplore = intent === "explore";
-  const isProtect = intent === "protect";
-  const isGrow = intent === "grow";
+  const isExplore = renderIntent === "explore";
+  const isProtect = renderIntent === "protect";
+  const isGrow = renderIntent === "grow";
   const isSell =
     isSellAction(decision.action as DecisionActionType) ||
     decision.action === "sell" ||
@@ -181,6 +195,11 @@ export default function HomeDecisionScreen({
   };
 
   const heroTitle = isExplore ? "What is interesting today" : actionText;
+  const heroTone = getHeroTone({
+    intent: renderIntent,
+    action: decision.action,
+  });
+  const disciplineLine = getDisciplineInterpretation(trustScore);
   const protectReason =
     decision.message ??
     decision.reason ??
@@ -200,27 +219,20 @@ export default function HomeDecisionScreen({
           ].join(" ")}
         />
 
-        <div className="relative p-6">
-          <header
-            className="mb-6 animate-apex-fade-in space-y-2"
-            style={{ animationDelay: "0ms" }}
-          >
+        <div className={`relative p-6 ${contentClassName}`}>
+          <header className="mb-6 space-y-2">
             <p className="text-xs font-medium uppercase tracking-[0.14em] text-apex-muted">
               {experience.tagline}
             </p>
             <h1 className="text-3xl font-semibold leading-tight tracking-tight text-apex-text sm:text-4xl">
               {heroTitle}
             </h1>
-            {isExplore && decision.reason ? (
-              <p className="text-sm leading-relaxed text-apex-muted">
-                {decision.reason}
-              </p>
-            ) : null}
+            <p className="mt-2 text-sm text-apex-muted">{heroTone}</p>
           </header>
 
           {isExplore ? (
             <ExplorePrimaryBlock
-              setups={resolvedDepth.exploreSetups}
+              setupItems={resolvedDepth.exploreSetupItems}
               delayMs={nextDelay()}
             />
           ) : null}
@@ -248,9 +260,11 @@ export default function HomeDecisionScreen({
               className="mb-5 animate-apex-fade-in"
               style={{ animationDelay: `${nextDelay()}ms` }}
             >
-              <p className="text-lg font-medium leading-snug text-apex-text">
-                {decision.reason ?? decision.message ?? actionText}
-              </p>
+              <PrimaryEmphasis>
+                <p className="text-lg font-medium leading-snug text-apex-text">
+                  {decision.reason ?? decision.message ?? actionText}
+                </p>
+              </PrimaryEmphasis>
             </section>
           ) : null}
 
@@ -286,14 +300,20 @@ export default function HomeDecisionScreen({
             style={{ animationDelay: `${nextDelay()}ms` }}
           >
             <div className="flex items-baseline justify-between gap-4">
-              <p className="text-2xl font-semibold tabular-nums tracking-tight text-apex-text">
-                {trustScore}
-              </p>
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-apex-muted">
+                  Discipline
+                </p>
+                <p className="text-3xl font-semibold tabular-nums tracking-tight text-apex-text">
+                  {trustScore}
+                </p>
+              </div>
               <p className="text-sm">
                 <TrustDelta delta={trustDelta} />
               </p>
             </div>
-            <p className="text-sm text-apex-muted">{trustMessage}</p>
+            <p className="text-sm text-apex-text/80">{disciplineLine}</p>
+            <p className="text-xs text-apex-muted">{trustMessage}</p>
           </section>
 
           {lastOutcome ? (

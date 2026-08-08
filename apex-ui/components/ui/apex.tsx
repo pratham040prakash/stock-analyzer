@@ -160,9 +160,9 @@ export function ApexButton({
 }) {
   const variantClass: Record<ButtonVariant, string> = {
     primary:
-      "bg-emerald-500 text-slate-950 hover:bg-emerald-400 hover:scale-[1.02] active:scale-[0.99]",
+      "bg-emerald-500 text-slate-950 hover:bg-emerald-400 hover:scale-[1.02] active:scale-[0.98]",
     secondary:
-      "border border-apex-border bg-apex-bg text-apex-text hover:bg-white/[0.03] hover:scale-[1.02] active:scale-[0.99]",
+      "border border-apex-border bg-apex-bg text-apex-text hover:bg-white/[0.03] hover:scale-[1.02] active:scale-[0.98]",
     ghost:
       "text-apex-muted hover:text-apex-text hover:bg-white/[0.03]",
   };

@@ -34,6 +34,7 @@ export default function IntentSelector({ intent, onIntentChange }: Props) {
               onClick={() => onIntentChange(option.value)}
               className={[
                 "flex-1 rounded-xl border px-4 py-3 text-left transition-all duration-200 ease-out",
+                "hover:scale-[1.02] active:scale-[0.98]",
                 selected
                   ? "border-blue-500/30 bg-blue-500/10 text-blue-100"
                   : "border-apex-border bg-apex-bg text-apex-muted hover:bg-white/[0.03] hover:text-apex-text",

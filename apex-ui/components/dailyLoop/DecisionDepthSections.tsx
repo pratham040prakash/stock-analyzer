@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import type {
   DecisionDepth,
+  ExploreSetupItem,
   ProtectAllocationInsight,
 } from "@/lib/dailyLoop/decisionDepth";
 import { convictionLabel } from "@/lib/dailyLoop/decisionDepth";
@@ -10,11 +11,19 @@ import { convictionLabel } from "@/lib/dailyLoop/decisionDepth";
 type SectionTier = "primary" | "support" | "context" | "background";
 
 const TIER_CLASS: Record<SectionTier, string> = {
-  primary: "mb-5 space-y-3 animate-apex-fade-in",
+  primary: "mb-5 animate-apex-fade-in",
   support: "mb-3 space-y-2 animate-apex-fade-in",
   context: "mt-4 opacity-60 animate-apex-fade-in",
   background: "mt-6 space-y-2 animate-apex-fade-in",
 };
+
+export function PrimaryEmphasis({ children }: { children: ReactNode }) {
+  return (
+    <div className="space-y-3 rounded-xl bg-white/[0.03] p-4 transition-all duration-200 hover:scale-[1.01]">
+      {children}
+    </div>
+  );
+}
 
 function TierBlock({
   tier,
@@ -27,12 +36,15 @@ function TierBlock({
   children: ReactNode;
   className?: string;
 }) {
+  const body =
+    tier === "primary" ? <PrimaryEmphasis>{children}</PrimaryEmphasis> : children;
+
   return (
     <section
       className={[TIER_CLASS[tier], className].filter(Boolean).join(" ")}
       style={{ animationDelay: `${delayMs}ms` }}
     >
-      {children}
+      {body}
     </section>
   );
 }
@@ -162,29 +174,34 @@ export function ProtectPrimaryBlock({
 }
 
 export function ExplorePrimaryBlock({
-  setups,
+  setupItems,
   delayMs,
 }: {
-  setups: string[];
+  setupItems: ExploreSetupItem[];
   delayMs: number;
 }) {
   return (
     <TierBlock tier="primary" delayMs={delayMs}>
-      {setups.length > 0 ? (
-        <ul className="space-y-3">
-          {setups.map((setup) => (
-            <li
-              key={setup}
-              className="text-lg font-medium leading-snug text-apex-text"
-            >
-              {setup}
+      {setupItems.length > 0 ? (
+        <ul className="space-y-4">
+          {setupItems.map((item) => (
+            <li key={item.title}>
+              <p className="text-lg font-medium leading-snug text-apex-text">
+                {item.title}
+              </p>
+              <p className="mt-1 text-xs text-apex-muted">{item.insight}</p>
             </li>
           ))}
         </ul>
       ) : (
-        <p className="text-lg font-medium leading-snug text-apex-text/90">
-          Nothing stands out sharply — mixed markets often reward patience.
-        </p>
+        <div>
+          <p className="text-lg font-medium leading-snug text-apex-text/90">
+            Nothing stands out sharply
+          </p>
+          <p className="mt-1 text-xs text-apex-muted">
+            Mixed markets often reward patience over action.
+          </p>
+        </div>
       )}
       <p className="text-sm text-blue-200/75">No action yet</p>
     </TierBlock>
@@ -240,5 +257,10 @@ export function ExploreInterestingSection({
   delayMs: number;
   showTitle?: boolean;
 }) {
-  return <ExplorePrimaryBlock setups={setups} delayMs={delayMs} />;
+  return (
+    <ExplorePrimaryBlock
+      setupItems={setups.map((title) => ({ title, insight: "" }))}
+      delayMs={delayMs}
+    />
+  );
 }

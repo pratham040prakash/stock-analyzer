@@ -4,10 +4,10 @@ import {
   type ExecutionPlanConviction,
   type ExecutionPlanMarketRegime,
 } from "@/services/execution/executionPlanEngine";
+import type { StockPick } from "@/types/decision";
 import {
   isSellAction,
   type DecisionActionType,
-  type StockPick,
 } from "@/types/decision";
 import type { UserIntent } from "@/types/intent";
 
@@ -33,6 +33,7 @@ export type DecisionDepth = {
   };
   protectAllocation?: ProtectAllocationInsight;
   exploreSetups: string[];
+  exploreSetupItems: ExploreSetupItem[];
 };
 
 export type DecisionDepthInput = {
@@ -109,6 +110,25 @@ function regimeNote(regime: ExecutionPlanMarketRegime): string {
 
 function formatSetupObservation(pick: StockPick): string {
   return `${pick.stock} — trend ${pick.signals.trend}, momentum ${pick.signals.momentum}, alignment score ${Math.round(pick.score)}`;
+}
+
+export type ExploreSetupItem = {
+  title: string;
+  insight: string;
+};
+
+function buildExploreSetupItem(pick: StockPick): ExploreSetupItem {
+  const agreement =
+    pick.signals.trend >= 60 && pick.signals.momentum >= 60
+      ? "Signals are aligning — worth studying the chart."
+      : pick.signals.trend >= pick.signals.momentum
+        ? "Trend leads — watch whether momentum catches up."
+        : "Momentum is active — see if trend confirms it.";
+
+  return {
+    title: pick.stock,
+    insight: agreement,
+  };
 }
 
 function isNoTradeAction(action: string): boolean {
@@ -321,6 +341,7 @@ export function buildDecisionDepth(input: DecisionDepthInput): DecisionDepth {
     resolveExecutionPlanMarketRegime(input, input.entryTiming);
 
   const picks = input.picks ?? [];
+  const topPicks = picks.slice(0, 3);
 
   return {
     whyBullets: buildWhyBullets(input, marketRegime),
@@ -334,7 +355,8 @@ export function buildDecisionDepth(input: DecisionDepthInput): DecisionDepth {
       conviction: input.planConviction,
     },
     protectAllocation: buildProtectAllocation(input),
-    exploreSetups: picks.slice(0, 3).map(formatSetupObservation),
+    exploreSetups: topPicks.map(formatSetupObservation),
+    exploreSetupItems: topPicks.map(buildExploreSetupItem),
   };
 }
 

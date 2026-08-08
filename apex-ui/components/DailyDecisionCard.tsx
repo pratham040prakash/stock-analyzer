@@ -383,7 +383,7 @@ export default function DailyDecisionCard({
                               openConfirm(percent);
                             }}
                             className={[
-                              "rounded-lg border px-3 py-2 text-[13px] font-medium transition-all duration-200",
+                              "rounded-lg border px-3 py-2 text-[13px] font-medium transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]",
                               isActive
                                 ? "border-red-500/40 bg-red-500/15 text-red-100"
                                 : "border-apex-border bg-apex-bg text-apex-muted hover:bg-white/[0.03]",

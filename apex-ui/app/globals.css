@@ -25,6 +25,7 @@
   --animate-apex-fade-in: apex-fade-in 200ms ease-out both;
   --animate-apex-chip-pulse: apex-chip-pulse 7s ease-in-out infinite;
   --animate-apex-bullet-in: apex-bullet-in 400ms ease-out both;
+  --animate-apex-intent-in: apex-intent-in 150ms ease-out both;
 }
 
 @keyframes apex-rise-in {
@@ -63,6 +64,17 @@
   from {
     opacity: 0;
     transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes apex-intent-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
   }
   to {
     opacity: 1;
