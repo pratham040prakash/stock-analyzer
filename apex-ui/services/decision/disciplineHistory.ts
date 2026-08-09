@@ -1,39 +1,20 @@
 import type { DecisionActionType } from "@/types/decision";
 import type { DisciplineHistoryEntry } from "@/types/decisionHistory";
+import {
+  buildLastNIstDays,
+  mergeDisciplineHistory,
+  resolveSinceIstDate,
+  summarizeDisciplineHistory,
+  type DisciplineCommitRow,
+} from "@/lib/dailyLoop/disciplineHistoryMerge";
 import type { Database } from "@/types/database";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 type Client = SupabaseClient<Database>;
 
-export type DisciplineHistorySummary = {
-  wins: number;
-  losses: number;
-  open: number;
-  waitDays: number;
-  executedDays: number;
-};
-
-function utcDateKey(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
-
-function resolveSinceDate(days: number): string {
-  const since = new Date();
-  since.setUTCDate(since.getUTCDate() - (Math.max(1, days) - 1));
-  return utcDateKey(since);
-}
-
-function buildLastNDays(days: number): string[] {
-  const keys: string[] = [];
-  const cursor = new Date();
-
-  for (let index = 0; index < days; index += 1) {
-    keys.unshift(utcDateKey(cursor));
-    cursor.setUTCDate(cursor.getUTCDate() - 1);
-  }
-
-  return keys;
-}
+export type DisciplineHistorySummary = ReturnType<
+  typeof summarizeDisciplineHistory
+>;
 
 function resolveMemoryOutcome(row: {
   action: string;
@@ -68,21 +49,6 @@ function memoryActionLabel(action: string): DecisionActionType {
   return "hold";
 }
 
-function guidanceAction(action: string | null): DecisionActionType {
-  if (
-    action === "buy" ||
-    action === "sell" ||
-    action === "wait" ||
-    action === "hold" ||
-    action === "reduce" ||
-    action === "explore"
-  ) {
-    return action;
-  }
-
-  return "hold";
-}
-
 function outcomeLabel(
   outcome: DisciplineHistoryEntry["outcome"],
   source: DisciplineHistoryEntry["source"],
@@ -99,6 +65,10 @@ function outcomeLabel(
     return "Open position";
   }
 
+  if (outcome === "followed") {
+    return "Followed today";
+  }
+
   if (outcome === "wait") {
     return source === "executed" ? "Wait" : "Wait — no trade";
   }
@@ -108,37 +78,6 @@ function outcomeLabel(
   }
 
   return "No execution logged";
-}
-
-function summarizeHistory(
-  history: DisciplineHistoryEntry[],
-): DisciplineHistorySummary {
-  return history.reduce<DisciplineHistorySummary>(
-    (summary, entry) => {
-      if (entry.source === "executed") {
-        summary.executedDays += 1;
-      }
-
-      if (entry.outcome === "win") {
-        summary.wins += 1;
-      } else if (entry.outcome === "loss") {
-        summary.losses += 1;
-      } else if (entry.outcome === "open") {
-        summary.open += 1;
-      } else if (entry.outcome === "wait" || entry.outcome === "hold") {
-        summary.waitDays += 1;
-      }
-
-      return summary;
-    },
-    {
-      wins: 0,
-      losses: 0,
-      open: 0,
-      waitDays: 0,
-      executedDays: 0,
-    },
-  );
 }
 
 export async function getDisciplineHistory(
@@ -151,10 +90,10 @@ export async function getDisciplineHistory(
   days: string[];
 }> {
   const windowDays = Math.min(7, Math.max(1, Math.round(days)));
-  const sinceDate = resolveSinceDate(windowDays);
-  const dayKeys = buildLastNDays(windowDays);
+  const sinceDate = resolveSinceIstDate(windowDays);
+  const dayKeys = buildLastNIstDays(windowDays);
 
-  const [decisionsResult, memoryResult] = await Promise.all([
+  const [decisionsResult, memoryResult, commitsResult] = await Promise.all([
     supabase
       .from("decisions")
       .select("decision_date, action, stock")
@@ -169,7 +108,25 @@ export async function getDisciplineHistory(
       .eq("user_id", userId)
       .gte("decision_date", sinceDate)
       .order("decision_date", { ascending: false }),
+    supabase
+      .from("discipline_commits")
+      .select("commit_date, intent, action, stock, followed")
+      .eq("user_id", userId)
+      .gte("commit_date", sinceDate)
+      .order("commit_date", { ascending: false }),
   ]);
+
+  if (decisionsResult.error) {
+    throw new Error(decisionsResult.error.message);
+  }
+
+  if (memoryResult.error) {
+    throw new Error(memoryResult.error.message);
+  }
+
+  if (commitsResult.error) {
+    throw new Error(commitsResult.error.message);
+  }
 
   const guidanceByDate = new Map<string, { action: string; stock?: string }>();
 
@@ -213,44 +170,32 @@ export async function getDisciplineHistory(
     executedByDate.set(row.decision_date, bucket);
   }
 
-  const history: DisciplineHistoryEntry[] = [];
+  const commitsByDate = new Map<string, DisciplineCommitRow>();
 
-  for (const date of [...dayKeys].reverse()) {
-    const executed = executedByDate.get(date);
-
-    if (executed?.length) {
-      history.push(...executed);
+  for (const row of commitsResult.data ?? []) {
+    if (!row.commit_date || commitsByDate.has(row.commit_date)) {
       continue;
     }
 
-    const guidance = guidanceByDate.get(date);
-
-    if (!guidance) {
-      continue;
-    }
-
-    const action = guidanceAction(guidance.action);
-    const outcome =
-      action === "wait"
-        ? "wait"
-        : action === "hold"
-          ? "hold"
-          : "none";
-
-    history.push({
-      date,
-      action,
-      stock: guidance.stock,
-      outcome,
-      outcomeLabel: outcomeLabel(outcome, "guidance"),
-      pnl: null,
-      source: "guidance",
+    commitsByDate.set(row.commit_date, {
+      commit_date: row.commit_date,
+      intent: row.intent,
+      action: row.action,
+      stock: row.stock,
+      followed: row.followed,
     });
   }
 
+  const history = mergeDisciplineHistory({
+    dayKeys,
+    executedByDate,
+    commitsByDate,
+    guidanceByDate,
+  });
+
   return {
     history,
-    summary: summarizeHistory(history),
+    summary: summarizeDisciplineHistory(history),
     days: dayKeys,
   };
 }

@@ -41,6 +41,10 @@ function resolveDayStatus(
     return "open";
   }
 
+  if (entries.some((entry) => entry.outcome === "followed")) {
+    return "followed";
+  }
+
   if (entries.some((entry) => entry.outcome === "wait")) {
     return "wait";
   }
@@ -63,6 +67,10 @@ function statusClass(status: ReturnType<typeof resolveDayStatus>): string {
 
   if (status === "open") {
     return "border-blue-300/30 bg-blue-500/10 text-blue-100/90";
+  }
+
+  if (status === "followed") {
+    return "border-teal-300/35 bg-teal-500/15 text-teal-100/95";
   }
 
   if (status === "wait" || status === "hold") {
@@ -120,12 +128,16 @@ export function formatDisciplineSummary(summary: DisciplineHistorySummary): stri
     parts.push(`${summary.open} open`);
   }
 
+  if (summary.followedDays > 0) {
+    parts.push(`${summary.followedDays} followed`);
+  }
+
   if (summary.waitDays > 0) {
     parts.push(`${summary.waitDays} wait`);
   }
 
   if (parts.length === 0) {
-    return "No closed trades in the last seven days.";
+    return "No discipline logged in the last seven days.";
   }
 
   return parts.join(" · ");

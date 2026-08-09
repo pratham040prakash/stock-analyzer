@@ -63,6 +63,8 @@ function outcomeTone(outcome: DisciplineHistoryEntry["outcome"]): string {
       return "text-amber-200/95";
     case "open":
       return "text-blue-100/90";
+    case "followed":
+      return "text-teal-100/95";
     case "wait":
     case "hold":
       return "text-apex-muted/80";
@@ -83,6 +85,10 @@ function HistoryRow({ entry }: { entry: DisciplineHistoryEntry }) {
           {entry.source === "executed" ? (
             <p className="mt-0.5 text-[11px] uppercase tracking-wide text-apex-muted/55">
               Executed on Zerodha
+            </p>
+          ) : entry.source === "commit" ? (
+            <p className="mt-0.5 text-[11px] uppercase tracking-wide text-apex-muted/55">
+              Discipline commit
             </p>
           ) : null}
         </div>
@@ -124,7 +130,7 @@ export default function DecisionHistoryPanel({
             No discipline history yet
           </p>
           <p className="mt-1 text-sm leading-snug text-apex-muted/75">
-            Executed trades and wait decisions appear here once you act on Today.
+            Followed days, executed trades, and guidance appear here once you act on Today.
           </p>
         </div>
       ) : (

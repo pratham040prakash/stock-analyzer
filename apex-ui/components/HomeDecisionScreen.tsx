@@ -80,6 +80,7 @@ export type HomeDecisionScreenProps = {
   fundsSyncError?: string | null;
   isRefreshing?: boolean;
   onCapitalRefresh?: () => void;
+  onDisciplineCommitted?: () => void;
   premiumFeatures?: TierFeatures;
   premiumActivationEnabled?: boolean;
   onPremiumActivated?: () => void;
@@ -132,6 +133,7 @@ export default function HomeDecisionScreen({
   fundsSyncError = null,
   isRefreshing = false,
   onCapitalRefresh,
+  onDisciplineCommitted,
   premiumFeatures,
   premiumActivationEnabled = false,
   onPremiumActivated,
@@ -198,6 +200,7 @@ export default function HomeDecisionScreen({
     action: decision.action,
     stock: decision.stock,
     deploymentPercentage: capitalDecision.deploymentPercentage,
+    onCommitted: onDisciplineCommitted,
   });
 
   const todayHero = useMemo(

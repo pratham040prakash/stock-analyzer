@@ -24,6 +24,7 @@ type UseDisciplineStreakInput = {
   action: string;
   stock?: string;
   deploymentPercentage?: number;
+  onCommitted?: () => void;
 };
 
 export type DisciplineStreakView = {
@@ -105,6 +106,7 @@ export function useDisciplineStreak({
   action,
   stock,
   deploymentPercentage,
+  onCommitted,
 }: UseDisciplineStreakInput): DisciplineStreakView {
   const [snapshot, setSnapshot] = useState<DisciplineStreakSnapshot>(() =>
     readDisciplineStreak(),
@@ -190,13 +192,15 @@ export function useDisciplineStreak({
       if (serverSnapshot) {
         applyDisciplineStreakSnapshot(serverSnapshot);
         setSnapshot(serverSnapshot);
+        onCommitted?.();
         return;
       }
 
       const localSnapshot = commitDisciplineFollowed({ intent, action, stock });
       setSnapshot(localSnapshot);
+      onCommitted?.();
     })();
-  }, [action, intent, snapshot.committedToday, stock]);
+  }, [action, intent, onCommitted, snapshot.committedToday, stock]);
 
   return {
     streakCount: snapshot.streakCount,

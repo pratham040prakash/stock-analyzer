@@ -63,6 +63,7 @@ const EMPTY_DISCIPLINE_SUMMARY: DisciplineHistorySummary = {
   open: 0,
   waitDays: 0,
   executedDays: 0,
+  followedDays: 0,
 };
 
 type ZerodhaSessionResponse = {
@@ -885,6 +886,9 @@ export default function HomeClient({
               fundsSyncError={fundsSyncError}
               isRefreshing={decisionRefreshing}
               onCapitalRefresh={refreshAfterExecution}
+              onDisciplineCommitted={() => {
+                void loadDecisionHistory();
+              }}
               premiumFeatures={premiumFeatures}
               premiumActivationEnabled={activationEnabled}
               onPremiumActivated={() => {
