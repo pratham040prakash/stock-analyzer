@@ -20,6 +20,8 @@ export type CapitalAction = {
   missing?: string;
   confirm?: string;
   timing?: string;
+  postActionImpact?: string;
+  isPrimary?: boolean;
   reason: string;
 };
 
@@ -30,6 +32,8 @@ export type CapitalDecision = {
   actions: CapitalAction[];
   heroHeadline: string;
   heroSubline: string;
+  portfolioStance: string;
+  primaryAction: string;
 };
 
 export type CapitalDecisionInput = {
@@ -294,6 +298,7 @@ function buildBuyAction(
   symbol: string,
   deploymentPercentage: number,
   pick: StockPick | undefined,
+  isPrimary: boolean,
 ): CapitalAction {
   const confirmed =
     pick && Math.round(pick.score) >= 75
@@ -305,6 +310,7 @@ function buildBuyAction(
     action: "BUY",
     allocation: deploymentPercentage,
     deployLabel: deployLabel(deploymentPercentage),
+    isPrimary,
     confirm: sanitizeCopy(confirmed),
     timing: "Deploy today within the allocated limit.",
     reason: composeReason({
@@ -315,10 +321,72 @@ function buildBuyAction(
   };
 }
 
+function buildPostActionImpact(
+  concentration: number,
+  trimPct: number,
+): string | undefined {
+  if (concentration <= 0) {
+    return undefined;
+  }
+
+  const postTrimPct = Math.max(
+    0,
+    Math.round(concentration * (1 - trimPct / 100)),
+  );
+
+  return `Position at ${concentration}% → trim ${trimPct}% → post-trim ${postTrimPct}%`;
+}
+
+function buildPortfolioStance(
+  input: CapitalDecisionInput,
+  deploymentPercentage: number,
+  actions: CapitalAction[],
+): string {
+  const action = input.action;
+  const buyCount = actions.filter((item) => item.action === "BUY").length;
+
+  if (isSellAction(action as DecisionActionType) || action === "sell") {
+    return "Defensive — protecting concentrated exposure";
+  }
+
+  if (deploymentPercentage >= 50 || buyCount >= 2) {
+    return "Active — multiple aligned opportunities";
+  }
+
+  if (deploymentPercentage > 0 || buyCount === 1) {
+    return "Selective — limited confirmed setups";
+  }
+
+  return "Defensive — no valid deployment";
+}
+
+function buildPrimaryAction(
+  input: CapitalDecisionInput,
+  deploymentPercentage: number,
+  actions: CapitalAction[],
+): string {
+  const action = input.action;
+
+  if (isSellAction(action as DecisionActionType) || action === "sell") {
+    const symbol =
+      input.stock ?? actions.find((item) => item.action === "SELL")?.symbol;
+
+    return symbol ? `Trim ${symbol} exposure` : "Trim concentrated exposure";
+  }
+
+  const primaryBuy = actions.find((item) => item.action === "BUY");
+  if (primaryBuy && deploymentPercentage > 0) {
+    return `Deploy ${primaryBuy.allocation}% into ${primaryBuy.symbol}`;
+  }
+
+  return "Remain in cash";
+}
+
 function buildSellAction(
   symbol: string,
   trimPct: number,
   concentration: number,
+  isPrimary: boolean,
 ): CapitalAction {
   const missing =
     concentration > 25
@@ -330,6 +398,8 @@ function buildSellAction(
     action: "SELL",
     allocation: trimPct,
     deployLabel: deployLabel(0),
+    isPrimary,
+    postActionImpact: buildPostActionImpact(concentration, trimPct),
     missing: sanitizeCopy(missing),
     confirm: sanitizeCopy(`Trim ${trimPct}% of ${symbol} to rebalance your capital.`),
     timing: "Act this session.",
@@ -354,6 +424,7 @@ function buildWaitAction(
     action: "WAIT",
     allocation: 0,
     deployLabel: deployLabel(0),
+    isPrimary: isPrimary && symbol === input.stock,
     stage: context.stage,
     missing: sanitizeCopy(context.missing),
     confirm: sanitizeCopy(context.confirm),
@@ -377,11 +448,11 @@ function resolveActionForSymbol(
   ) {
     const trimPct = normalizePercent(input.suggested_sell_percent) || 25;
     const concentration = normalizePercent(input.topAllocationPct);
-    return buildSellAction(symbol, trimPct, concentration);
+    return buildSellAction(symbol, trimPct, concentration, isPrimary);
   }
 
   if (action === "buy" && isPrimary && deploymentPercentage > 0) {
-    return buildBuyAction(symbol, deploymentPercentage, pick);
+    return buildBuyAction(symbol, deploymentPercentage, pick, isPrimary);
   }
 
   return buildWaitAction(symbol, pick, input, isPrimary);
@@ -434,6 +505,8 @@ export function buildCapitalDecision(input: CapitalDecisionInput): CapitalDecisi
       cashPercentage,
       deploymentPercentage,
     ),
+    portfolioStance: buildPortfolioStance(input, deploymentPercentage, actions),
+    primaryAction: buildPrimaryAction(input, deploymentPercentage, actions),
   };
 }
 
@@ -449,14 +522,21 @@ export function formatCapitalAction(action: CapitalAction): string {
   }
 
   lines.push(`Reason: ${action.reason}`);
+
+  if (action.postActionImpact) {
+    lines.push(action.postActionImpact);
+  }
+
   return lines.join("\n");
 }
 
 export function summarizeCapitalDecision(decision: CapitalDecision): string {
+  const lead = `${decision.portfolioStance} Primary: ${decision.primaryAction}.`;
+
   if (decision.actions.length === 0) {
-    return `${decision.heroHeadline} ${decision.heroSubline}`;
+    return `${lead} ${decision.heroHeadline} ${decision.heroSubline}`;
   }
 
-  const lead = decision.actions[0];
-  return `${decision.heroHeadline} ${lead.symbol}: ${lead.action} — ${lead.deployLabel}. ${lead.reason}`;
+  const action = decision.actions[0];
+  return `${lead} ${decision.heroHeadline} ${action.symbol}: ${action.action} — ${action.deployLabel}. ${action.reason}`;
 }

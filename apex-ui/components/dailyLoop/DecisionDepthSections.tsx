@@ -188,35 +188,55 @@ export function CapitalActionsBlock({
   decision: CapitalDecision;
   delayMs: number;
 }) {
-  if (decision.actions.length === 0) {
-    return (
-      <TierBlock tier="primary" delayMs={delayMs}>
-        <p className="text-sm leading-snug text-apex-text/85">
-          {decision.heroHeadline}
-        </p>
-        <p className="mt-1 text-sm leading-snug text-apex-text/75">
-          {decision.heroSubline}
-        </p>
-      </TierBlock>
-    );
-  }
-
   return (
     <TierBlock tier="primary" delayMs={delayMs}>
-      <ul className="space-y-5">
-        {decision.actions.map((item) => (
-          <CapitalActionRow key={item.symbol} action={item} />
-        ))}
-      </ul>
+      <div className="space-y-4">
+        <div className="space-y-1">
+          <p className="text-xs font-medium uppercase tracking-[0.12em] text-apex-muted">
+            Portfolio stance
+          </p>
+          <p className="text-sm leading-snug text-apex-text/85">
+            {decision.portfolioStance}
+          </p>
+        </div>
+
+        <div className="space-y-1">
+          <p className="text-xs font-medium uppercase tracking-[0.12em] text-apex-muted">
+            Primary action
+          </p>
+          <p className="text-base font-semibold leading-snug text-apex-text">
+            {decision.primaryAction}
+          </p>
+        </div>
+
+        {decision.actions.length > 0 ? (
+          <ul className="space-y-5 border-t border-apex-border/15 pt-4">
+            {decision.actions.map((item) => (
+              <CapitalActionRow key={item.symbol} action={item} />
+            ))}
+          </ul>
+        ) : null}
+      </div>
     </TierBlock>
   );
 }
 
 function CapitalActionRow({ action }: { action: CapitalAction }) {
   return (
-    <li>
+    <li
+      className={
+        action.isPrimary
+          ? "rounded-lg border border-apex-border/20 bg-white/[0.02] p-3"
+          : undefined
+      }
+    >
       <p className="text-lg font-semibold leading-snug text-apex-text">
         {action.symbol}
+        {action.isPrimary ? (
+          <span className="ml-2 text-xs font-medium uppercase tracking-wide text-apex-muted">
+            Primary
+          </span>
+        ) : null}
       </p>
       <p className="mt-1 text-sm leading-snug text-apex-text/85">
         Action: {action.action}
@@ -233,6 +253,11 @@ function CapitalActionRow({ action }: { action: CapitalAction }) {
         {action.confirm ? <p>Confirm: {action.confirm}</p> : null}
         {action.timing ? <p>Timing: {action.timing}</p> : null}
       </div>
+      {action.postActionImpact ? (
+        <p className="mt-2 text-sm leading-snug text-apex-text/80">
+          {action.postActionImpact}
+        </p>
+      ) : null}
     </li>
   );
 }
