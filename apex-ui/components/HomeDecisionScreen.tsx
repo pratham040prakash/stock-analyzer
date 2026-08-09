@@ -4,6 +4,7 @@ import { useCallback, useMemo } from "react";
 import { buildCapitalDecision } from "@/lib/dailyLoop/capitalDecision";
 import { resolveTodayHero } from "@/lib/dailyLoop/todaySurface";
 import { getDisciplineInterpretation } from "@/lib/dailyLoop/disciplineCopy";
+import { getBrokerStepLine } from "@/lib/dailyLoop/disciplineStreak";
 import { getApexHeroSignature } from "@/lib/dailyLoop/apexVoice";
 import { getIntentExperience } from "@/lib/dailyLoop/intentExperience";
 import { useDailyLoop } from "@/lib/useDailyLoop";
@@ -270,6 +271,9 @@ export default function HomeDecisionScreen({
         seed: `${renderIntent}:${decision.action}:${decision.stock ?? "none"}`,
       });
   const disciplineLine = getDisciplineInterpretation(trustScore);
+  const brokerStepLine = isCapitalDeployment
+    ? getBrokerStepLine(retention.committedToday, todayHero.executionKind)
+    : null;
 
   return (
     <div className={`mx-auto w-full max-w-[600px] ${className}`.trim()}>
@@ -348,6 +352,9 @@ export default function HomeDecisionScreen({
               <p className="text-xs text-apex-muted/55">
                 {retention.decisionTensionLine}
               </p>
+            ) : null}
+            {brokerStepLine ? (
+              <p className="text-xs text-apex-muted/55">{brokerStepLine}</p>
             ) : null}
             {isCapitalDeployment ? (
               <p className="text-xs text-apex-muted/50">
@@ -483,6 +490,7 @@ export default function HomeDecisionScreen({
             delayMs={nextDelay()}
             capitalDeployment={isCapitalDeployment}
             decision={capitalDecision}
+            executionKind={todayHero.executionKind}
           />
 
           {lastOutcome && !isExploreEmpty && !isCapitalDeployment ? (

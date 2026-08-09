@@ -7,6 +7,7 @@ import {
   type DisciplineStreakSnapshot,
   type DisciplineStreakState,
 } from "@/lib/dailyLoop/disciplineStreakLogic";
+import type { TodayExecutionKind } from "@/lib/dailyLoop/todaySurface";
 import type { UserIntent } from "@/types/intent";
 
 export type { DisciplineStreakSnapshot, DisciplineStreakState };
@@ -85,8 +86,33 @@ export const TRUST_MICRO_REWARD =
 
 export function getDecisionTensionLine(committedToday: boolean): string {
   return committedToday
-    ? "Today's decision completed."
+    ? "Discipline logged for today."
     : "Today's decision is pending.";
+}
+
+export function getBrokerStepLine(
+  committedToday: boolean,
+  executionKind?: TodayExecutionKind,
+): string | null {
+  if (!committedToday) {
+    return null;
+  }
+
+  if (executionKind === "SELL" || executionKind === "BUY") {
+    return "Broker step still open · See plan below.";
+  }
+
+  return null;
+}
+
+export function getDailyClosureBody(
+  executionKind?: TodayExecutionKind,
+): string {
+  if (executionKind === "SELL" || executionKind === "BUY") {
+    return "Discipline is locked in. Execute on Zerodha when ready, or review the plan below.";
+  }
+
+  return DAILY_CLOSURE_BODY;
 }
 
 function getIstMinutes(now: Date): number {
@@ -218,4 +244,35 @@ export function formatDailyContextLabel(now: Date = new Date()): string {
   } catch {
     return "Today's capital decision";
   }
+}
+
+export function runDisciplineStatusSelfCheck(): void {
+  const assert = (condition: boolean, message: string) => {
+    if (!condition) {
+      throw new Error(`Discipline status self-check failed: ${message}`);
+    }
+  };
+
+  assert(
+    getDecisionTensionLine(true) === "Discipline logged for today.",
+    "Committed tension line must describe discipline, not completion",
+  );
+  assert(
+    getDecisionTensionLine(false) === "Today's decision is pending.",
+    "Pending tension line must stay unchanged",
+  );
+  assert(
+    getBrokerStepLine(true, "SELL") ===
+      "Broker step still open · See plan below.",
+    "Sell plans must surface broker step after discipline commit",
+  );
+  assert(getBrokerStepLine(true, "WAIT") === null, "Wait plans have no broker step");
+  assert(
+    getDailyClosureBody("SELL").includes("Zerodha"),
+    "Sell closure must mention broker execution",
+  );
+  assert(
+    getDailyClosureBody("WAIT") === DAILY_CLOSURE_BODY,
+    "Wait closure must keep capital protection copy",
+  );
 }

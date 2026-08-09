@@ -20,10 +20,11 @@ import {
 import { formatFinalStateSummary } from "@/lib/dailyLoop/capitalFinalState";
 import { formatInr } from "@/lib/funds";
 import {
-  DAILY_CLOSURE_BODY,
   DAILY_CLOSURE_HEADLINE,
   DAILY_CLOSURE_NEXT_STEP,
+  getDailyClosureBody,
 } from "@/lib/dailyLoop/disciplineStreak";
+import type { TodayExecutionKind } from "@/lib/dailyLoop/todaySurface";
 import type { SetupInsight } from "@/lib/dailyLoop/setupInsight";
 import { convictionLabel } from "@/lib/dailyLoop/decisionDepth";
 import {
@@ -591,6 +592,7 @@ export function ExecutionStatusBlock({
   delayMs,
   capitalDeployment = false,
   decision,
+  executionKind,
 }: {
   committedToday: boolean;
   onMarkFollowed: () => void;
@@ -603,6 +605,7 @@ export function ExecutionStatusBlock({
   delayMs: number;
   capitalDeployment?: boolean;
   decision?: CapitalDecision;
+  executionKind?: TodayExecutionKind;
 }) {
   const trustReinforcement =
     capitalDeployment && committedToday && decision
@@ -719,7 +722,7 @@ export function ExecutionStatusBlock({
             {DAILY_CLOSURE_HEADLINE}
           </p>
           <p className="text-sm leading-snug text-apex-text/75">
-            {DAILY_CLOSURE_BODY}
+            {getDailyClosureBody(executionKind)}
           </p>
           <p className="text-xs leading-snug text-apex-muted/70">
             {DAILY_CLOSURE_NEXT_STEP}
