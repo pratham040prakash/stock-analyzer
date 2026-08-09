@@ -237,3 +237,12 @@ export function buildCapitalDecision(input: CapitalDecisionInput): CapitalDecisi
 export function formatCapitalAction(action: CapitalAction): string {
   return `${action.symbol}\nAction: ${action.action}\nAllocation: ${action.allocation}%\n${action.reason}`;
 }
+
+export function summarizeCapitalDecision(decision: CapitalDecision): string {
+  if (decision.actions.length === 0) {
+    return `${decision.heroHeadline} ${decision.heroSubline}.`;
+  }
+
+  const lead = decision.actions[0];
+  return `${decision.heroHeadline} ${lead.symbol}: ${lead.action}, ${lead.allocation}% — ${lead.reason}`;
+}

@@ -16,10 +16,7 @@ import {
   portfolioScoringContextFromRecommendation,
 } from "@/services/decision/stockScoring";
 import { computeConfidenceSafe } from "@/services/decision/confidenceEngine";
-import {
-  formatSetupWatchInsight,
-  generateSetupInsightFromPick,
-} from "@/lib/dailyLoop/setupInsight";
+import { buildCapitalDecision, summarizeCapitalDecision } from "@/lib/dailyLoop/capitalDecision";
 import { formatJudgment } from "@/lib/dailyLoop/apexVoice";
 import { computeStructureScoreSafe } from "@/services/market/structureEngine";
 import type {
@@ -512,17 +509,6 @@ export function isActionableForIntent(
   return false;
 }
 
-function waitReasonForIntent(intent: Intent): string {
-  if (intent === "protect") {
-    return formatJudgment("Capital stays protected today", "patience matters");
-  }
-
-  if (intent === "grow") {
-    return formatJudgment("Nothing is clean enough to deploy", "patience matters");
-  }
-
-  return formatJudgment("Nothing is clean enough to act", "patience matters");
-}
 
 function resolveSignals(signals?: Partial<Signals>): Signals {
   return {
@@ -581,33 +567,37 @@ function buildWaitDecisionFromValidation(
   hasProfile: boolean,
   picks: StockPick[],
 ): DailyDecisionOutput {
+  const capital = buildCapitalDecision({
+    intent,
+    action: "wait",
+    stock: picks[0]?.stock,
+    picks,
+  });
+
   return {
     decision: "WAIT",
     action: "wait",
     intent,
     confidence: validation.confidence,
-    message: formatJudgment("Nothing is clean today", "patience matters"),
+    message: capital.heroHeadline,
     validation: validation.breakdown,
     picks,
-    reason: waitReasonForIntent(intent),
+    reason: summarizeCapitalDecision(capital),
     confidence_factors: [
-      `Signal strength: ${validation.breakdown.signal_strength}/100`,
+      capital.heroSubline,
       validation.breakdown.signal_agreement
-        ? "Trend and momentum agree"
-        : "Trend and momentum do not align",
-      validation.breakdown.market_alignment
-        ? "Market trend supports new positions"
-        : "Market trend does not support new positions",
+        ? "Hold cash until a cleaner entry appears"
+        : "No symbol clears the deployment bar today",
       validation.breakdown.risk_ok
-        ? "Portfolio risk is within limits"
-        : "Portfolio risk is elevated",
+        ? "Portfolio risk allows staying in cash"
+        : "Portfolio risk argues for no new deployment",
       hasProfile
-        ? "Financial profile is available for sizing guidance"
-        : "Add your financial profile to refine guidance",
+        ? "Sizing guidance is ready when deployment opens"
+        : "Add your financial profile to size future deployment",
     ],
     actions: [
-      "Pause new investments until signals strengthen",
-      "Review your portfolio allocation before acting",
+      "Keep capital in cash today",
+      "Follow APEX before acting on your own",
     ],
     opportunities: [],
   };
@@ -654,35 +644,45 @@ async function buildGrowDecision(
   }
 
   return enrichWithConfidenceMetrics(
-    {
-      decision: "BUY_MORE",
-      action: "buy",
-      intent: "grow",
-      stock: best?.stock,
-      confidence: validation.confidence,
-      message: best
-        ? formatJudgment(`${best.stock} leads the field`, "worth tracking")
-        : formatJudgment("Structure is aligned", "worth tracking"),
-      validation: validation.breakdown,
-      picks: topPicks,
-      suggestion: "Use available funds to accumulate quality stocks",
-      opportunities: getOpportunities("grow", risk, portfolio),
-      reason: formatJudgment("Book size can increase steadily", "worth tracking"),
-      confidence_factors: [
-        "You selected Grow Portfolio as today's intent",
-        "Signals are aligned — trend, momentum, and market trend agree",
-        hasProfile
-          ? "Financial profile is available for sizing guidance"
-          : "Add your financial profile to refine investable surplus",
-        mentorAligned
-          ? "Mentor view supports adding steadily"
-          : "Small, regular steps beat timing the market",
-      ],
-      actions: [
-        "Invest your available funds in steady, small steps",
-        "Spread new money across quality names instead of one concentrated bet",
-      ],
-    },
+    (() => {
+      const capital = buildCapitalDecision({
+        intent: "grow",
+        action: "buy",
+        stock: best?.stock,
+        picks: topPicks,
+        entryTiming: { enter: true },
+      });
+
+      return {
+        decision: "BUY_MORE",
+        action: "buy",
+        intent: "grow",
+        stock: best?.stock,
+        confidence: validation.confidence,
+        message: capital.heroHeadline,
+        validation: validation.breakdown,
+        picks: topPicks,
+        suggestion: `Deploy into ${best?.stock ?? "lead name"} in controlled size`,
+        opportunities: getOpportunities("grow", risk, portfolio),
+        reason: summarizeCapitalDecision(capital),
+        confidence_factors: [
+          capital.heroSubline,
+          best
+            ? `${best.stock}: BUY at ${capital.deploymentPercentage}%`
+            : "Partial deployment only — not full capital",
+          hasProfile
+            ? "Financial profile sets deployable surplus"
+            : "Add your financial profile to refine deployment size",
+          mentorAligned
+            ? "Mentor view supports this deployment"
+            : "Deploy only what APEX allocates today",
+        ],
+        actions: [
+          `Deploy ${capital.deploymentPercentage}% of available capital`,
+          "Do not exceed today's allocation",
+        ],
+      };
+    })(),
     best?.signals ?? resolveSignals(),
     marketTrend,
     input,
@@ -692,10 +692,8 @@ async function buildGrowDecision(
 async function buildExploreDecision(
   input: DecisionEngineInput,
   hasProfile: boolean,
-  mentor: MentorDecision | null | undefined,
+  _mentor: MentorDecision | null | undefined,
 ): Promise<DailyDecisionOutput> {
-  const mentorAligned =
-    mentor?.action === "add" || mentor?.action === "observe";
   const portfolio = recommendationPortfolioFromSnapshot(input);
   const scoringPortfolio = portfolioScoringContextFromRecommendation(portfolio);
   const { risk_level: risk, risk_score: portfolioRiskScore } =
@@ -716,13 +714,12 @@ async function buildExploreDecision(
 
   console.log("Decision Validation:", validation);
 
-  const explanation =
-    best !== undefined
-      ? (() => {
-          const insight = generateSetupInsightFromPick(best, "explore");
-          return `${insight.title} leads today. ${formatSetupWatchInsight(insight)}`;
-        })()
-      : formatJudgment("Nothing is clean today", "patience matters");
+  const capital = buildCapitalDecision({
+    intent: "explore",
+    action: "explore",
+    stock: best?.stock,
+    picks: topPicks,
+  });
 
   return enrichWithConfidenceMetrics(
     {
@@ -731,28 +728,24 @@ async function buildExploreDecision(
       intent: "explore",
       stock: best?.stock,
       confidence: validation.confidence,
-      message: best
-        ? formatJudgment(`${best.stock} is worth tracking`, "worth tracking")
-        : formatJudgment("Observe without acting", "patience matters"),
+      message: capital.heroHeadline,
       validation: validation.breakdown,
       picks: topPicks,
       opportunities: getOpportunities("explore", risk, portfolio),
-      reason: explanation,
+      reason: summarizeCapitalDecision(capital),
       confidence_factors: [
-        "Explore mode — no trades suggested today",
+        capital.heroSubline,
+        "All symbols: WAIT — 0% allocation",
         best
-          ? `${best.stock} stands out on signal alignment today`
-          : "Review the list and note what would need to confirm",
+          ? `${best.stock} is on the list but gets no capital today`
+          : "No symbol earns capital today",
         hasProfile
-          ? "Ideas are framed around your stated risk and income profile"
-          : "Complete your profile for sharper opportunity matching",
-        mentorAligned
-          ? "Mentor view supports learning without acting"
-          : "Patience now builds better decisions later",
+          ? "Profile loaded — deployment rules stay strict"
+          : "Complete your profile before any future deployment",
       ],
       actions: [
-        "Review each idea without committing capital",
-        "Note what would need to confirm before any future action",
+        "Keep capital in cash",
+        "Review actions only — do not deploy",
       ],
     },
     best?.signals ?? resolveSignals(),
