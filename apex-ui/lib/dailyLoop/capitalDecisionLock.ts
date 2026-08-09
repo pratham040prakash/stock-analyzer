@@ -89,6 +89,9 @@ export function runCapitalDecisionLockSelfCheck(): void {
     portfolioStanceDetail: "",
     primaryAction: "",
     primaryActionDetail: "",
+    capitalMode: "CASH" as const,
+    collateral: 0,
+    deployableCapital: 100_000,
   };
 
   const holdLock = buildDecisionLock({ ...base, actions: [] });

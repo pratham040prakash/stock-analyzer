@@ -23,6 +23,10 @@ import type { DailyDecisionOutput } from "@/types/decision";
 import { isSellAction } from "@/types/decision";
 import type { DailyInsight } from "@/types/dailyInsight";
 import type { DecisionHistoryEntry } from "@/types/decisionHistory";
+import {
+  readStoredCapitalMode,
+  type CapitalFundingMode,
+} from "@/lib/dailyLoop/capitalMargin";
 import type { PortfolioApiResponse } from "@/types/portfolioApi";
 import { recordVisit, saveCachedPortfolio } from "@/lib/portfolioCache";
 import { portfolioRiskFromAllocation } from "@/lib/portfolioRisk";
@@ -58,6 +62,7 @@ type ZerodhaSessionResponse = {
 
 type FundsResponse = {
   available_cash: number;
+  collateral?: number;
   status?: string;
 };
 
@@ -129,6 +134,8 @@ export default function HomeClient({
     () => initialPortfolio.holdings.length === 0,
   );
   const [availableCash, setAvailableCash] = useState<number | null>(null);
+  const [collateral, setCollateral] = useState<number>(0);
+  const [capitalMode, setCapitalMode] = useState<CapitalFundingMode>("CASH");
   const [fundsLoading, setFundsLoading] = useState(false);
   const [brokerMessage, setBrokerMessage] = useState<string | null>(
     zerodhaNotice === "connected"
@@ -154,6 +161,10 @@ export default function HomeClient({
       router.replace("/app", { scroll: false });
     }
   }, [router, searchParams]);
+
+  useEffect(() => {
+    setCapitalMode(readStoredCapitalMode());
+  }, []);
 
   useEffect(() => {
     if (!supabase) return;
@@ -285,8 +296,10 @@ export default function HomeClient({
       const data = await parseApiJson<FundsResponse>(res, "Funds");
       if (!data) return;
       setAvailableCash(Math.max(0, Math.round(data.available_cash ?? 0)));
+      setCollateral(Math.max(0, Math.round(data.collateral ?? 0)));
     } catch {
       setAvailableCash(null);
+      setCollateral(0);
     } finally {
       setFundsLoading(false);
     }
@@ -652,6 +665,8 @@ export default function HomeClient({
               topAllocationPct={portfolioData?.top_allocation_pct}
               availableCash={availableCash ?? undefined}
               portfolioValue={portfolioData?.total_value}
+              collateral={collateral}
+              capitalMode={capitalMode}
               holdings={portfolioData?.holdings?.map((holding) => ({
                 symbol: holding.tradingsymbol,
                 weight: holding.allocation_pct,
@@ -666,6 +681,8 @@ export default function HomeClient({
               isRefreshing={decisionRefreshing}
               intent={userIntent}
               availableCash={availableCash ?? undefined}
+              collateral={collateral}
+              capitalMode={capitalMode}
               riskLevel={portfolioData?.risk_level}
               portfolioContext={recommendationPortfolio}
               onIntentChange={setUserIntent}

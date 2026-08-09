@@ -44,6 +44,7 @@ export async function GET() {
 
   return NextResponse.json({
     available_cash: marginsResult.availableCash,
+    collateral: marginsResult.collateral,
     status: "OK",
   });
 }

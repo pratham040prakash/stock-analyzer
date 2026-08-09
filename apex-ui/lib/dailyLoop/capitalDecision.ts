@@ -8,8 +8,12 @@ import {
   attachCapitalFinalState,
   type CapitalFinalState,
 } from "@/lib/dailyLoop/capitalFinalState";
-import type { CapitalDecisionLock } from "@/lib/dailyLoop/capitalDecisionLock";
-import { attachDecisionLock } from "@/lib/dailyLoop/capitalDecisionLock";
+import { attachDecisionLock, type CapitalDecisionLock } from "@/lib/dailyLoop/capitalDecisionLock";
+import type { CapitalFundingMode } from "@/lib/dailyLoop/capitalMargin";
+import {
+  applyMarginPolicy,
+  applyMarginToDecisionLock,
+} from "@/lib/dailyLoop/capitalMargin";
 
 export type DeploymentStance =
   | "No Deployment"
@@ -90,6 +94,7 @@ export const EXPLORE_PIPELINE_EMPTY_BODY =
 
 export type { CapitalFinalPosition, CapitalFinalState } from "@/lib/dailyLoop/capitalFinalState";
 export type { CapitalDecisionLock, DecisionLockType } from "@/lib/dailyLoop/capitalDecisionLock";
+export type { CapitalFundingMode } from "@/lib/dailyLoop/capitalMargin";
 
 export type CapitalDecision = {
   mode: DecisionMode;
@@ -100,6 +105,11 @@ export type CapitalDecision = {
   deployAmount: number;
   cashPercentage: number;
   deploymentPercentage: number;
+  capitalMode: CapitalFundingMode;
+  collateral: number;
+  deployableCapital: number;
+  marginWarning?: string | null;
+  marginBlocked?: boolean;
   actions: CapitalAction[];
   finalState?: CapitalFinalState;
   decisionLock?: CapitalDecisionLock;
@@ -128,6 +138,8 @@ export type CapitalDecisionInput = {
   availableCash?: number;
   portfolioValue?: number;
   holdings?: CapitalHoldingWeight[];
+  capitalMode?: CapitalFundingMode;
+  collateral?: number;
   entryTiming?: { enter?: boolean };
   confidence?: number;
 };
@@ -1009,6 +1021,9 @@ function buildExploreCapitalDecision(input: CapitalDecisionInput): CapitalDecisi
     primaryAction: "Monitor the pipeline",
     primaryActionDetail:
       "Move to Grow when a setup confirms at its activation level.",
+    capitalMode: "CASH",
+    collateral: Math.max(0, Math.round(input.collateral ?? 0)),
+    deployableCapital: capital.availableCash,
   };
 }
 
@@ -1097,6 +1112,9 @@ function buildGrowCapitalDecision(input: CapitalDecisionInput): CapitalDecision 
     portfolioStanceDetail: portfolioStance.detail,
     primaryAction: primaryAction.headline,
     primaryActionDetail: primaryAction.detail,
+    capitalMode: "CASH",
+    collateral: Math.max(0, Math.round(input.collateral ?? 0)),
+    deployableCapital: capital.availableCash,
   };
 
   validateCapitalDecision(decision);
@@ -1283,8 +1301,13 @@ export function buildCapitalDecision(input: CapitalDecisionInput): CapitalDecisi
       ? buildExploreCapitalDecision(input)
       : buildGrowCapitalDecision(input);
 
-  return attachDecisionLock(
-    attachCapitalFinalState(attachCapitalProjections(decision, input), input),
+  return applyMarginToDecisionLock(
+    attachDecisionLock(
+      attachCapitalFinalState(
+        attachCapitalProjections(applyMarginPolicy(decision, input), input),
+        input,
+      ),
+    ),
   );
 }
 

@@ -207,6 +207,9 @@ export function runCapitalFinalStateSelfCheck(): void {
       deployAmount: 10_000,
       cashPercentage: 80,
       deploymentPercentage: 10,
+      capitalMode: "CASH",
+      collateral: 0,
+      deployableCapital: 100_000,
       actions: [
         {
           symbol: "RELIANCE",

@@ -16,7 +16,7 @@ export type FetchHoldingsResult =
   | { status: "ERROR"; message: string };
 
 export type FetchMarginsResult =
-  | { status: "OK"; availableCash: number }
+  | { status: "OK"; availableCash: number; collateral: number }
   | { status: "TOKEN_EXPIRED" }
   | { status: "ERROR"; message: string };
 
@@ -25,6 +25,7 @@ type KiteMarginsResponse = {
     equity?: {
       available?: {
         cash?: number;
+        collateral?: number;
       };
     };
   };
@@ -245,11 +246,19 @@ export async function fetchZerodhaMargins(
     );
 
     const cash = res.data?.data?.equity?.available?.cash;
+    const collateral = res.data?.data?.equity?.available?.collateral;
     if (typeof cash !== "number" || Number.isNaN(cash)) {
       return { status: "ERROR", message: "Invalid margins response from Zerodha" };
     }
 
-    return { status: "OK", availableCash: Math.max(0, Math.round(cash)) };
+    return {
+      status: "OK",
+      availableCash: Math.max(0, Math.round(cash)),
+      collateral:
+        typeof collateral === "number" && !Number.isNaN(collateral)
+          ? Math.max(0, Math.round(collateral))
+          : 0,
+    };
   } catch (err) {
     if (axios.isAxiosError(err) && err.response?.status === 401) {
       return { status: "TOKEN_EXPIRED" };

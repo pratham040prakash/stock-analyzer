@@ -16,6 +16,7 @@ import {
 import { ApexCard } from "@/components/ui/apex";
 import type { StockPick } from "@/types/decision";
 import type { UserIntent } from "@/types/intent";
+import type { CapitalFundingMode } from "@/lib/dailyLoop/capitalMargin";
 
 export type HomeDecision = {
   action: string;
@@ -53,6 +54,8 @@ export type HomeDecisionScreenProps = {
   topAllocationPct?: number;
   availableCash?: number;
   portfolioValue?: number;
+  collateral?: number;
+  capitalMode?: CapitalFundingMode;
   holdings?: { symbol: string; weight: number }[];
   className?: string;
 };
@@ -89,6 +92,8 @@ export default function HomeDecisionScreen({
   topAllocationPct,
   availableCash,
   portfolioValue,
+  collateral,
+  capitalMode,
   holdings,
   className = "",
 }: HomeDecisionScreenProps) {
@@ -113,12 +118,16 @@ export default function HomeDecisionScreen({
         topAllocationPct,
         availableCash,
         portfolioValue,
+        collateral,
+        capitalMode,
         holdings,
         entryTiming,
         confidence: decision.confidence,
       }),
     [
       availableCash,
+      capitalMode,
+      collateral,
       decision.action,
       decision.allocationPercent,
       decision.confidence,

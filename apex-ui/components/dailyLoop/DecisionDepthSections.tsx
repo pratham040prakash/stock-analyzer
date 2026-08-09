@@ -261,6 +261,18 @@ function GrowCapitalActionsBlock({
         <p className="text-sm leading-snug text-apex-text/75">
           Available cash: {formatInr(decision.availableCash)}
         </p>
+        {decision.capitalMode === "MARGIN" ? (
+          <>
+            <p className="text-sm font-medium leading-snug text-apex-text/85">
+              Capital Mode: MARGIN
+            </p>
+            {decision.marginWarning ? (
+              <p className="text-sm leading-snug text-amber-200/85">
+                {decision.marginWarning}
+              </p>
+            ) : null}
+          </>
+        ) : null}
         {decision.deployAmount > 0 ? (
           <p className="text-sm leading-snug text-apex-text/75">
             Deploy amount: {formatInr(decision.deployAmount)}

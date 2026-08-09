@@ -8,6 +8,7 @@ import {
   recommendationsToPlanItems,
 } from "@/lib/allocation";
 import { buildCapitalDecision } from "@/lib/dailyLoop/capitalDecision";
+import type { CapitalFundingMode } from "@/lib/dailyLoop/capitalMargin";
 import {
   CapitalActionsBlock,
 } from "@/components/dailyLoop/DecisionDepthSections";
@@ -47,6 +48,8 @@ type Props = {
   isRefreshing?: boolean;
   intent?: Intent;
   availableCash?: number;
+  collateral?: number;
+  capitalMode?: CapitalFundingMode;
   riskLevel?: PortfolioRiskLevel;
   portfolioContext?: RecommendationPortfolio;
   onIntentChange?: (intent: Intent) => void;
@@ -66,6 +69,8 @@ export default function DailyDecisionCard({
   isRefreshing = false,
   intent,
   availableCash,
+  collateral = 0,
+  capitalMode = "CASH",
   riskLevel = "Low",
   portfolioContext = {},
   onIntentChange,
@@ -108,6 +113,8 @@ export default function DailyDecisionCard({
         topAllocationPct: portfolioContext.top_allocation_pct,
         availableCash,
         portfolioValue: totalValue,
+        collateral,
+        capitalMode,
         holdings: portfolioContext.holdings?.map((holding) => ({
           symbol: holding.symbol,
           weight: holding.allocation_pct ?? 0,
@@ -116,6 +123,8 @@ export default function DailyDecisionCard({
       }),
     [
       availableCash,
+      capitalMode,
+      collateral,
       decision.action,
       decision.allocationPercent,
       decision.confidence,
