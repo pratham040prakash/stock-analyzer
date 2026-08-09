@@ -54,4 +54,17 @@ See `apex-ui/.env.example` — include `NEXT_PUBLIC_APP_URL`, Supabase keys, Zer
 
 `GET /api/health` should return `{ "supabase": "connected", "env": "ok" }`.
 
+After each production deploy:
+
+```bash
+cd apex-ui
+APEX_VERIFY_BASE_URL=https://your-app.vercel.app npm run verify:prod
+```
+
+Optional authenticated checks (copy session cookie from browser devtools):
+
+```bash
+APEX_VERIFY_COOKIE='sb-...' APEX_VERIFY_BASE_URL=https://your-app.vercel.app npm run verify:prod
+```
+
 Check out the [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.

@@ -1,0 +1,266 @@
+/**
+ * VERIFY-001 — production smoke checks after deploy.
+ *
+ * Usage:
+ *   APEX_VERIFY_BASE_URL=https://your-app.vercel.app npm run verify:prod
+ *   npm run verify:prod -- https://your-app.vercel.app
+ *
+ * Optional authenticated checks (browser session cookie):
+ *   APEX_VERIFY_COOKIE="sb-..." npm run verify:prod
+ */
+
+type CheckResult = {
+  id: string;
+  label: string;
+  ok: boolean;
+  detail: string;
+  critical: boolean;
+};
+
+type VerifyReport = {
+  baseUrl: string;
+  checkedAt: string;
+  passed: number;
+  failed: number;
+  checks: CheckResult[];
+};
+
+function normalizeBaseUrl(value: string): string {
+  return value.replace(/\/+$/, "");
+}
+
+function resolveBaseUrl(): string {
+  const fromArg = process.argv.find((arg) => arg.startsWith("http"));
+
+  if (fromArg) {
+    return normalizeBaseUrl(fromArg);
+  }
+
+  const fromEnv = process.env.APEX_VERIFY_BASE_URL?.trim();
+
+  if (fromEnv) {
+    return normalizeBaseUrl(fromEnv);
+  }
+
+  throw new Error(
+    "Set APEX_VERIFY_BASE_URL or pass the production URL as the first argument.",
+  );
+}
+
+async function fetchCheck(
+  url: string,
+  options: RequestInit = {},
+): Promise<{ status: number; body: unknown; headers: Headers }> {
+  const response = await fetch(url, {
+    ...options,
+    redirect: "manual",
+    headers: {
+      Accept: "application/json, text/html",
+      ...(options.headers ?? {}),
+    },
+  });
+
+  const contentType = response.headers.get("content-type") ?? "";
+
+  let body: unknown = null;
+
+  if (contentType.includes("application/json")) {
+    body = await response.json().catch(() => null);
+  } else {
+    body = await response.text().catch(() => null);
+  }
+
+  return { status: response.status, body, headers: response.headers };
+}
+
+function record(
+  checks: CheckResult[],
+  input: Omit<CheckResult, "ok"> & { ok: boolean },
+): void {
+  checks.push(input);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+async function runChecks(baseUrl: string): Promise<VerifyReport> {
+  const checks: CheckResult[] = [];
+  const cookie = process.env.APEX_VERIFY_COOKIE?.trim();
+  const authHeaders = cookie ? { Cookie: cookie } : undefined;
+
+  const health = await fetchCheck(`${baseUrl}/api/health`);
+  const healthBody = isRecord(health.body) ? health.body : null;
+
+  record(checks, {
+    id: "health-status",
+    label: "Health endpoint returns 200",
+    ok: health.status === 200,
+    detail: `status=${health.status}`,
+    critical: true,
+  });
+
+  record(checks, {
+    id: "health-supabase",
+    label: "Supabase connected in health report",
+    ok: healthBody?.supabase === "connected",
+    detail: String(healthBody?.supabase ?? "missing"),
+    critical: true,
+  });
+
+  record(checks, {
+    id: "health-env",
+    label: "Required env configured in health report",
+    ok: healthBody?.env === "ok",
+    detail: String(healthBody?.env ?? "missing"),
+    critical: true,
+  });
+
+  const cacheControl = health.headers.get("cache-control") ?? "";
+  record(checks, {
+    id: "health-no-store",
+    label: "Health response is no-store",
+    ok: cacheControl.includes("no-store"),
+    detail: cacheControl || "missing",
+    critical: false,
+  });
+
+  const protectedRoutes = [
+    { path: "/api/decision/today", id: "auth-today" },
+    { path: "/api/discipline/streak", id: "auth-discipline" },
+    { path: "/api/trust/outcome", id: "auth-trust" },
+    { path: "/api/subscription/tier", id: "auth-tier" },
+    { path: "/api/decision/history?days=7", id: "auth-history" },
+  ] as const;
+
+  for (const route of protectedRoutes) {
+    const result = await fetchCheck(`${baseUrl}${route.path}`);
+    const body = isRecord(result.body) ? result.body : null;
+
+    record(checks, {
+      id: route.id,
+      label: `${route.path} rejects unauthenticated requests`,
+      ok: result.status === 401 && body?.status === "error",
+      detail: `status=${result.status}`,
+      critical: true,
+    });
+  }
+
+  const login = await fetchCheck(`${baseUrl}/login`);
+  record(checks, {
+    id: "login-page",
+    label: "Login page is reachable",
+    ok: login.status === 200,
+    detail: `status=${login.status}`,
+    critical: true,
+  });
+
+  const app = await fetchCheck(`${baseUrl}/app`);
+  record(checks, {
+    id: "app-guard",
+    label: "App route redirects anonymous users to login",
+    ok: app.status >= 300 && app.status < 400,
+    detail: `status=${app.status}`,
+    critical: true,
+  });
+
+  if (authHeaders) {
+    const authedRoutes = [
+      {
+        id: "authed-discipline",
+        path: "/api/discipline/streak",
+        validate: (body: Record<string, unknown> | null) =>
+          body?.status === "ok" && isRecord(body.streak),
+      },
+      {
+        id: "authed-trust",
+        path: "/api/trust/outcome",
+        validate: (body: Record<string, unknown> | null) =>
+          body?.status === "ok" && isRecord(body.trust),
+      },
+      {
+        id: "authed-history",
+        path: "/api/decision/history?days=7",
+        validate: (body: Record<string, unknown> | null) =>
+          body?.status === "ok" && Array.isArray(body.history),
+      },
+      {
+        id: "authed-tier",
+        path: "/api/subscription/tier",
+        validate: (body: Record<string, unknown> | null) =>
+          body?.status === "ok" &&
+          (body.tier === "free" || body.tier === "premium"),
+      },
+    ] as const;
+
+    for (const route of authedRoutes) {
+      const result = await fetchCheck(`${baseUrl}${route.path}`, {
+        headers: authHeaders,
+      });
+      const body = isRecord(result.body) ? result.body : null;
+
+      record(checks, {
+        id: route.id,
+        label: `${route.path} works with session cookie`,
+        ok: result.status === 200 && route.validate(body),
+        detail: `status=${result.status}`,
+        critical: false,
+      });
+    }
+  } else {
+    record(checks, {
+      id: "authed-skipped",
+      label: "Authenticated API checks skipped",
+      ok: true,
+      detail: "Set APEX_VERIFY_COOKIE to run session checks",
+      critical: false,
+    });
+  }
+
+  const passed = checks.filter((check) => check.ok).length;
+  const failed = checks.filter((check) => !check.ok).length;
+
+  return {
+    baseUrl,
+    checkedAt: new Date().toISOString(),
+    passed,
+    failed,
+    checks,
+  };
+}
+
+function printReport(report: VerifyReport): void {
+  console.log(`\nAPEX prod verify — ${report.baseUrl}`);
+  console.log(`Checked at ${report.checkedAt}\n`);
+
+  for (const check of report.checks) {
+    const mark = check.ok ? "PASS" : "FAIL";
+    const severity = check.critical ? "critical" : "optional";
+    console.log(`[${mark}] ${check.label} (${severity})`);
+    console.log(`       ${check.detail}`);
+  }
+
+  console.log(
+    `\nSummary: ${report.passed} passed · ${report.failed} failed · ${report.checks.length} checks`,
+  );
+}
+
+async function main(): Promise<void> {
+  const baseUrl = resolveBaseUrl();
+  const report = await runChecks(baseUrl);
+
+  printReport(report);
+
+  const criticalFailures = report.checks.filter(
+    (check) => check.critical && !check.ok,
+  );
+
+  if (criticalFailures.length > 0) {
+    process.exitCode = 1;
+  }
+}
+
+void main().catch((error) => {
+  console.error(error instanceof Error ? error.message : error);
+  process.exitCode = 1;
+});
