@@ -114,7 +114,7 @@ export function getSessionTimeContext(now: Date = new Date()): string {
     return "Decision valid for today's session.";
   }
 
-  return "Decision closed — review tomorrow.";
+  return "Market closed · Review your plan below.";
 }
 
 export function getTrustMicroReward(seed: string): string | null {

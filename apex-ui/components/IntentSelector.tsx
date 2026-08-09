@@ -20,7 +20,10 @@ type Props = {
 export default function IntentSelector({ intent, onIntentChange }: Props) {
   return (
     <ApexCard hover={false} padding="compact">
-      <ApexEyebrow className="mb-3">What matters most today?</ApexEyebrow>
+      <ApexEyebrow className="mb-1">Today</ApexEyebrow>
+      <p className="mb-3 text-[14px] font-medium text-apex-text">
+        What matters most today?
+      </p>
 
       <div className="flex flex-col gap-2 sm:flex-row">
         {OPTIONS.map((option) => {

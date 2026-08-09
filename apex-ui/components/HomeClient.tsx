@@ -7,6 +7,7 @@ import DecisionHistoryPanel from "./DecisionHistoryPanel";
 import HomeDecisionScreen from "./HomeDecisionScreen";
 import FinancialProfileSetup from "./FinancialProfileSetup";
 import IntentSelector from "./IntentSelector";
+import ApexSurfaceNav from "@/components/nav/ApexSurfaceNav";
 import LoginCTA from "./LoginCTA";
 import PortfolioSummary, {
   PortfolioSummarySkeleton,
@@ -786,6 +787,8 @@ export default function HomeClient({
             </button>
           </div>
         </div>
+
+        {showGuidance ? <ApexSurfaceNav /> : null}
 
         {showFirstRunStrip ? (
           <FirstRunStrip progress={firstRunProgress} userName={userName} />
