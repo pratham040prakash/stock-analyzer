@@ -108,7 +108,7 @@ export function parseZerodhaEquityFunds(
   );
 
   let marginAvailable: number;
-  if (rawLive !== null) {
+  if (rawLive !== null && rawLive > 0) {
     // Zerodha funds page: Available margin (Cash + Collateral) = available cash + collateral.
     marginAvailable = roundFunds(liveBalance + collateral);
   } else if (rawNet !== null && rawNet > 0) {
@@ -203,6 +203,20 @@ export function runZerodhaFundsSelfCheck(): void {
   assert(
     openingOnly?.marginAvailable === 25_000,
     "Opening balance must count when live_balance is zero",
+  );
+
+  const liveZeroNetPositive = parseZerodhaEquityFunds({
+    net: 8_500,
+    available: {
+      cash: 0,
+      live_balance: 0,
+      collateral: 0,
+    },
+  });
+
+  assert(
+    liveZeroNetPositive?.marginAvailable === 8_500,
+    "Net must be used when live_balance is explicitly zero",
   );
 
   const netOnly = parseZerodhaEquityFunds({

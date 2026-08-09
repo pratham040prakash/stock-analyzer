@@ -97,7 +97,15 @@ export default function TodayTrustStrip({
         {syncedAt ? <span>Updated {syncedAt} IST</span> : null}
         {fundsLoading ? <span>Syncing Zerodha funds…</span> : null}
         {fundsSyncError && !fundsLoading ? (
-          <span className="text-amber-200/90">{fundsSyncError}</span>
+          <span className="text-amber-200/90">
+            {fundsSyncError}{" "}
+            <a
+              href="/api/zerodha/login"
+              className="underline underline-offset-2 hover:text-amber-100"
+            >
+              Reconnect Zerodha
+            </a>
+          </span>
         ) : null}
       </div>
 

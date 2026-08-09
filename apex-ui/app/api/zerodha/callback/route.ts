@@ -8,7 +8,6 @@ import {
 import { isTokenEncryptionConfigured } from "@/lib/crypto/encrypt";
 import { resolveAppBaseUrl } from "@/lib/env/config";
 import {
-  hasActiveBrokerConnection,
   mapBrokerDbError,
   upsertBrokerConnection,
 } from "@/services/broker/connections";
@@ -75,12 +74,6 @@ export async function GET(req: Request) {
   }
 
   try {
-    const alreadyConnected = await hasActiveBrokerConnection(supabase, user.id);
-    if (alreadyConnected) {
-      brokerLog("Zerodha callback: already connected", { userId: user.id });
-      return redirectHome(baseUrl, { zerodha: "connected" });
-    }
-
     const session = await exchangeRequestToken(requestToken);
 
     await upsertBrokerConnection(supabase, user.id, "zerodha", {

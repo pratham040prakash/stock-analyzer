@@ -354,6 +354,7 @@ export default function HomeClient({
       }
 
       if (data.status === "TOKEN_EXPIRED") {
+        setConnectionStatus("TOKEN_EXPIRED");
         setFundsSynced(false);
         setFundsSyncError(
           data.message ?? "Zerodha session expired — reconnect to refresh funds.",

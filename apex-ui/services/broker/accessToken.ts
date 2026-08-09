@@ -1,6 +1,5 @@
 import { cookies } from "next/headers";
 import { KITE_ACCESS_TOKEN_COOKIE } from "@/lib/broker/zerodhaSession";
-import { brokerLog } from "@/lib/broker/log";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
 import { getActiveBrokerConnection } from "@/services/broker/connections";
@@ -18,26 +17,35 @@ async function readKiteAccessTokenCookie(): Promise<string | null> {
   return token || null;
 }
 
+/** All non-duplicate Zerodha tokens available for this session. */
+export async function listZerodhaAccessTokenCandidates(
+  supabase: Client,
+  userId: string,
+): Promise<ResolvedZerodhaAccessToken[]> {
+  const candidates: ResolvedZerodhaAccessToken[] = [];
+  const seen = new Set<string>();
+
+  const connection = await getActiveBrokerConnection(supabase, userId);
+  if (connection?.status === "active" && connection.accessToken) {
+    candidates.push({ accessToken: connection.accessToken, source: "db" });
+    seen.add(connection.accessToken);
+  }
+
+  const cookieToken = await readKiteAccessTokenCookie();
+  if (cookieToken && !seen.has(cookieToken)) {
+    candidates.push({ accessToken: cookieToken, source: "cookie" });
+  }
+
+  return candidates;
+}
+
 /** Prefer stored broker connection token; fall back to the post-login HttpOnly cookie. */
 export async function resolveZerodhaAccessToken(
   supabase: Client,
   userId: string,
 ): Promise<ResolvedZerodhaAccessToken | null> {
-  const connection = await getActiveBrokerConnection(supabase, userId);
-
-  if (connection?.status === "active" && connection.accessToken) {
-    return { accessToken: connection.accessToken, source: "db" };
-  }
-
-  const cookieToken = await readKiteAccessTokenCookie();
-  if (cookieToken) {
-    brokerLog("Using Zerodha access token from session cookie", {
-      user_id: userId,
-    });
-    return { accessToken: cookieToken, source: "cookie" };
-  }
-
-  return null;
+  const candidates = await listZerodhaAccessTokenCandidates(supabase, userId);
+  return candidates[0] ?? null;
 }
 
 /** Alternate token source for retry when the primary Kite call fails auth. */
