@@ -311,6 +311,17 @@ function GrowCapitalActionsBlock({
           ))}
         </div>
       ) : null}
+
+      {decision.decisionLock ? (
+        <div className="space-y-1 border-t border-apex-border/15 pt-4">
+          <p className="text-sm font-semibold leading-snug text-apex-text">
+            {decision.decisionLock.messagePrimary}
+          </p>
+          <p className="text-sm font-medium leading-snug text-apex-text/85">
+            {decision.decisionLock.messageSecondary}
+          </p>
+        </div>
+      ) : null}
     </section>
   );
 }

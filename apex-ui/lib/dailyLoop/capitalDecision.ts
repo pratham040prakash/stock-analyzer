@@ -8,6 +8,8 @@ import {
   attachCapitalFinalState,
   type CapitalFinalState,
 } from "@/lib/dailyLoop/capitalFinalState";
+import type { CapitalDecisionLock } from "@/lib/dailyLoop/capitalDecisionLock";
+import { attachDecisionLock } from "@/lib/dailyLoop/capitalDecisionLock";
 
 export type DeploymentStance =
   | "No Deployment"
@@ -87,6 +89,7 @@ export const EXPLORE_PIPELINE_EMPTY_BODY =
   "APEX is scanning for setups — opportunities enter the pipeline as conditions improve.";
 
 export type { CapitalFinalPosition, CapitalFinalState } from "@/lib/dailyLoop/capitalFinalState";
+export type { CapitalDecisionLock, DecisionLockType } from "@/lib/dailyLoop/capitalDecisionLock";
 
 export type CapitalDecision = {
   mode: DecisionMode;
@@ -99,6 +102,7 @@ export type CapitalDecision = {
   deploymentPercentage: number;
   actions: CapitalAction[];
   finalState?: CapitalFinalState;
+  decisionLock?: CapitalDecisionLock;
   exploreSetups: ExploreSetup[];
   explorePipelineSummary?: string;
   growEmptyMessage?: string;
@@ -1279,7 +1283,9 @@ export function buildCapitalDecision(input: CapitalDecisionInput): CapitalDecisi
       ? buildExploreCapitalDecision(input)
       : buildGrowCapitalDecision(input);
 
-  return attachCapitalFinalState(attachCapitalProjections(decision, input), input);
+  return attachDecisionLock(
+    attachCapitalFinalState(attachCapitalProjections(decision, input), input),
+  );
 }
 
 export type TrustReinforcement = {
