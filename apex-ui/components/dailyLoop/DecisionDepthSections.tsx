@@ -9,6 +9,11 @@ import type {
   CapitalAction,
   CapitalDecision,
 } from "@/lib/dailyLoop/capitalDecision";
+import {
+  DAILY_CLOSURE_BODY,
+  DAILY_CLOSURE_HEADLINE,
+  DAILY_CLOSURE_NEXT_STEP,
+} from "@/lib/dailyLoop/disciplineStreak";
 import type { SetupInsight } from "@/lib/dailyLoop/setupInsight";
 import { convictionLabel } from "@/lib/dailyLoop/decisionDepth";
 import {
@@ -322,19 +327,35 @@ export function ExecutionStatusBlock({
 
       <p className="text-sm text-apex-text/80">{streakMessage}</p>
 
-      {pressureLine && !committedToday ? (
-        <p className="text-xs text-apex-muted/80">{pressureLine}</p>
-      ) : null}
+      {committedToday ? (
+        <div className="space-y-2 rounded-lg border border-apex-border/15 bg-white/[0.02] px-4 py-3">
+          <p className="text-sm font-medium leading-snug text-apex-text/90">
+            {DAILY_CLOSURE_HEADLINE}
+          </p>
+          <p className="text-sm leading-snug text-apex-text/75">
+            {DAILY_CLOSURE_BODY}
+          </p>
+          <p className="text-xs leading-snug text-apex-muted/70">
+            {DAILY_CLOSURE_NEXT_STEP}
+          </p>
+        </div>
+      ) : (
+        <>
+          {pressureLine ? (
+            <p className="text-xs text-apex-muted/80">{pressureLine}</p>
+          ) : null}
 
-      {waitDisciplineReward ? (
-        <p className="text-sm leading-snug text-apex-text/75">
-          {waitDisciplineReward}
-        </p>
-      ) : null}
+          {waitDisciplineReward ? (
+            <p className="text-sm leading-snug text-apex-text/75">
+              {waitDisciplineReward}
+            </p>
+          ) : null}
 
-      {rewardHook ? (
-        <p className="text-xs text-apex-muted/60">{rewardHook}</p>
-      ) : null}
+          {rewardHook ? (
+            <p className="text-xs text-apex-muted/60">{rewardHook}</p>
+          ) : null}
+        </>
+      )}
     </section>
   );
 }

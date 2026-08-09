@@ -141,6 +141,12 @@ export const DISCIPLINE_PRESSURE_LINE =
 export const WAIT_DISCIPLINE_REWARD =
   "Staying in cash today is an active decision to protect capital.";
 
+export const DAILY_CLOSURE_HEADLINE = "You've followed the system today.";
+export const DAILY_CLOSURE_BODY =
+  "Capital remains protected. No further action required.";
+export const DAILY_CLOSURE_NEXT_STEP =
+  "Next review: after market close or on new signal.";
+
 const WAIT_REWARD_HOOKS = [
   "Cash preserved today keeps optionality for the next confirmed entry.",
   "Patience today avoids capital deployed without edge.",
