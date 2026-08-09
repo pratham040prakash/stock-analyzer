@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { buildCapitalDecision } from "@/lib/dailyLoop/capitalDecision";
 import { resolveTodayHero } from "@/lib/dailyLoop/todaySurface";
 import { getDisciplineInterpretation } from "@/lib/dailyLoop/disciplineCopy";
@@ -15,6 +15,7 @@ import {
   ExecutionStatusBlock,
 } from "@/components/dailyLoop/DecisionDepthSections";
 import TodayExecutionPanel from "@/components/dailyLoop/TodayExecutionPanel";
+import TodayMonitorStrip from "@/components/dailyLoop/TodayMonitorStrip";
 import TodayTrustStrip from "@/components/dailyLoop/TodayTrustStrip";
 import TodayProgressStrip from "@/components/dailyLoop/TodayProgressStrip";
 import CapitalModeToggle from "@/components/dailyLoop/CapitalModeToggle";
@@ -24,6 +25,7 @@ import type { ConnectionStatus } from "@/lib/broker/zerodha";
 import type { StockPick } from "@/types/decision";
 import type { UserIntent } from "@/types/intent";
 import type { CapitalFundingMode } from "@/lib/dailyLoop/capitalMargin";
+import { useOpenMonitor } from "@/lib/useOpenMonitor";
 
 export type HomeDecision = {
   action: string;
@@ -201,6 +203,17 @@ export default function HomeDecisionScreen({
   const isGrow = renderIntent === "grow";
   const isProtect = renderIntent === "protect";
   const isCapitalDeployment = isGrow || isProtect;
+  const {
+    positions: monitorPositions,
+    dayPnl: monitorDayPnl,
+    loading: monitorLoading,
+    refresh: refreshMonitor,
+  } = useOpenMonitor({ enabled: isCapitalDeployment });
+
+  const handleExecuted = useCallback(() => {
+    onCapitalRefresh?.();
+    void refreshMonitor();
+  }, [onCapitalRefresh, refreshMonitor]);
   const isExploreEmpty =
     isExplore &&
     capitalDecision.exploreSetups.length === 0 &&
@@ -326,8 +339,15 @@ export default function HomeDecisionScreen({
                 entryTiming={entryTiming}
                 plan={plan}
                 planLoading={planLoading}
-                onExecuted={onCapitalRefresh}
+                onExecuted={handleExecuted}
               />
+              <div className="mt-4">
+                <TodayMonitorStrip
+                  positions={monitorPositions}
+                  dayPnl={monitorDayPnl ?? dayPnl}
+                  loading={monitorLoading}
+                />
+              </div>
             </div>
           ) : null}
 

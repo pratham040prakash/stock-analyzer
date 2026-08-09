@@ -20,6 +20,7 @@ export type ExecuteSellResult =
       stock: string;
       sellPercent: number;
       quantity: number;
+      price: number;
       orderId: string;
     }
   | { status: "NOT_CONNECTED" }
@@ -107,6 +108,7 @@ export async function executeSellTrim(
     stock,
     sellPercent,
     quantity,
+    price: holding.last_price,
     orderId: order.orderId,
   };
 }

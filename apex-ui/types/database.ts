@@ -203,11 +203,20 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
+          decision_date?: string;
+          intent?: string | null;
+          stock?: string | null;
+          action?: string;
+          amount?: number | null;
+          confidence?: number;
+          signals?: import("@/types/decision").Signals | null;
+          market_trend?: string | null;
+          portfolio_snapshot?: import("@/types/decision").PortfolioSnapshotInput | null;
+          entry_price?: number | null;
           exit_price?: number | null;
           stop_loss?: number | null;
           quantity?: number | null;
           take_profit_taken?: boolean;
-          signals?: import("@/types/decision").Signals | null;
           pnl?: number | null;
           success?: boolean | null;
           updated_at?: string;

@@ -6,6 +6,7 @@ import { getMarketRegime } from "@/services/decision/stockScoring";
 import { getLatestPortfolioSnapshotWithMetrics } from "@/services/portfolio/repository";
 import { computePortfolioMetrics } from "@/services/brokers/zerodha";
 import { normalizeSymbol } from "@/lib/stockPool";
+import { logTradeFillSafe } from "@/services/trade/logTradeFill";
 
 type ExecuteTradeRequest = {
   stock?: string;
@@ -71,6 +72,15 @@ export async function POST(request: Request) {
       return apiError(result.message, 400);
     }
 
+    await logTradeFillSafe(supabase, user.id, {
+      stock: result.stock,
+      side: "sell",
+      price: result.price,
+      quantity: result.quantity,
+      amount: Math.round(result.price * result.quantity),
+      orderId: result.orderId,
+    });
+
     return apiOk({
       stock: result.stock,
       sellPercent: result.sellPercent,
@@ -128,6 +138,15 @@ export async function POST(request: Request) {
   if (result.status === "ERROR") {
     return apiError(result.message, 400);
   }
+
+  await logTradeFillSafe(supabase, user.id, {
+    stock: result.stock,
+    side: "buy",
+    price: result.price,
+    quantity: result.quantity,
+    amount: result.amount,
+    orderId: result.orderId,
+  });
 
   return apiOk({
     stock: result.stock,
