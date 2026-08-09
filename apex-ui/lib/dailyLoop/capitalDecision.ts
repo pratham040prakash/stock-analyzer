@@ -37,12 +37,18 @@ export type CapitalDecisionInput = {
   confidence?: number;
 };
 
+const FORBIDDEN_COPY = /\b(good setup|bad setup|strong|weak|not enough edge)\b/i;
+
 function normalizePercent(value: number | undefined): number {
   if (value === undefined || !Number.isFinite(value)) {
     return 0;
   }
 
   return value <= 1 ? Math.round(value * 100) : Math.round(value);
+}
+
+function sanitizeCopy(text: string): string {
+  return text.replace(FORBIDDEN_COPY, "").replace(/\s{2,}/g, " ").trim();
 }
 
 function resolveStance(deploymentPercentage: number): DeploymentStance {
@@ -84,48 +90,120 @@ function resolveDeploymentPercentage(input: CapitalDecisionInput): number {
   return 0;
 }
 
+function findPick(input: CapitalDecisionInput, symbol: string): StockPick | undefined {
+  return input.picks?.find((pick) => pick.stock === symbol);
+}
+
 function buildHeroHeadline(
   input: CapitalDecisionInput,
   deploymentPercentage: number,
-  stance: DeploymentStance,
+  cashPercentage: number,
 ): string {
   const action = input.action;
 
   if (isSellAction(action as DecisionActionType) || action === "sell") {
+    const trimPct = normalizePercent(input.suggested_sell_percent) || 25;
     return input.stock
-      ? `Reduce ${input.stock} today.`
-      : "Reduce exposure today.";
+      ? `Trim ${trimPct}% of ${input.stock}.`
+      : "Trim exposure to protect capital.";
   }
 
-  if (stance === "No Deployment") {
-    if (input.intent === "explore") {
-      return "No deployment today. Observe only.";
-    }
-
-    return "No deployment today. Stay in cash.";
+  if (deploymentPercentage <= 0) {
+    return `${cashPercentage}% capital stays in cash.`;
   }
 
-  return `Deploy ${deploymentPercentage}% capital today.`;
+  return `Deploy ${deploymentPercentage}% of capital today.`;
 }
 
 function buildHeroSubline(
+  input: CapitalDecisionInput,
   stance: DeploymentStance,
   cashPercentage: number,
   deploymentPercentage: number,
 ): string {
-  return `${cashPercentage}% cash · ${stance}`;
-}
+  const action = input.action;
 
-function waitReason(intent: UserIntent, isPrimary: boolean): string {
-  if (inputIntentIsProtect(intent) && isPrimary) {
-    return "Capital stays protected.";
+  if (isSellAction(action as DecisionActionType) || action === "sell") {
+    return "Delaying the trim keeps concentration risk on your capital.";
   }
 
-  return "Not enough edge yet.";
+  if (stance === "No Deployment") {
+    if (input.intent === "explore") {
+      return "Deploying here puts capital at work without a deployment mandate.";
+    }
+
+    if (action === "buy" && input.entryTiming?.enter === false) {
+      return "Deploying now increases risk without entry confirmation.";
+    }
+
+    return "Deploying now increases risk without confirmation.";
+  }
+
+  if (stance === "Partial Deployment") {
+    return `${cashPercentage}% stays in cash — exceeding ${deploymentPercentage}% adds uncompensated risk.`;
+  }
+
+  return `${deploymentPercentage}% is deployed — ${cashPercentage}% remains in reserve.`;
 }
 
-function inputIntentIsProtect(intent: UserIntent): boolean {
-  return intent === "protect";
+function waitReasonForPick(
+  pick: StockPick | undefined,
+  input: CapitalDecisionInput,
+  isPrimary: boolean,
+): string {
+  if (input.intent === "explore") {
+    return "Capital allocation locked at 0% — observe mode only.";
+  }
+
+  if (isPrimary && input.action === "buy" && input.entryTiming?.enter === false) {
+    return "Entry trigger not confirmed — wait for breakout validation.";
+  }
+
+  if (input.intent === "protect" && isPrimary) {
+    return "Protection rule active — no new capital until the book rebalances.";
+  }
+
+  if (!pick) {
+    return isPrimary
+      ? "Primary trigger not confirmed — allocation stays at 0%."
+      : "Not confirmed for deployment — allocation stays at 0%.";
+  }
+
+  const alignment = Math.round(pick.score);
+  const { trend, momentum } = pick.signals;
+
+  if (alignment < 65) {
+    return "Structure incomplete — alignment below deployment threshold.";
+  }
+
+  if (trend < 60) {
+    return "Direction not confirmed — trend needs validation.";
+  }
+
+  if (momentum < 60) {
+    return "Momentum needs validation before capital moves.";
+  }
+
+  return "Not confirmed for deployment today.";
+}
+
+function buyReason(pick: StockPick | undefined): string {
+  if (pick && Math.round(pick.score) >= 75) {
+    return "Entry confirmed — structure validated for deployment.";
+  }
+
+  return "Entry confirmed — deploy only the allocated sleeve.";
+}
+
+function sellReason(
+  trimPct: number,
+  concentration: number,
+): string {
+  if (concentration > 25) {
+    return `Position at ${concentration}% — trim ${trimPct}% to rebalance the book.`;
+  }
+
+  return `Trim ${trimPct}% — concentration limit requires reduction.`;
 }
 
 function resolveActionForSymbol(
@@ -135,6 +213,7 @@ function resolveActionForSymbol(
 ): CapitalAction {
   const action = input.action;
   const isPrimary = symbol === input.stock;
+  const pick = findPick(input, symbol);
 
   if (
     (isSellAction(action as DecisionActionType) || action === "sell") &&
@@ -147,10 +226,7 @@ function resolveActionForSymbol(
       symbol,
       action: "SELL",
       allocation: trimPct,
-      reason:
-        concentration > 25
-          ? "Concentration is too high."
-          : "Protect capital first.",
+      reason: sanitizeCopy(sellReason(trimPct, concentration)),
     };
   }
 
@@ -159,25 +235,7 @@ function resolveActionForSymbol(
       symbol,
       action: "BUY",
       allocation: deploymentPercentage,
-      reason: "Clear enough to deploy.",
-    };
-  }
-
-  if (action === "buy" && isPrimary) {
-    return {
-      symbol,
-      action: "WAIT",
-      allocation: 0,
-      reason: "Wait for entry confirmation.",
-    };
-  }
-
-  if (input.intent === "explore") {
-    return {
-      symbol,
-      action: "WAIT",
-      allocation: 0,
-      reason: "Observation only. No capital.",
+      reason: sanitizeCopy(buyReason(pick)),
     };
   }
 
@@ -185,7 +243,7 @@ function resolveActionForSymbol(
     symbol,
     action: "WAIT",
     allocation: 0,
-    reason: waitReason(input.intent, isPrimary),
+    reason: sanitizeCopy(waitReasonForPick(pick, input, isPrimary)),
   };
 }
 
@@ -224,25 +282,37 @@ export function buildCapitalDecision(input: CapitalDecisionInput): CapitalDecisi
         )
       : [];
 
+  const heroHeadline = buildHeroHeadline(
+    input,
+    deploymentPercentage,
+    cashPercentage,
+  );
+  const heroSubline = buildHeroSubline(
+    input,
+    stance,
+    cashPercentage,
+    deploymentPercentage,
+  );
+
   return {
     stance,
     cashPercentage,
     deploymentPercentage,
     actions,
-    heroHeadline: buildHeroHeadline(input, deploymentPercentage, stance),
-    heroSubline: buildHeroSubline(stance, cashPercentage, deploymentPercentage),
+    heroHeadline,
+    heroSubline,
   };
 }
 
 export function formatCapitalAction(action: CapitalAction): string {
-  return `${action.symbol}\nAction: ${action.action}\nAllocation: ${action.allocation}%\n${action.reason}`;
+  return `${action.symbol}\nAction: ${action.action}\nAllocation: ${action.allocation}%\nReason: ${action.reason}`;
 }
 
 export function summarizeCapitalDecision(decision: CapitalDecision): string {
   if (decision.actions.length === 0) {
-    return `${decision.heroHeadline} ${decision.heroSubline}.`;
+    return `${decision.heroHeadline} ${decision.heroSubline}`;
   }
 
   const lead = decision.actions[0];
-  return `${decision.heroHeadline} ${lead.symbol}: ${lead.action}, ${lead.allocation}% — ${lead.reason}`;
+  return `${decision.heroHeadline} ${lead.symbol}: ${lead.action} at ${lead.allocation}%. ${lead.reason}`;
 }

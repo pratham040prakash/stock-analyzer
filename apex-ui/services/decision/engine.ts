@@ -585,19 +585,17 @@ function buildWaitDecisionFromValidation(
     reason: summarizeCapitalDecision(capital),
     confidence_factors: [
       capital.heroSubline,
-      validation.breakdown.signal_agreement
-        ? "Hold cash until a cleaner entry appears"
-        : "No symbol clears the deployment bar today",
+      capital.actions[0]?.reason ?? "Not confirmed for deployment today.",
       validation.breakdown.risk_ok
-        ? "Portfolio risk allows staying in cash"
-        : "Portfolio risk argues for no new deployment",
+        ? `${capital.cashPercentage}% capital can stay in cash safely`
+        : "Elevated portfolio risk — keep capital idle",
       hasProfile
-        ? "Sizing guidance is ready when deployment opens"
+        ? "Deployment size is ready when triggers confirm"
         : "Add your financial profile to size future deployment",
     ],
     actions: [
-      "Keep capital in cash today",
-      "Follow APEX before acting on your own",
+      `${capital.cashPercentage}% capital stays in cash today`,
+      capital.heroSubline,
     ],
     opportunities: [],
   };
@@ -667,19 +665,17 @@ async function buildGrowDecision(
         reason: summarizeCapitalDecision(capital),
         confidence_factors: [
           capital.heroSubline,
+          capital.actions[0]?.reason ?? "Deploy only the allocated sleeve.",
           best
-            ? `${best.stock}: BUY at ${capital.deploymentPercentage}%`
-            : "Partial deployment only — not full capital",
+            ? `${best.stock}: BUY at ${capital.deploymentPercentage}% of capital`
+            : `Partial deployment — ${capital.deploymentPercentage}% only`,
           hasProfile
-            ? "Financial profile sets deployable surplus"
+            ? "Financial profile caps deployable capital"
             : "Add your financial profile to refine deployment size",
-          mentorAligned
-            ? "Mentor view supports this deployment"
-            : "Deploy only what APEX allocates today",
         ],
         actions: [
           `Deploy ${capital.deploymentPercentage}% of available capital`,
-          "Do not exceed today's allocation",
+          capital.heroSubline,
         ],
       };
     })(),
@@ -735,17 +731,17 @@ async function buildExploreDecision(
       reason: summarizeCapitalDecision(capital),
       confidence_factors: [
         capital.heroSubline,
-        "All symbols: WAIT — 0% allocation",
+        capital.actions[0]?.reason ?? "Capital allocation locked at 0%.",
         best
-          ? `${best.stock} is on the list but gets no capital today`
-          : "No symbol earns capital today",
+          ? `${best.stock} — WAIT, 0% capital allocated`
+          : "No symbol confirmed for capital today",
         hasProfile
           ? "Profile loaded — deployment rules stay strict"
           : "Complete your profile before any future deployment",
       ],
       actions: [
-        "Keep capital in cash",
-        "Review actions only — do not deploy",
+        `${capital.cashPercentage}% capital stays in cash`,
+        capital.heroSubline,
       ],
     },
     best?.signals ?? resolveSignals(),

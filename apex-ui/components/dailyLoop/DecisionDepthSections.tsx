@@ -192,7 +192,10 @@ export function CapitalActionsBlock({
     return (
       <TierBlock tier="primary" delayMs={delayMs}>
         <p className="text-sm leading-snug text-apex-text/85">
-          {decision.stance}. {decision.cashPercentage}% stays in cash.
+          {decision.heroHeadline}
+        </p>
+        <p className="mt-1 text-sm leading-snug text-apex-text/75">
+          {decision.heroSubline}
         </p>
       </TierBlock>
     );
@@ -221,8 +224,8 @@ function CapitalActionRow({ action }: { action: CapitalAction }) {
       <p className="text-sm leading-snug text-apex-text/85">
         Allocation: {action.allocation}%
       </p>
-      <p className="mt-0.5 text-sm leading-snug text-apex-text/75">
-        {action.reason}
+      <p className="mt-1 text-sm leading-snug text-apex-text/75">
+        Reason: {action.reason}
       </p>
     </li>
   );
