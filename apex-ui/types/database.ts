@@ -176,6 +176,7 @@ export type Database = {
           take_profit_taken: boolean;
           pnl: number | null;
           success: boolean | null;
+          trust_evaluated_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -199,6 +200,7 @@ export type Database = {
           take_profit_taken?: boolean;
           pnl?: number | null;
           success?: boolean | null;
+          trust_evaluated_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -219,6 +221,7 @@ export type Database = {
           take_profit_taken?: boolean;
           pnl?: number | null;
           success?: boolean | null;
+          trust_evaluated_at?: string | null;
           updated_at?: string;
         };
         Relationships: [];
@@ -282,6 +285,38 @@ export type Database = {
           decision_key?: string;
           followed?: boolean;
           streak_count?: number;
+        };
+        Relationships: [];
+      };
+      user_trust_state: {
+        Row: {
+          user_id: string;
+          trust_score: number;
+          last_trust_delta: number;
+          last_outcome: import("@/services/learning/outcomeEngine").OutcomeEvaluationOutput | null;
+          last_decision_id: string | null;
+          last_closed_at: string | null;
+          last_stock: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          trust_score?: number;
+          last_trust_delta?: number;
+          last_outcome?: import("@/services/learning/outcomeEngine").OutcomeEvaluationOutput | null;
+          last_decision_id?: string | null;
+          last_closed_at?: string | null;
+          last_stock?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          trust_score?: number;
+          last_trust_delta?: number;
+          last_outcome?: import("@/services/learning/outcomeEngine").OutcomeEvaluationOutput | null;
+          last_decision_id?: string | null;
+          last_closed_at?: string | null;
+          last_stock?: string | null;
+          updated_at?: string;
         };
         Relationships: [];
       };

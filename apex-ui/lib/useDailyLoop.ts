@@ -3,7 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import type { EntryTimingState } from "@/components/decision/ExecutionPlanCard";
 import { getDecisionActionText } from "@/lib/dailyLoop/actionText";
-import { readLastOutcome, readTrustDelta, readTrustScore } from "@/lib/dailyLoop/storage";
+import {
+  persistLastOutcome,
+  persistTrustUpdate,
+  readLastOutcome,
+  readTrustDelta,
+  readTrustScore,
+} from "@/lib/dailyLoop/storage";
 import { buildExecutionPlanInput } from "@/services/execution/buildExecutionPlanInput";
 import {
   generateExecutionPlanSafe,
@@ -40,7 +46,42 @@ type DailyLoopState = {
   trustDelta: number;
   trustMessage: string;
   lastOutcome: OutcomeEvaluationOutput | null;
+  lastOutcomeStock: string | null;
 };
+
+type TrustOutcomeApiResponse = {
+  status: string;
+  trust?: {
+    trustScore: number;
+    trustDelta: number;
+    trustMessage: string;
+    lastOutcome: OutcomeEvaluationOutput | null;
+    lastClosedAt: string | null;
+    stock: string | null;
+  };
+};
+
+async function fetchTrustOutcomeFromServer(): Promise<
+  TrustOutcomeApiResponse["trust"] | null
+> {
+  try {
+    const response = await fetch("/api/trust/outcome", { cache: "no-store" });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const payload = (await response.json()) as TrustOutcomeApiResponse;
+
+    if (payload.status !== "ok" || !payload.trust) {
+      return null;
+    }
+
+    return payload.trust;
+  } catch {
+    return null;
+  }
+}
 
 export function useDailyLoop(
   decision: DailyLoopDecision,
@@ -51,24 +92,50 @@ export function useDailyLoop(
   const [planLoading, setPlanLoading] = useState(false);
   const [trustScore, setTrustScore] = useState(50);
   const [trustDelta, setTrustDelta] = useState(0);
+  const [trustMessage, setTrustMessage] = useState(
+    () => getTrustDisplay(readTrustScore()).message,
+  );
   const [lastOutcome, setLastOutcome] = useState<OutcomeEvaluationOutput | null>(
     null,
   );
+  const [lastOutcomeStock, setLastOutcomeStock] = useState<string | null>(null);
 
   const actionText = useMemo(
     () => getDecisionActionText(decision, entryTiming, intent),
     [decision, entryTiming, intent],
   );
 
-  const trustMessage = useMemo(
-    () => getTrustDisplay(trustScore).message,
-    [trustScore],
-  );
-
   useEffect(() => {
     setTrustScore(readTrustScore());
     setTrustDelta(readTrustDelta());
     setLastOutcome(readLastOutcome());
+    setTrustMessage(getTrustDisplay(readTrustScore()).message);
+
+    let cancelled = false;
+
+    void (async () => {
+      const serverTrust = await fetchTrustOutcomeFromServer();
+
+      if (cancelled || !serverTrust) {
+        return;
+      }
+
+      persistTrustUpdate(serverTrust.trustScore, serverTrust.trustDelta);
+
+      if (serverTrust.lastOutcome) {
+        persistLastOutcome(serverTrust.lastOutcome);
+      }
+
+      setTrustScore(serverTrust.trustScore);
+      setTrustDelta(serverTrust.trustDelta);
+      setTrustMessage(serverTrust.trustMessage);
+      setLastOutcome(serverTrust.lastOutcome);
+      setLastOutcomeStock(serverTrust.stock);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -117,5 +184,6 @@ export function useDailyLoop(
     trustDelta,
     trustMessage,
     lastOutcome,
+    lastOutcomeStock,
   };
 }

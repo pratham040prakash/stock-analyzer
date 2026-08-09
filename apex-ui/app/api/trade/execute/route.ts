@@ -7,6 +7,7 @@ import { getLatestPortfolioSnapshotWithMetrics } from "@/services/portfolio/repo
 import { computePortfolioMetrics } from "@/services/brokers/zerodha";
 import { normalizeSymbol } from "@/lib/stockPool";
 import { logTradeFillSafe } from "@/services/trade/logTradeFill";
+import { processPendingOutcomes } from "@/services/decision/trustOutcome";
 
 type ExecuteTradeRequest = {
   stock?: string;
@@ -80,6 +81,8 @@ export async function POST(request: Request) {
       amount: Math.round(result.price * result.quantity),
       orderId: result.orderId,
     });
+
+    await processPendingOutcomes(supabase, user.id);
 
     return apiOk({
       stock: result.stock,

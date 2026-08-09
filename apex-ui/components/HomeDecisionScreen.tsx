@@ -145,6 +145,7 @@ export default function HomeDecisionScreen({
     trustDelta,
     trustMessage,
     lastOutcome,
+    lastOutcomeStock,
     plan,
     planLoading,
   } = useDailyLoop(decision, entryTiming, intent);
@@ -473,6 +474,11 @@ export default function HomeDecisionScreen({
               className="mt-6 space-y-3 animate-apex-fade-in opacity-90"
               style={{ animationDelay: `${nextDelay()}ms` }}
             >
+              {lastOutcomeStock ? (
+                <p className="text-xs font-medium uppercase tracking-wide text-apex-muted">
+                  Last closed · {lastOutcomeStock}
+                </p>
+              ) : null}
               <div className="grid grid-cols-3 gap-3 text-xs text-apex-muted">
                 <div>
                   <p>Discipline</p>
