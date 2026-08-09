@@ -5,8 +5,11 @@ import { formatInr } from "@/lib/funds";
 
 export type TodayTrustStripProps = {
   connectionStatus: ConnectionStatus;
-  availableCash?: number | null;
-  portfolioValue?: number;
+  marginAvailable?: number | null;
+  ledgerCash?: number | null;
+  collateral?: number | null;
+  portfolioValue?: number | null;
+  totalCapital?: number | null;
   dayPnl?: number | null;
   updatedAt?: string | null;
   fundsLoading?: boolean;
@@ -41,19 +44,28 @@ function connectionLabel(status: ConnectionStatus): string {
   return "Zerodha not connected";
 }
 
+function knownAmount(value?: number | null): value is number {
+  return value !== null && value !== undefined && Number.isFinite(value);
+}
+
 export default function TodayTrustStrip({
   connectionStatus,
-  availableCash,
+  marginAvailable,
+  ledgerCash,
+  collateral,
   portfolioValue,
+  totalCapital,
   dayPnl,
   updatedAt,
   fundsLoading = false,
 }: TodayTrustStripProps) {
   const syncedAt = formatUpdatedAt(updatedAt);
-  const cashKnown = availableCash !== null && availableCash !== undefined;
-  const portfolioKnown =
-    portfolioValue !== undefined && Number.isFinite(portfolioValue);
-  const dayKnown = dayPnl !== null && dayPnl !== undefined && Number.isFinite(dayPnl);
+  const deployableKnown = knownAmount(marginAvailable);
+  const ledgerKnown = knownAmount(ledgerCash);
+  const collateralKnown = knownAmount(collateral) && collateral > 0;
+  const portfolioKnown = knownAmount(portfolioValue);
+  const totalKnown = knownAmount(totalCapital);
+  const dayKnown = knownAmount(dayPnl);
 
   return (
     <div
@@ -71,26 +83,46 @@ export default function TodayTrustStrip({
           {connectionLabel(connectionStatus)}
         </span>
         {syncedAt ? <span>Updated {syncedAt} IST</span> : null}
-        {fundsLoading ? <span>Refreshing funds…</span> : null}
+        {fundsLoading ? <span>Syncing Zerodha funds…</span> : null}
       </div>
-      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-apex-text/80">
-        <span>
-          Available cash:{" "}
-          {cashKnown ? formatInr(Math.max(0, availableCash ?? 0)) : "—"}
-        </span>
-        {portfolioKnown ? (
-          <span>Portfolio: {formatInr(Math.max(0, portfolioValue ?? 0))}</span>
+
+      <div className="mt-2 space-y-1.5 text-sm text-apex-text/80">
+        <p>
+          <span className="text-apex-muted/75">Available to deploy: </span>
+          {deployableKnown ? formatInr(Math.max(0, marginAvailable)) : "—"}
+          <span className="text-xs text-apex-muted/60"> · Zerodha margin available</span>
+        </p>
+
+        {ledgerKnown || collateralKnown ? (
+          <p className="text-xs text-apex-muted/75">
+            {ledgerKnown ? (
+              <span>Cash {formatInr(Math.max(0, ledgerCash ?? 0))}</span>
+            ) : null}
+            {ledgerKnown && collateralKnown ? <span> · </span> : null}
+            {collateralKnown ? (
+              <span>Collateral {formatInr(Math.max(0, collateral ?? 0))}</span>
+            ) : null}
+          </p>
         ) : null}
-        {dayKnown ? (
-          <span
-            className={
-              (dayPnl ?? 0) >= 0 ? "text-emerald-300/90" : "text-amber-200/90"
-            }
-          >
-            Day P&amp;L: {(dayPnl ?? 0) >= 0 ? "+" : ""}
-            {formatInr(Math.round(dayPnl ?? 0))}
-          </span>
-        ) : null}
+
+        <div className="flex flex-wrap gap-x-4 gap-y-1">
+          {portfolioKnown ? (
+            <span>Portfolio {formatInr(Math.max(0, portfolioValue ?? 0))}</span>
+          ) : null}
+          {totalKnown ? (
+            <span>Total capital {formatInr(Math.max(0, totalCapital ?? 0))}</span>
+          ) : null}
+          {dayKnown ? (
+            <span
+              className={
+                (dayPnl ?? 0) >= 0 ? "text-emerald-300/90" : "text-amber-200/90"
+              }
+            >
+              Day P&amp;L {(dayPnl ?? 0) >= 0 ? "+" : ""}
+              {formatInr(Math.round(dayPnl ?? 0))}
+            </span>
+          ) : null}
+        </div>
       </div>
     </div>
   );

@@ -100,10 +100,10 @@ export async function executeTrade(
     return { status: "ERROR", message: margins.message };
   }
 
-  if (amount > margins.availableCash) {
+  if (amount > margins.marginAvailable) {
     return {
       status: "INSUFFICIENT_FUNDS",
-      availableCash: margins.availableCash,
+      availableCash: margins.marginAvailable,
       requested: amount,
     };
   }

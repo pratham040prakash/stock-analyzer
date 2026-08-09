@@ -60,7 +60,9 @@ export type HomeDecisionScreenProps = {
   topSymbol?: string;
   topAllocationPct?: number;
   availableCash?: number;
+  ledgerCash?: number;
   portfolioValue?: number;
+  totalCapital?: number;
   collateral?: number;
   capitalMode?: CapitalFundingMode;
   onCapitalModeChange?: (mode: CapitalFundingMode) => void;
@@ -105,7 +107,9 @@ export default function HomeDecisionScreen({
   topSymbol,
   topAllocationPct,
   availableCash,
+  ledgerCash,
   portfolioValue,
+  totalCapital,
   collateral,
   capitalMode,
   onCapitalModeChange,
@@ -140,6 +144,7 @@ export default function HomeDecisionScreen({
         suggested_sell_percent: decision.suggested_sell_percent,
         topAllocationPct,
         availableCash,
+        ledgerCash,
         portfolioValue,
         collateral,
         capitalMode,
@@ -159,6 +164,7 @@ export default function HomeDecisionScreen({
       decision.suggested_sell_percent,
       entryTiming,
       holdings,
+      ledgerCash,
       portfolioValue,
       renderIntent,
       topAllocationPct,
@@ -236,8 +242,11 @@ export default function HomeDecisionScreen({
           <div className="mb-6 space-y-4">
             <TodayTrustStrip
               connectionStatus={connectionStatus}
-              availableCash={availableCash}
+              marginAvailable={availableCash}
+              ledgerCash={ledgerCash}
+              collateral={collateral}
               portfolioValue={portfolioValue}
+              totalCapital={totalCapital}
               dayPnl={dayPnl}
               updatedAt={decisionUpdatedAt}
               fundsLoading={fundsLoading}

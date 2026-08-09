@@ -89,7 +89,7 @@ async function enrichDecisionWithAllocation(
   const portfolio = portfolioContextFromHoldings(holdings);
   const opportunities = getOpportunities(intent, riskMetrics.risk_level, portfolio);
   const deployable = deployableFundsForIntent(
-    marginsResult.availableCash,
+    marginsResult.marginAvailable,
     intent,
   );
   const recommended_allocation = buildExecutionPlan(
@@ -113,7 +113,7 @@ async function enrichDecisionWithAllocation(
       expectedDrawdown: metrics?.expectedDrawdown,
       edgeScore: metrics?.edgeScore,
       structureScore: decision.structureScore,
-      availableCash: marginsResult.availableCash,
+      availableCash: marginsResult.marginAvailable,
     });
 
     let amount = Math.min(allocation.amount, deployable);

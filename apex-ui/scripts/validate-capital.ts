@@ -6,6 +6,7 @@ import { runCapitalFinalStateSelfCheck } from "../lib/dailyLoop/capitalFinalStat
 import { runCapitalDecisionLockSelfCheck } from "../lib/dailyLoop/capitalDecisionLock";
 import { runCapitalMarginSelfCheck } from "../lib/dailyLoop/capitalMargin";
 import { runTodaySurfaceSelfCheck } from "../lib/dailyLoop/todaySurface";
+import { runZerodhaFundsSelfCheck } from "../lib/broker/zerodhaFunds";
 import { runCommitmentSelfCheck } from "../lib/dailyLoop/disciplineCommitment";
 
 runCapitalProjectionSelfCheck();
@@ -13,4 +14,5 @@ runCapitalFinalStateSelfCheck();
 runCapitalDecisionLockSelfCheck();
 runCapitalMarginSelfCheck();
 runTodaySurfaceSelfCheck();
+runZerodhaFundsSelfCheck();
 runCommitmentSelfCheck();

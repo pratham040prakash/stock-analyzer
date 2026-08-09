@@ -58,8 +58,13 @@ type ZerodhaSessionResponse = {
 };
 
 type FundsResponse = {
+  ledger_cash: number;
+  collateral: number;
+  margin_available: number;
+  live_balance?: number;
+  portfolio_value?: number;
+  total_capital?: number;
   available_cash: number;
-  collateral?: number;
   status?: string;
 };
 
@@ -131,7 +136,12 @@ export default function HomeClient({
     () => initialPortfolio.holdings.length === 0,
   );
   const [availableCash, setAvailableCash] = useState<number | null>(null);
+  const [ledgerCash, setLedgerCash] = useState<number | null>(null);
   const [collateral, setCollateral] = useState<number>(0);
+  const [brokerPortfolioValue, setBrokerPortfolioValue] = useState<number | null>(
+    null,
+  );
+  const [totalCapital, setTotalCapital] = useState<number | null>(null);
   const [capitalMode, setCapitalMode] = useState<CapitalFundingMode>("CASH");
   const [fundsLoading, setFundsLoading] = useState(false);
   const [brokerMessage, setBrokerMessage] = useState<string | null>(
@@ -292,11 +302,25 @@ export default function HomeClient({
       const res = await apiFetch("/api/funds", { method: "GET" });
       const data = await parseApiJson<FundsResponse>(res, "Funds");
       if (!data) return;
-      setAvailableCash(Math.max(0, Math.round(data.available_cash ?? 0)));
+      setAvailableCash(Math.max(0, Math.round(data.margin_available ?? data.available_cash ?? 0)));
+      setLedgerCash(Math.max(0, Math.round(data.ledger_cash ?? 0)));
       setCollateral(Math.max(0, Math.round(data.collateral ?? 0)));
+      setBrokerPortfolioValue(
+        Number.isFinite(data.portfolio_value)
+          ? Math.max(0, Math.round(data.portfolio_value ?? 0))
+          : null,
+      );
+      setTotalCapital(
+        Number.isFinite(data.total_capital)
+          ? Math.max(0, Math.round(data.total_capital ?? 0))
+          : null,
+      );
     } catch {
       setAvailableCash(null);
+      setLedgerCash(null);
       setCollateral(0);
+      setBrokerPortfolioValue(null);
+      setTotalCapital(null);
     } finally {
       setFundsLoading(false);
     }
@@ -666,10 +690,14 @@ export default function HomeClient({
               decision={dailyDecision}
               entryTiming={entryTiming}
               intent={userIntent}
+              availableCash={availableCash ?? undefined}
+              ledgerCash={ledgerCash ?? undefined}
               topSymbol={portfolioData?.top_symbol}
               topAllocationPct={portfolioData?.top_allocation_pct}
-              availableCash={availableCash ?? undefined}
-              portfolioValue={portfolioData?.total_value}
+              portfolioValue={
+                brokerPortfolioValue ?? portfolioData?.total_value ?? undefined
+              }
+              totalCapital={totalCapital ?? undefined}
               collateral={collateral}
               capitalMode={capitalMode}
               onCapitalModeChange={handleCapitalModeChange}

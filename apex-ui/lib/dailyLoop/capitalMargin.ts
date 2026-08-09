@@ -95,7 +95,12 @@ function marginRulesViolated(
   collateral: number,
   deployAmount: number,
 ): boolean {
-  if (decision.availableCash < collateral * MARGIN_MIN_CASH_COLLATERAL_RATIO) {
+  const ledgerCash = Math.max(
+    0,
+    Math.round(input.ledgerCash ?? decision.availableCash ?? 0),
+  );
+
+  if (ledgerCash < collateral * MARGIN_MIN_CASH_COLLATERAL_RATIO) {
     return true;
   }
 
@@ -182,6 +187,10 @@ export function applyMarginPolicy(
 ): CapitalDecision {
   const capitalMode: CapitalFundingMode = input.capitalMode ?? "CASH";
   const collateral = Math.max(0, Math.round(input.collateral ?? 0));
+  const ledgerCash = Math.max(
+    0,
+    Math.round(input.ledgerCash ?? decision.availableCash ?? 0),
+  );
 
   if (decision.mode === "explore" || capitalMode === "CASH") {
     return {
@@ -192,7 +201,7 @@ export function applyMarginPolicy(
     };
   }
 
-  const deployableCapital = decision.availableCash + collateral;
+  const deployableCapital = ledgerCash + collateral;
   const base: CapitalDecision = {
     ...decision,
     capitalMode: "MARGIN",

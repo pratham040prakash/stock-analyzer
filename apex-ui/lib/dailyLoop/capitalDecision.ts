@@ -136,6 +136,8 @@ export type CapitalDecisionInput = {
   suggested_sell_percent?: number;
   topAllocationPct?: number;
   availableCash?: number;
+  /** Ledger cash from Zerodha — used for total capital and margin pool sizing. */
+  ledgerCash?: number;
   portfolioValue?: number;
   holdings?: CapitalHoldingWeight[];
   capitalMode?: CapitalFundingMode;
@@ -150,12 +152,16 @@ const CONCENTRATION_LIMIT = 25;
 
 function resolveCapitalStructure(input: CapitalDecisionInput): CapitalStructure {
   const availableCash = Math.max(0, Math.round(input.availableCash ?? 0));
+  const ledgerCash = Math.max(
+    0,
+    Math.round(input.ledgerCash ?? input.availableCash ?? 0),
+  );
   const portfolioValue = Math.max(0, Math.round(input.portfolioValue ?? 0));
 
   return {
     availableCash,
     portfolioValue,
-    totalCapital: availableCash + portfolioValue,
+    totalCapital: ledgerCash + portfolioValue,
   };
 }
 

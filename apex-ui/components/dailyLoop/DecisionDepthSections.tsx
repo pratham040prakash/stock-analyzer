@@ -270,7 +270,7 @@ function GrowCapitalActionsBlock({
             {decision.portfolioStanceDetail}
           </p>
           <p className="text-sm leading-snug text-apex-text/75">
-            Available cash: {formatInr(decision.availableCash)}
+            Available to deploy: {formatInr(decision.deployableCapital ?? decision.availableCash)}
           </p>
           {decision.capitalMode === "MARGIN" ? (
             <>
