@@ -70,6 +70,7 @@ export type CapitalDecision = {
   growEmptyMessage?: string;
   heroHeadline: string;
   heroSubline: string;
+  heroDecisionCue?: string;
   heroAccountability: string;
   portfolioStance: string;
   portfolioStanceDetail: string;
@@ -90,7 +91,8 @@ export type CapitalDecisionInput = {
 };
 
 const FORBIDDEN_COPY = /\b(good setup|bad setup|strong|weak|not enough edge)\b/i;
-const GROW_EMPTY_MESSAGE = "No setup meets deployment criteria today.";
+const GROW_EMPTY_MESSAGE =
+  "No setup qualifies for capital deployment today.";
 
 function normalizePercent(value: number | undefined): number {
   if (value === undefined || !Number.isFinite(value)) {
@@ -183,14 +185,45 @@ function resolveWaitStage(pick: StockPick | undefined): GrowActionStage {
 
 function waitTiming(stage: GrowActionStage): string {
   if (stage === "close") {
-    return "Act within 1–2 sessions if confirmed.";
+    return "Act within 1–2 sessions.";
   }
 
   if (stage === "developing") {
-    return "Reassess in 2–3 sessions.";
+    return "Wait for next sessions.";
   }
 
-  return "Hold — setup still forming.";
+  return "No action today.";
+}
+
+function buildBuyConfirm(pick: StockPick | undefined): string {
+  const level = pick ? resolveActivationLevel(pick) : undefined;
+
+  if (level) {
+    return `Buy above ${formatInr(level)} with volume.`;
+  }
+
+  return "Buy above breakout with volume.";
+}
+
+function buildHeroDecisionCue(
+  input: CapitalDecisionInput,
+  deploymentPercentage: number,
+  actions: CapitalAction[],
+): string {
+  const hasSell =
+    actions.some((item) => item.action === "SELL") ||
+    isSellAction(input.action as DecisionActionType) ||
+    input.action === "sell";
+
+  if (hasSell) {
+    return "Capital reduction required.";
+  }
+
+  if (deploymentPercentage > 0) {
+    return "Capital deployment is active.";
+  }
+
+  return "No capital deployed today.";
 }
 
 function buildHeroHeadline(
@@ -259,11 +292,11 @@ function resolveWaitContext(
     return {
       stage: "close",
       reason: {
-        missing: "Breakout above resistance not confirmed.",
-        confirm: "Buy on breakout above resistance with volume.",
-        timing: "Deploy within 1–2 sessions if confirmed.",
+        missing: "Breakout not confirmed.",
+        confirm: sanitizeCopy(buildBuyConfirm(pick)),
+        timing: "Act within 1–2 sessions.",
       },
-      ifIgnored: "If ignored: capital enters before confirmation.",
+      ifIgnored: "If ignored: capital exposed to false breakout.",
     };
   }
 
@@ -271,11 +304,11 @@ function resolveWaitContext(
     return {
       stage,
       reason: {
-        missing: "Concentration must clear before new capital.",
-        confirm: "Buy only after trim rebalance completes.",
+        missing: "Concentration not cleared.",
+        confirm: "Buy after trim completes.",
         timing,
       },
-      ifIgnored: "If ignored: capital adds to unbalanced book.",
+      ifIgnored: "If ignored: capital enters before confirmation.",
     };
   }
 
@@ -283,11 +316,11 @@ function resolveWaitContext(
     return {
       stage: "early",
       reason: {
-        missing: "Primary trigger not confirmed yet.",
-        confirm: "Buy when APEX confirms lead symbol.",
-        timing: "Hold until lead symbol confirms.",
+        missing: "Trigger not confirmed.",
+        confirm: "Buy when lead symbol confirms.",
+        timing: "No action today.",
       },
-      ifIgnored: "If ignored: capital moves before confirmation.",
+      ifIgnored: "If ignored: capital enters before confirmation.",
     };
   }
 
@@ -298,8 +331,8 @@ function resolveWaitContext(
     return {
       stage,
       reason: {
-        missing: "Structure below deployment threshold.",
-        confirm: "Buy when alignment crosses threshold.",
+        missing: "Breakout not confirmed.",
+        confirm: "Buy above threshold on close.",
         timing,
       },
       ifIgnored: "If ignored: capital deploys below threshold.",
@@ -310,11 +343,11 @@ function resolveWaitContext(
     return {
       stage,
       reason: {
-        missing: "Direction not confirmed — below range.",
-        confirm: "Buy when trend validates above range.",
+        missing: "Breakout not confirmed.",
+        confirm: sanitizeCopy(buildBuyConfirm(pick)),
         timing,
       },
-      ifIgnored: "If ignored: capital buys before direction confirms.",
+      ifIgnored: "If ignored: capital enters before confirmation.",
     };
   }
 
@@ -322,31 +355,30 @@ function resolveWaitContext(
     return {
       stage,
       reason: {
-        missing: "Momentum not confirmed — no follow-through.",
-        confirm: "Buy when momentum confirms on volume.",
+        missing: "Volume not confirmed.",
+        confirm: sanitizeCopy(buildBuyConfirm(pick)),
         timing:
-          stage === "close"
-            ? "Act within 1–2 sessions if volume follows."
-            : timing,
+          stage === "close" ? "Act within 1–2 sessions." : timing,
       },
-      ifIgnored: "If ignored: capital chases without volume.",
+      ifIgnored: "If ignored: capital exposed to false breakout.",
     };
   }
 
   return {
     stage: "close",
     reason: {
-      missing: "Final confirmation bar not cleared.",
-      confirm: "Buy on breakout above resistance.",
-      timing: "Deploy within 1–2 sessions if break confirms.",
+      missing: "Breakout not confirmed.",
+      confirm: sanitizeCopy(buildBuyConfirm(pick)),
+      timing: "Act within 1–2 sessions.",
     },
-    ifIgnored: "If ignored: capital enters before break confirms.",
+    ifIgnored: "If ignored: capital exposed to false breakout.",
   };
 }
 
 function buildBuyAction(
   symbol: string,
   deploymentPercentage: number,
+  pick: StockPick | undefined,
   isPrimary: boolean,
 ): CapitalAction {
   return {
@@ -355,9 +387,9 @@ function buildBuyAction(
     deployPercentage: deploymentPercentage,
     isPrimary,
     reason: {
-      missing: sanitizeCopy("No blockers — cleared to deploy."),
-      confirm: sanitizeCopy("Deploy on confirmed entry trigger."),
-      timing: sanitizeCopy("Deploy today within allocated limit."),
+      missing: sanitizeCopy("All triggers confirmed."),
+      confirm: sanitizeCopy(buildBuyConfirm(pick)),
+      timing: sanitizeCopy("Deploy today."),
     },
   };
 }
@@ -445,9 +477,15 @@ function buildPrimaryAction(
   if (isSellAction(action as DecisionActionType) || action === "sell") {
     const symbol =
       input.stock ?? actions.find((item) => item.action === "SELL")?.symbol;
+    const trimPct =
+      normalizePercent(input.suggested_sell_percent) ||
+      actions.find((item) => item.action === "SELL")?.deployPercentage ||
+      25;
 
     return {
-      headline: symbol ? `Trim ${symbol} exposure` : "Trim concentrated exposure",
+      headline: symbol
+        ? `Trim ${symbol} by ${trimPct}% today`
+        : "Trim concentrated exposure today",
       detail: "Delaying trim keeps concentration risk.",
     };
   }
@@ -455,13 +493,13 @@ function buildPrimaryAction(
   const primaryBuy = actions.find((item) => item.action === "BUY");
   if (primaryBuy && deploymentPercentage > 0) {
     return {
-      headline: `Deploy ${primaryBuy.deployPercentage}% into ${primaryBuy.symbol}`,
+      headline: `Deploy ${primaryBuy.deployPercentage}% into ${primaryBuy.symbol} today`,
       detail: "Exceeding allocation adds risk.",
     };
   }
 
   return {
-    headline: "Remain in cash",
+    headline: "Remain fully in cash today",
     detail: "Premature deployment increases risk.",
   };
 }
@@ -848,6 +886,7 @@ function buildGrowCapitalDecision(input: CapitalDecisionInput): CapitalDecision 
       cashPercentage,
       deploymentPercentage,
     ),
+    heroDecisionCue: buildHeroDecisionCue(input, deploymentPercentage, actions),
     heroAccountability: buildHeroAccountability(input, deploymentPercentage),
     portfolioStance: portfolioStance.headline,
     portfolioStanceDetail: portfolioStance.detail,
@@ -864,12 +903,12 @@ function buildSellAction(
 ): CapitalAction {
   const missing =
     concentration > 25
-      ? `Position at ${concentration}% — above limit.`
-      : "Concentration limit requires reduction.";
+      ? "Position above limit."
+      : "Concentration above limit.";
   const ifIgnored =
     concentration > 25
-      ? "If ignored: concentration risk remains."
-      : "If ignored: rebalance delay keeps book risk.";
+      ? "If ignored: concentration risk remains high."
+      : "If ignored: concentration risk remains high.";
 
   return {
     symbol,
@@ -879,8 +918,8 @@ function buildSellAction(
     postActionImpact: buildPostActionImpact(concentration, trimPct),
     reason: {
       missing: sanitizeCopy(missing),
-      confirm: sanitizeCopy(`Trim ${trimPct}% of ${symbol} to rebalance.`),
-      timing: sanitizeCopy("Act this session."),
+      confirm: sanitizeCopy(`Trim ${trimPct}% of ${symbol} today.`),
+      timing: sanitizeCopy("Act within 1–2 sessions."),
     },
     ifIgnored: sanitizeCopy(ifIgnored),
   };
@@ -928,7 +967,7 @@ function resolveActionForSymbol(
   }
 
   if (action === "buy" && isPrimary && deploymentPercentage > 0) {
-    return buildBuyAction(symbol, deploymentPercentage, isPrimary);
+    return buildBuyAction(symbol, deploymentPercentage, pick, isPrimary);
   }
 
   return buildWaitAction(symbol, pick, input, isPrimary);

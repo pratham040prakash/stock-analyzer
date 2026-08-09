@@ -288,6 +288,11 @@ export default function DailyDecisionCard({
               <ApexBody className="text-sm text-apex-muted">
                 {capitalDecision.heroSubline}
               </ApexBody>
+              {capitalDecision.heroDecisionCue ? (
+                <p className="text-xs text-apex-muted/60">
+                  {capitalDecision.heroDecisionCue}
+                </p>
+              ) : null}
               <p className="text-xs text-apex-muted/70">
                 {capitalDecision.heroAccountability}
               </p>

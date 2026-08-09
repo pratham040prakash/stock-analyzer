@@ -182,6 +182,11 @@ export default function HomeDecisionScreen({
               {heroTitle}
             </h1>
             <p className="mt-2 text-sm text-apex-muted">{heroTone}</p>
+            {capitalDecision.heroDecisionCue ? (
+              <p className="text-xs text-apex-muted/60">
+                {capitalDecision.heroDecisionCue}
+              </p>
+            ) : null}
             {capitalDecision.heroAccountability ? (
               <p className="text-xs text-apex-muted/70">
                 {capitalDecision.heroAccountability}

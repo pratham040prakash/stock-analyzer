@@ -366,13 +366,30 @@ function CapitalActionRow({ action }: { action: CapitalAction }) {
       </p>
       <p className="text-sm leading-snug text-apex-text/85">{action.action}</p>
       {action.action === "BUY" ? (
-        <p className="text-sm leading-snug text-apex-text/85">
-          Deploy {action.deployPercentage}% of your capital
-        </p>
+        <>
+          <p className="text-sm leading-snug text-apex-text/85">
+            Deploy {action.deployPercentage}% of your capital
+          </p>
+          <p className="text-sm leading-snug text-apex-text/85">
+            Only if trigger confirms
+          </p>
+        </>
       ) : null}
-      {action.action === "WAIT" && action.stage ? (
-        <p className="text-sm leading-snug text-apex-text/70">
-          {formatGrowActionStage(action.stage)}
+      {action.action === "WAIT" ? (
+        <>
+          <p className="text-sm font-medium leading-snug text-apex-text/90">
+            Do not deploy yet
+          </p>
+          {action.stage ? (
+            <p className="text-sm leading-snug text-apex-text/70">
+              {formatGrowActionStage(action.stage)}
+            </p>
+          ) : null}
+        </>
+      ) : null}
+      {action.action === "SELL" ? (
+        <p className="text-sm font-medium leading-snug text-apex-text/90">
+          Reduce exposure
         </p>
       ) : null}
       <div className="space-y-0.5 text-sm leading-snug text-apex-text/75">
