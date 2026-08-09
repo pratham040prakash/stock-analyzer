@@ -106,7 +106,7 @@ export default function TodayTrustStrip({
           ) : (
             "—"
           )}
-          <span className="text-xs text-apex-muted/60"> · Zerodha margin available</span>
+          <span className="text-xs text-apex-muted/60"> · Cash + Collateral</span>
         </p>
 
         {fundsSynced || (connectionStatus === "CONNECTED" && !fundsLoading) ? (

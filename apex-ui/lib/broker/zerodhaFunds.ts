@@ -1,11 +1,11 @@
 export type ZerodhaEquityFunds = {
-  /** Raw cash in the equity ledger (`available.cash`). */
+  /** Available cash in the equity ledger — Zerodha "Available cash" (`live_balance`). */
   ledgerCash: number;
   /** Margin from pledged holdings (`available.collateral`). */
   collateral: number;
-  /** Free cash for CNC trading — Zerodha "Margin available" (`equity.net`). */
+  /** Deployable balance — Zerodha "Available margin (Cash + Collateral)". */
   marginAvailable: number;
-  /** Live balance after utilisation (`available.live_balance`). */
+  /** Live cash component before collateral (`available.live_balance`). */
   liveBalance: number;
 };
 
@@ -44,6 +44,29 @@ function coerceFundsNumber(value: unknown): number | null {
   return null;
 }
 
+function resolveEffectiveCash(
+  rawCash: number | null,
+  rawOpening: number | null,
+): number {
+  if (rawCash !== null && rawCash > 0) {
+    return roundFunds(rawCash);
+  }
+
+  if (rawOpening !== null && rawOpening > 0) {
+    return roundFunds(rawOpening);
+  }
+
+  if (rawCash !== null) {
+    return roundFunds(rawCash);
+  }
+
+  if (rawOpening !== null) {
+    return roundFunds(rawOpening);
+  }
+
+  return 0;
+}
+
 /** Parses Kite `/user/margins` equity segment into deployable broker-truth funds. */
 export function parseZerodhaEquityFunds(
   equity?: KiteEquityMargins,
@@ -52,9 +75,8 @@ export function parseZerodhaEquityFunds(
     return null;
   }
 
-  const rawCash =
-    coerceFundsNumber(equity.available?.cash) ??
-    coerceFundsNumber(equity.available?.opening_balance);
+  const rawCash = coerceFundsNumber(equity.available?.cash);
+  const rawOpening = coerceFundsNumber(equity.available?.opening_balance);
   const rawNet = coerceFundsNumber(equity.net);
   const rawLive = coerceFundsNumber(equity.available?.live_balance);
   const rawCollateral = coerceFundsNumber(equity.available?.collateral);
@@ -63,8 +85,10 @@ export function parseZerodhaEquityFunds(
 
   if (
     rawCash === null &&
+    rawOpening === null &&
     rawNet === null &&
     rawLive === null &&
+    rawCollateral === null &&
     rawIntraday === null &&
     rawAdhoc === null
   ) {
@@ -72,16 +96,30 @@ export function parseZerodhaEquityFunds(
   }
 
   const collateral = roundFunds(rawCollateral ?? 0);
-  const ledgerCash = roundFunds(rawCash ?? 0);
-  const liveBalance = roundFunds(rawLive ?? 0);
-  const net = roundFunds(rawNet ?? 0);
+  const intraday = roundFunds(rawIntraday ?? 0);
+  const adhoc = roundFunds(rawAdhoc ?? 0);
+  const effectiveCash = resolveEffectiveCash(rawCash, rawOpening);
+  const liveBalance =
+    rawLive !== null ? roundFunds(rawLive) : effectiveCash;
+  const ledgerCash = liveBalance;
 
-  const marginAvailable =
-    net > 0
-      ? net
-      : rawLive !== null && rawLive > 0
-        ? roundFunds(rawLive)
-        : roundFunds((rawCash ?? 0) + (rawCollateral ?? 0) + (rawIntraday ?? 0) + (rawAdhoc ?? 0));
+  const cashCollateralFallback = roundFunds(
+    effectiveCash + collateral + intraday + adhoc,
+  );
+
+  let marginAvailable: number;
+  if (rawLive !== null) {
+    // Zerodha funds page: Available margin (Cash + Collateral) = available cash + collateral.
+    marginAvailable = roundFunds(liveBalance + collateral);
+  } else if (rawNet !== null && rawNet > 0) {
+    marginAvailable = roundFunds(rawNet);
+  } else {
+    marginAvailable = cashCollateralFallback;
+  }
+
+  if (marginAvailable === 0 && cashCollateralFallback > 0) {
+    marginAvailable = cashCollateralFallback;
+  }
 
   return {
     ledgerCash,
@@ -119,9 +157,27 @@ export function runZerodhaFundsSelfCheck(): void {
     return;
   }
 
-  assert(sample.marginAvailable === 99_725, "Margin available must prefer net");
-  assert(sample.ledgerCash === 245_431, "Ledger cash must map available.cash");
+  assert(
+    sample.marginAvailable === 111_725,
+    "Margin available must be live_balance + collateral",
+  );
+  assert(sample.ledgerCash === 99_725, "Ledger cash must map live_balance");
   assert(sample.collateral === 12_000, "Collateral must map available.collateral");
+
+  const forumCase = parseZerodhaEquityFunds({
+    available: {
+      cash: 4_158.3,
+      opening_balance: 4_158.3,
+      live_balance: 1_156_809.3,
+      intraday_payin: 1_152_651,
+      collateral: 69_469.35,
+    },
+  });
+
+  assert(
+    forumCase?.marginAvailable === 1_226_278,
+    "Available margin must match live_balance + collateral",
+  );
 
   const fallback = parseZerodhaEquityFunds({
     available: {
@@ -130,7 +186,24 @@ export function runZerodhaFundsSelfCheck(): void {
     },
   });
 
-  assert(fallback?.marginAvailable === 60_000, "Fallback deployable is cash + collateral");
+  assert(
+    fallback?.marginAvailable === 60_000,
+    "Fallback deployable is cash + collateral",
+  );
+
+  const openingOnly = parseZerodhaEquityFunds({
+    available: {
+      cash: 0,
+      opening_balance: 25_000,
+      live_balance: 0,
+      collateral: 0,
+    },
+  });
+
+  assert(
+    openingOnly?.marginAvailable === 25_000,
+    "Opening balance must count when live_balance is zero",
+  );
 
   const netOnly = parseZerodhaEquityFunds({
     net: 12_500,
