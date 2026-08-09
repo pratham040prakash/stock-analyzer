@@ -187,6 +187,11 @@ export default function HomeDecisionScreen({
                 {capitalDecision.heroDecisionCue}
               </p>
             ) : null}
+            {capitalDecision.behaviorLock ? (
+              <p className="text-xs font-medium text-apex-text/75">
+                {capitalDecision.behaviorLock}
+              </p>
+            ) : null}
             {capitalDecision.heroAccountability ? (
               <p className="text-xs text-apex-muted/70">
                 {capitalDecision.heroAccountability}

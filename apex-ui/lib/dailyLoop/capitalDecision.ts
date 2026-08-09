@@ -71,6 +71,7 @@ export type CapitalDecision = {
   heroHeadline: string;
   heroSubline: string;
   heroDecisionCue?: string;
+  behaviorLock?: string;
   heroAccountability: string;
   portfolioStance: string;
   portfolioStanceDetail: string;
@@ -91,8 +92,7 @@ export type CapitalDecisionInput = {
 };
 
 const FORBIDDEN_COPY = /\b(good setup|bad setup|strong|weak|not enough edge)\b/i;
-const GROW_EMPTY_MESSAGE =
-  "No setup qualifies for capital deployment today.";
+const GROW_EMPTY_MESSAGE = "No capital deployment allowed today.";
 
 function normalizePercent(value: number | undefined): number {
   if (value === undefined || !Number.isFinite(value)) {
@@ -185,14 +185,14 @@ function resolveWaitStage(pick: StockPick | undefined): GrowActionStage {
 
 function waitTiming(stage: GrowActionStage): string {
   if (stage === "close") {
-    return "Act within 1–2 sessions.";
+    return "Act within 1–2 sessions after confirmation.";
   }
 
   if (stage === "developing") {
-    return "Wait for next sessions.";
+    return "Wait — reassess in 2–3 sessions.";
   }
 
-  return "No action today.";
+  return "No action — setup not ready.";
 }
 
 function buildBuyConfirm(pick: StockPick | undefined): string {
@@ -224,6 +224,32 @@ function buildHeroDecisionCue(
   }
 
   return "No capital deployed today.";
+}
+
+function buildBehaviorLock(
+  input: CapitalDecisionInput,
+  deploymentPercentage: number,
+  actions: CapitalAction[],
+): string | undefined {
+  const hasSell =
+    actions.some((item) => item.action === "SELL") ||
+    isSellAction(input.action as DecisionActionType) ||
+    input.action === "sell";
+  const hasWait = actions.some((item) => item.action === "WAIT");
+
+  if (hasSell) {
+    return "Reduce exposure before new deployment.";
+  }
+
+  if (deploymentPercentage === 0) {
+    return "Do not deploy capital today.";
+  }
+
+  if (hasWait) {
+    return "Do not act until conditions confirm.";
+  }
+
+  return undefined;
 }
 
 function buildHeroHeadline(
@@ -294,7 +320,7 @@ function resolveWaitContext(
       reason: {
         missing: "Breakout not confirmed.",
         confirm: sanitizeCopy(buildBuyConfirm(pick)),
-        timing: "Act within 1–2 sessions.",
+        timing: waitTiming("close"),
       },
       ifIgnored: "If ignored: capital exposed to false breakout.",
     };
@@ -318,7 +344,7 @@ function resolveWaitContext(
       reason: {
         missing: "Trigger not confirmed.",
         confirm: "Buy when lead symbol confirms.",
-        timing: "No action today.",
+        timing: "No action — setup not ready.",
       },
       ifIgnored: "If ignored: capital enters before confirmation.",
     };
@@ -358,7 +384,7 @@ function resolveWaitContext(
         missing: "Volume not confirmed.",
         confirm: sanitizeCopy(buildBuyConfirm(pick)),
         timing:
-          stage === "close" ? "Act within 1–2 sessions." : timing,
+          stage === "close" ? waitTiming("close") : timing,
       },
       ifIgnored: "If ignored: capital exposed to false breakout.",
     };
@@ -369,7 +395,7 @@ function resolveWaitContext(
     reason: {
       missing: "Breakout not confirmed.",
       confirm: sanitizeCopy(buildBuyConfirm(pick)),
-      timing: "Act within 1–2 sessions.",
+      timing: waitTiming("close"),
     },
     ifIgnored: "If ignored: capital exposed to false breakout.",
   };
@@ -449,7 +475,7 @@ function buildPortfolioStance(
   if (deploymentPercentage >= 50 || buyCount >= 2) {
     return {
       headline: "Active — multiple opportunities",
-      detail: `${deploymentPercentage}% may deploy — ${cashPercentage}% in reserve.`,
+      detail: `${deploymentPercentage}% deploys — ${cashPercentage}% in reserve.`,
     };
   }
 
@@ -887,6 +913,7 @@ function buildGrowCapitalDecision(input: CapitalDecisionInput): CapitalDecision 
       deploymentPercentage,
     ),
     heroDecisionCue: buildHeroDecisionCue(input, deploymentPercentage, actions),
+    behaviorLock: buildBehaviorLock(input, deploymentPercentage, actions),
     heroAccountability: buildHeroAccountability(input, deploymentPercentage),
     portfolioStance: portfolioStance.headline,
     portfolioStanceDetail: portfolioStance.detail,
@@ -919,7 +946,7 @@ function buildSellAction(
     reason: {
       missing: sanitizeCopy(missing),
       confirm: sanitizeCopy(`Trim ${trimPct}% of ${symbol} today.`),
-      timing: sanitizeCopy("Act within 1–2 sessions."),
+      timing: sanitizeCopy("Act within 1–2 sessions after confirmation."),
     },
     ifIgnored: sanitizeCopy(ifIgnored),
   };

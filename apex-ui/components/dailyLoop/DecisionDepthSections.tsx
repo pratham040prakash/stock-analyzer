@@ -373,12 +373,18 @@ function CapitalActionRow({ action }: { action: CapitalAction }) {
           <p className="text-sm leading-snug text-apex-text/85">
             Only if trigger confirms
           </p>
+          <p className="text-sm font-medium leading-snug text-apex-text/90">
+            No entry before confirmation.
+          </p>
         </>
       ) : null}
       {action.action === "WAIT" ? (
         <>
           <p className="text-sm font-medium leading-snug text-apex-text/90">
             Do not deploy yet
+          </p>
+          <p className="text-sm font-medium leading-snug text-apex-text/90">
+            Premature entry is invalid.
           </p>
           {action.stage ? (
             <p className="text-sm leading-snug text-apex-text/70">
@@ -388,9 +394,14 @@ function CapitalActionRow({ action }: { action: CapitalAction }) {
         </>
       ) : null}
       {action.action === "SELL" ? (
-        <p className="text-sm font-medium leading-snug text-apex-text/90">
-          Reduce exposure
-        </p>
+        <>
+          <p className="text-sm font-medium leading-snug text-apex-text/90">
+            Reduce exposure
+          </p>
+          <p className="text-sm font-medium leading-snug text-apex-text/90">
+            Do not add until trim completes.
+          </p>
+        </>
       ) : null}
       <div className="space-y-0.5 text-sm leading-snug text-apex-text/75">
         <p>Missing: {action.reason.missing}</p>

@@ -293,6 +293,11 @@ export default function DailyDecisionCard({
                   {capitalDecision.heroDecisionCue}
                 </p>
               ) : null}
+              {capitalDecision.behaviorLock ? (
+                <p className="text-xs font-medium text-apex-text/75">
+                  {capitalDecision.behaviorLock}
+                </p>
+              ) : null}
               <p className="text-xs text-apex-muted/70">
                 {capitalDecision.heroAccountability}
               </p>
