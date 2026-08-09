@@ -897,7 +897,7 @@ export default function HomeClient({
             />
           ) : null}
 
-          {premiumFeatures.decisionHistory ? (
+          {showHomeDecision ? (
             <DecisionHistoryPanel
               history={decisionHistory}
               summary={disciplineSummary}
@@ -906,12 +906,9 @@ export default function HomeClient({
                   ? disciplineDays
                   : decisionHistory.map((entry) => entry.date)
               }
-            />
-          ) : decisionHistory.length > 0 ? (
-            <PremiumFeatureGate
-              feature="decisionHistory"
+              showDetailRows={premiumFeatures.decisionHistory}
               activationEnabled={activationEnabled}
-              onActivated={() => {
+              onPremiumActivated={() => {
                 void refreshPremiumTier();
               }}
             />

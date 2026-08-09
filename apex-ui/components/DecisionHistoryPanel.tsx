@@ -11,6 +11,8 @@ import {
   decisionActionLabel,
   type DecisionActionType,
 } from "@/types/decision";
+import { istDateKey, shiftIstDateKey } from "@/lib/dailyLoop/disciplineDates";
+import PremiumFeatureGate from "@/components/dailyLoop/PremiumFeatureGate";
 import { formatInr } from "@/lib/funds";
 import { ApexBody, ApexCard, ApexEyebrow } from "@/components/ui/apex";
 
@@ -18,24 +20,24 @@ type Props = {
   history: DisciplineHistoryEntry[];
   summary: DisciplineHistorySummary;
   days: string[];
+  showDetailRows?: boolean;
+  activationEnabled?: boolean;
+  onPremiumActivated?: () => void;
 };
 
 function formatHistoryDate(date: string): string {
-  const entryDate = new Date(`${date}T00:00:00Z`);
-  const today = new Date();
-  const todayUtc = new Date(
-    Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()),
-  );
-  const yesterdayUtc = new Date(todayUtc);
-  yesterdayUtc.setUTCDate(yesterdayUtc.getUTCDate() - 1);
+  const todayKey = istDateKey();
+  const yesterdayKey = shiftIstDateKey(todayKey, -1);
 
-  if (entryDate.getTime() === todayUtc.getTime()) {
+  if (date === todayKey) {
     return "Today";
   }
 
-  if (entryDate.getTime() === yesterdayUtc.getTime()) {
+  if (date === yesterdayKey) {
     return "Yesterday";
   }
+
+  const entryDate = new Date(`${date}T00:00:00Z`);
 
   return entryDate.toLocaleDateString("en-IN", {
     weekday: "short",
@@ -114,6 +116,9 @@ export default function DecisionHistoryPanel({
   history,
   summary,
   days,
+  showDetailRows = true,
+  activationEnabled = false,
+  onPremiumActivated,
 }: Props) {
   return (
     <ApexCard hover={false} padding="compact">
@@ -133,7 +138,7 @@ export default function DecisionHistoryPanel({
             Followed days, executed trades, and guidance appear here once you act on Today.
           </p>
         </div>
-      ) : (
+      ) : showDetailRows ? (
         <ul className="mt-4 space-y-3 border-t border-apex-border/15 pt-4">
           {history.map((entry, index) => (
             <HistoryRow
@@ -142,6 +147,15 @@ export default function DecisionHistoryPanel({
             />
           ))}
         </ul>
+      ) : (
+        <div className="mt-4 border-t border-apex-border/15 pt-4">
+          <PremiumFeatureGate
+            feature="decisionHistory"
+            compact
+            activationEnabled={activationEnabled}
+            onActivated={onPremiumActivated}
+          />
+        </div>
       )}
     </ApexCard>
   );
