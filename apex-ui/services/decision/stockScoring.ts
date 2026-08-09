@@ -6,6 +6,7 @@ import {
 } from "@/services/market/regime";
 import { resolveScoringWeights } from "@/services/decision/selfLearning";
 import { fetchStockData } from "@/services/market/stockData";
+import { buildEntryInputFromMarketData } from "@/services/execution/entryTiming";
 import { getFilteredShortlist } from "@/services/decision/opportunityEngine";
 import { normalizeSymbol, sectorForSymbol } from "@/lib/stockPool";
 import type { RecommendationPortfolio } from "@/lib/recommendations";
@@ -112,7 +113,25 @@ export async function scoreStock(
   weights: SignalWeights = getDynamicWeights("sideways"),
   portfolio?: PortfolioScoringContext | null,
 ): Promise<StockPick> {
-  const signals = await getSignalsForStock(stock);
+  const data = await fetchStockData(stock);
+  const signals =
+    data && data.prices.length >= 50
+      ? (() => {
+          const price = data.prices[data.prices.length - 1];
+          const ma50 = calculateMA(data.prices, 50);
+          const rsi = calculateRSI(data.prices);
+          const volumeScore = calculateVolumeScore(data.volumes);
+          return {
+            trend: price > ma50 ? 80 : 40,
+            momentum: Math.round(rsi),
+            volume: volumeScore,
+          };
+        })()
+      : NEUTRAL_SIGNALS;
+  const entryInput =
+    data && data.prices.length >= 21
+      ? buildEntryInputFromMarketData(data.prices, data.volumes)
+      : null;
 
   const marketScore =
     signals.trend * weights.trend +
@@ -130,6 +149,8 @@ export async function scoreStock(
     stock,
     score: Math.round(finalScore),
     signals,
+    price: entryInput?.price,
+    activationLevel: entryInput?.recentHigh,
   };
 }
 

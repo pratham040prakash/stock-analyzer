@@ -1,7 +1,7 @@
 import type { StockPick } from "@/types/decision";
 import { isSellAction, type DecisionActionType } from "@/types/decision";
 import type { UserIntent } from "@/types/intent";
-import { generateSetupInsightFromPick } from "@/lib/dailyLoop/setupInsight";
+import { formatInr } from "@/lib/funds";
 
 export type DeploymentStance =
   | "No Deployment"
@@ -29,15 +29,29 @@ export type CapitalAction = {
 
 export type DecisionMode = "grow" | "explore" | "protect";
 
+export type ExplorePipelineStage =
+  | "Close to readiness"
+  | "Developing setup"
+  | "Early formation";
+
+export type ExplorePriorityMarker = "Closest to activation" | "High priority";
+
 export type ExploreSetup = {
   symbol: string;
-  status: "Monitoring";
+  stage: ExplorePipelineStage;
+  priorityMarker?: ExplorePriorityMarker;
   setupDescription: string;
   missing: string;
-  watchFor: string;
+  activation: string;
   timeHorizon: string;
+  readinessScore: number;
   isPrimary?: boolean;
 };
+
+export const EXPLORE_PIPELINE_EMPTY_HEADLINE =
+  "Nothing is progressing toward readiness.";
+export const EXPLORE_PIPELINE_EMPTY_BODY =
+  "Wait — new opportunities will be identified as conditions improve.";
 
 export type CapitalDecision = {
   mode: DecisionMode;
@@ -46,6 +60,7 @@ export type CapitalDecision = {
   deploymentPercentage: number;
   actions: CapitalAction[];
   exploreSetups: ExploreSetup[];
+  explorePipelineSummary?: string;
   growEmptyMessage?: string;
   heroHeadline: string;
   heroSubline: string;
@@ -463,91 +478,168 @@ function buildPrimaryAction(
   };
 }
 
-function exploreTimeHorizon(stage: WaitStage): string {
-  if (stage === "Close to trigger") {
-    return "Monitor within next 1–2 sessions — setup is close.";
+function exploreTimeHorizon(stage: ExplorePipelineStage): string {
+  if (stage === "Close to readiness") {
+    return "Could activate within next 1–2 sessions.";
   }
 
-  if (stage === "Developing") {
-    return "Monitor over next 2–3 sessions.";
+  if (stage === "Developing setup") {
+    return "Tracking over next 2–3 sessions.";
   }
 
-  return "Monitor over next sessions — setup still early.";
+  return "Early formation — monitor over next sessions.";
+}
+
+function resolveExplorePipelineStage(pick: StockPick): ExplorePipelineStage {
+  const score = Math.round(pick.score);
+
+  if (score >= 70) {
+    return "Close to readiness";
+  }
+
+  if (score >= 55) {
+    return "Developing setup";
+  }
+
+  return "Early formation";
+}
+
+function readinessScore(pick: StockPick): number {
+  const score = Math.round(pick.score);
+  const { trend, momentum } = pick.signals;
+  return score * 100 + trend * 10 + momentum;
+}
+
+function resolveActivationLevel(pick: StockPick): number | undefined {
+  if (pick.activationLevel && pick.activationLevel > 0) {
+    return Math.round(pick.activationLevel);
+  }
+
+  if (pick.price && pick.price > 0) {
+    return Math.round(pick.price * 1.02);
+  }
+
+  return undefined;
+}
+
+function buildActivationCondition(pick: StockPick): string {
+  const level = resolveActivationLevel(pick);
+
+  if (level) {
+    return `Breakout above ${formatInr(level)} with volume confirms entry.`;
+  }
+
+  return "Breakout above the recent range high with volume confirms entry.";
+}
+
+function buildProgressiveSetupDescription(
+  pick: StockPick,
+  stage: ExplorePipelineStage,
+): string {
+  const level = resolveActivationLevel(pick);
+  const price = pick.price;
+
+  if (stage === "Close to readiness") {
+    if (level && price && price > 0) {
+      const gapPct = Math.max(0, Math.round(((level - price) / price) * 100));
+
+      if (gapPct <= 3) {
+        return `Structure is tightening — price is within ${gapPct}% of the ${formatInr(level)} activation level.`;
+      }
+
+      return `Structure is tightening — price is advancing toward ${formatInr(level)}.`;
+    }
+
+    return "Structure is tightening — setup is approaching activation range.";
+  }
+
+  if (stage === "Developing setup") {
+    return "Setup is building — direction is emerging but confirmation is not set yet.";
+  }
+
+  return "Formation is early — structure still assembling before readiness.";
+}
+
+function buildExploreMissing(
+  pick: StockPick,
+  stage: ExplorePipelineStage,
+): string {
+  const level = resolveActivationLevel(pick);
+  const { trend, momentum } = pick.signals;
+  const alignment = Math.round(pick.score);
+
+  if (stage === "Close to readiness" && level) {
+    return `Price has not cleared ${formatInr(level)} on volume yet.`;
+  }
+
+  if (alignment < 65) {
+    return "Alignment has not reached the Grow deployment threshold.";
+  }
+
+  if (trend < 60) {
+    return "Price has not cleared the prior range — direction unconfirmed.";
+  }
+
+  if (momentum < 60) {
+    return "Volume follow-through is not present yet.";
+  }
+
+  return "Final confirmation bar has not cleared yet.";
+}
+
+function buildExplorePipelineSummary(setups: ExploreSetup[]): string | undefined {
+  if (setups.length === 0) {
+    return undefined;
+  }
+
+  const nearing = setups.filter(
+    (item) => item.stage === "Close to readiness",
+  ).length;
+  const developing = setups.length - nearing;
+  const nearingLabel = nearing === 1 ? "setup" : "setups";
+
+  return `${nearing} ${nearingLabel} nearing readiness · ${developing} in development`;
 }
 
 function buildExploreSetup(
   pick: StockPick,
   input: CapitalDecisionInput,
+  rank: number,
 ): ExploreSetup {
-  const insight = generateSetupInsightFromPick(pick, "explore");
-  const setupDescription = insight.line2
-    ? `${insight.line1} ${insight.line2}`
-    : insight.line1;
-  const stage = resolveWaitStage(pick);
-  const alignment = Math.round(pick.score);
-  const { trend, momentum } = pick.signals;
-  const timeHorizon = exploreTimeHorizon(stage);
+  const stage = resolveExplorePipelineStage(pick);
+  let priorityMarker: ExplorePriorityMarker | undefined;
 
-  if (alignment < 65) {
-    return {
-      symbol: pick.stock,
-      status: "Monitoring",
-      setupDescription: sanitizeCopy(setupDescription),
-      missing: sanitizeCopy(
-        "Alignment below the level where Grow would authorize capital.",
-      ),
-      watchFor: sanitizeCopy("Score crossing 65 on a confirmed close."),
-      timeHorizon: sanitizeCopy(timeHorizon),
-      isPrimary: pick.stock === input.stock,
-    };
-  }
-
-  if (trend < 60) {
-    return {
-      symbol: pick.stock,
-      status: "Monitoring",
-      setupDescription: sanitizeCopy(setupDescription),
-      missing: sanitizeCopy(
-        "Price has not cleared the prior range — direction unconfirmed.",
-      ),
-      watchFor: sanitizeCopy(
-        "Sustained hold above the recent consolidation high.",
-      ),
-      timeHorizon: sanitizeCopy(timeHorizon),
-      isPrimary: pick.stock === input.stock,
-    };
-  }
-
-  if (momentum < 60) {
-    return {
-      symbol: pick.stock,
-      status: "Monitoring",
-      setupDescription: sanitizeCopy(setupDescription),
-      missing: sanitizeCopy("Volume follow-through not yet present."),
-      watchFor: sanitizeCopy(
-        "Momentum confirmation on above-average volume.",
-      ),
-      timeHorizon: sanitizeCopy(timeHorizon),
-      isPrimary: pick.stock === input.stock,
-    };
+  if (rank === 0) {
+    priorityMarker = "Closest to activation";
+  } else if (rank <= 2 && Math.round(pick.score) >= 65) {
+    priorityMarker = "High priority";
   }
 
   return {
     symbol: pick.stock,
-    status: "Monitoring",
-    setupDescription: sanitizeCopy(setupDescription),
-    missing: sanitizeCopy("Final breakout bar not yet cleared."),
-    watchFor: sanitizeCopy("Close above resistance with volume expansion."),
-    timeHorizon: sanitizeCopy(timeHorizon),
+    stage,
+    priorityMarker,
+    setupDescription: sanitizeCopy(
+      buildProgressiveSetupDescription(pick, stage),
+    ),
+    missing: sanitizeCopy(buildExploreMissing(pick, stage)),
+    activation: sanitizeCopy(buildActivationCondition(pick)),
+    timeHorizon: sanitizeCopy(exploreTimeHorizon(stage)),
+    readinessScore: readinessScore(pick),
     isPrimary: pick.stock === input.stock,
   };
 }
 
+function buildExploreSetups(input: CapitalDecisionInput): ExploreSetup[] {
+  const picks = [...(input.picks ?? [])].sort(
+    (left, right) => readinessScore(right) - readinessScore(left),
+  );
+
+  return picks.slice(0, 5).map((pick, index) => buildExploreSetup(pick, input, index));
+}
+
 function buildExploreCapitalDecision(input: CapitalDecisionInput): CapitalDecision {
-  const picks = input.picks ?? [];
-  const exploreSetups = picks
-    .slice(0, 3)
-    .map((pick) => buildExploreSetup(pick, input));
+  const exploreSetups = buildExploreSetups(input);
 
   return {
     mode: "explore",
@@ -556,16 +648,17 @@ function buildExploreCapitalDecision(input: CapitalDecisionInput): CapitalDecisi
     deploymentPercentage: 0,
     actions: [],
     exploreSetups,
-    heroHeadline: "Prepare and watch — no capital moves today.",
+    explorePipelineSummary: buildExplorePipelineSummary(exploreSetups),
+    heroHeadline: "Opportunity pipeline — capital stays in reserve.",
     heroSubline:
-      "Explore monitors setups without deploying capital — switch to Grow to act.",
+      "Track setups as they progress toward activation — switch to Grow to deploy.",
     heroAccountability: "Based on current market conditions.",
-    portfolioStance: "Observational — setups under review",
+    portfolioStance: "Observational — pipeline under review",
     portfolioStanceDetail:
-      "Capital stays in reserve while you track forming structures — no deployment in Explore.",
-    primaryAction: "Monitor and prepare",
+      "Setups are ranked by readiness — capital deploys only after activation in Grow.",
+    primaryAction: "Monitor the pipeline",
     primaryActionDetail:
-      "Switch to Grow when a setup is ready for capital deployment.",
+      "Move to Grow when a setup confirms at its activation level.",
   };
 }
 
@@ -777,11 +870,15 @@ export function summarizeCapitalDecision(decision: CapitalDecision): string {
 
   if (decision.mode === "explore") {
     if (decision.exploreSetups.length === 0) {
-      return `${decision.heroAccountability} ${lead}. ${decision.heroHeadline} ${decision.heroSubline}`;
+      return `${decision.heroAccountability} ${lead}. ${EXPLORE_PIPELINE_EMPTY_HEADLINE} ${EXPLORE_PIPELINE_EMPTY_BODY}`;
     }
 
     const setup = decision.exploreSetups[0];
-    return `${decision.heroAccountability} ${lead}. ${setup.symbol}: Monitoring — ${setup.setupDescription}. Watch for: ${setup.watchFor}.`;
+    const summary = decision.explorePipelineSummary
+      ? `${decision.explorePipelineSummary}. `
+      : "";
+
+    return `${decision.heroAccountability} ${summary}${lead}. ${setup.symbol}: ${setup.stage} — ${setup.activation}`;
   }
 
   if (decision.growEmptyMessage && decision.actions.length === 0) {

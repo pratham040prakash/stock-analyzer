@@ -11,6 +11,10 @@ import type {
   ExploreSetup,
 } from "@/lib/dailyLoop/capitalDecision";
 import {
+  EXPLORE_PIPELINE_EMPTY_BODY,
+  EXPLORE_PIPELINE_EMPTY_HEADLINE,
+} from "@/lib/dailyLoop/capitalDecision";
+import {
   DAILY_CLOSURE_BODY,
   DAILY_CLOSURE_HEADLINE,
   DAILY_CLOSURE_NEXT_STEP,
@@ -273,6 +277,12 @@ function ExploreMonitoringBlock({
       <div className="space-y-4">
         <StancePrimaryHeader decision={decision} />
 
+        {decision.explorePipelineSummary ? (
+          <p className="text-sm font-medium leading-snug text-apex-text/90">
+            {decision.explorePipelineSummary}
+          </p>
+        ) : null}
+
         {decision.exploreSetups.length > 0 ? (
           <ul className="space-y-5 border-t border-apex-border/15 pt-4">
             {decision.exploreSetups.map((item) => (
@@ -282,10 +292,10 @@ function ExploreMonitoringBlock({
         ) : (
           <div className="border-t border-apex-border/15 pt-4">
             <p className="text-lg font-medium leading-snug text-apex-text">
-              {EXPLORE_EMPTY_HEADLINE}
+              {EXPLORE_PIPELINE_EMPTY_HEADLINE}
             </p>
             <p className="mt-2 text-sm leading-snug text-apex-text/75">
-              {EXPLORE_EMPTY_BODY}
+              {EXPLORE_PIPELINE_EMPTY_BODY}
             </p>
           </div>
         )}
@@ -295,31 +305,34 @@ function ExploreMonitoringBlock({
 }
 
 function ExploreSetupRow({ setup }: { setup: ExploreSetup }) {
+  const isHighlighted =
+    setup.priorityMarker === "Closest to activation" || setup.isPrimary;
+
   return (
     <li
       className={
-        setup.isPrimary
+        isHighlighted
           ? "rounded-lg border border-apex-border/20 bg-white/[0.02] p-3"
           : undefined
       }
     >
       <p className="text-lg font-semibold leading-snug text-apex-text">
         {setup.symbol}
-        {setup.isPrimary ? (
-          <span className="ml-2 text-xs font-medium uppercase tracking-wide text-apex-muted">
-            Lead
+        {setup.priorityMarker ? (
+          <span className="ml-2 text-xs font-medium uppercase tracking-wide text-blue-200/80">
+            {setup.priorityMarker}
           </span>
         ) : null}
       </p>
       <p className="mt-1 text-sm leading-snug text-apex-text/85">
-        Status: {setup.status}
+        Stage: {setup.stage}
       </p>
       <p className="text-sm leading-snug text-apex-text/85">
         Setup: {setup.setupDescription}
       </p>
       <div className="mt-1 space-y-0.5 text-sm leading-snug text-apex-text/75">
         <p>What&apos;s missing: {setup.missing}</p>
-        <p>What to watch: {setup.watchFor}</p>
+        <p>Activation: {setup.activation}</p>
         <p>Time horizon: {setup.timeHorizon}</p>
       </div>
     </li>

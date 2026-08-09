@@ -60,6 +60,10 @@ export type StockPick = {
   stock: string;
   score: number;
   signals: Signals;
+  /** Latest price when market data is available. */
+  price?: number;
+  /** Recent range high — activation level for breakout confirmation. */
+  activationLevel?: number;
 };
 
 export type DailyDecisionOutput = {
