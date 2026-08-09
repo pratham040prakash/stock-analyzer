@@ -71,6 +71,7 @@ export type HomeDecisionScreenProps = {
   connectionStatus?: ConnectionStatus;
   decisionUpdatedAt?: string | null;
   fundsLoading?: boolean;
+  fundsSynced?: boolean;
   isRefreshing?: boolean;
   onCapitalRefresh?: () => void;
   className?: string;
@@ -118,6 +119,7 @@ export default function HomeDecisionScreen({
   connectionStatus = "NOT_CONNECTED",
   decisionUpdatedAt,
   fundsLoading = false,
+  fundsSynced = false,
   isRefreshing = false,
   onCapitalRefresh,
   className = "",
@@ -246,10 +248,16 @@ export default function HomeDecisionScreen({
               ledgerCash={ledgerCash}
               collateral={collateral}
               portfolioValue={portfolioValue}
-              totalCapital={totalCapital}
+              totalCapital={
+                totalCapital ??
+                (portfolioValue !== undefined && ledgerCash !== undefined
+                  ? portfolioValue + ledgerCash
+                  : undefined)
+              }
               dayPnl={dayPnl}
               updatedAt={decisionUpdatedAt}
               fundsLoading={fundsLoading}
+              fundsSynced={fundsSynced}
             />
 
             {isCapitalDeployment ? (

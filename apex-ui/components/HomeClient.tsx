@@ -144,6 +144,7 @@ export default function HomeClient({
   const [totalCapital, setTotalCapital] = useState<number | null>(null);
   const [capitalMode, setCapitalMode] = useState<CapitalFundingMode>("CASH");
   const [fundsLoading, setFundsLoading] = useState(false);
+  const [fundsSynced, setFundsSynced] = useState(false);
   const [brokerMessage, setBrokerMessage] = useState<string | null>(
     zerodhaNotice === "connected"
       ? "Zerodha connected — syncing your portfolio now."
@@ -301,30 +302,64 @@ export default function HomeClient({
     try {
       const res = await apiFetch("/api/funds", { method: "GET" });
       const data = await parseApiJson<FundsResponse>(res, "Funds");
-      if (!data) return;
-      setAvailableCash(Math.max(0, Math.round(data.margin_available ?? data.available_cash ?? 0)));
-      setLedgerCash(Math.max(0, Math.round(data.ledger_cash ?? 0)));
-      setCollateral(Math.max(0, Math.round(data.collateral ?? 0)));
-      setBrokerPortfolioValue(
-        Number.isFinite(data.portfolio_value)
-          ? Math.max(0, Math.round(data.portfolio_value ?? 0))
-          : null,
+      if (!data) {
+        setFundsSynced(false);
+        return;
+      }
+
+      const marginAvailable = Math.max(
+        0,
+        Math.round(data.margin_available ?? data.available_cash ?? 0),
       );
-      setTotalCapital(
-        Number.isFinite(data.total_capital)
-          ? Math.max(0, Math.round(data.total_capital ?? 0))
-          : null,
-      );
+      const nextLedgerCash = Math.max(0, Math.round(data.ledger_cash ?? 0));
+      const nextCollateral = Math.max(0, Math.round(data.collateral ?? 0));
+      const nextPortfolioValue = Number.isFinite(data.portfolio_value)
+        ? Math.max(0, Math.round(data.portfolio_value ?? 0))
+        : null;
+      const nextTotalCapital = Number.isFinite(data.total_capital)
+        ? Math.max(0, Math.round(data.total_capital ?? 0))
+        : nextPortfolioValue !== null
+          ? nextPortfolioValue + nextLedgerCash
+          : null;
+
+      setAvailableCash(marginAvailable);
+      setLedgerCash(nextLedgerCash);
+      setCollateral(nextCollateral);
+      setBrokerPortfolioValue(nextPortfolioValue);
+      setTotalCapital(nextTotalCapital);
+      setFundsSynced(data.status === "OK");
     } catch {
       setAvailableCash(null);
       setLedgerCash(null);
       setCollateral(0);
       setBrokerPortfolioValue(null);
       setTotalCapital(null);
+      setFundsSynced(false);
     } finally {
       setFundsLoading(false);
     }
   }, [configured, user]);
+
+  useEffect(() => {
+    if (
+      connectionStatus !== "CONNECTED" ||
+      !configured ||
+      !user ||
+      authLoading ||
+      isCompletingOAuth
+    ) {
+      return;
+    }
+
+    void loadFunds();
+  }, [
+    connectionStatus,
+    configured,
+    user,
+    authLoading,
+    isCompletingOAuth,
+    loadFunds,
+  ]);
 
   const intentDecisionEnabled =
     configured &&
@@ -709,6 +744,7 @@ export default function HomeClient({
               connectionStatus={connectionStatus}
               decisionUpdatedAt={decisionUpdatedAt}
               fundsLoading={fundsLoading}
+              fundsSynced={fundsSynced}
               isRefreshing={decisionRefreshing}
               onCapitalRefresh={refreshAfterExecution}
             />

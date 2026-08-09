@@ -13,6 +13,7 @@ export type TodayTrustStripProps = {
   dayPnl?: number | null;
   updatedAt?: string | null;
   fundsLoading?: boolean;
+  fundsSynced?: boolean;
 };
 
 function formatUpdatedAt(updatedAt?: string | null): string | null {
@@ -58,14 +59,17 @@ export default function TodayTrustStrip({
   dayPnl,
   updatedAt,
   fundsLoading = false,
+  fundsSynced = false,
 }: TodayTrustStripProps) {
   const syncedAt = formatUpdatedAt(updatedAt);
-  const deployableKnown = knownAmount(marginAvailable);
-  const ledgerKnown = knownAmount(ledgerCash);
-  const collateralKnown = knownAmount(collateral) && collateral > 0;
+  const deployableKnown = fundsSynced && knownAmount(marginAvailable);
+  const ledgerKnown = fundsSynced && knownAmount(ledgerCash);
+  const collateralKnown = fundsSynced && knownAmount(collateral) && collateral > 0;
   const portfolioKnown = knownAmount(portfolioValue);
   const totalKnown = knownAmount(totalCapital);
   const dayKnown = knownAmount(dayPnl);
+  const showFundsPending =
+    connectionStatus === "CONNECTED" && !fundsSynced && !fundsLoading;
 
   return (
     <div
@@ -84,16 +88,23 @@ export default function TodayTrustStrip({
         </span>
         {syncedAt ? <span>Updated {syncedAt} IST</span> : null}
         {fundsLoading ? <span>Syncing Zerodha funds…</span> : null}
+        {showFundsPending ? <span>Loading deployable balance…</span> : null}
       </div>
 
       <div className="mt-2 space-y-1.5 text-sm text-apex-text/80">
         <p>
           <span className="text-apex-muted/75">Available to deploy: </span>
-          {deployableKnown ? formatInr(Math.max(0, marginAvailable)) : "—"}
+          {deployableKnown ? (
+            formatInr(Math.max(0, marginAvailable ?? 0))
+          ) : fundsLoading || showFundsPending ? (
+            "…"
+          ) : (
+            "—"
+          )}
           <span className="text-xs text-apex-muted/60"> · Zerodha margin available</span>
         </p>
 
-        {ledgerKnown || collateralKnown ? (
+        {fundsSynced && (ledgerKnown || collateralKnown) ? (
           <p className="text-xs text-apex-muted/75">
             {ledgerKnown ? (
               <span>Cash {formatInr(Math.max(0, ledgerCash ?? 0))}</span>

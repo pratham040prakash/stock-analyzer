@@ -26,23 +26,49 @@ function roundFunds(value: number): number {
   return Math.max(0, Math.round(value));
 }
 
+function coerceFundsNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return null;
+}
+
 /** Parses Kite `/user/margins` equity segment into deployable broker-truth funds. */
 export function parseZerodhaEquityFunds(
   equity?: KiteEquityMargins,
 ): ZerodhaEquityFunds | null {
-  const cash = equity?.available?.cash;
-
-  if (typeof cash !== "number" || Number.isNaN(cash)) {
+  if (!equity) {
     return null;
   }
 
-  const ledgerCash = roundFunds(cash);
-  const collateral = roundFunds(equity?.available?.collateral ?? 0);
-  const liveBalance = roundFunds(equity?.available?.live_balance ?? 0);
-  const net = roundFunds(equity?.net ?? 0);
+  const rawCash = coerceFundsNumber(equity.available?.cash);
+  const rawNet = coerceFundsNumber(equity.net);
+  const rawLive = coerceFundsNumber(equity.available?.live_balance);
+  const rawCollateral = coerceFundsNumber(equity.available?.collateral);
+
+  if (rawCash === null && rawNet === null && rawLive === null) {
+    return null;
+  }
+
+  const collateral = roundFunds(rawCollateral ?? 0);
+  const ledgerCash = roundFunds(rawCash ?? 0);
+  const liveBalance = roundFunds(rawLive ?? 0);
+  const net = roundFunds(rawNet ?? 0);
 
   const marginAvailable =
-    net > 0 ? net : liveBalance > 0 ? liveBalance : roundFunds(ledgerCash + collateral);
+    net > 0
+      ? net
+      : rawLive !== null && rawLive > 0
+        ? roundFunds(rawLive)
+        : roundFunds((rawCash ?? 0) + (rawCollateral ?? 0));
 
   return {
     ledgerCash,
@@ -92,5 +118,12 @@ export function runZerodhaFundsSelfCheck(): void {
   });
 
   assert(fallback?.marginAvailable === 60_000, "Fallback deployable is cash + collateral");
+
+  const netOnly = parseZerodhaEquityFunds({
+    net: 12_500,
+    available: {},
+  });
+  assert(netOnly?.marginAvailable === 12_500, "Net-only margins must parse");
+
   assert(computeTotalCapital(400_000, 50_000) === 450_000, "Total capital sums portfolio + ledger cash");
 }
