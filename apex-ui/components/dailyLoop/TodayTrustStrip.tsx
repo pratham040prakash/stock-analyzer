@@ -14,6 +14,7 @@ export type TodayTrustStripProps = {
   updatedAt?: string | null;
   fundsLoading?: boolean;
   fundsSynced?: boolean;
+  fundsSyncError?: string | null;
 };
 
 function formatUpdatedAt(updatedAt?: string | null): string | null {
@@ -60,11 +61,12 @@ export default function TodayTrustStrip({
   updatedAt,
   fundsLoading = false,
   fundsSynced = false,
+  fundsSyncError = null,
 }: TodayTrustStripProps) {
   const syncedAt = formatUpdatedAt(updatedAt);
   const deployableResolved = knownAmount(marginAvailable)
     ? Math.max(0, marginAvailable)
-    : fundsSynced || (connectionStatus === "CONNECTED" && !fundsLoading)
+    : fundsSynced && !fundsSyncError
       ? 0
       : null;
   const portfolioKnown = knownAmount(portfolioValue);
@@ -94,6 +96,9 @@ export default function TodayTrustStrip({
         </span>
         {syncedAt ? <span>Updated {syncedAt} IST</span> : null}
         {fundsLoading ? <span>Syncing Zerodha funds…</span> : null}
+        {fundsSyncError && !fundsLoading ? (
+          <span className="text-amber-200/90">{fundsSyncError}</span>
+        ) : null}
       </div>
 
       <div className="mt-2 space-y-1.5 text-sm text-apex-text/80">
@@ -109,7 +114,7 @@ export default function TodayTrustStrip({
           <span className="text-xs text-apex-muted/60"> · Cash + Collateral</span>
         </p>
 
-        {fundsSynced || (connectionStatus === "CONNECTED" && !fundsLoading) ? (
+        {fundsSynced && !fundsSyncError ? (
           <p className="text-xs text-apex-muted/75">
             <span>Cash {formatInr(Math.max(0, ledgerCash ?? 0))}</span>
             {(collateral ?? 0) > 0 ? (

@@ -3,7 +3,10 @@ import { cookies } from "next/headers";
 import { KITE_ACCESS_TOKEN_COOKIE } from "@/lib/broker/zerodhaSession";
 import { computeTotalCapital } from "@/lib/broker/zerodhaFunds";
 import {
-  getActiveBrokerConnection,
+  resolveAlternateZerodhaAccessToken,
+  resolveZerodhaAccessToken,
+} from "@/services/broker/accessToken";
+import {
   markBrokerConnectionExpired,
 } from "@/services/broker/connections";
 import {
@@ -11,6 +14,7 @@ import {
   fetchZerodhaHoldings,
   fetchZerodhaMargins,
   mapKiteHoldingsToPortfolio,
+  type FetchMarginsResult,
 } from "@/services/brokers/zerodha";
 import { createClient } from "@/lib/supabase/server";
 
@@ -39,6 +43,34 @@ function resolvePortfolioValue(
   return computePortfolioMetrics(portfolio).totalValue;
 }
 
+async function fetchMarginsWithRetry(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+): Promise<FetchMarginsResult> {
+  const resolved = await resolveZerodhaAccessToken(supabase, userId);
+  if (!resolved) {
+    return { status: "ERROR", message: "Zerodha not connected" };
+  }
+
+  let marginsResult = await fetchZerodhaMargins(resolved.accessToken);
+
+  if (
+    marginsResult.status === "TOKEN_EXPIRED" ||
+    marginsResult.status === "ERROR"
+  ) {
+    const alternate = await resolveAlternateZerodhaAccessToken(
+      supabase,
+      userId,
+      resolved,
+    );
+    if (alternate) {
+      marginsResult = await fetchZerodhaMargins(alternate.accessToken);
+    }
+  }
+
+  return marginsResult;
+}
+
 export async function GET() {
   const supabase = await createClient();
   const {
@@ -49,22 +81,23 @@ export async function GET() {
     return emptyFunds("NOT_CONNECTED", { statusCode: 401 });
   }
 
-  const connection = await getActiveBrokerConnection(supabase, user.id);
-
-  if (!connection || connection.status !== "active") {
+  const resolved = await resolveZerodhaAccessToken(supabase, user.id);
+  if (!resolved) {
     return emptyFunds("NOT_CONNECTED");
   }
 
   const [marginsResult, holdingsResult] = await Promise.all([
-    fetchZerodhaMargins(connection.accessToken),
-    fetchZerodhaHoldings(connection.accessToken),
+    fetchMarginsWithRetry(supabase, user.id),
+    fetchZerodhaHoldings(resolved.accessToken),
   ]);
 
   if (marginsResult.status === "TOKEN_EXPIRED") {
     await markBrokerConnectionExpired(supabase, user.id);
     const cookieStore = await cookies();
     cookieStore.delete(KITE_ACCESS_TOKEN_COOKIE);
-    return emptyFunds("TOKEN_EXPIRED");
+    return emptyFunds("TOKEN_EXPIRED", {
+      message: "Zerodha session expired. Reconnect to refresh funds.",
+    });
   }
 
   const portfolioValue = resolvePortfolioValue(holdingsResult);
@@ -95,7 +128,7 @@ export async function GET() {
     live_balance: marginsResult.liveBalance,
     portfolio_value: portfolioValue,
     total_capital: totalCapital,
-    /** Deployable CNC balance — matches Zerodha margin available. */
+    /** Deployable CNC balance — matches Zerodha Cash + Collateral. */
     available_cash: marginsResult.marginAvailable,
     status: "OK",
   });

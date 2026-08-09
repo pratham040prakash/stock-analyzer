@@ -33,16 +33,20 @@ type BrokerTokenRow = {
   access_token_encrypted?: string | null;
 };
 
-function resolveStoredAccessToken(row: BrokerTokenRow): string {
+function resolveStoredAccessToken(row: BrokerTokenRow): string | null {
   const stored = row.access_token_encrypted || row.access_token;
-  if (!stored) {
-    throw new Error("Missing access token on broker connection");
+  if (!stored?.trim()) {
+    return null;
   }
 
   try {
     return decryptToken(stored);
   } catch {
-    return stored;
+    // Legacy plaintext Kite access tokens (pre-encryption rows).
+    if (/^[A-Za-z0-9]+$/.test(stored) && stored.length >= 8 && stored.length <= 64) {
+      return stored;
+    }
+    return null;
   }
 }
 
@@ -103,7 +107,7 @@ export async function getActiveBrokerConnection(
 ): Promise<{ accessToken: string; status: string } | null> {
   const { data, error } = await supabase
     .from("broker_connections")
-    .select("access_token, status")
+    .select("access_token, access_token_encrypted, status")
     .eq("user_id", userId)
     .eq("broker", broker)
     .maybeSingle();
@@ -124,8 +128,16 @@ export async function getActiveBrokerConnection(
     return { accessToken: "", status: data.status };
   }
 
+  const accessToken = resolveStoredAccessToken(data);
+  if (!accessToken) {
+    brokerError("broker_connections active row missing usable token", {
+      user_id: userId,
+    });
+    return { accessToken: "", status: data.status };
+  }
+
   return {
-    accessToken: resolveStoredAccessToken(data),
+    accessToken,
     status: data.status,
   };
 }

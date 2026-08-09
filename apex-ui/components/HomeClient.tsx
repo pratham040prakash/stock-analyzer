@@ -155,6 +155,7 @@ export default function HomeClient({
   const [capitalMode, setCapitalMode] = useState<CapitalFundingMode>("CASH");
   const [fundsLoading, setFundsLoading] = useState(false);
   const [fundsSynced, setFundsSynced] = useState(false);
+  const [fundsSyncError, setFundsSyncError] = useState<string | null>(null);
   const fundsRequestRef = useRef(0);
   const [brokerMessage, setBrokerMessage] = useState<string | null>(
     zerodhaNotice === "connected"
@@ -329,6 +330,7 @@ export default function HomeClient({
       setBrokerPortfolioValue(patch.brokerPortfolioValue);
       setTotalCapital(patch.totalCapital);
       setFundsSynced(true);
+      setFundsSyncError(null);
     };
 
     try {
@@ -340,13 +342,22 @@ export default function HomeClient({
       }
 
       if (!data) {
-        applyFunds({
-          availableCash: 0,
-          ledgerCash: 0,
-          collateral: 0,
-          brokerPortfolioValue: null,
-          totalCapital: null,
-        });
+        setFundsSynced(false);
+        setFundsSyncError("Could not load Zerodha funds. Refresh or reconnect.");
+        return;
+      }
+
+      if (data.status === "NOT_CONNECTED") {
+        setFundsSynced(false);
+        setFundsSyncError("Connect Zerodha to sync available balance.");
+        return;
+      }
+
+      if (data.status === "TOKEN_EXPIRED") {
+        setFundsSynced(false);
+        setFundsSyncError(
+          data.message ?? "Zerodha session expired — reconnect to refresh funds.",
+        );
         return;
       }
 
@@ -364,6 +375,20 @@ export default function HomeClient({
           ? nextPortfolioValue + nextLedgerCash
           : null;
 
+      if (data.status === "ERROR" || data.status === "PARTIAL") {
+        setAvailableCash(null);
+        setLedgerCash(null);
+        setCollateral(0);
+        setBrokerPortfolioValue(nextPortfolioValue);
+        setTotalCapital(nextTotalCapital);
+        setFundsSynced(false);
+        setFundsSyncError(
+          data.message ??
+            "Zerodha funds could not be loaded. Try reconnecting.",
+        );
+        return;
+      }
+
       applyFunds({
         availableCash: marginAvailable,
         ledgerCash: nextLedgerCash,
@@ -372,13 +397,11 @@ export default function HomeClient({
         totalCapital: nextTotalCapital,
       });
     } catch {
-      applyFunds({
-        availableCash: 0,
-        ledgerCash: 0,
-        collateral: 0,
-        brokerPortfolioValue: null,
-        totalCapital: null,
-      });
+      if (requestId !== fundsRequestRef.current) {
+        return;
+      }
+      setFundsSynced(false);
+      setFundsSyncError("Could not load Zerodha funds. Refresh or reconnect.");
     } finally {
       if (requestId === fundsRequestRef.current) {
         setFundsLoading(false);
@@ -791,6 +814,7 @@ export default function HomeClient({
               decisionUpdatedAt={decisionUpdatedAt}
               fundsLoading={fundsLoading}
               fundsSynced={fundsSynced}
+              fundsSyncError={fundsSyncError}
               isRefreshing={decisionRefreshing}
               onCapitalRefresh={refreshAfterExecution}
             />

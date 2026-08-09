@@ -72,6 +72,7 @@ export type HomeDecisionScreenProps = {
   decisionUpdatedAt?: string | null;
   fundsLoading?: boolean;
   fundsSynced?: boolean;
+  fundsSyncError?: string | null;
   isRefreshing?: boolean;
   onCapitalRefresh?: () => void;
   className?: string;
@@ -120,6 +121,7 @@ export default function HomeDecisionScreen({
   decisionUpdatedAt,
   fundsLoading = false,
   fundsSynced = false,
+  fundsSyncError = null,
   isRefreshing = false,
   onCapitalRefresh,
   className = "",
@@ -258,6 +260,7 @@ export default function HomeDecisionScreen({
               updatedAt={decisionUpdatedAt}
               fundsLoading={fundsLoading}
               fundsSynced={fundsSynced}
+              fundsSyncError={fundsSyncError}
             />
 
             {isCapitalDeployment ? (

@@ -1,4 +1,5 @@
 import axios from "axios";
+import { brokerError, brokerLog } from "@/lib/broker/log";
 import { getZerodhaConfig } from "@/lib/broker/zerodhaConfig";
 import {
   parseZerodhaEquityFunds,
@@ -26,36 +27,6 @@ export type FetchMarginsResult =
     })
   | { status: "TOKEN_EXPIRED" }
   | { status: "ERROR"; message: string };
-
-type KiteMarginsResponse = {
-  data?: {
-    equity?: {
-      net?: number;
-      available?: {
-        cash?: number;
-        collateral?: number;
-        live_balance?: number;
-        opening_balance?: number;
-        intraday_payin?: number;
-        adhoc_margin?: number;
-      };
-    };
-  };
-};
-
-type KiteEquityMarginSegmentResponse = {
-  data?: {
-    net?: number;
-    available?: {
-      cash?: number;
-      collateral?: number;
-      live_balance?: number;
-      opening_balance?: number;
-      intraday_payin?: number;
-      adhoc_margin?: number;
-    };
-  };
-};
 
 export function mapKiteHoldingsToPortfolio(holdings: KiteHolding[]): Portfolio {
   return {
@@ -254,6 +225,48 @@ export async function placeZerodhaOrder(
   }
 }
 
+function unwrapKiteEnvelope(body: unknown): unknown {
+  if (!body || typeof body !== "object") {
+    return body;
+  }
+
+  const record = body as Record<string, unknown>;
+  if (record.data && typeof record.data === "object") {
+    return record.data;
+  }
+
+  return body;
+}
+
+function extractEquityMargins(payload: unknown) {
+  if (!payload || typeof payload !== "object") {
+    return undefined;
+  }
+
+  const record = payload as Record<string, unknown>;
+  if (record.equity && typeof record.equity === "object") {
+    return record.equity;
+  }
+
+  if ("available" in record || "net" in record || "utilised" in record) {
+    return record;
+  }
+
+  return undefined;
+}
+
+function kiteErrorMessage(err: unknown): string {
+  if (axios.isAxiosError(err)) {
+    const payload = err.response?.data;
+    if (payload && typeof payload === "object" && "message" in payload) {
+      return String((payload as { message?: string }).message ?? err.message);
+    }
+    return err.message;
+  }
+
+  return err instanceof Error ? err.message : "Failed to fetch Zerodha margins";
+}
+
 export async function fetchZerodhaMargins(
   accessToken: string,
 ): Promise<FetchMarginsResult> {
@@ -266,24 +279,34 @@ export async function fetchZerodhaMargins(
   const headers = kiteAuthHeaders(config.apiKey, accessToken);
 
   try {
-    const res = await axios.get<KiteMarginsResponse>(
-      "https://api.kite.trade/user/margins",
-      { headers },
-    );
-
-    let funds = parseZerodhaEquityFunds(res.data?.data?.equity);
+    const res = await axios.get("https://api.kite.trade/user/margins", { headers });
+    const payload = unwrapKiteEnvelope(res.data);
+    let funds = parseZerodhaEquityFunds(extractEquityMargins(payload));
 
     if (!funds) {
-      const segmentRes = await axios.get<KiteEquityMarginSegmentResponse>(
+      const segmentRes = await axios.get(
         "https://api.kite.trade/user/margins/equity",
         { headers },
       );
-      funds = parseZerodhaEquityFunds(segmentRes.data?.data);
+      const segmentPayload = unwrapKiteEnvelope(segmentRes.data);
+      funds = parseZerodhaEquityFunds(extractEquityMargins(segmentPayload));
     }
 
     if (!funds) {
+      brokerError("Zerodha margins parse failed", {
+        payload_keys:
+          payload && typeof payload === "object"
+            ? Object.keys(payload as Record<string, unknown>)
+            : [],
+      });
       return { status: "ERROR", message: "Invalid margins response from Zerodha" };
     }
+
+    brokerLog("Zerodha margins parsed", {
+      margin_available: funds.marginAvailable,
+      ledger_cash: funds.ledgerCash,
+      collateral: funds.collateral,
+    });
 
     return {
       status: "OK",
@@ -295,8 +318,10 @@ export async function fetchZerodhaMargins(
       return { status: "TOKEN_EXPIRED" };
     }
 
-    const message =
-      err instanceof Error ? err.message : "Failed to fetch Zerodha margins";
-    return { status: "ERROR", message };
+    brokerError("Zerodha margins request failed", {
+      message: kiteErrorMessage(err),
+      status: axios.isAxiosError(err) ? err.response?.status : undefined,
+    });
+    return { status: "ERROR", message: kiteErrorMessage(err) };
   }
 }
