@@ -23,6 +23,10 @@ export default function ConnectZerodhaCard({
       </a>
 
       <ApexBody className="mt-3">{subtext}</ApexBody>
+      <ul className="mt-4 space-y-1 text-xs text-apex-muted/70">
+        <li>Read-only — APEX never places trades without you.</li>
+        <li>Your login stays with Zerodha; we only sync holdings and cash.</li>
+      </ul>
     </ApexCard>
   );
 }

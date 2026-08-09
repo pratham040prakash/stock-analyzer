@@ -18,6 +18,7 @@ import {
 
 type Props = {
   onComplete?: (profile: FinancialProfile) => void;
+  stepHint?: string;
 };
 
 function OptionButton({
@@ -41,7 +42,7 @@ function OptionButton({
   );
 }
 
-export default function FinancialProfileSetup({ onComplete }: Props) {
+export default function FinancialProfileSetup({ onComplete, stepHint }: Props) {
   const [step, setStep] = useState<"income" | "expense">("income");
   const [incomeRange, setIncomeRange] = useState<IncomeRange | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -93,7 +94,10 @@ export default function FinancialProfileSetup({ onComplete }: Props) {
 
   return (
     <ApexCard hover={false}>
-      <ApexBody className="italic">
+      {stepHint ? (
+        <ApexEyebrow>{stepHint}</ApexEyebrow>
+      ) : null}
+      <ApexBody className={stepHint ? "mt-2 italic" : "italic"}>
         Help me understand your full picture — not just your portfolio.
       </ApexBody>
 

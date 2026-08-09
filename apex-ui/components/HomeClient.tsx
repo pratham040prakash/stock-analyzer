@@ -31,6 +31,8 @@ import {
 } from "@/lib/dailyLoop/capitalMargin";
 import { usePremiumTier } from "@/lib/usePremiumTier";
 import PremiumFeatureGate from "@/components/dailyLoop/PremiumFeatureGate";
+import FirstRunStrip from "@/components/dailyLoop/FirstRunStrip";
+import { buildFirstRunProgress } from "@/lib/onboarding/firstRun";
 import type { PortfolioApiResponse } from "@/types/portfolioApi";
 import { recordVisit, saveCachedPortfolio } from "@/lib/portfolioCache";
 import { portfolioRiskFromAllocation } from "@/lib/portfolioRisk";
@@ -692,6 +694,36 @@ export default function HomeClient({
     [premiumFeatures.marginMode, refreshDecision],
   );
 
+  const showHomeDecision =
+    Boolean(dailyDecision) && connectionStatus === "CONNECTED";
+
+  const firstRunProgress = useMemo(
+    () =>
+      buildFirstRunProgress({
+        connectionStatus,
+        profileComplete,
+        todayReady: showHomeDecision,
+        decisionLoading:
+          connectionStatus === "CONNECTED" &&
+          profileComplete &&
+          !dailyDecision &&
+          (decisionRefreshing || isRefreshing),
+      }),
+    [
+      connectionStatus,
+      dailyDecision,
+      decisionRefreshing,
+      isRefreshing,
+      profileComplete,
+      showHomeDecision,
+    ],
+  );
+
+  const showFirstRunStrip =
+    Boolean(user) &&
+    !firstRunProgress.complete &&
+    !isCompletingOAuth;
+
   if (authLoading) {
     return <LoadingState />;
   }
@@ -725,9 +757,6 @@ export default function HomeClient({
       brokerMessage?.includes("syncing") ||
       brokerMessage?.includes("connected"));
 
-  const showHomeDecision =
-    Boolean(dailyDecision) && connectionStatus === "CONNECTED";
-
   return (
     <ApexShell>
       <header className="space-y-4">
@@ -750,7 +779,9 @@ export default function HomeClient({
           </div>
         </div>
 
-        {isOnboarding ? (
+        {showFirstRunStrip ? (
+          <FirstRunStrip progress={firstRunProgress} userName={userName} />
+        ) : isOnboarding ? (
           <ApexBody>{VALUE_STATEMENT}</ApexBody>
         ) : null}
 
@@ -815,6 +846,9 @@ export default function HomeClient({
         <>
           {!profileComplete ? (
             <FinancialProfileSetup
+              stepHint={
+                showFirstRunStrip ? "Step 2 of 3 · Set capital context" : undefined
+              }
               onComplete={(profile) => {
                 setFinancialProfile(profile);
                 refreshDecision();
