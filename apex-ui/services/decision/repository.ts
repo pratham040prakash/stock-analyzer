@@ -7,6 +7,7 @@ import type {
 } from "@/types/decision";
 import { dailyDecisionTypeToAction } from "@/types/decision";
 import type { DecisionHistoryEntry } from "@/types/decisionHistory";
+import { getDisciplineHistory } from "@/services/decision/disciplineHistory";
 
 type Client = SupabaseClient<Database>;
 
@@ -115,21 +116,6 @@ export async function getDecisionHistory(
   userId: string,
   days = 3,
 ): Promise<DecisionHistoryEntry[]> {
-  const { data, error } = await supabase
-    .from("decisions")
-    .select("decision_date, action, stock, confidence")
-    .eq("user_id", userId)
-    .order("decision_date", { ascending: false })
-    .limit(days);
-
-  if (error || !data) {
-    return [];
-  }
-
-  return data.map((row) => ({
-    date: row.decision_date,
-    action: (row.action as DecisionActionType) || "hold",
-    stock: row.stock ?? undefined,
-    confidence: Number(row.confidence),
-  }));
+  const result = await getDisciplineHistory(supabase, userId, days);
+  return result.history;
 }

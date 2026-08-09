@@ -19,7 +19,11 @@ import type { ConnectionStatus } from "@/lib/broker/zerodha";
 import type { FinancialProfile } from "@/lib/financialProfile";
 import { isProfileComplete } from "@/lib/financialProfile";
 import type { DailyInsight } from "@/types/dailyInsight";
-import type { DecisionHistoryEntry } from "@/types/decisionHistory";
+import type {
+  DecisionHistoryEntry,
+  DecisionHistoryResponse,
+  DisciplineHistorySummary,
+} from "@/types/decisionHistory";
 import {
   readStoredCapitalMode,
   writeStoredCapitalMode,
@@ -51,8 +55,12 @@ type InsightResponse = {
   insight: DailyInsight;
 };
 
-type DecisionHistoryResponse = {
-  history: DecisionHistoryEntry[];
+const EMPTY_DISCIPLINE_SUMMARY: DisciplineHistorySummary = {
+  wins: 0,
+  losses: 0,
+  open: 0,
+  waitDays: 0,
+  executedDays: 0,
 };
 
 type ZerodhaSessionResponse = {
@@ -142,6 +150,9 @@ export default function HomeClient({
   const [decisionHistory, setDecisionHistory] = useState<DecisionHistoryEntry[]>(
     [],
   );
+  const [disciplineSummary, setDisciplineSummary] =
+    useState<DisciplineHistorySummary>(EMPTY_DISCIPLINE_SUMMARY);
+  const [disciplineDays, setDisciplineDays] = useState<string[]>([]);
   const [portfolioData, setPortfolioData] = useState<PortfolioApiResponse | null>(
     null,
   );
@@ -312,8 +323,13 @@ export default function HomeClient({
         res,
         "Decision history",
       );
-      if (!data?.history) return;
-      setDecisionHistory(data.history);
+      if (!res.ok || !data) {
+        return;
+      }
+
+      setDecisionHistory(data.history ?? []);
+      setDisciplineSummary(data.summary ?? EMPTY_DISCIPLINE_SUMMARY);
+      setDisciplineDays(data.days ?? []);
     } catch {
       // History is optional on first visit.
     }
@@ -838,10 +854,15 @@ export default function HomeClient({
             />
           ) : null}
 
-          {decisionHistory.length > 0 && premiumFeatures.decisionHistory ? (
+          {premiumFeatures.decisionHistory ? (
             <DecisionHistoryPanel
               history={decisionHistory}
-              showConfidence={showHomeDecision}
+              summary={disciplineSummary}
+              days={
+                disciplineDays.length > 0
+                  ? disciplineDays
+                  : decisionHistory.map((entry) => entry.date)
+              }
             />
           ) : decisionHistory.length > 0 ? (
             <PremiumFeatureGate feature="decisionHistory" />
