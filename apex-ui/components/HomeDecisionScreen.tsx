@@ -190,7 +190,10 @@ export default function HomeDecisionScreen({
   const isExplore = renderIntent === "explore";
   const isGrow = renderIntent === "grow";
   const hasPicks = (decision.picks?.length ?? 0) > 0;
-  const isExploreEmpty = isExplore && !hasPicks && capitalDecision.actions.length === 0;
+  const isExploreEmpty =
+    isExplore &&
+    capitalDecision.exploreSetups.length === 0 &&
+    capitalDecision.actions.length === 0;
   const hasPlan = Boolean(plan && plan.steps.length > 0);
   let sectionDelay = 80;
 

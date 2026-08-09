@@ -8,6 +8,7 @@ import type {
 import type {
   CapitalAction,
   CapitalDecision,
+  ExploreSetup,
 } from "@/lib/dailyLoop/capitalDecision";
 import {
   DAILY_CLOSURE_BODY,
@@ -193,32 +194,60 @@ export function CapitalActionsBlock({
   decision: CapitalDecision;
   delayMs: number;
 }) {
+  if (decision.mode === "explore") {
+    return <ExploreMonitoringBlock decision={decision} delayMs={delayMs} />;
+  }
+
+  return <GrowCapitalActionsBlock decision={decision} delayMs={delayMs} />;
+}
+
+function StancePrimaryHeader({ decision }: { decision: CapitalDecision }) {
+  return (
+    <>
+      <div className="space-y-1">
+        <p className="text-xs font-medium uppercase tracking-[0.12em] text-apex-muted">
+          Portfolio stance
+        </p>
+        <p className="text-sm font-medium leading-snug text-apex-text/90">
+          {decision.portfolioStance}
+        </p>
+        <p className="text-sm leading-snug text-apex-text/75">
+          {decision.portfolioStanceDetail}
+        </p>
+      </div>
+
+      <div className="space-y-1">
+        <p className="text-xs font-medium uppercase tracking-[0.12em] text-apex-muted">
+          Primary action
+        </p>
+        <p className="text-base font-semibold leading-snug text-apex-text">
+          {decision.primaryAction}
+        </p>
+        <p className="text-sm leading-snug text-apex-text/75">
+          {decision.primaryActionDetail}
+        </p>
+      </div>
+    </>
+  );
+}
+
+function GrowCapitalActionsBlock({
+  decision,
+  delayMs,
+}: {
+  decision: CapitalDecision;
+  delayMs: number;
+}) {
   return (
     <TierBlock tier="primary" delayMs={delayMs}>
       <div className="space-y-4">
-        <div className="space-y-1">
-          <p className="text-xs font-medium uppercase tracking-[0.12em] text-apex-muted">
-            Portfolio stance
-          </p>
-          <p className="text-sm font-medium leading-snug text-apex-text/90">
-            {decision.portfolioStance}
-          </p>
-          <p className="text-sm leading-snug text-apex-text/75">
-            {decision.portfolioStanceDetail}
-          </p>
-        </div>
+        <StancePrimaryHeader decision={decision} />
 
-        <div className="space-y-1">
-          <p className="text-xs font-medium uppercase tracking-[0.12em] text-apex-muted">
-            Primary action
+        {decision.growEmptyMessage ? (
+          <p className="text-sm font-medium leading-snug text-apex-text/90">
+            {decision.growEmptyMessage}
           </p>
-          <p className="text-base font-semibold leading-snug text-apex-text">
-            {decision.primaryAction}
-          </p>
-          <p className="text-sm leading-snug text-apex-text/75">
-            {decision.primaryActionDetail}
-          </p>
-        </div>
+        ) : null}
 
         {decision.actions.length > 0 ? (
           <ul className="space-y-5 border-t border-apex-border/15 pt-4">
@@ -229,6 +258,71 @@ export function CapitalActionsBlock({
         ) : null}
       </div>
     </TierBlock>
+  );
+}
+
+function ExploreMonitoringBlock({
+  decision,
+  delayMs,
+}: {
+  decision: CapitalDecision;
+  delayMs: number;
+}) {
+  return (
+    <TierBlock tier="primary" delayMs={delayMs}>
+      <div className="space-y-4">
+        <StancePrimaryHeader decision={decision} />
+
+        {decision.exploreSetups.length > 0 ? (
+          <ul className="space-y-5 border-t border-apex-border/15 pt-4">
+            {decision.exploreSetups.map((item) => (
+              <ExploreSetupRow key={item.symbol} setup={item} />
+            ))}
+          </ul>
+        ) : (
+          <div className="border-t border-apex-border/15 pt-4">
+            <p className="text-lg font-medium leading-snug text-apex-text">
+              {EXPLORE_EMPTY_HEADLINE}
+            </p>
+            <p className="mt-2 text-sm leading-snug text-apex-text/75">
+              {EXPLORE_EMPTY_BODY}
+            </p>
+          </div>
+        )}
+      </div>
+    </TierBlock>
+  );
+}
+
+function ExploreSetupRow({ setup }: { setup: ExploreSetup }) {
+  return (
+    <li
+      className={
+        setup.isPrimary
+          ? "rounded-lg border border-apex-border/20 bg-white/[0.02] p-3"
+          : undefined
+      }
+    >
+      <p className="text-lg font-semibold leading-snug text-apex-text">
+        {setup.symbol}
+        {setup.isPrimary ? (
+          <span className="ml-2 text-xs font-medium uppercase tracking-wide text-apex-muted">
+            Lead
+          </span>
+        ) : null}
+      </p>
+      <p className="mt-1 text-sm leading-snug text-apex-text/85">
+        Status: {setup.status}
+      </p>
+      <p className="text-sm leading-snug text-apex-text/85">
+        Setup: {setup.setupDescription}
+      </p>
+      <div className="mt-1 space-y-0.5 text-sm leading-snug text-apex-text/75">
+        <p>What&apos;s missing: {setup.missing}</p>
+        <p>What to watch: {setup.watchFor}</p>
+        <p>Time horizon: {setup.timeHorizon}</p>
+      </div>
+    </li>
   );
 }
 

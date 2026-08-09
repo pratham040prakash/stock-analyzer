@@ -1,6 +1,7 @@
 import type { StockPick } from "@/types/decision";
 import { isSellAction, type DecisionActionType } from "@/types/decision";
 import type { UserIntent } from "@/types/intent";
+import { generateSetupInsightFromPick } from "@/lib/dailyLoop/setupInsight";
 
 export type DeploymentStance =
   | "No Deployment"
@@ -26,11 +27,26 @@ export type CapitalAction = {
   reason: string;
 };
 
+export type DecisionMode = "grow" | "explore" | "protect";
+
+export type ExploreSetup = {
+  symbol: string;
+  status: "Monitoring";
+  setupDescription: string;
+  missing: string;
+  watchFor: string;
+  timeHorizon: string;
+  isPrimary?: boolean;
+};
+
 export type CapitalDecision = {
+  mode: DecisionMode;
   stance: DeploymentStance;
   cashPercentage: number;
   deploymentPercentage: number;
   actions: CapitalAction[];
+  exploreSetups: ExploreSetup[];
+  growEmptyMessage?: string;
   heroHeadline: string;
   heroSubline: string;
   heroAccountability: string;
@@ -53,6 +69,7 @@ export type CapitalDecisionInput = {
 };
 
 const FORBIDDEN_COPY = /\b(good setup|bad setup|strong|weak|not enough edge)\b/i;
+const GROW_EMPTY_MESSAGE = "No setup meets deployment criteria today.";
 
 function normalizePercent(value: number | undefined): number {
   if (value === undefined || !Number.isFinite(value)) {
@@ -191,10 +208,6 @@ function buildHeroSubline(
   }
 
   if (stance === "No Deployment") {
-    if (input.intent === "explore") {
-      return "Deploying here puts your capital at work without a deployment mandate.";
-    }
-
     if (action === "buy" && input.entryTiming?.enter === false) {
       return "Deploying now increases risk to your capital without entry confirmation.";
     }
@@ -224,18 +237,6 @@ function resolveWaitContext(
 ): WaitContext {
   const stage = resolveWaitStage(pick);
   const timing = waitTiming(stage);
-
-  if (input.intent === "explore") {
-    return {
-      stage,
-      missing: "No deployment mandate — capital stays idle.",
-      confirm: "Capital moves only on an explicit grow or protect decision.",
-      timing:
-        "Hold over next sessions — observe until you set a grow or protect mandate.",
-      ifIgnored:
-        "If ignored: capital deploys without authorization and adds uncompensated risk.",
-    };
-  }
 
   if (isPrimary && input.action === "buy" && input.entryTiming?.enter === false) {
     return {
@@ -414,13 +415,6 @@ function buildPortfolioStance(
     };
   }
 
-  if (input.intent === "explore") {
-    return {
-      headline: "Defensive — no valid deployment",
-      detail: `${cashPercentage}% of your capital stays in cash — explore mode does not authorize deployment.`,
-    };
-  }
-
   return {
     headline: "Defensive — no valid deployment",
     detail: `${cashPercentage}% of your capital remains idle — no entry trigger confirmed today.`,
@@ -454,14 +448,6 @@ function buildPrimaryAction(
     };
   }
 
-  if (input.intent === "explore") {
-    return {
-      headline: "Remain in cash",
-      detail:
-        "Deploying without a grow or protect mandate puts capital at work without authorization.",
-    };
-  }
-
   if (action === "buy" && input.entryTiming?.enter === false) {
     return {
       headline: "Remain in cash",
@@ -474,6 +460,179 @@ function buildPrimaryAction(
     headline: "Remain in cash",
     detail:
       "Premature deployment increases risk to your capital without confirmation.",
+  };
+}
+
+function exploreTimeHorizon(stage: WaitStage): string {
+  if (stage === "Close to trigger") {
+    return "Monitor within next 1–2 sessions — setup is close.";
+  }
+
+  if (stage === "Developing") {
+    return "Monitor over next 2–3 sessions.";
+  }
+
+  return "Monitor over next sessions — setup still early.";
+}
+
+function buildExploreSetup(
+  pick: StockPick,
+  input: CapitalDecisionInput,
+): ExploreSetup {
+  const insight = generateSetupInsightFromPick(pick, "explore");
+  const setupDescription = insight.line2
+    ? `${insight.line1} ${insight.line2}`
+    : insight.line1;
+  const stage = resolveWaitStage(pick);
+  const alignment = Math.round(pick.score);
+  const { trend, momentum } = pick.signals;
+  const timeHorizon = exploreTimeHorizon(stage);
+
+  if (alignment < 65) {
+    return {
+      symbol: pick.stock,
+      status: "Monitoring",
+      setupDescription: sanitizeCopy(setupDescription),
+      missing: sanitizeCopy(
+        "Alignment below the level where Grow would authorize capital.",
+      ),
+      watchFor: sanitizeCopy("Score crossing 65 on a confirmed close."),
+      timeHorizon: sanitizeCopy(timeHorizon),
+      isPrimary: pick.stock === input.stock,
+    };
+  }
+
+  if (trend < 60) {
+    return {
+      symbol: pick.stock,
+      status: "Monitoring",
+      setupDescription: sanitizeCopy(setupDescription),
+      missing: sanitizeCopy(
+        "Price has not cleared the prior range — direction unconfirmed.",
+      ),
+      watchFor: sanitizeCopy(
+        "Sustained hold above the recent consolidation high.",
+      ),
+      timeHorizon: sanitizeCopy(timeHorizon),
+      isPrimary: pick.stock === input.stock,
+    };
+  }
+
+  if (momentum < 60) {
+    return {
+      symbol: pick.stock,
+      status: "Monitoring",
+      setupDescription: sanitizeCopy(setupDescription),
+      missing: sanitizeCopy("Volume follow-through not yet present."),
+      watchFor: sanitizeCopy(
+        "Momentum confirmation on above-average volume.",
+      ),
+      timeHorizon: sanitizeCopy(timeHorizon),
+      isPrimary: pick.stock === input.stock,
+    };
+  }
+
+  return {
+    symbol: pick.stock,
+    status: "Monitoring",
+    setupDescription: sanitizeCopy(setupDescription),
+    missing: sanitizeCopy("Final breakout bar not yet cleared."),
+    watchFor: sanitizeCopy("Close above resistance with volume expansion."),
+    timeHorizon: sanitizeCopy(timeHorizon),
+    isPrimary: pick.stock === input.stock,
+  };
+}
+
+function buildExploreCapitalDecision(input: CapitalDecisionInput): CapitalDecision {
+  const picks = input.picks ?? [];
+  const exploreSetups = picks
+    .slice(0, 3)
+    .map((pick) => buildExploreSetup(pick, input));
+
+  return {
+    mode: "explore",
+    stance: "No Deployment",
+    cashPercentage: 100,
+    deploymentPercentage: 0,
+    actions: [],
+    exploreSetups,
+    heroHeadline: "Prepare and watch — no capital moves today.",
+    heroSubline:
+      "Explore monitors setups without deploying capital — switch to Grow to act.",
+    heroAccountability: "Based on current market conditions.",
+    portfolioStance: "Observational — setups under review",
+    portfolioStanceDetail:
+      "Capital stays in reserve while you track forming structures — no deployment in Explore.",
+    primaryAction: "Monitor and prepare",
+    primaryActionDetail:
+      "Switch to Grow when a setup is ready for capital deployment.",
+  };
+}
+
+function resolveGrowEmptyMessage(
+  deploymentPercentage: number,
+  actions: CapitalAction[],
+): string | undefined {
+  const hasBuy = actions.some((item) => item.action === "BUY");
+
+  if (hasBuy || deploymentPercentage > 0) {
+    return undefined;
+  }
+
+  if (actions.length === 0 || actions.every((item) => item.action === "WAIT")) {
+    return GROW_EMPTY_MESSAGE;
+  }
+
+  return undefined;
+}
+
+function buildGrowCapitalDecision(input: CapitalDecisionInput): CapitalDecision {
+  const mode: DecisionMode = input.intent === "protect" ? "protect" : "grow";
+  const deploymentPercentage = resolveDeploymentPercentage(input);
+  const cashPercentage = Math.max(0, 100 - deploymentPercentage);
+  const stance = resolveStance(deploymentPercentage);
+  const symbols = collectSymbols(input);
+
+  const actions =
+    symbols.length > 0
+      ? symbols.map((symbol) =>
+          resolveActionForSymbol(symbol, input, deploymentPercentage),
+        )
+      : [];
+
+  const portfolioStance = buildPortfolioStance(
+    input,
+    deploymentPercentage,
+    cashPercentage,
+    actions,
+  );
+  const primaryAction = buildPrimaryAction(
+    input,
+    deploymentPercentage,
+    cashPercentage,
+    actions,
+  );
+
+  return {
+    mode,
+    stance,
+    cashPercentage,
+    deploymentPercentage,
+    actions,
+    exploreSetups: [],
+    growEmptyMessage: resolveGrowEmptyMessage(deploymentPercentage, actions),
+    heroHeadline: buildHeroHeadline(input, deploymentPercentage, cashPercentage),
+    heroSubline: buildHeroSubline(
+      input,
+      stance,
+      cashPercentage,
+      deploymentPercentage,
+    ),
+    heroAccountability: buildHeroAccountability(input, deploymentPercentage),
+    portfolioStance: portfolioStance.headline,
+    portfolioStanceDetail: portfolioStance.detail,
+    primaryAction: primaryAction.headline,
+    primaryActionDetail: primaryAction.detail,
   };
 }
 
@@ -582,49 +741,11 @@ function collectSymbols(input: CapitalDecisionInput): string[] {
 
 /** Converts engine output into explicit capital deployment instructions. */
 export function buildCapitalDecision(input: CapitalDecisionInput): CapitalDecision {
-  const deploymentPercentage = resolveDeploymentPercentage(input);
-  const cashPercentage = Math.max(0, 100 - deploymentPercentage);
-  const stance = resolveStance(deploymentPercentage);
-  const symbols = collectSymbols(input);
+  if (input.intent === "explore" || input.action === "explore") {
+    return buildExploreCapitalDecision(input);
+  }
 
-  const actions =
-    symbols.length > 0
-      ? symbols.map((symbol) =>
-          resolveActionForSymbol(symbol, input, deploymentPercentage),
-        )
-      : [];
-
-  const portfolioStance = buildPortfolioStance(
-    input,
-    deploymentPercentage,
-    cashPercentage,
-    actions,
-  );
-  const primaryAction = buildPrimaryAction(
-    input,
-    deploymentPercentage,
-    cashPercentage,
-    actions,
-  );
-
-  return {
-    stance,
-    cashPercentage,
-    deploymentPercentage,
-    actions,
-    heroHeadline: buildHeroHeadline(input, deploymentPercentage, cashPercentage),
-    heroSubline: buildHeroSubline(
-      input,
-      stance,
-      cashPercentage,
-      deploymentPercentage,
-    ),
-    heroAccountability: buildHeroAccountability(input, deploymentPercentage),
-    portfolioStance: portfolioStance.headline,
-    portfolioStanceDetail: portfolioStance.detail,
-    primaryAction: primaryAction.headline,
-    primaryActionDetail: primaryAction.detail,
-  };
+  return buildGrowCapitalDecision(input);
 }
 
 export function formatCapitalAction(action: CapitalAction): string {
@@ -654,10 +775,27 @@ export function formatCapitalAction(action: CapitalAction): string {
 export function summarizeCapitalDecision(decision: CapitalDecision): string {
   const lead = `${decision.portfolioStance} ${decision.portfolioStanceDetail} Primary: ${decision.primaryAction} — ${decision.primaryActionDetail}`;
 
+  if (decision.mode === "explore") {
+    if (decision.exploreSetups.length === 0) {
+      return `${decision.heroAccountability} ${lead}. ${decision.heroHeadline} ${decision.heroSubline}`;
+    }
+
+    const setup = decision.exploreSetups[0];
+    return `${decision.heroAccountability} ${lead}. ${setup.symbol}: Monitoring — ${setup.setupDescription}. Watch for: ${setup.watchFor}.`;
+  }
+
+  if (decision.growEmptyMessage && decision.actions.length === 0) {
+    return `${decision.heroAccountability} ${lead}. ${decision.growEmptyMessage} ${decision.heroHeadline}`;
+  }
+
   if (decision.actions.length === 0) {
     return `${decision.heroAccountability} ${lead}. ${decision.heroHeadline} ${decision.heroSubline}`;
   }
 
   const action = decision.actions[0];
-  return `${decision.heroAccountability} ${lead}. ${decision.heroHeadline} ${action.symbol}: ${action.action} — ${action.deployLabel}. ${action.reason}`;
+  const emptyPrefix = decision.growEmptyMessage
+    ? `${decision.growEmptyMessage} `
+    : "";
+
+  return `${decision.heroAccountability} ${lead}. ${emptyPrefix}${decision.heroHeadline} ${action.symbol}: ${action.action} — ${action.deployLabel}. ${action.reason}`;
 }
