@@ -1030,6 +1030,34 @@ export function buildCapitalDecision(input: CapitalDecisionInput): CapitalDecisi
   return buildGrowCapitalDecision(input);
 }
 
+export type TrustReinforcement = {
+  confirmation: string;
+  framing: string;
+  nextStep: string;
+};
+
+export function buildTrustReinforcement(
+  decision: CapitalDecision,
+): TrustReinforcement {
+  const hasSell = decision.actions.some((item) => item.action === "SELL");
+
+  let framing: string;
+
+  if (hasSell) {
+    framing = "Risk reduced. Capital rebalanced.";
+  } else if (decision.deploymentPercentage > 0) {
+    framing = "Capital deployed under confirmation. Risk controlled.";
+  } else {
+    framing = "Capital remained protected. No unnecessary risk taken.";
+  }
+
+  return {
+    confirmation: "You followed the system today.",
+    framing,
+    nextStep: "Next review: after market close or on new signal.",
+  };
+}
+
 export function formatCapitalAction(action: CapitalAction): string {
   const lines = [action.symbol, `Action: ${action.action}`];
 

@@ -239,6 +239,7 @@ export default function HomeDecisionScreen({
             rewardHook={retention.rewardHook}
             delayMs={nextDelay()}
             capitalDeployment={isCapitalDeployment}
+            decision={capitalDecision}
           />
 
           {lastOutcome && !isExploreEmpty && !isCapitalDeployment ? (

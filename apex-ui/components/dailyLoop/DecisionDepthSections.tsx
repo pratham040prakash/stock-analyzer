@@ -13,6 +13,7 @@ import type {
 import {
   EXPLORE_PIPELINE_EMPTY_BODY,
   EXPLORE_PIPELINE_EMPTY_HEADLINE,
+  buildTrustReinforcement,
   formatGrowActionStage,
 } from "@/lib/dailyLoop/capitalDecision";
 import {
@@ -432,6 +433,7 @@ export function ExecutionStatusBlock({
   rewardHook,
   delayMs,
   capitalDeployment = false,
+  decision,
 }: {
   committedToday: boolean;
   onMarkFollowed: () => void;
@@ -441,7 +443,13 @@ export function ExecutionStatusBlock({
   rewardHook: string | null;
   delayMs: number;
   capitalDeployment?: boolean;
+  decision?: CapitalDecision;
 }) {
+  const trustReinforcement =
+    capitalDeployment && committedToday && decision
+      ? buildTrustReinforcement(decision)
+      : null;
+
   if (capitalDeployment) {
     return (
       <section
@@ -461,9 +469,23 @@ export function ExecutionStatusBlock({
             [ ] Followed today
           </button>
         )}
-        <p className="text-sm leading-snug text-apex-text/70">
-          Discipline builds capital protection.
-        </p>
+        {trustReinforcement ? (
+          <div className="space-y-1 pt-1">
+            <p className="text-sm leading-snug text-apex-text/90">
+              {trustReinforcement.confirmation}
+            </p>
+            <p className="text-sm leading-snug text-apex-text/80">
+              {trustReinforcement.framing}
+            </p>
+            <p className="text-xs leading-snug text-apex-muted/60">
+              {trustReinforcement.nextStep}
+            </p>
+          </div>
+        ) : (
+          <p className="text-sm leading-snug text-apex-text/70">
+            Discipline builds capital protection.
+          </p>
+        )}
       </section>
     );
   }
