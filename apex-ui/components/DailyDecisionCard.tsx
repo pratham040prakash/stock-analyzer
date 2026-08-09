@@ -106,9 +106,16 @@ export default function DailyDecisionCard({
         allocationPercent: decision.allocationPercent,
         intent: resolveIntent(intent),
         topAllocationPct: portfolioContext.top_allocation_pct,
+        availableCash,
+        portfolioValue: totalValue,
+        holdings: portfolioContext.holdings?.map((holding) => ({
+          symbol: holding.symbol,
+          weight: holding.allocation_pct ?? 0,
+        })),
         entryTiming: { enter: isBuy },
       }),
     [
+      availableCash,
       decision.action,
       decision.allocationPercent,
       decision.confidence,
@@ -117,7 +124,9 @@ export default function DailyDecisionCard({
       decision.suggested_sell_percent,
       intent,
       isBuy,
+      portfolioContext.holdings,
       portfolioContext.top_allocation_pct,
+      totalValue,
     ],
   );
 

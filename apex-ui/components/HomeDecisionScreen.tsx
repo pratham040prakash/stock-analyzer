@@ -51,6 +51,9 @@ export type HomeDecisionScreenProps = {
   intent: UserIntent;
   topSymbol?: string;
   topAllocationPct?: number;
+  availableCash?: number;
+  portfolioValue?: number;
+  holdings?: { symbol: string; weight: number }[];
   className?: string;
 };
 
@@ -84,6 +87,9 @@ export default function HomeDecisionScreen({
   intent,
   topSymbol,
   topAllocationPct,
+  availableCash,
+  portfolioValue,
+  holdings,
   className = "",
 }: HomeDecisionScreenProps) {
   const { renderIntent, contentClassName } = useIntentTransition(intent);
@@ -105,10 +111,14 @@ export default function HomeDecisionScreen({
         allocationPercent: decision.allocationPercent,
         suggested_sell_percent: decision.suggested_sell_percent,
         topAllocationPct,
+        availableCash,
+        portfolioValue,
+        holdings,
         entryTiming,
         confidence: decision.confidence,
       }),
     [
+      availableCash,
       decision.action,
       decision.allocationPercent,
       decision.confidence,
@@ -116,6 +126,8 @@ export default function HomeDecisionScreen({
       decision.stock,
       decision.suggested_sell_percent,
       entryTiming,
+      holdings,
+      portfolioValue,
       renderIntent,
       topAllocationPct,
       topSymbol,

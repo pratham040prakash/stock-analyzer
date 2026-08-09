@@ -113,7 +113,7 @@ async function enrichDecisionWithAllocation(
       expectedDrawdown: metrics?.expectedDrawdown,
       edgeScore: metrics?.edgeScore,
       structureScore: decision.structureScore,
-      portfolioValue,
+      availableCash: marginsResult.availableCash,
     });
 
     let amount = Math.min(allocation.amount, deployable);

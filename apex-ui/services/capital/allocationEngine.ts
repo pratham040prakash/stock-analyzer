@@ -4,7 +4,9 @@ export type AllocationInput = {
   expectedDrawdown: number;
   edgeScore: number;
   structureScore: number;
-  portfolioValue: number;
+  availableCash: number;
+  /** @deprecated Use availableCash — deployment must never use total portfolio value. */
+  portfolioValue?: number;
 };
 
 export type AllocationResult = {
@@ -51,6 +53,25 @@ export function adjustForStructure(
   return base * (score / 100);
 }
 
+function resolveDeployCash(input: AllocationInput): number {
+  if (
+    Number.isFinite(input.availableCash) &&
+    input.availableCash > 0
+  ) {
+    return input.availableCash;
+  }
+
+  if (
+    input.portfolioValue !== undefined &&
+    Number.isFinite(input.portfolioValue) &&
+    input.portfolioValue > 0
+  ) {
+    return input.portfolioValue;
+  }
+
+  return 0;
+}
+
 function hasValidInput(input: AllocationInput): boolean {
   return (
     Number.isFinite(input.probability) &&
@@ -58,8 +79,7 @@ function hasValidInput(input: AllocationInput): boolean {
     Number.isFinite(input.expectedDrawdown) &&
     Number.isFinite(input.edgeScore) &&
     Number.isFinite(input.structureScore) &&
-    Number.isFinite(input.portfolioValue) &&
-    input.portfolioValue > 0 &&
+    resolveDeployCash(input) > 0 &&
     input.probability > 0 &&
     input.edgeScore > 0
   );
@@ -83,7 +103,7 @@ export function computeAllocation(input: AllocationInput): AllocationResult {
     return NO_TRADE;
   }
 
-  const amount = Math.round(input.portfolioValue * allocationPercent);
+  const amount = Math.round(resolveDeployCash(input) * allocationPercent);
 
   if (amount <= 0) {
     return NO_TRADE;
@@ -101,15 +121,11 @@ export function computeAllocationSafe(
   input: Partial<AllocationInput>,
 ): AllocationResult {
   try {
-    if (
-      input.portfolioValue === undefined ||
-      !Number.isFinite(input.portfolioValue) ||
-      input.portfolioValue <= 0
-    ) {
+    if (resolveDeployCash(input as AllocationInput) <= 0) {
       return {
         allocationPercent: 0,
         amount: 0,
-        reason: "Missing portfolio value",
+        reason: "Missing available cash",
       };
     }
 
@@ -131,7 +147,10 @@ export function computeAllocationSafe(
       expectedDrawdown: input.expectedDrawdown ?? 0,
       edgeScore: input.edgeScore,
       structureScore: input.structureScore,
-      portfolioValue: input.portfolioValue,
+      availableCash:
+        input.availableCash ??
+        input.portfolioValue ??
+        0,
     });
   } catch (error) {
     console.error("Capital allocation failed:", error);

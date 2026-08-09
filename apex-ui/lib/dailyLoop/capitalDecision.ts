@@ -23,11 +23,24 @@ export type CapitalAction = {
   symbol: string;
   action: CapitalActionType;
   deployPercentage: number;
+  deployAmount?: number;
+  portfolioWeight?: number;
   stage?: GrowActionStage;
   reason: CapitalActionReason;
   ifIgnored?: string;
   postActionImpact?: string;
   isPrimary?: boolean;
+};
+
+export type CapitalHoldingWeight = {
+  symbol: string;
+  weight: number;
+};
+
+export type CapitalStructure = {
+  availableCash: number;
+  portfolioValue: number;
+  totalCapital: number;
 };
 
 export type DecisionMode = "grow" | "explore" | "protect";
@@ -63,6 +76,10 @@ export const EXPLORE_PIPELINE_EMPTY_BODY =
 export type CapitalDecision = {
   mode: DecisionMode;
   stance: DeploymentStance;
+  availableCash: number;
+  portfolioValue: number;
+  totalCapital: number;
+  deployAmount: number;
   cashPercentage: number;
   deploymentPercentage: number;
   actions: CapitalAction[];
@@ -88,12 +105,112 @@ export type CapitalDecisionInput = {
   allocationPercent?: number;
   suggested_sell_percent?: number;
   topAllocationPct?: number;
+  availableCash?: number;
+  portfolioValue?: number;
+  holdings?: CapitalHoldingWeight[];
   entryTiming?: { enter?: boolean };
   confidence?: number;
 };
 
 const FORBIDDEN_COPY = /\b(good setup|bad setup|strong|weak|not enough edge)\b/i;
 const GROW_EMPTY_MESSAGE = "No capital deployment allowed today.";
+const CONCENTRATION_LIMIT = 25;
+
+function resolveCapitalStructure(input: CapitalDecisionInput): CapitalStructure {
+  const availableCash = Math.max(0, Math.round(input.availableCash ?? 0));
+  const portfolioValue = Math.max(0, Math.round(input.portfolioValue ?? 0));
+
+  return {
+    availableCash,
+    portfolioValue,
+    totalCapital: availableCash + portfolioValue,
+  };
+}
+
+function resolveOverweightHoldings(
+  input: CapitalDecisionInput,
+): CapitalHoldingWeight[] {
+  if (input.holdings?.length) {
+    return input.holdings
+      .filter((holding) => holding.weight > CONCENTRATION_LIMIT)
+      .sort((left, right) => right.weight - left.weight);
+  }
+
+  const topWeight = normalizePercent(input.topAllocationPct);
+
+  if (topWeight > CONCENTRATION_LIMIT && input.stock) {
+    return [{ symbol: input.stock, weight: topWeight }];
+  }
+
+  return [];
+}
+
+function computeDeployAmount(cash: number, deploymentPercentage: number): number {
+  if (cash <= 0 || deploymentPercentage <= 0) {
+    return 0;
+  }
+
+  return Math.round((deploymentPercentage / 100) * cash);
+}
+
+function computeTrimPercentTo25(weight: number): number {
+  if (weight <= CONCENTRATION_LIMIT) {
+    return 0;
+  }
+
+  return Math.min(
+    100,
+    Math.max(1, Math.round((1 - CONCENTRATION_LIMIT / weight) * 100)),
+  );
+}
+
+function canDeployCapital(
+  input: CapitalDecisionInput,
+  capital: CapitalStructure,
+  overweight: CapitalHoldingWeight[],
+  deploymentPercentage: number,
+): boolean {
+  if (deploymentPercentage <= 0 || capital.availableCash <= 0) {
+    return false;
+  }
+
+  if (overweight.length > 0 && input.action === "buy") {
+    return false;
+  }
+
+  return true;
+}
+
+export function validateCapitalDecision(decision: CapitalDecision): void {
+  const hasBuy = decision.actions.some((item) => item.action === "BUY");
+  const hasOverweightSell = decision.actions.some(
+    (item) =>
+      item.action === "SELL" &&
+      (item.portfolioWeight ?? 0) > CONCENTRATION_LIMIT,
+  );
+
+  if (decision.availableCash <= 0 && hasBuy) {
+    throw new Error("Capital validation: BUY allowed without cash");
+  }
+
+  if (hasOverweightSell && hasBuy) {
+    throw new Error("Capital validation: BUY allowed during concentration risk");
+  }
+
+  if (decision.deploymentPercentage > 0 && decision.deployAmount <= 0) {
+    throw new Error("Capital validation: deployment shown without ₹ value");
+  }
+
+  for (const action of decision.actions) {
+    if (action.action !== "BUY") {
+      continue;
+    }
+
+    if (action.deployAmount === undefined || action.deployAmount <= 0) {
+      throw new Error("Capital validation: BUY deployment without ₹ value");
+    }
+  }
+}
 
 function normalizePercent(value: number | undefined): number {
   if (value === undefined || !Number.isFinite(value)) {
@@ -150,8 +267,12 @@ function findPick(input: CapitalDecisionInput, symbol: string): StockPick | unde
   return input.picks?.find((pick) => pick.stock === symbol);
 }
 
-function deployLabel(deployPercentage: number): string {
-  return `Deploy ${deployPercentage}% of your capital`;
+function deployLabel(deployPercentage: number, deployAmount?: number): string {
+  if (deployAmount !== undefined && deployAmount > 0) {
+    return `Deploy ${formatInr(deployAmount)} (${deployPercentage}% of available cash)`;
+  }
+
+  return `Deploy ${deployPercentage}% of available cash`;
 }
 
 export function formatGrowActionStage(stage: GrowActionStage): string {
@@ -268,10 +389,10 @@ function buildHeroHeadline(
   }
 
   if (deploymentPercentage <= 0) {
-    return `${cashPercentage}% of your capital stays in cash.`;
+    return `${cashPercentage}% of available cash stays idle.`;
   }
 
-  return `Deploy ${deploymentPercentage}% of your capital today.`;
+  return `Deploy ${deploymentPercentage}% of available cash today.`;
 }
 
 function buildHeroSubline(
@@ -405,6 +526,7 @@ function resolveWaitContext(
 function buildBuyAction(
   symbol: string,
   deploymentPercentage: number,
+  deployAmount: number,
   pick: StockPick | undefined,
   isPrimary: boolean,
 ): CapitalAction {
@@ -412,10 +534,15 @@ function buildBuyAction(
     symbol,
     action: "BUY",
     deployPercentage: deploymentPercentage,
+    deployAmount,
     isPrimary,
     reason: {
       missing: sanitizeCopy("All triggers confirmed."),
-      confirm: sanitizeCopy(buildBuyConfirm(pick)),
+      confirm: sanitizeCopy(
+        deployAmount > 0
+          ? `Deploy ${formatInr(deployAmount)} today.`
+          : buildBuyConfirm(pick),
+      ),
       timing: sanitizeCopy("Deploy today."),
     },
   };
@@ -498,6 +625,7 @@ function buildPrimaryAction(
   deploymentPercentage: number,
   cashPercentage: number,
   actions: CapitalAction[],
+  deployAmount: number,
 ): { headline: string; detail: string } {
   const action = input.action;
 
@@ -519,8 +647,13 @@ function buildPrimaryAction(
 
   const primaryBuy = actions.find((item) => item.action === "BUY");
   if (primaryBuy && deploymentPercentage > 0) {
+    const amountLabel =
+      deployAmount > 0
+        ? formatInr(deployAmount)
+        : `${primaryBuy.deployPercentage}% of available cash`;
+
     return {
-      headline: `Deploy ${primaryBuy.deployPercentage}% into ${primaryBuy.symbol} today`,
+      headline: `Deploy ${amountLabel} into ${primaryBuy.symbol} today`,
       detail: "Exceeding allocation adds risk.",
     };
   }
@@ -832,10 +965,15 @@ function buildExploreSetups(input: CapitalDecisionInput): ExploreSetup[] {
 
 function buildExploreCapitalDecision(input: CapitalDecisionInput): CapitalDecision {
   const exploreSetups = buildExploreSetups(input);
+  const capital = resolveCapitalStructure(input);
 
   return {
     mode: "explore",
     stance: "No Deployment",
+    availableCash: capital.availableCash,
+    portfolioValue: capital.portfolioValue,
+    totalCapital: capital.totalCapital,
+    deployAmount: 0,
     cashPercentage: 100,
     deploymentPercentage: 0,
     actions: [],
@@ -873,17 +1011,31 @@ function resolveGrowEmptyMessage(
 
 function buildGrowCapitalDecision(input: CapitalDecisionInput): CapitalDecision {
   const mode: DecisionMode = input.intent === "protect" ? "protect" : "grow";
-  const deploymentPercentage = resolveDeploymentPercentage(input);
+  const capital = resolveCapitalStructure(input);
+  const overweight = resolveOverweightHoldings(input);
+  let deploymentPercentage = resolveDeploymentPercentage(input);
+
+  if (capital.availableCash <= 0) {
+    deploymentPercentage = 0;
+  }
+
+  if (overweight.length > 0 && input.action === "buy") {
+    deploymentPercentage = 0;
+  }
+
+  const deployAmount = computeDeployAmount(
+    capital.availableCash,
+    deploymentPercentage,
+  );
   const cashPercentage = Math.max(0, 100 - deploymentPercentage);
   const stance = resolveStance(deploymentPercentage);
-  const symbols = collectSymbols(input);
-
-  const actions =
-    symbols.length > 0
-      ? symbols.map((symbol) =>
-          resolveActionForSymbol(symbol, input, deploymentPercentage),
-        )
-      : [];
+  const actions = buildGrowActions(
+    input,
+    deploymentPercentage,
+    deployAmount,
+    capital,
+    overweight,
+  );
 
   const portfolioStance = buildPortfolioStance(
     input,
@@ -896,11 +1048,16 @@ function buildGrowCapitalDecision(input: CapitalDecisionInput): CapitalDecision 
     deploymentPercentage,
     cashPercentage,
     actions,
+    deployAmount,
   );
 
-  return {
+  const decision: CapitalDecision = {
     mode,
     stance,
+    availableCash: capital.availableCash,
+    portfolioValue: capital.portfolioValue,
+    totalCapital: capital.totalCapital,
+    deployAmount,
     cashPercentage,
     deploymentPercentage,
     actions,
@@ -921,6 +1078,116 @@ function buildGrowCapitalDecision(input: CapitalDecisionInput): CapitalDecision 
     primaryAction: primaryAction.headline,
     primaryActionDetail: primaryAction.detail,
   };
+
+  validateCapitalDecision(decision);
+
+  return decision;
+}
+
+function buildGrowActions(
+  input: CapitalDecisionInput,
+  deploymentPercentage: number,
+  deployAmount: number,
+  capital: CapitalStructure,
+  overweight: CapitalHoldingWeight[],
+): CapitalAction[] {
+  const actions: CapitalAction[] = [];
+  const actionBySymbol = new Map<string, CapitalAction>();
+  const hasConcentrationRisk = overweight.length > 0;
+  const canBuy = canDeployCapital(
+    input,
+    capital,
+    overweight,
+    deploymentPercentage,
+  );
+
+  const addAction = (next: CapitalAction) => {
+    const existing = actionBySymbol.get(next.symbol);
+
+    if (existing?.action === "SELL") {
+      return;
+    }
+
+    if (next.action === "SELL") {
+      actionBySymbol.set(next.symbol, next);
+      return;
+    }
+
+    if (!existing) {
+      actionBySymbol.set(next.symbol, next);
+    }
+  };
+
+  for (const [index, holding] of overweight.entries()) {
+    addAction(
+      buildSellAction(
+        holding.symbol,
+        computeTrimPercentTo25(holding.weight),
+        holding.weight,
+        index === 0 || holding.symbol === input.stock,
+      ),
+    );
+  }
+
+  const action = input.action;
+  const isExplicitSell =
+    (isSellAction(action as DecisionActionType) || action === "sell") &&
+    input.stock;
+
+  if (
+    isExplicitSell &&
+    input.stock &&
+    !actionBySymbol.has(input.stock) &&
+    !hasConcentrationRisk
+  ) {
+    const sellSymbol = input.stock;
+    const trimPct = normalizePercent(input.suggested_sell_percent) || 25;
+    const concentration = normalizePercent(input.topAllocationPct);
+    addAction(buildSellAction(sellSymbol, trimPct, concentration, true));
+  }
+
+  for (const symbol of collectSymbols(input)) {
+    if (actionBySymbol.has(symbol)) {
+      continue;
+    }
+
+    const pick = findPick(input, symbol);
+    const isPrimary = symbol === input.stock;
+
+    if (hasConcentrationRisk) {
+      addAction(buildWaitAction(symbol, pick, input, isPrimary));
+      continue;
+    }
+
+    if (canBuy && action === "buy" && isPrimary) {
+      addAction(
+        buildBuyAction(
+          symbol,
+          deploymentPercentage,
+          deployAmount,
+          pick,
+          isPrimary,
+        ),
+      );
+      continue;
+    }
+
+    addAction(buildWaitAction(symbol, pick, input, isPrimary));
+  }
+
+  for (const item of actionBySymbol.values()) {
+    actions.push(item);
+  }
+
+  const actionRank: Record<CapitalActionType, number> = {
+    SELL: 0,
+    BUY: 1,
+    WAIT: 2,
+  };
+
+  return actions.sort(
+    (left, right) => actionRank[left.action] - actionRank[right.action],
+  );
 }
 
 function buildSellAction(
@@ -929,27 +1196,19 @@ function buildSellAction(
   concentration: number,
   isPrimary: boolean,
 ): CapitalAction {
-  const missing =
-    concentration > 25
-      ? "Position above limit."
-      : "Concentration above limit.";
-  const ifIgnored =
-    concentration > 25
-      ? "If ignored: concentration risk remains high."
-      : "If ignored: concentration risk remains high.";
-
   return {
     symbol,
     action: "SELL",
     deployPercentage: trimPct,
+    portfolioWeight: concentration,
     isPrimary,
     postActionImpact: buildPostActionImpact(concentration, trimPct),
     reason: {
-      missing: sanitizeCopy(missing),
-      confirm: sanitizeCopy(`Trim ${trimPct}% of ${symbol} today.`),
-      timing: sanitizeCopy("Act within 1–2 sessions after confirmation."),
+      missing: sanitizeCopy("Position above limit."),
+      confirm: sanitizeCopy("Trim to 25%."),
+      timing: sanitizeCopy("Act today."),
     },
-    ifIgnored: sanitizeCopy(ifIgnored),
+    ifIgnored: sanitizeCopy("If ignored: concentration risk remains high."),
   };
 }
 
@@ -974,31 +1233,6 @@ function buildWaitAction(
     },
     ifIgnored: sanitizeCopy(context.ifIgnored),
   };
-}
-
-function resolveActionForSymbol(
-  symbol: string,
-  input: CapitalDecisionInput,
-  deploymentPercentage: number,
-): CapitalAction {
-  const action = input.action;
-  const isPrimary = symbol === input.stock;
-  const pick = findPick(input, symbol);
-
-  if (
-    (isSellAction(action as DecisionActionType) || action === "sell") &&
-    isPrimary
-  ) {
-    const trimPct = normalizePercent(input.suggested_sell_percent) || 25;
-    const concentration = normalizePercent(input.topAllocationPct);
-    return buildSellAction(symbol, trimPct, concentration, isPrimary);
-  }
-
-  if (action === "buy" && isPrimary && deploymentPercentage > 0) {
-    return buildBuyAction(symbol, deploymentPercentage, pick, isPrimary);
-  }
-
-  return buildWaitAction(symbol, pick, input, isPrimary);
 }
 
 function collectSymbols(input: CapitalDecisionInput): string[] {
@@ -1070,7 +1304,7 @@ export function formatCapitalAction(action: CapitalAction): string {
   const lines = [action.symbol, `Action: ${action.action}`];
 
   if (action.action === "BUY") {
-    lines.push(deployLabel(action.deployPercentage));
+    lines.push(deployLabel(action.deployPercentage, action.deployAmount));
   }
 
   if (action.stage) {
@@ -1123,5 +1357,72 @@ export function summarizeCapitalDecision(decision: CapitalDecision): string {
     ? `${decision.growEmptyMessage} `
     : "";
 
-  return `${decision.heroAccountability} ${lead}. ${emptyPrefix}${decision.heroHeadline} ${action.symbol}: ${action.action} — ${deployLabel(action.deployPercentage)}. Missing: ${action.reason.missing}`;
+  return `${decision.heroAccountability} ${lead}. ${emptyPrefix}${decision.heroHeadline} ${action.symbol}: ${action.action} — ${deployLabel(action.deployPercentage, action.deployAmount)}. Missing: ${action.reason.missing}`;
+}
+
+function runCapitalDecisionSelfCheck(): void {
+  const assert = (condition: boolean, message: string) => {
+    if (!condition) {
+      throw new Error(`Capital self-check failed: ${message}`);
+    }
+  };
+
+  const noCashBuy = buildCapitalDecision({
+    intent: "grow",
+    action: "buy",
+    stock: "RELIANCE",
+    availableCash: 0,
+    portfolioValue: 500_000,
+    entryTiming: { enter: true },
+  });
+
+  assert(
+    !noCashBuy.actions.some((item) => item.action === "BUY"),
+    "BUY must be blocked when cash is zero",
+  );
+  assert(noCashBuy.deployAmount === 0, "Deploy amount must be zero without cash");
+
+  const concentratedBuy = buildCapitalDecision({
+    intent: "grow",
+    action: "buy",
+    stock: "RELIANCE",
+    availableCash: 100_000,
+    portfolioValue: 400_000,
+    topAllocationPct: 42,
+    entryTiming: { enter: true },
+  });
+
+  assert(
+    !concentratedBuy.actions.some((item) => item.action === "BUY"),
+    "BUY must be blocked during concentration risk",
+  );
+  assert(
+    concentratedBuy.actions.some((item) => item.action === "SELL"),
+    "Concentration must force SELL before BUY",
+  );
+
+  const validBuy = buildCapitalDecision({
+    intent: "grow",
+    action: "buy",
+    stock: "INFY",
+    availableCash: 50_000,
+    portfolioValue: 200_000,
+    topAllocationPct: 18,
+    allocationPercent: 20,
+    entryTiming: { enter: true },
+  });
+
+  assert(validBuy.deployAmount === 10_000, "Deploy amount must use cash only");
+  assert(
+    validBuy.actions.some(
+      (item) => item.action === "BUY" && item.deployAmount === 10_000,
+    ),
+    "BUY must include ₹ deploy amount",
+  );
+
+  validateCapitalDecision(validBuy);
+}
+
+if (process.env.APEX_CAPITAL_SELF_CHECK === "1") {
+  runCapitalDecisionSelfCheck();
 }

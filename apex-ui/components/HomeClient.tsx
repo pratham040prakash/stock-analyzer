@@ -650,6 +650,12 @@ export default function HomeClient({
               intent={userIntent}
               topSymbol={portfolioData?.top_symbol}
               topAllocationPct={portfolioData?.top_allocation_pct}
+              availableCash={availableCash ?? undefined}
+              portfolioValue={portfolioData?.total_value}
+              holdings={portfolioData?.holdings?.map((holding) => ({
+                symbol: holding.tradingsymbol,
+                weight: holding.allocation_pct,
+              }))}
             />
           ) : null}
 

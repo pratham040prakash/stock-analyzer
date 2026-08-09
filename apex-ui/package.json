@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
+    "prebuild": "npx --yes tsx scripts/validate-capital.ts",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

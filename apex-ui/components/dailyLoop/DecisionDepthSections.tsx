@@ -16,6 +16,7 @@ import {
   buildTrustReinforcement,
   formatGrowActionStage,
 } from "@/lib/dailyLoop/capitalDecision";
+import { formatInr } from "@/lib/funds";
 import {
   DAILY_CLOSURE_BODY,
   DAILY_CLOSURE_HEADLINE,
@@ -256,6 +257,14 @@ function GrowCapitalActionsBlock({
         <p className="text-sm leading-snug text-apex-text/70">
           {decision.portfolioStanceDetail}
         </p>
+        <p className="text-sm leading-snug text-apex-text/75">
+          Available cash: {formatInr(decision.availableCash)}
+        </p>
+        {decision.deployAmount > 0 ? (
+          <p className="text-sm leading-snug text-apex-text/75">
+            Deploy amount: {formatInr(decision.deployAmount)}
+          </p>
+        ) : null}
       </div>
 
       <div className="space-y-1">
@@ -369,7 +378,9 @@ function CapitalActionRow({ action }: { action: CapitalAction }) {
       {action.action === "BUY" ? (
         <>
           <p className="text-sm leading-snug text-apex-text/85">
-            Deploy {action.deployPercentage}% of your capital
+            {action.deployAmount !== undefined && action.deployAmount > 0
+              ? `Deploy ${formatInr(action.deployAmount)} (${action.deployPercentage}% of available cash)`
+              : `Deploy ${action.deployPercentage}% of available cash`}
           </p>
           <p className="text-sm leading-snug text-apex-text/85">
             Only if trigger confirms
@@ -396,6 +407,11 @@ function CapitalActionRow({ action }: { action: CapitalAction }) {
       ) : null}
       {action.action === "SELL" ? (
         <>
+          {action.portfolioWeight !== undefined ? (
+            <p className="text-sm leading-snug text-apex-text/85">
+              Portfolio weight: {Math.round(action.portfolioWeight)}%
+            </p>
+          ) : null}
           <p className="text-sm font-medium leading-snug text-apex-text/90">
             Reduce exposure
           </p>
