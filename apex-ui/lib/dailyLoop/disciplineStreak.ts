@@ -120,34 +120,41 @@ export function isNoTradeDecision(action: string, intent?: UserIntent): boolean 
 export function getStreakMessage(streakCount: number): string {
   const count = Math.max(0, Math.round(streakCount));
 
-  if (count <= 1) {
-    return "You stayed in control.";
+  if (count <= 0) {
+    return "Mark when you follow today to start protecting capital.";
+  }
+
+  if (count === 1) {
+    return "Discipline streak: 1 day — capital protected.";
   }
 
   if (count <= 3) {
-    return `${count} days of patience. That's rare.`;
+    return `Discipline streak: ${count} days — capital protected.`;
   }
 
-  if (count <= 7) {
-    return `${count} days. You're operating differently now.`;
-  }
-
-  return `${count} days. This is discipline.`;
+  return `Discipline streak: ${count} days — no unnecessary risk taken.`;
 }
 
 export const DISCIPLINE_PRESSURE_LINE =
-  "Breaking discipline today would reset your streak.";
+  "Breaking discipline today resets your streak and exposes capital to unnecessary risk.";
+
+export const WAIT_DISCIPLINE_REWARD =
+  "Staying in cash today is an active decision to protect capital.";
 
 const WAIT_REWARD_HOOKS = [
-  "Clean conditions return. Be ready.",
-  "You'll be deployed when it matters.",
+  "Cash preserved today keeps optionality for the next confirmed entry.",
+  "Patience today avoids capital deployed without edge.",
 ] as const;
 
-export function getWaitRewardHook(seed: string): string {
+export function getWaitRewardHook(seed: string): string | null {
   let hash = 0;
 
   for (let index = 0; index < seed.length; index += 1) {
     hash = (hash + seed.charCodeAt(index)) % 997;
+  }
+
+  if (hash % 3 !== 0) {
+    return null;
   }
 
   return WAIT_REWARD_HOOKS[hash % WAIT_REWARD_HOOKS.length];

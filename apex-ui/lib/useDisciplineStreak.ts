@@ -9,6 +9,7 @@ import {
   getWaitRewardHook,
   isNoTradeDecision,
   readDisciplineStreak,
+  WAIT_DISCIPLINE_REWARD,
   type DisciplineStreakSnapshot,
 } from "@/lib/dailyLoop/disciplineStreak";
 import type { UserIntent } from "@/types/intent";
@@ -17,6 +18,7 @@ type UseDisciplineStreakInput = {
   intent: UserIntent;
   action: string;
   stock?: string;
+  deploymentPercentage?: number;
 };
 
 export type DisciplineStreakView = {
@@ -27,6 +29,7 @@ export type DisciplineStreakView = {
   dailyContextLabel: string;
   isWaitMode: boolean;
   pressureLine: string | null;
+  waitDisciplineReward: string | null;
   rewardHook: string | null;
   commitFollowed: () => void;
 };
@@ -35,6 +38,7 @@ export function useDisciplineStreak({
   intent,
   action,
   stock,
+  deploymentPercentage,
 }: UseDisciplineStreakInput): DisciplineStreakView {
   const [snapshot, setSnapshot] = useState<DisciplineStreakSnapshot>(() =>
     readDisciplineStreak(),
@@ -57,7 +61,9 @@ export function useDisciplineStreak({
     return () => window.clearInterval(intervalId);
   }, []);
 
-  const isWaitMode = isNoTradeDecision(action, intent);
+  const isWaitMode =
+    isNoTradeDecision(action, intent) ||
+    (deploymentPercentage !== undefined && deploymentPercentage <= 0);
 
   const rewardHook = useMemo(() => {
     if (!isWaitMode) {
@@ -67,6 +73,8 @@ export function useDisciplineStreak({
     const seed = `${intent}:${action}:${stock ?? "none"}`;
     return getWaitRewardHook(seed);
   }, [action, intent, isWaitMode, stock]);
+
+  const waitDisciplineReward = isWaitMode ? WAIT_DISCIPLINE_REWARD : null;
 
   const commitFollowed = useCallback(() => {
     const next = commitDisciplineFollowed({ intent, action, stock });
@@ -81,6 +89,7 @@ export function useDisciplineStreak({
     dailyContextLabel,
     isWaitMode,
     pressureLine: isWaitMode ? DISCIPLINE_PRESSURE_LINE : null,
+    waitDisciplineReward,
     rewardHook,
     commitFollowed,
   };

@@ -185,7 +185,7 @@ export function getApexHeroSignature({
     hash = (hash + seed.charCodeAt(index)) % 997;
   }
 
-  if (hash % 3 !== 0) {
+  if (hash % 5 !== 0) {
     return null;
   }
 

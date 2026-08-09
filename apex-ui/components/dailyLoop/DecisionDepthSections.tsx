@@ -258,6 +258,7 @@ function CapitalActionRow({ action }: { action: CapitalAction }) {
         {action.missing ? <p>Missing: {action.missing}</p> : null}
         {action.confirm ? <p>Confirm: {action.confirm}</p> : null}
         {action.timing ? <p>Timing: {action.timing}</p> : null}
+        {action.ifIgnored ? <p>{action.ifIgnored}</p> : null}
       </div>
       {action.postActionImpact ? (
         <p className="mt-2 text-sm leading-snug text-apex-text/80">
@@ -265,6 +266,76 @@ function CapitalActionRow({ action }: { action: CapitalAction }) {
         </p>
       ) : null}
     </li>
+  );
+}
+
+export function ExecutionStatusBlock({
+  committedToday,
+  onMarkFollowed,
+  streakMessage,
+  pressureLine,
+  waitDisciplineReward,
+  rewardHook,
+  delayMs,
+}: {
+  committedToday: boolean;
+  onMarkFollowed: () => void;
+  streakMessage: string;
+  pressureLine: string | null;
+  waitDisciplineReward: string | null;
+  rewardHook: string | null;
+  delayMs: number;
+}) {
+  return (
+    <section
+      className="mt-5 space-y-3 animate-apex-fade-in"
+      style={{ animationDelay: `${delayMs}ms` }}
+    >
+      <div className="space-y-1">
+        <p className="text-xs font-medium uppercase tracking-[0.12em] text-apex-muted">
+          Execution status
+        </p>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-6">
+          <p
+            className={[
+              "text-sm leading-snug",
+              committedToday ? "text-apex-muted/45" : "font-medium text-apex-text/90",
+            ].join(" ")}
+          >
+            [ ] Not acted
+          </p>
+          {committedToday ? (
+            <p className="text-sm font-medium leading-snug text-emerald-300/90">
+              [✓] Followed today
+            </p>
+          ) : (
+            <button
+              type="button"
+              onClick={onMarkFollowed}
+              className="text-left text-sm leading-snug text-apex-text/85 transition-transform duration-150 hover:text-apex-text active:scale-[0.98]"
+            >
+              [ ] Followed today
+            </button>
+          )}
+        </div>
+      </div>
+
+      <p className="text-sm text-apex-text/80">{streakMessage}</p>
+
+      {pressureLine && !committedToday ? (
+        <p className="text-xs text-apex-muted/80">{pressureLine}</p>
+      ) : null}
+
+      {waitDisciplineReward ? (
+        <p className="text-sm leading-snug text-apex-text/75">
+          {waitDisciplineReward}
+        </p>
+      ) : null}
+
+      {rewardHook ? (
+        <p className="text-xs text-apex-muted/60">{rewardHook}</p>
+      ) : null}
+    </section>
   );
 }
 

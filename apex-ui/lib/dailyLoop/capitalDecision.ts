@@ -20,6 +20,7 @@ export type CapitalAction = {
   missing?: string;
   confirm?: string;
   timing?: string;
+  ifIgnored?: string;
   postActionImpact?: string;
   isPrimary?: boolean;
   reason: string;
@@ -213,6 +214,7 @@ type WaitContext = {
   missing: string;
   confirm: string;
   timing: string;
+  ifIgnored: string;
 };
 
 function resolveWaitContext(
@@ -230,6 +232,8 @@ function resolveWaitContext(
       confirm: "Capital moves only on an explicit grow or protect decision.",
       timing:
         "Hold over next sessions — observe until you set a grow or protect mandate.",
+      ifIgnored:
+        "If ignored: capital deploys without authorization and adds uncompensated risk.",
     };
   }
 
@@ -240,6 +244,8 @@ function resolveWaitContext(
       confirm: "Buy only on breakout above resistance with volume.",
       timing:
         "If breakout confirms, deploy within next 1–2 sessions — acting early risks a false break.",
+      ifIgnored:
+        "If ignored: capital enters before confirmation and risks a false breakout.",
     };
   }
 
@@ -249,6 +255,8 @@ function resolveWaitContext(
       missing: "Book concentration must clear before new capital moves.",
       confirm: "Buy only after the trim rebalance completes.",
       timing,
+      ifIgnored:
+        "If ignored: new capital adds to an unbalanced book before the trim completes.",
     };
   }
 
@@ -258,6 +266,8 @@ function resolveWaitContext(
       missing: "Primary trigger not confirmed for your capital.",
       confirm: "Buy only when APEX confirms the lead symbol.",
       timing: "Hold over next sessions — lead symbol not yet confirmed for deployment.",
+      ifIgnored:
+        "If ignored: capital moves before the lead symbol confirms and faces avoidable risk.",
     };
   }
 
@@ -270,6 +280,8 @@ function resolveWaitContext(
       missing: "Structure incomplete — below deployment threshold.",
       confirm: "Buy when alignment crosses threshold on a confirmed close.",
       timing,
+      ifIgnored:
+        "If ignored: capital deploys below threshold and faces avoidable drawdown.",
     };
   }
 
@@ -279,6 +291,8 @@ function resolveWaitContext(
       missing: "Direction not confirmed — price below prior range.",
       confirm: "Buy only when trend validates above the recent range.",
       timing,
+      ifIgnored:
+        "If ignored: capital buys into a range before direction is confirmed.",
     };
   }
 
@@ -291,6 +305,8 @@ function resolveWaitContext(
         stage === "Close to trigger"
           ? "If volume follows through, act within next 1–2 sessions — otherwise wait."
           : timing,
+      ifIgnored:
+        "If ignored: capital chases price without volume follow-through.",
     };
   }
 
@@ -300,6 +316,8 @@ function resolveWaitContext(
     confirm: "Buy only on breakout above resistance.",
     timing:
       "If resistance breaks on volume, deploy within next 1–2 sessions — patience until then.",
+    ifIgnored:
+      "If ignored: capital enters before the break confirms and takes entry risk.",
   };
 }
 
@@ -469,6 +487,10 @@ function buildSellAction(
     concentration > 25
       ? `Position at ${concentration}% — above single-name limit.`
       : "Concentration limit requires a reduction.";
+  const ifIgnored =
+    concentration > 25
+      ? `If ignored: ${symbol} stays at ${concentration}% — concentration risk remains on your capital.`
+      : `If ignored: the rebalance is delayed and book risk persists on your capital.`;
 
   return {
     symbol,
@@ -480,6 +502,7 @@ function buildSellAction(
     missing: sanitizeCopy(missing),
     confirm: sanitizeCopy(`Trim ${trimPct}% of ${symbol} to rebalance your capital.`),
     timing: "Act this session.",
+    ifIgnored: sanitizeCopy(ifIgnored),
     reason: composeReason({
       missing,
       confirm: `Trim ${trimPct}% of ${symbol} to rebalance your capital.`,
@@ -506,6 +529,7 @@ function buildWaitAction(
     missing: sanitizeCopy(context.missing),
     confirm: sanitizeCopy(context.confirm),
     timing: sanitizeCopy(context.timing),
+    ifIgnored: sanitizeCopy(context.ifIgnored),
     reason: composeReason(context),
   };
 }
@@ -615,6 +639,10 @@ export function formatCapitalAction(action: CapitalAction): string {
   }
 
   lines.push(`Reason: ${action.reason}`);
+
+  if (action.ifIgnored) {
+    lines.push(action.ifIgnored);
+  }
 
   if (action.postActionImpact) {
     lines.push(action.postActionImpact);
