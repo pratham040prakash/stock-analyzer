@@ -257,6 +257,8 @@ export default function HomeDecisionScreen({
             pressureLine={retention.pressureLine}
             waitDisciplineReward={retention.waitDisciplineReward}
             rewardHook={retention.rewardHook}
+            commitmentHeadline={retention.commitmentHeadline}
+            commitmentMicroReward={retention.commitmentMicroReward}
             delayMs={nextDelay()}
             capitalDeployment={isCapitalDeployment}
             decision={capitalDecision}

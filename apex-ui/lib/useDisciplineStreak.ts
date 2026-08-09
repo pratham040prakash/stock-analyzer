@@ -14,6 +14,7 @@ import {
   WAIT_DISCIPLINE_REWARD,
   type DisciplineStreakSnapshot,
 } from "@/lib/dailyLoop/disciplineStreak";
+import { buildCommitmentCopy } from "@/lib/dailyLoop/disciplineCommitment";
 import type { UserIntent } from "@/types/intent";
 
 type UseDisciplineStreakInput = {
@@ -35,6 +36,8 @@ export type DisciplineStreakView = {
   pressureLine: string | null;
   waitDisciplineReward: string | null;
   rewardHook: string | null;
+  commitmentHeadline: string;
+  commitmentMicroReward: string | null;
   commitFollowed: () => void;
 };
 
@@ -84,10 +87,25 @@ export function useDisciplineStreak({
 
   const waitDisciplineReward = isWaitMode ? WAIT_DISCIPLINE_REWARD : null;
 
+  const commitmentSeed = useMemo(
+    () =>
+      `${new Date().toISOString().slice(0, 10)}:${intent}:${action}:${stock ?? "none"}`,
+    [action, intent, stock],
+  );
+
+  const commitmentCopy = useMemo(
+    () => buildCommitmentCopy(snapshot.committedToday, commitmentSeed),
+    [commitmentSeed, snapshot.committedToday],
+  );
+
   const commitFollowed = useCallback(() => {
+    if (snapshot.committedToday) {
+      return;
+    }
+
     const next = commitDisciplineFollowed({ intent, action, stock });
     setSnapshot(next);
-  }, [action, intent, stock]);
+  }, [action, intent, snapshot.committedToday, stock]);
 
   return {
     streakCount: snapshot.streakCount,
@@ -101,6 +119,8 @@ export function useDisciplineStreak({
     pressureLine: snapshot.committedToday ? null : DISCIPLINE_PRESSURE_LINE,
     waitDisciplineReward,
     rewardHook,
+    commitmentHeadline: commitmentCopy.headline,
+    commitmentMicroReward: commitmentCopy.microReward,
     commitFollowed,
   };
 }

@@ -4,7 +4,9 @@ import "../lib/dailyLoop/capitalDecision";
 import { runCapitalProjectionSelfCheck } from "../lib/dailyLoop/capitalProjection";
 import { runCapitalFinalStateSelfCheck } from "../lib/dailyLoop/capitalFinalState";
 import { runCapitalDecisionLockSelfCheck } from "../lib/dailyLoop/capitalDecisionLock";
+import { runCommitmentSelfCheck } from "../lib/dailyLoop/disciplineCommitment";
 
 runCapitalProjectionSelfCheck();
 runCapitalFinalStateSelfCheck();
 runCapitalDecisionLockSelfCheck();
+runCommitmentSelfCheck();

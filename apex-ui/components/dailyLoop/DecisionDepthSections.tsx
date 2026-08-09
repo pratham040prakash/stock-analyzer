@@ -492,6 +492,8 @@ export function ExecutionStatusBlock({
   pressureLine,
   waitDisciplineReward,
   rewardHook,
+  commitmentHeadline,
+  commitmentMicroReward,
   delayMs,
   capitalDeployment = false,
   decision,
@@ -502,6 +504,8 @@ export function ExecutionStatusBlock({
   pressureLine: string | null;
   waitDisciplineReward: string | null;
   rewardHook: string | null;
+  commitmentHeadline?: string;
+  commitmentMicroReward?: string | null;
   delayMs: number;
   capitalDeployment?: boolean;
   decision?: CapitalDecision;
@@ -517,6 +521,16 @@ export function ExecutionStatusBlock({
         className="mt-8 space-y-2 animate-apex-fade-in"
         style={{ animationDelay: `${delayMs}ms` }}
       >
+        {commitmentHeadline ? (
+          <p className="text-sm font-medium leading-snug text-apex-text/90">
+            {commitmentHeadline}
+          </p>
+        ) : null}
+        {commitmentMicroReward ? (
+          <p className="text-xs leading-snug text-apex-muted/65">
+            {commitmentMicroReward}
+          </p>
+        ) : null}
         {committedToday ? (
           <p className="text-sm leading-snug text-apex-text/90">
             [✓] Followed today
@@ -525,7 +539,8 @@ export function ExecutionStatusBlock({
           <button
             type="button"
             onClick={onMarkFollowed}
-            className="text-left text-sm leading-snug text-apex-text/85 transition-opacity hover:text-apex-text"
+            disabled={committedToday}
+            className="text-left text-sm leading-snug text-apex-text/85 transition-opacity hover:text-apex-text disabled:cursor-default disabled:opacity-60"
           >
             [ ] Followed today
           </button>
