@@ -1,3 +1,4 @@
+import { tradingDateKey } from "@/lib/dailyLoop/disciplineDates";
 import { computeStopLoss } from "@/services/risk/riskControl";
 import { fetchStockData } from "@/services/market/stockData";
 import type {
@@ -83,7 +84,7 @@ export async function logDecision(
       : null;
 
   if (isBuy && decision.stock) {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = tradingDateKey();
     const { data: existing } = await supabase
       .from("decision_memory")
       .select("id")
@@ -103,6 +104,7 @@ export async function logDecision(
     .insert({
       user_id: context.userId,
       timestamp_ms: Date.now(),
+      decision_date: tradingDateKey(),
       intent: context.intent ?? decision.intent ?? null,
       stock: decision.stock ?? null,
       action: decision.action,

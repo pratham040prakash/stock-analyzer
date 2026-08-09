@@ -9,6 +9,7 @@ import { runTodaySurfaceSelfCheck } from "../lib/dailyLoop/todaySurface";
 import { runZerodhaFundsSelfCheck } from "../lib/broker/zerodhaFunds";
 import { runCommitmentSelfCheck } from "../lib/dailyLoop/disciplineCommitment";
 import { runDisciplineHistoryMergeSelfCheck } from "../lib/dailyLoop/disciplineHistoryMerge";
+import { runTradingDateSelfCheck } from "../lib/dailyLoop/disciplineDates";
 
 runCapitalProjectionSelfCheck();
 runCapitalFinalStateSelfCheck();
@@ -18,3 +19,4 @@ runTodaySurfaceSelfCheck();
 runZerodhaFundsSelfCheck();
 runCommitmentSelfCheck();
 runDisciplineHistoryMergeSelfCheck();
+runTradingDateSelfCheck();

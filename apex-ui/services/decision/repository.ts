@@ -8,19 +8,16 @@ import type {
 import { dailyDecisionTypeToAction } from "@/types/decision";
 import type { DecisionHistoryEntry } from "@/types/decisionHistory";
 import { getDisciplineHistory } from "@/services/decision/disciplineHistory";
+import { tradingDateKey } from "@/lib/dailyLoop/disciplineDates";
 
 type Client = SupabaseClient<Database>;
-
-function utcDateString(date = new Date()): string {
-  return date.toISOString().slice(0, 10);
-}
 
 export async function saveDailyDecision(
   supabase: Client,
   userId: string,
   output: DailyDecisionOutput,
 ): Promise<void> {
-  const decisionDate = utcDateString();
+  const decisionDate = tradingDateKey();
 
   const { error } = await supabase.from("decisions").upsert(
     {
@@ -90,7 +87,7 @@ export async function getTodayDailyDecision(
   supabase: Client,
   userId: string,
 ): Promise<(DailyDecisionOutput & { created_at: string }) | null> {
-  const today = utcDateString();
+  const today = tradingDateKey();
 
   const { data, error } = await supabase
     .from("decisions")

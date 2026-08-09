@@ -1,3 +1,4 @@
+import { tradingDateKey } from "@/lib/dailyLoop/disciplineDates";
 import type { MarketTrend } from "@/types/decision";
 import type { Database } from "@/types/database";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -25,10 +26,6 @@ export type RiskCheckResult = {
   reason?: string;
 };
 
-function utcDateString(date = new Date()): string {
-  return date.toISOString().slice(0, 10);
-}
-
 export function computeStopLoss(entryPrice: number): number {
   return entryPrice * STOP_LOSS_MULTIPLIER;
 }
@@ -54,7 +51,7 @@ async function countTodayTrades(
   supabase: Client,
   userId: string,
 ): Promise<number> {
-  const today = utcDateString();
+  const today = tradingDateKey();
 
   const { count, error } = await supabase
     .from("decision_memory")
@@ -74,7 +71,7 @@ async function getTodayRealizedPnl(
   supabase: Client,
   userId: string,
 ): Promise<number> {
-  const today = utcDateString();
+  const today = tradingDateKey();
 
   const { data, error } = await supabase
     .from("decision_memory")

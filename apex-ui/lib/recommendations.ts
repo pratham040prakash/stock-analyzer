@@ -4,6 +4,7 @@ import {
   STOCK_POOL,
   type StockProfile,
 } from "@/lib/stockPool";
+import { tradingDateKey } from "@/lib/dailyLoop/disciplineDates";
 import type { PortfolioRiskLevel } from "@/lib/portfolioRisk";
 import type { DecisionOpportunity } from "@/types/decision";
 import type { Intent } from "@/types/intent";
@@ -29,7 +30,7 @@ type ScoredStock = {
 export const RECOMMENDATION_TOP_COUNT = 3;
 
 function dailyJitter(symbol: string): number {
-  const day = new Date().toISOString().slice(0, 10);
+  const day = tradingDateKey();
   let hash = 0;
 
   for (const char of `${symbol}:${day}`) {

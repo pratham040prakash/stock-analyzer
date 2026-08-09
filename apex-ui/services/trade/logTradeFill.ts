@@ -1,3 +1,4 @@
+import { tradingDateKey } from "@/lib/dailyLoop/disciplineDates";
 import { computeStopLoss } from "@/services/risk/riskControl";
 import type { Signals } from "@/types/decision";
 import type { Database } from "@/types/database";
@@ -13,10 +14,6 @@ export type TradeFillInput = {
   amount: number;
   orderId: string;
 };
-
-function utcDateString(date = new Date()): string {
-  return date.toISOString().slice(0, 10);
-}
 
 function fillSignals(orderId: string, price: number): Signals {
   return {
@@ -37,7 +34,7 @@ export async function logTradeFill(
 ): Promise<string | null> {
   if (fill.side === "buy") {
     const stopLoss = computeStopLoss(fill.price);
-    const today = utcDateString();
+    const today = tradingDateKey();
 
     const { data: existing } = await supabase
       .from("decision_memory")
