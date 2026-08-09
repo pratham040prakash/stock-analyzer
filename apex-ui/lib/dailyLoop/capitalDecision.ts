@@ -2,6 +2,7 @@ import type { StockPick } from "@/types/decision";
 import { isSellAction, type DecisionActionType } from "@/types/decision";
 import type { UserIntent } from "@/types/intent";
 import { formatInr } from "@/lib/funds";
+import { getTrustMicroReward } from "@/lib/dailyLoop/disciplineStreak";
 
 export type DeploymentStance =
   | "No Deployment"
@@ -1034,10 +1035,12 @@ export type TrustReinforcement = {
   confirmation: string;
   framing: string;
   nextStep: string;
+  microReward: string | null;
 };
 
 export function buildTrustReinforcement(
   decision: CapitalDecision,
+  seed?: string,
 ): TrustReinforcement {
   const hasSell = decision.actions.some((item) => item.action === "SELL");
 
@@ -1051,10 +1054,15 @@ export function buildTrustReinforcement(
     framing = "Capital remained protected. No unnecessary risk taken.";
   }
 
+  const rewardSeed =
+    seed ??
+    `${new Date().toISOString().slice(0, 10)}:${decision.mode}:${decision.primaryAction}`;
+
   return {
     confirmation: "You followed the system today.",
     framing,
     nextStep: "Next review: after market close or on new signal.",
+    microReward: getTrustMicroReward(rewardSeed),
   };
 }
 

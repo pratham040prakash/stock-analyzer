@@ -120,26 +120,73 @@ export function isNoTradeDecision(action: string, intent?: UserIntent): boolean 
 export function getStreakMessage(streakCount: number): string {
   const count = Math.max(0, Math.round(streakCount));
 
-  if (count <= 0) {
-    return "Mark when you follow today to start protecting capital.";
+  if (count < 3) {
+    return "Building discipline — stay consistent.";
   }
 
-  if (count === 1) {
-    return "Discipline streak: 1 day — capital protected.";
+  if (count <= 7) {
+    return "Consistency forming — capital protection improving.";
   }
 
-  if (count <= 3) {
-    return `Discipline streak: ${count} days — capital protected.`;
-  }
-
-  return `Discipline streak: ${count} days — no unnecessary risk taken.`;
+  return "Strong discipline — unnecessary risk avoided.";
 }
 
 export const DISCIPLINE_PRESSURE_LINE =
-  "Breaking discipline today resets your streak and exposes capital to unnecessary risk.";
+  "Skipping today breaks your discipline streak.";
 
 export const WAIT_DISCIPLINE_REWARD =
-  "Staying in cash today is an active decision to protect capital.";
+  "Staying in cash is an active decision.";
+
+export const TRUST_MICRO_REWARD =
+  "Discipline today compounds into capital protection.";
+
+export function getDecisionTensionLine(committedToday: boolean): string {
+  return committedToday
+    ? "Today's decision completed."
+    : "Today's decision is pending.";
+}
+
+function getIstMinutes(now: Date): number {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Kolkata",
+    hour: "numeric",
+    minute: "numeric",
+    hour12: false,
+  }).formatToParts(now);
+  const hour = Number(parts.find((part) => part.type === "hour")?.value ?? 0);
+  const minute = Number(
+    parts.find((part) => part.type === "minute")?.value ?? 0,
+  );
+
+  return hour * 60 + minute;
+}
+
+/** NSE cash session window (IST): 9:15–15:30. */
+export function getSessionTimeContext(now: Date = new Date()): string {
+  const minutes = getIstMinutes(now);
+  const open = 9 * 60 + 15;
+  const close = 15 * 60 + 30;
+
+  if (minutes >= open && minutes < close) {
+    return "Decision valid for today's session.";
+  }
+
+  return "Decision closed — review tomorrow.";
+}
+
+export function getTrustMicroReward(seed: string): string | null {
+  let hash = 0;
+
+  for (let index = 0; index < seed.length; index += 1) {
+    hash = (hash + seed.charCodeAt(index)) % 997;
+  }
+
+  if (hash % 5 !== 0) {
+    return null;
+  }
+
+  return TRUST_MICRO_REWARD;
+}
 
 export const DAILY_CLOSURE_HEADLINE = "You've followed the system today.";
 export const DAILY_CLOSURE_BODY =
@@ -248,8 +295,8 @@ export function formatDailyContextLabel(now: Date = new Date()): string {
       minute: "2-digit",
     }).format(now);
 
-    return `Daily Check · ${time}`;
+    return `Daily capital decision · ${time}`;
   } catch {
-    return "Today's Readiness";
+    return "Today's capital decision";
   }
 }

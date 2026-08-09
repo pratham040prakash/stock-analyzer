@@ -477,14 +477,31 @@ export function ExecutionStatusBlock({
             <p className="text-sm leading-snug text-apex-text/80">
               {trustReinforcement.framing}
             </p>
+            {trustReinforcement.microReward ? (
+              <p className="text-xs leading-snug text-apex-muted/65">
+                {trustReinforcement.microReward}
+              </p>
+            ) : null}
             <p className="text-xs leading-snug text-apex-muted/60">
               {trustReinforcement.nextStep}
             </p>
           </div>
         ) : (
-          <p className="text-sm leading-snug text-apex-text/70">
-            Discipline builds capital protection.
-          </p>
+          <div className="space-y-1">
+            <p className="text-xs leading-snug text-apex-muted/70">
+              {streakMessage}
+            </p>
+            {pressureLine ? (
+              <p className="text-xs leading-snug text-apex-muted/65">
+                {pressureLine}
+              </p>
+            ) : null}
+            {waitDisciplineReward ? (
+              <p className="text-xs leading-snug text-apex-muted/60">
+                {waitDisciplineReward}
+              </p>
+            ) : null}
+          </div>
         )}
       </section>
     );

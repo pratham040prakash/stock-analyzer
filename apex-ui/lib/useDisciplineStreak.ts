@@ -5,6 +5,8 @@ import {
   commitDisciplineFollowed,
   DISCIPLINE_PRESSURE_LINE,
   formatDailyContextLabel,
+  getDecisionTensionLine,
+  getSessionTimeContext,
   getStreakMessage,
   getWaitRewardHook,
   isNoTradeDecision,
@@ -27,6 +29,8 @@ export type DisciplineStreakView = {
   committedToday: boolean;
   streakMessage: string;
   dailyContextLabel: string;
+  decisionTensionLine: string;
+  sessionTimeContext: string;
   isWaitMode: boolean;
   pressureLine: string | null;
   waitDisciplineReward: string | null;
@@ -46,18 +50,22 @@ export function useDisciplineStreak({
   const [dailyContextLabel, setDailyContextLabel] = useState(() =>
     formatDailyContextLabel(),
   );
+  const [sessionTimeContext, setSessionTimeContext] = useState(() =>
+    getSessionTimeContext(),
+  );
 
   useEffect(() => {
     setSnapshot(readDisciplineStreak());
   }, [intent, action, stock]);
 
   useEffect(() => {
-    const updateLabel = () => {
+    const updateContext = () => {
       setDailyContextLabel(formatDailyContextLabel());
+      setSessionTimeContext(getSessionTimeContext());
     };
 
-    updateLabel();
-    const intervalId = window.setInterval(updateLabel, 60_000);
+    updateContext();
+    const intervalId = window.setInterval(updateContext, 60_000);
     return () => window.clearInterval(intervalId);
   }, []);
 
@@ -87,8 +95,10 @@ export function useDisciplineStreak({
     committedToday: snapshot.committedToday,
     streakMessage: getStreakMessage(snapshot.streakCount),
     dailyContextLabel,
+    decisionTensionLine: getDecisionTensionLine(snapshot.committedToday),
+    sessionTimeContext,
     isWaitMode,
-    pressureLine: isWaitMode ? DISCIPLINE_PRESSURE_LINE : null,
+    pressureLine: snapshot.committedToday ? null : DISCIPLINE_PRESSURE_LINE,
     waitDisciplineReward,
     rewardHook,
     commitFollowed,

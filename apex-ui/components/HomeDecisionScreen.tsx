@@ -175,6 +175,14 @@ export default function HomeDecisionScreen({
             <p className="text-xs text-apex-muted/60">
               {retention.dailyContextLabel}
             </p>
+            <p className="text-xs text-apex-muted/55">
+              {retention.decisionTensionLine}
+            </p>
+            {isCapitalDeployment ? (
+              <p className="text-xs text-apex-muted/50">
+                {retention.sessionTimeContext}
+              </p>
+            ) : null}
             <p className="text-xs font-medium uppercase tracking-[0.14em] text-apex-muted">
               {isCapitalDeployment ? "Capital deployment" : experience.tagline}
             </p>
