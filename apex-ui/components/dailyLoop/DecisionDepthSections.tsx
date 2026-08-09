@@ -195,8 +195,11 @@ export function CapitalActionsBlock({
           <p className="text-xs font-medium uppercase tracking-[0.12em] text-apex-muted">
             Portfolio stance
           </p>
-          <p className="text-sm leading-snug text-apex-text/85">
+          <p className="text-sm font-medium leading-snug text-apex-text/90">
             {decision.portfolioStance}
+          </p>
+          <p className="text-sm leading-snug text-apex-text/75">
+            {decision.portfolioStanceDetail}
           </p>
         </div>
 
@@ -206,6 +209,9 @@ export function CapitalActionsBlock({
           </p>
           <p className="text-base font-semibold leading-snug text-apex-text">
             {decision.primaryAction}
+          </p>
+          <p className="text-sm leading-snug text-apex-text/75">
+            {decision.primaryActionDetail}
           </p>
         </div>
 

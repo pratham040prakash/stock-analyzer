@@ -288,6 +288,9 @@ export default function DailyDecisionCard({
               <ApexBody className="text-sm text-apex-muted">
                 {capitalDecision.heroSubline}
               </ApexBody>
+              <p className="text-xs text-apex-muted/70">
+                {capitalDecision.heroAccountability}
+              </p>
             </header>
 
             <CapitalActionsBlock decision={capitalDecision} delayMs={0} />

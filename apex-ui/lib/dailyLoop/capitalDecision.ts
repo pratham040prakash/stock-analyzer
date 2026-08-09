@@ -32,8 +32,11 @@ export type CapitalDecision = {
   actions: CapitalAction[];
   heroHeadline: string;
   heroSubline: string;
+  heroAccountability: string;
   portfolioStance: string;
+  portfolioStanceDetail: string;
   primaryAction: string;
+  primaryActionDetail: string;
 };
 
 export type CapitalDecisionInput = {
@@ -129,14 +132,14 @@ function resolveWaitStage(pick: StockPick | undefined): WaitStage {
 
 function waitTiming(stage: WaitStage): string {
   if (stage === "Close to trigger") {
-    return "within next 1–2 sessions";
+    return "If confirmation clears, act within next 1–2 sessions — delay adds entry risk.";
   }
 
   if (stage === "Developing") {
-    return "within next 2–3 sessions";
+    return "Reassess within next 2–3 sessions — hold capital until structure completes.";
   }
 
-  return "over next sessions";
+  return "Hold over next sessions — setup still forming, no capital move yet.";
 }
 
 function composeReason(parts: {
@@ -225,7 +228,8 @@ function resolveWaitContext(
       stage,
       missing: "No deployment mandate — capital stays idle.",
       confirm: "Capital moves only on an explicit grow or protect decision.",
-      timing: "over next sessions",
+      timing:
+        "Hold over next sessions — observe until you set a grow or protect mandate.",
     };
   }
 
@@ -234,7 +238,8 @@ function resolveWaitContext(
       stage: "Close to trigger",
       missing: "Breakout above resistance not confirmed.",
       confirm: "Buy only on breakout above resistance with volume.",
-      timing: "within next 1–2 sessions",
+      timing:
+        "If breakout confirms, deploy within next 1–2 sessions — acting early risks a false break.",
     };
   }
 
@@ -252,7 +257,7 @@ function resolveWaitContext(
       stage: "Early stage",
       missing: "Primary trigger not confirmed for your capital.",
       confirm: "Buy only when APEX confirms the lead symbol.",
-      timing: "over next sessions",
+      timing: "Hold over next sessions — lead symbol not yet confirmed for deployment.",
     };
   }
 
@@ -282,7 +287,10 @@ function resolveWaitContext(
       stage,
       missing: "Momentum not confirmed — follow-through absent.",
       confirm: "Buy when momentum confirms on volume over next sessions.",
-      timing,
+      timing:
+        stage === "Close to trigger"
+          ? "If volume follows through, act within next 1–2 sessions — otherwise wait."
+          : timing,
     };
   }
 
@@ -290,7 +298,8 @@ function resolveWaitContext(
     stage: "Close to trigger",
     missing: "Final confirmation bar not cleared yet.",
     confirm: "Buy only on breakout above resistance.",
-    timing: "within next 1–2 sessions",
+    timing:
+      "If resistance breaks on volume, deploy within next 1–2 sessions — patience until then.",
   };
 }
 
@@ -337,49 +346,117 @@ function buildPostActionImpact(
   return `Position at ${concentration}% → trim ${trimPct}% → post-trim ${postTrimPct}%`;
 }
 
+function buildHeroAccountability(
+  input: CapitalDecisionInput,
+  deploymentPercentage: number,
+): string {
+  const action = input.action;
+  const concentration = normalizePercent(input.topAllocationPct);
+
+  if (
+    isSellAction(action as DecisionActionType) ||
+    action === "sell" ||
+    input.intent === "protect" ||
+    deploymentPercentage <= 0 ||
+    concentration > 25
+  ) {
+    return "Reflecting current risk environment.";
+  }
+
+  return "Based on current market conditions.";
+}
+
 function buildPortfolioStance(
   input: CapitalDecisionInput,
   deploymentPercentage: number,
+  cashPercentage: number,
   actions: CapitalAction[],
-): string {
+): { headline: string; detail: string } {
   const action = input.action;
   const buyCount = actions.filter((item) => item.action === "BUY").length;
 
   if (isSellAction(action as DecisionActionType) || action === "sell") {
-    return "Defensive — protecting concentrated exposure";
+    return {
+      headline: "Defensive — protecting concentrated exposure",
+      detail: `${cashPercentage}% of your capital stays elsewhere until the rebalance clears concentration risk.`,
+    };
   }
 
   if (deploymentPercentage >= 50 || buyCount >= 2) {
-    return "Active — multiple aligned opportunities";
+    return {
+      headline: "Active — multiple aligned opportunities",
+      detail: `${deploymentPercentage}% of your capital may deploy today — ${cashPercentage}% held in reserve as buffer.`,
+    };
   }
 
   if (deploymentPercentage > 0 || buyCount === 1) {
-    return "Selective — limited confirmed setups";
+    return {
+      headline: "Selective — limited confirmed setups",
+      detail: `Only ${deploymentPercentage}% of your capital clears for deployment; ${cashPercentage}% remains idle until more confirms.`,
+    };
   }
 
-  return "Defensive — no valid deployment";
+  if (input.intent === "explore") {
+    return {
+      headline: "Defensive — no valid deployment",
+      detail: `${cashPercentage}% of your capital stays in cash — explore mode does not authorize deployment.`,
+    };
+  }
+
+  return {
+    headline: "Defensive — no valid deployment",
+    detail: `${cashPercentage}% of your capital remains idle — no entry trigger confirmed today.`,
+  };
 }
 
 function buildPrimaryAction(
   input: CapitalDecisionInput,
   deploymentPercentage: number,
+  cashPercentage: number,
   actions: CapitalAction[],
-): string {
+): { headline: string; detail: string } {
   const action = input.action;
 
   if (isSellAction(action as DecisionActionType) || action === "sell") {
     const symbol =
       input.stock ?? actions.find((item) => item.action === "SELL")?.symbol;
 
-    return symbol ? `Trim ${symbol} exposure` : "Trim concentrated exposure";
+    return {
+      headline: symbol ? `Trim ${symbol} exposure` : "Trim concentrated exposure",
+      detail:
+        "Delaying the trim leaves single-name concentration on your capital.",
+    };
   }
 
   const primaryBuy = actions.find((item) => item.action === "BUY");
   if (primaryBuy && deploymentPercentage > 0) {
-    return `Deploy ${primaryBuy.allocation}% into ${primaryBuy.symbol}`;
+    return {
+      headline: `Deploy ${primaryBuy.allocation}% into ${primaryBuy.symbol}`,
+      detail: `${cashPercentage}% stays in cash — exceeding the allocated sleeve adds uncompensated risk.`,
+    };
   }
 
-  return "Remain in cash";
+  if (input.intent === "explore") {
+    return {
+      headline: "Remain in cash",
+      detail:
+        "Deploying without a grow or protect mandate puts capital at work without authorization.",
+    };
+  }
+
+  if (action === "buy" && input.entryTiming?.enter === false) {
+    return {
+      headline: "Remain in cash",
+      detail:
+        "Entry is not confirmed — deploying now risks capital on an unvalidated break.",
+    };
+  }
+
+  return {
+    headline: "Remain in cash",
+    detail:
+      "Premature deployment increases risk to your capital without confirmation.",
+  };
 }
 
 function buildSellAction(
@@ -493,6 +570,19 @@ export function buildCapitalDecision(input: CapitalDecisionInput): CapitalDecisi
         )
       : [];
 
+  const portfolioStance = buildPortfolioStance(
+    input,
+    deploymentPercentage,
+    cashPercentage,
+    actions,
+  );
+  const primaryAction = buildPrimaryAction(
+    input,
+    deploymentPercentage,
+    cashPercentage,
+    actions,
+  );
+
   return {
     stance,
     cashPercentage,
@@ -505,8 +595,11 @@ export function buildCapitalDecision(input: CapitalDecisionInput): CapitalDecisi
       cashPercentage,
       deploymentPercentage,
     ),
-    portfolioStance: buildPortfolioStance(input, deploymentPercentage, actions),
-    primaryAction: buildPrimaryAction(input, deploymentPercentage, actions),
+    heroAccountability: buildHeroAccountability(input, deploymentPercentage),
+    portfolioStance: portfolioStance.headline,
+    portfolioStanceDetail: portfolioStance.detail,
+    primaryAction: primaryAction.headline,
+    primaryActionDetail: primaryAction.detail,
   };
 }
 
@@ -531,12 +624,12 @@ export function formatCapitalAction(action: CapitalAction): string {
 }
 
 export function summarizeCapitalDecision(decision: CapitalDecision): string {
-  const lead = `${decision.portfolioStance} Primary: ${decision.primaryAction}.`;
+  const lead = `${decision.portfolioStance} ${decision.portfolioStanceDetail} Primary: ${decision.primaryAction} — ${decision.primaryActionDetail}`;
 
   if (decision.actions.length === 0) {
-    return `${lead} ${decision.heroHeadline} ${decision.heroSubline}`;
+    return `${decision.heroAccountability} ${lead}. ${decision.heroHeadline} ${decision.heroSubline}`;
   }
 
   const action = decision.actions[0];
-  return `${lead} ${decision.heroHeadline} ${action.symbol}: ${action.action} — ${action.deployLabel}. ${action.reason}`;
+  return `${decision.heroAccountability} ${lead}. ${decision.heroHeadline} ${action.symbol}: ${action.action} — ${action.deployLabel}. ${action.reason}`;
 }
