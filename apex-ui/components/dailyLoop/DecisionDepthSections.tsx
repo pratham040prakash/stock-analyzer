@@ -16,6 +16,7 @@ import {
   buildTrustReinforcement,
   formatGrowActionStage,
 } from "@/lib/dailyLoop/capitalDecision";
+import { formatFinalStateSummary } from "@/lib/dailyLoop/capitalFinalState";
 import { formatInr } from "@/lib/funds";
 import {
   DAILY_CLOSURE_BODY,
@@ -288,6 +289,27 @@ function GrowCapitalActionsBlock({
             <CapitalActionRow key={item.symbol} action={item} />
           ))}
         </ul>
+      ) : null}
+
+      {decision.finalState ? (
+        <div className="space-y-1 border-t border-apex-border/15 pt-4">
+          {formatFinalStateSummary(decision.finalState).map((line) => (
+            <p
+              key={line}
+              className={[
+                "text-sm leading-snug",
+                line === decision.finalState?.risk &&
+                decision.finalState.risk === "Concentration risk remains"
+                  ? "text-amber-200/85"
+                  : line === "After execution:"
+                    ? "font-medium text-apex-text/90"
+                    : "text-apex-text/75",
+              ].join(" ")}
+            >
+              {line}
+            </p>
+          ))}
+        </div>
       ) : null}
     </section>
   );

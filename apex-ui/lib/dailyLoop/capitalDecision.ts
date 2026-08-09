@@ -4,6 +4,10 @@ import type { UserIntent } from "@/types/intent";
 import { formatInr } from "@/lib/funds";
 import { getTrustMicroReward } from "@/lib/dailyLoop/disciplineStreak";
 import { attachCapitalProjections } from "@/lib/dailyLoop/capitalProjection";
+import {
+  attachCapitalFinalState,
+  type CapitalFinalState,
+} from "@/lib/dailyLoop/capitalFinalState";
 
 export type DeploymentStance =
   | "No Deployment"
@@ -82,6 +86,8 @@ export const EXPLORE_PIPELINE_EMPTY_HEADLINE =
 export const EXPLORE_PIPELINE_EMPTY_BODY =
   "APEX is scanning for setups — opportunities enter the pipeline as conditions improve.";
 
+export type { CapitalFinalPosition, CapitalFinalState } from "@/lib/dailyLoop/capitalFinalState";
+
 export type CapitalDecision = {
   mode: DecisionMode;
   stance: DeploymentStance;
@@ -92,6 +98,7 @@ export type CapitalDecision = {
   cashPercentage: number;
   deploymentPercentage: number;
   actions: CapitalAction[];
+  finalState?: CapitalFinalState;
   exploreSetups: ExploreSetup[];
   explorePipelineSummary?: string;
   growEmptyMessage?: string;
@@ -1272,7 +1279,7 @@ export function buildCapitalDecision(input: CapitalDecisionInput): CapitalDecisi
       ? buildExploreCapitalDecision(input)
       : buildGrowCapitalDecision(input);
 
-  return attachCapitalProjections(decision, input);
+  return attachCapitalFinalState(attachCapitalProjections(decision, input), input);
 }
 
 export type TrustReinforcement = {
