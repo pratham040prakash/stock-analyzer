@@ -1,4 +1,5 @@
 import type { CapitalAction, CapitalDecision } from "@/lib/dailyLoop/capitalDecision";
+import { buildCapitalDecision } from "@/lib/dailyLoop/capitalDecision";
 
 export type TodayExecutionKind = "WAIT" | "SELL" | "BUY" | "OBSERVE";
 
@@ -69,13 +70,18 @@ export function resolveTodayHero(
       suggested <= 100
         ? Math.round(suggested)
         : computed;
+    const resolvedSellPercent =
+      sellPercent > 0 ? sellPercent : Math.round(primary.deployPercentage);
 
     return {
-      headline: decision.primaryAction,
-      subline: decision.primaryActionDetail,
+      headline: `Trim ${primary.symbol} by ${resolvedSellPercent}% today`,
+      subline:
+        primary.postActionImpact ??
+        decision.primaryActionDetail ??
+        "Reduce exposure before new deployment.",
       executionKind: "SELL",
       symbol: primary.symbol,
-      sellPercent: sellPercent > 0 ? sellPercent : undefined,
+      sellPercent: resolvedSellPercent,
       targetWeightAfter: targetWeight,
       currentWeight,
     };
@@ -117,5 +123,31 @@ export function runTodaySurfaceSelfCheck(): void {
   assert(
     sellPercentToReachTargetWeight(20, 25) === 0,
     "No sell when already at or below target weight",
+  );
+
+  const trimDecision = buildCapitalDecision({
+    intent: "grow",
+    action: "wait",
+    stock: "JIOFIN",
+    availableCash: 9_631,
+    portfolioValue: 257,
+    topAllocationPct: 100,
+    suggested_sell_percent: 25,
+    entryTiming: { enter: false },
+  });
+
+  const trimHero = resolveTodayHero(trimDecision, { suggestedSellPercent: 25 });
+
+  assert(
+    trimHero.executionKind === "SELL",
+    "Today hero must execute as SELL when concentration trim is primary",
+  );
+  assert(
+    trimHero.headline.includes("Trim JIOFIN"),
+    "Today hero headline must name the trim action",
+  );
+  assert(
+    !trimHero.headline.includes("Remain fully in cash"),
+    "Today hero must not show cash-only copy during required trim",
   );
 }

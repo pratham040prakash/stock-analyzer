@@ -416,8 +416,14 @@ function buildHeroHeadline(
   input: CapitalDecisionInput,
   deploymentPercentage: number,
   cashPercentage: number,
+  actions: CapitalAction[] = [],
 ): string {
   const action = input.action;
+  const prioritizedSell = actions.find((item) => item.action === "SELL");
+
+  if (prioritizedSell) {
+    return `Trim ${prioritizedSell.deployPercentage}% of ${prioritizedSell.symbol} before deploying.`;
+  }
 
   if (isSellAction(action as DecisionActionType) || action === "sell") {
     const trimPct = normalizePercent(input.suggested_sell_percent) || 25;
@@ -438,8 +444,17 @@ function buildHeroSubline(
   stance: DeploymentStance,
   cashPercentage: number,
   deploymentPercentage: number,
+  actions: CapitalAction[] = [],
 ): string {
   const action = input.action;
+  const prioritizedSell = actions.find((item) => item.action === "SELL");
+
+  if (prioritizedSell) {
+    return (
+      prioritizedSell.postActionImpact ??
+      "Reduce exposure before new deployment."
+    );
+  }
 
   if (isSellAction(action as DecisionActionType) || action === "sell") {
     return "Delaying trim keeps concentration risk.";
@@ -665,6 +680,17 @@ function buildPrimaryAction(
   actions: CapitalAction[],
   deployAmount: number,
 ): { headline: string; detail: string } {
+  const prioritizedSell = actions.find((item) => item.action === "SELL");
+
+  if (prioritizedSell) {
+    return {
+      headline: `Trim ${prioritizedSell.symbol} by ${prioritizedSell.deployPercentage}% today`,
+      detail:
+        prioritizedSell.postActionImpact ??
+        "Delaying trim keeps concentration risk.",
+    };
+  }
+
   const action = input.action;
 
   if (isSellAction(action as DecisionActionType) || action === "sell") {
@@ -1104,12 +1130,18 @@ function buildGrowCapitalDecision(input: CapitalDecisionInput): CapitalDecision 
     actions,
     exploreSetups: [],
     growEmptyMessage: resolveGrowEmptyMessage(deploymentPercentage, actions),
-    heroHeadline: buildHeroHeadline(input, deploymentPercentage, cashPercentage),
+    heroHeadline: buildHeroHeadline(
+      input,
+      deploymentPercentage,
+      cashPercentage,
+      actions,
+    ),
     heroSubline: buildHeroSubline(
       input,
       stance,
       cashPercentage,
       deploymentPercentage,
+      actions,
     ),
     heroDecisionCue: buildHeroDecisionCue(input, deploymentPercentage, actions),
     behaviorLock: buildBehaviorLock(input, deploymentPercentage, actions),
@@ -1459,6 +1491,33 @@ function runCapitalDecisionSelfCheck(): void {
   assert(
     concentratedBuy.actions.some((item) => item.action === "SELL"),
     "Concentration must force SELL before BUY",
+  );
+  assert(
+    concentratedBuy.primaryAction.includes("Trim"),
+    "Primary action must surface trim when concentration SELL exists",
+  );
+  assert(
+    !concentratedBuy.primaryAction.includes("Remain fully in cash"),
+    "Primary action must not say cash-only when trim is required",
+  );
+
+  const trimBeforeWait = buildCapitalDecision({
+    intent: "grow",
+    action: "wait",
+    stock: "JIOFIN",
+    availableCash: 9_631,
+    portfolioValue: 257,
+    topAllocationPct: 100,
+    entryTiming: { enter: false },
+  });
+
+  assert(
+    trimBeforeWait.actions.some((item) => item.action === "SELL"),
+    "Concentrated wait must still include trim action",
+  );
+  assert(
+    trimBeforeWait.primaryAction.includes("JIOFIN"),
+    "Wait + concentration must name the trim symbol in primary action",
   );
 
   const validBuy = buildCapitalDecision({
