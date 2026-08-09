@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { istDateKey } from "@/lib/dailyLoop/disciplineDates";
 import {
+  applyDisciplineStreakSnapshot,
   commitDisciplineFollowed,
   DISCIPLINE_PRESSURE_LINE,
   formatDailyContextLabel,
@@ -41,6 +43,63 @@ export type DisciplineStreakView = {
   commitFollowed: () => void;
 };
 
+type StreakApiResponse = {
+  status: string;
+  streak?: DisciplineStreakSnapshot;
+  message?: string;
+};
+
+async function fetchDisciplineStreakFromServer(): Promise<DisciplineStreakSnapshot | null> {
+  try {
+    const response = await fetch("/api/discipline/streak", {
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const payload = (await response.json()) as StreakApiResponse;
+
+    if (payload.status !== "ok" || !payload.streak) {
+      return null;
+    }
+
+    return payload.streak;
+  } catch {
+    return null;
+  }
+}
+
+async function postDisciplineCommit(input: {
+  intent: UserIntent;
+  action: string;
+  stock?: string;
+}): Promise<DisciplineStreakSnapshot | null> {
+  try {
+    const response = await fetch("/api/discipline/streak", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const payload = (await response.json()) as StreakApiResponse;
+
+    if (payload.status !== "ok" || !payload.streak) {
+      return null;
+    }
+
+    return payload.streak;
+  } catch {
+    return null;
+  }
+}
+
 export function useDisciplineStreak({
   intent,
   action,
@@ -58,7 +117,29 @@ export function useDisciplineStreak({
   );
 
   useEffect(() => {
-    setSnapshot(readDisciplineStreak());
+    let cancelled = false;
+
+    const load = async () => {
+      const serverSnapshot = await fetchDisciplineStreakFromServer();
+
+      if (cancelled) {
+        return;
+      }
+
+      if (serverSnapshot) {
+        applyDisciplineStreakSnapshot(serverSnapshot);
+        setSnapshot(serverSnapshot);
+        return;
+      }
+
+      setSnapshot(readDisciplineStreak());
+    };
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
   }, [intent, action, stock]);
 
   useEffect(() => {
@@ -89,7 +170,7 @@ export function useDisciplineStreak({
 
   const commitmentSeed = useMemo(
     () =>
-      `${new Date().toISOString().slice(0, 10)}:${intent}:${action}:${stock ?? "none"}`,
+      `${istDateKey()}:${intent}:${action}:${stock ?? "none"}`,
     [action, intent, stock],
   );
 
@@ -103,8 +184,18 @@ export function useDisciplineStreak({
       return;
     }
 
-    const next = commitDisciplineFollowed({ intent, action, stock });
-    setSnapshot(next);
+    void (async () => {
+      const serverSnapshot = await postDisciplineCommit({ intent, action, stock });
+
+      if (serverSnapshot) {
+        applyDisciplineStreakSnapshot(serverSnapshot);
+        setSnapshot(serverSnapshot);
+        return;
+      }
+
+      const localSnapshot = commitDisciplineFollowed({ intent, action, stock });
+      setSnapshot(localSnapshot);
+    })();
   }, [action, intent, snapshot.committedToday, stock]);
 
   return {

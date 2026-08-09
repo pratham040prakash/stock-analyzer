@@ -223,6 +223,68 @@ export type Database = {
         };
         Relationships: [];
       };
+      discipline_streak_state: {
+        Row: {
+          user_id: string;
+          streak_count: number;
+          last_commit_date: string | null;
+          last_decision_key: string | null;
+          last_action_followed: boolean;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          streak_count?: number;
+          last_commit_date?: string | null;
+          last_decision_key?: string | null;
+          last_action_followed?: boolean;
+          updated_at?: string;
+        };
+        Update: {
+          streak_count?: number;
+          last_commit_date?: string | null;
+          last_decision_key?: string | null;
+          last_action_followed?: boolean;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      discipline_commits: {
+        Row: {
+          id: string;
+          user_id: string;
+          commit_date: string;
+          intent: string;
+          action: string;
+          stock: string | null;
+          decision_key: string;
+          followed: boolean;
+          streak_count: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          commit_date: string;
+          intent: string;
+          action: string;
+          stock?: string | null;
+          decision_key: string;
+          followed?: boolean;
+          streak_count?: number;
+          created_at?: string;
+        };
+        Update: {
+          commit_date?: string;
+          intent?: string;
+          action?: string;
+          stock?: string | null;
+          decision_key?: string;
+          followed?: boolean;
+          streak_count?: number;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;

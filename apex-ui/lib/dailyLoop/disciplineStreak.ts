@@ -1,38 +1,20 @@
+import {
+  buildDecisionKey,
+  buildDisciplineStreakSnapshot,
+  commitDisciplineState,
+  EMPTY_DISCIPLINE_STREAK_STATE,
+  normalizeStreakForToday,
+  type DisciplineStreakSnapshot,
+  type DisciplineStreakState,
+} from "@/lib/dailyLoop/disciplineStreakLogic";
 import type { UserIntent } from "@/types/intent";
+
+export type { DisciplineStreakSnapshot, DisciplineStreakState };
+export { buildDecisionKey, normalizeStreakForToday };
 
 const STREAK_STORAGE_KEY = "apex_discipline_streak";
 
-export type DisciplineStreakState = {
-  streakCount: number;
-  lastActionFollowed: boolean;
-  lastCommitDate: string | null;
-  lastDecisionKey: string | null;
-};
-
-export type DisciplineStreakSnapshot = DisciplineStreakState & {
-  committedToday: boolean;
-};
-
-const EMPTY_STATE: DisciplineStreakState = {
-  streakCount: 0,
-  lastActionFollowed: false,
-  lastCommitDate: null,
-  lastDecisionKey: null,
-};
-
-function toDateKey(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function shiftDateKey(dateKey: string, dayOffset: number): string {
-  const [year, month, day] = dateKey.split("-").map(Number);
-  const date = new Date(year, month - 1, day);
-  date.setDate(date.getDate() + dayOffset);
-  return toDateKey(date);
-}
+const EMPTY_STATE = EMPTY_DISCIPLINE_STREAK_STATE;
 
 function readRawState(): DisciplineStreakState {
   if (typeof window === "undefined") {
@@ -68,45 +50,6 @@ function writeState(state: DisciplineStreakState): void {
   }
 
   window.localStorage.setItem(STREAK_STORAGE_KEY, JSON.stringify(state));
-}
-
-/** Rolls streak forward when a new day starts without a prior commit. */
-export function normalizeStreakForToday(
-  state: DisciplineStreakState,
-  today: Date = new Date(),
-): DisciplineStreakState {
-  const todayKey = toDateKey(today);
-
-  if (!state.lastCommitDate) {
-    return state;
-  }
-
-  if (state.lastCommitDate === todayKey) {
-    return state;
-  }
-
-  const yesterdayKey = shiftDateKey(todayKey, -1);
-
-  if (state.lastCommitDate === yesterdayKey && state.lastActionFollowed) {
-    return {
-      ...state,
-      lastActionFollowed: false,
-    };
-  }
-
-  return {
-    ...state,
-    streakCount: 0,
-    lastActionFollowed: false,
-  };
-}
-
-export function buildDecisionKey(input: {
-  intent: UserIntent;
-  action: string;
-  stock?: string;
-}): string {
-  return `${input.intent}:${input.action}:${input.stock ?? "none"}`;
 }
 
 export function isNoTradeDecision(action: string, intent?: UserIntent): boolean {
@@ -216,7 +159,6 @@ export function getWaitRewardHook(seed: string): string | null {
 export function readDisciplineStreak(
   today: Date = new Date(),
 ): DisciplineStreakSnapshot {
-  const todayKey = toDateKey(today);
   const raw = readRawState();
   const normalized = normalizeStreakForToday(raw, today);
 
@@ -228,11 +170,7 @@ export function readDisciplineStreak(
     writeState(normalized);
   }
 
-  return {
-    ...normalized,
-    committedToday:
-      normalized.lastCommitDate === todayKey && normalized.lastActionFollowed,
-  };
+  return buildDisciplineStreakSnapshot(normalized, today);
 }
 
 export function commitDisciplineFollowed(input: {
@@ -242,42 +180,23 @@ export function commitDisciplineFollowed(input: {
   today?: Date;
 }): DisciplineStreakSnapshot {
   const today = input.today ?? new Date();
-  const todayKey = toDateKey(today);
-  const yesterdayKey = shiftDateKey(todayKey, -1);
-  const decisionKey = buildDecisionKey(input);
   const current = normalizeStreakForToday(readRawState(), today);
-
-  if (current.lastCommitDate === todayKey && current.lastActionFollowed) {
-    return {
-      ...current,
-      committedToday: true,
-    };
-  }
-
-  let streakCount = 1;
-
-  if (
-    current.lastCommitDate === yesterdayKey &&
-    current.lastActionFollowed
-  ) {
-    streakCount = current.streakCount + 1;
-  } else if (current.lastCommitDate === todayKey) {
-    streakCount = Math.max(1, current.streakCount);
-  }
-
-  const next: DisciplineStreakState = {
-    streakCount,
-    lastActionFollowed: true,
-    lastCommitDate: todayKey,
-    lastDecisionKey: decisionKey,
-  };
+  const next = commitDisciplineState(current, { ...input, today });
 
   writeState(next);
 
-  return {
-    ...next,
-    committedToday: true,
-  };
+  return buildDisciplineStreakSnapshot(next, today);
+}
+
+export function applyDisciplineStreakSnapshot(
+  snapshot: DisciplineStreakSnapshot,
+): void {
+  writeState({
+    streakCount: snapshot.streakCount,
+    lastActionFollowed: snapshot.lastActionFollowed,
+    lastCommitDate: snapshot.lastCommitDate,
+    lastDecisionKey: snapshot.lastDecisionKey,
+  });
 }
 
 export function resetDisciplineStreak(): DisciplineStreakSnapshot {
