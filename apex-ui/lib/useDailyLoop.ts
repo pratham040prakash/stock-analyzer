@@ -157,6 +157,19 @@ export function useDailyLoop(
   }, [applyServerTrust]);
 
   useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void refreshTrust();
+      }
+    };
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [refreshTrust]);
+
+  useEffect(() => {
     const shouldLoadPlan =
       intent === "grow" &&
       decision.action === "buy" &&

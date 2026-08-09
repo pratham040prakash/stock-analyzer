@@ -139,6 +139,13 @@ export default function HomeClient({
   const { features: premiumFeatures, activationEnabled, refresh: refreshPremiumTier } =
     usePremiumTier(Boolean(user));
 
+  const handlePremiumActivated = useCallback(async () => {
+    if (supabase) {
+      await supabase.auth.refreshSession();
+    }
+    await refreshPremiumTier();
+  }, [refreshPremiumTier, supabase]);
+
   const [financialProfile, setFinancialProfile] = useState<FinancialProfile | null>(
     initialFinancialProfile,
   );
@@ -892,7 +899,7 @@ export default function HomeClient({
               premiumFeatures={premiumFeatures}
               premiumActivationEnabled={activationEnabled}
               onPremiumActivated={() => {
-                void refreshPremiumTier();
+                void handlePremiumActivated();
               }}
             />
           ) : null}
@@ -909,7 +916,7 @@ export default function HomeClient({
               showDetailRows={premiumFeatures.decisionHistory}
               activationEnabled={activationEnabled}
               onPremiumActivated={() => {
-                void refreshPremiumTier();
+                void handlePremiumActivated();
               }}
             />
           ) : null}
