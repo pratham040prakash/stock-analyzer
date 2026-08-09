@@ -221,12 +221,18 @@ function CapitalActionRow({ action }: { action: CapitalAction }) {
       <p className="mt-1 text-sm leading-snug text-apex-text/85">
         Action: {action.action}
       </p>
-      <p className="text-sm leading-snug text-apex-text/85">
-        Allocation: {action.allocation}%
-      </p>
-      <p className="mt-1 text-sm leading-snug text-apex-text/75">
-        Reason: {action.reason}
-      </p>
+      <p className="text-sm leading-snug text-apex-text/85">{action.deployLabel}</p>
+      {action.stage ? (
+        <p className="text-sm leading-snug text-apex-text/85">
+          Stage: {action.stage}
+        </p>
+      ) : null}
+      <div className="mt-1 space-y-0.5 text-sm leading-snug text-apex-text/75">
+        <p>Reason:</p>
+        {action.missing ? <p>Missing: {action.missing}</p> : null}
+        {action.confirm ? <p>Confirm: {action.confirm}</p> : null}
+        {action.timing ? <p>Timing: {action.timing}</p> : null}
+      </div>
     </li>
   );
 }
