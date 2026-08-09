@@ -18,6 +18,7 @@ import TodayExecutionPanel from "@/components/dailyLoop/TodayExecutionPanel";
 import TodayMonitorStrip from "@/components/dailyLoop/TodayMonitorStrip";
 import TodayTrustStrip from "@/components/dailyLoop/TodayTrustStrip";
 import TodayProgressStrip from "@/components/dailyLoop/TodayProgressStrip";
+import LastClosedTrustBlock from "@/components/dailyLoop/LastClosedTrustBlock";
 import CapitalModeToggle from "@/components/dailyLoop/CapitalModeToggle";
 import ExploreDecisionDepth from "@/components/dailyLoop/ExploreDecisionDepth";
 import { ApexCard } from "@/components/ui/apex";
@@ -99,18 +100,6 @@ function TrustDelta({ delta }: { delta: number }) {
   return <span className="text-apex-muted/70">—</span>;
 }
 
-function formatOutcome(outcome: "win" | "loss" | "breakeven"): string {
-  if (outcome === "win") {
-    return "Win";
-  }
-
-  if (outcome === "loss") {
-    return "Loss";
-  }
-
-  return "Breakeven";
-}
-
 export default function HomeDecisionScreen({
   decision,
   entryTiming,
@@ -152,6 +141,7 @@ export default function HomeDecisionScreen({
     trustMessage,
     lastOutcome,
     lastOutcomeStock,
+    refreshTrust,
     plan,
     planLoading,
   } = useDailyLoop(decision, entryTiming, intent);
@@ -231,7 +221,8 @@ export default function HomeDecisionScreen({
   const handleExecuted = useCallback(() => {
     onCapitalRefresh?.();
     void refreshMonitor();
-  }, [onCapitalRefresh, refreshMonitor]);
+    void refreshTrust();
+  }, [onCapitalRefresh, refreshMonitor, refreshTrust]);
 
   const explorePicks = useMemo(() => {
     if (!isExplore || !decision.picks?.length) {
@@ -322,6 +313,14 @@ export default function HomeDecisionScreen({
                 trustDelta={trustDelta}
                 streakCount={retention.streakCount}
                 streakMessage={retention.streakMessage}
+              />
+            ) : null}
+
+            {isCapitalDeployment && lastOutcome ? (
+              <LastClosedTrustBlock
+                lastOutcome={lastOutcome}
+                lastOutcomeStock={lastOutcomeStock}
+                compact
               />
             ) : null}
 
@@ -487,39 +486,10 @@ export default function HomeDecisionScreen({
           />
 
           {lastOutcome && !isExploreEmpty && !isCapitalDeployment ? (
-            <section
-              className="mt-6 space-y-3 animate-apex-fade-in opacity-90"
-              style={{ animationDelay: `${nextDelay()}ms` }}
-            >
-              {lastOutcomeStock ? (
-                <p className="text-xs font-medium uppercase tracking-wide text-apex-muted">
-                  Last closed · {lastOutcomeStock}
-                </p>
-              ) : null}
-              <div className="grid grid-cols-3 gap-3 text-xs text-apex-muted">
-                <div>
-                  <p>Discipline</p>
-                  <p className="mt-1 text-sm font-medium text-apex-text">
-                    {lastOutcome.disciplineScore}
-                  </p>
-                </div>
-                <div>
-                  <p>Execution</p>
-                  <p className="mt-1 text-sm font-medium text-apex-text">
-                    {lastOutcome.executionQuality}
-                  </p>
-                </div>
-                <div>
-                  <p>Outcome</p>
-                  <p className="mt-1 text-sm font-medium text-apex-text">
-                    {formatOutcome(lastOutcome.outcome)}
-                  </p>
-                </div>
-              </div>
-              <p className="text-sm leading-relaxed text-apex-text/75">
-                {lastOutcome.summary}
-              </p>
-            </section>
+            <LastClosedTrustBlock
+              lastOutcome={lastOutcome}
+              lastOutcomeStock={lastOutcomeStock}
+            />
           ) : null}
         </div>
       </ApexCard>

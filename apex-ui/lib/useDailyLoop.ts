@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { EntryTimingState } from "@/components/decision/ExecutionPlanCard";
 import { getDecisionActionText } from "@/lib/dailyLoop/actionText";
 import {
@@ -47,6 +47,7 @@ type DailyLoopState = {
   trustMessage: string;
   lastOutcome: OutcomeEvaluationOutput | null;
   lastOutcomeStock: string | null;
+  refreshTrust: () => Promise<void>;
 };
 
 type TrustOutcomeApiResponse = {
@@ -100,6 +101,33 @@ export function useDailyLoop(
   );
   const [lastOutcomeStock, setLastOutcomeStock] = useState<string | null>(null);
 
+  const applyServerTrust = useCallback(
+    (serverTrust: NonNullable<TrustOutcomeApiResponse["trust"]>) => {
+      persistTrustUpdate(serverTrust.trustScore, serverTrust.trustDelta);
+
+      if (serverTrust.lastOutcome) {
+        persistLastOutcome(serverTrust.lastOutcome);
+      }
+
+      setTrustScore(serverTrust.trustScore);
+      setTrustDelta(serverTrust.trustDelta);
+      setTrustMessage(serverTrust.trustMessage);
+      setLastOutcome(serverTrust.lastOutcome);
+      setLastOutcomeStock(serverTrust.stock);
+    },
+    [],
+  );
+
+  const refreshTrust = useCallback(async () => {
+    const serverTrust = await fetchTrustOutcomeFromServer();
+
+    if (!serverTrust) {
+      return;
+    }
+
+    applyServerTrust(serverTrust);
+  }, [applyServerTrust]);
+
   const actionText = useMemo(
     () => getDecisionActionText(decision, entryTiming, intent),
     [decision, entryTiming, intent],
@@ -120,23 +148,13 @@ export function useDailyLoop(
         return;
       }
 
-      persistTrustUpdate(serverTrust.trustScore, serverTrust.trustDelta);
-
-      if (serverTrust.lastOutcome) {
-        persistLastOutcome(serverTrust.lastOutcome);
-      }
-
-      setTrustScore(serverTrust.trustScore);
-      setTrustDelta(serverTrust.trustDelta);
-      setTrustMessage(serverTrust.trustMessage);
-      setLastOutcome(serverTrust.lastOutcome);
-      setLastOutcomeStock(serverTrust.stock);
+      applyServerTrust(serverTrust);
     })();
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [applyServerTrust]);
 
   useEffect(() => {
     const shouldLoadPlan =
@@ -185,5 +203,6 @@ export function useDailyLoop(
     trustMessage,
     lastOutcome,
     lastOutcomeStock,
+    refreshTrust,
   };
 }
