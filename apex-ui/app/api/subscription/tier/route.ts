@@ -1,8 +1,8 @@
 import { apiError, apiOk } from "@/lib/api/response";
 import {
-  resolvePremiumTier,
-  tierFeatures,
-} from "@/services/subscription/tier";
+  buildTierResponse,
+  resolvePremiumTierWithDb,
+} from "@/services/subscription/premiumAccess";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -17,10 +17,12 @@ export async function GET() {
     return apiError("Unauthorized", 401);
   }
 
-  const tier = resolvePremiumTier(user);
-
-  return apiOk({
-    tier,
-    features: tierFeatures(tier),
-  });
+  try {
+    const snapshot = await resolvePremiumTierWithDb(supabase, user);
+    return apiOk(buildTierResponse(snapshot));
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Failed to load subscription tier";
+    return apiError(message, 500);
+  }
 }

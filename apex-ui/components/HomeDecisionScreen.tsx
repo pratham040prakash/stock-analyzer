@@ -81,6 +81,8 @@ export type HomeDecisionScreenProps = {
   isRefreshing?: boolean;
   onCapitalRefresh?: () => void;
   premiumFeatures?: TierFeatures;
+  premiumActivationEnabled?: boolean;
+  onPremiumActivated?: () => void;
   className?: string;
 };
 
@@ -131,6 +133,8 @@ export default function HomeDecisionScreen({
   isRefreshing = false,
   onCapitalRefresh,
   premiumFeatures,
+  premiumActivationEnabled = false,
+  onPremiumActivated,
   className = "",
 }: HomeDecisionScreenProps) {
   const features = premiumFeatures ?? {
@@ -324,6 +328,8 @@ export default function HomeDecisionScreen({
                 onModeChange={onCapitalModeChange}
                 collateral={collateral}
                 premiumLocked={!features.marginMode}
+                activationEnabled={premiumActivationEnabled}
+                onPremiumActivated={onPremiumActivated}
               />
             ) : null}
 
@@ -397,7 +403,11 @@ export default function HomeDecisionScreen({
                     depthOnly
                   />
                 ) : (
-                  <PremiumFeatureGate feature="decisionDepth" />
+                  <PremiumFeatureGate
+                    feature="decisionDepth"
+                    activationEnabled={premiumActivationEnabled}
+                    onActivated={onPremiumActivated}
+                  />
                 )}
               </div>
             </details>
@@ -425,7 +435,11 @@ export default function HomeDecisionScreen({
                       delayMs={nextDelay()}
                     />
                   ) : (
-                    <PremiumFeatureGate feature="decisionDepth" />
+                    <PremiumFeatureGate
+                    feature="decisionDepth"
+                    activationEnabled={premiumActivationEnabled}
+                    onActivated={onPremiumActivated}
+                  />
                   )}
                 </div>
               </details>

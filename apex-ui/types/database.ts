@@ -320,6 +320,23 @@ export type Database = {
         };
         Relationships: [];
       };
+      premium_activations: {
+        Row: {
+          user_id: string;
+          code_label: string;
+          activated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          code_label: string;
+          activated_at?: string;
+        };
+        Update: {
+          code_label?: string;
+          activated_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;

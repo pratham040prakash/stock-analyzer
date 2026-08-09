@@ -12,6 +12,8 @@ type Props = {
   onModeChange: (mode: CapitalFundingMode) => void;
   collateral?: number;
   premiumLocked?: boolean;
+  activationEnabled?: boolean;
+  onPremiumActivated?: () => void;
 };
 
 export default function CapitalModeToggle({
@@ -19,6 +21,8 @@ export default function CapitalModeToggle({
   onModeChange,
   collateral = 0,
   premiumLocked = false,
+  activationEnabled = false,
+  onPremiumActivated,
 }: Props) {
   const setMode = (next: CapitalFundingMode) => {
     if (premiumLocked && next === "MARGIN") {
@@ -47,7 +51,12 @@ export default function CapitalModeToggle({
             </span>
           </div>
         </div>
-        <PremiumFeatureGate feature="marginMode" compact />
+        <PremiumFeatureGate
+          feature="marginMode"
+          compact
+          activationEnabled={activationEnabled}
+          onActivated={onPremiumActivated}
+        />
       </div>
     );
   }

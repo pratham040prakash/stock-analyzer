@@ -133,7 +133,8 @@ export default function HomeClient({
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, loading: authLoading, configured, signOut, supabase } = useAuth();
-  const { features: premiumFeatures } = usePremiumTier(Boolean(user));
+  const { features: premiumFeatures, activationEnabled, refresh: refreshPremiumTier } =
+    usePremiumTier(Boolean(user));
 
   const [financialProfile, setFinancialProfile] = useState<FinancialProfile | null>(
     initialFinancialProfile,
@@ -851,6 +852,10 @@ export default function HomeClient({
               isRefreshing={decisionRefreshing}
               onCapitalRefresh={refreshAfterExecution}
               premiumFeatures={premiumFeatures}
+              premiumActivationEnabled={activationEnabled}
+              onPremiumActivated={() => {
+                void refreshPremiumTier();
+              }}
             />
           ) : null}
 
@@ -865,7 +870,13 @@ export default function HomeClient({
               }
             />
           ) : decisionHistory.length > 0 ? (
-            <PremiumFeatureGate feature="decisionHistory" />
+            <PremiumFeatureGate
+              feature="decisionHistory"
+              activationEnabled={activationEnabled}
+              onActivated={() => {
+                void refreshPremiumTier();
+              }}
+            />
           ) : null}
         </>
       ) : null}

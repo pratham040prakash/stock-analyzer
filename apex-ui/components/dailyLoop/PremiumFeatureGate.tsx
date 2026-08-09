@@ -1,6 +1,7 @@
 "use client";
 
 import type { TierFeatures } from "@/services/subscription/tier";
+import PremiumActivationPanel from "@/components/dailyLoop/PremiumActivationPanel";
 
 export type PremiumFeature = keyof TierFeatures;
 
@@ -25,11 +26,15 @@ const COPY: Record<
 type Props = {
   feature: PremiumFeature;
   compact?: boolean;
+  activationEnabled?: boolean;
+  onActivated?: () => void;
 };
 
 export default function PremiumFeatureGate({
   feature,
   compact = false,
+  activationEnabled = false,
+  onActivated,
 }: Props) {
   const copy = COPY[feature];
 
@@ -57,6 +62,14 @@ export default function PremiumFeatureGate({
       <p className="mt-2 text-xs text-apex-muted/60">
         Free tier keeps today&apos;s broker truth and one clear action.
       </p>
+
+      {activationEnabled ? (
+        <PremiumActivationPanel compact={compact} onActivated={onActivated} />
+      ) : (
+        <p className="mt-3 text-xs text-apex-muted/60">
+          Premium invites roll out in batches — check back soon.
+        </p>
+      )}
     </div>
   );
 }

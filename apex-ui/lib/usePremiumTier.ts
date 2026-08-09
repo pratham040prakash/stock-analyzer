@@ -8,6 +8,7 @@ import { tierFeatures } from "@/services/subscription/tier";
 type TierResponse = {
   tier: ApexTier;
   features: TierFeatures;
+  activationEnabled?: boolean;
 };
 
 const FREE_FEATURES = tierFeatures("free");
@@ -15,6 +16,7 @@ const FREE_FEATURES = tierFeatures("free");
 export function usePremiumTier(enabled = true) {
   const [tier, setTier] = useState<ApexTier>("free");
   const [features, setFeatures] = useState<TierFeatures>(FREE_FEATURES);
+  const [activationEnabled, setActivationEnabled] = useState(false);
   const [loading, setLoading] = useState(enabled);
   const requestRef = useRef(0);
 
@@ -22,6 +24,7 @@ export function usePremiumTier(enabled = true) {
     if (!enabled) {
       setTier("free");
       setFeatures(FREE_FEATURES);
+      setActivationEnabled(false);
       setLoading(false);
       return;
     }
@@ -40,17 +43,20 @@ export function usePremiumTier(enabled = true) {
       if (!res.ok || !data) {
         setTier("free");
         setFeatures(FREE_FEATURES);
+        setActivationEnabled(false);
         return;
       }
 
       setTier(data.tier ?? "free");
       setFeatures(data.features ?? tierFeatures(data.tier ?? "free"));
+      setActivationEnabled(Boolean(data.activationEnabled));
     } catch {
       if (requestId !== requestRef.current) {
         return;
       }
       setTier("free");
       setFeatures(FREE_FEATURES);
+      setActivationEnabled(false);
     } finally {
       if (requestId === requestRef.current) {
         setLoading(false);
@@ -66,6 +72,7 @@ export function usePremiumTier(enabled = true) {
     tier,
     features,
     isPremium: tier === "premium",
+    activationEnabled,
     loading,
     refresh,
   };
