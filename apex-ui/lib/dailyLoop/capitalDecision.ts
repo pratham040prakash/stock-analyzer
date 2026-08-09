@@ -3,6 +3,7 @@ import { isSellAction, type DecisionActionType } from "@/types/decision";
 import type { UserIntent } from "@/types/intent";
 import { formatInr } from "@/lib/funds";
 import { getTrustMicroReward } from "@/lib/dailyLoop/disciplineStreak";
+import { attachCapitalProjections } from "@/lib/dailyLoop/capitalProjection";
 
 export type DeploymentStance =
   | "No Deployment"
@@ -19,6 +20,13 @@ export type CapitalActionReason = {
   timing: string;
 };
 
+export type CapitalActionProjection = {
+  cashAfter: number;
+  weightAfter: number;
+  note: string;
+  warning?: string;
+};
+
 export type CapitalAction = {
   symbol: string;
   action: CapitalActionType;
@@ -29,6 +37,7 @@ export type CapitalAction = {
   reason: CapitalActionReason;
   ifIgnored?: string;
   postActionImpact?: string;
+  postAction?: CapitalActionProjection;
   isPrimary?: boolean;
 };
 
@@ -1258,11 +1267,12 @@ function collectSymbols(input: CapitalDecisionInput): string[] {
 
 /** Converts engine output into explicit capital deployment instructions. */
 export function buildCapitalDecision(input: CapitalDecisionInput): CapitalDecision {
-  if (input.intent === "explore" || input.action === "explore") {
-    return buildExploreCapitalDecision(input);
-  }
+  const decision =
+    input.intent === "explore" || input.action === "explore"
+      ? buildExploreCapitalDecision(input)
+      : buildGrowCapitalDecision(input);
 
-  return buildGrowCapitalDecision(input);
+  return attachCapitalProjections(decision, input);
 }
 
 export type TrustReinforcement = {
@@ -1323,6 +1333,14 @@ export function formatCapitalAction(action: CapitalAction): string {
 
   if (action.postActionImpact) {
     lines.push(action.postActionImpact);
+  }
+
+  if (action.postAction) {
+    lines.push(action.postAction.note);
+
+    if (action.postAction.warning) {
+      lines.push(action.postAction.warning);
+    }
   }
 
   return lines.join("\n");

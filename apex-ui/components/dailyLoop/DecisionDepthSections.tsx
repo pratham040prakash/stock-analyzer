@@ -436,6 +436,18 @@ function CapitalActionRow({ action }: { action: CapitalAction }) {
           {action.postActionImpact}
         </p>
       ) : null}
+      {action.postAction ? (
+        <div className="space-y-1 border-t border-apex-border/10 pt-2">
+          <p className="text-sm leading-snug text-apex-text/80">
+            {action.postAction.note}
+          </p>
+          {action.postAction.warning ? (
+            <p className="text-sm leading-snug text-amber-200/85">
+              {action.postAction.warning}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
     </li>
   );
 }
