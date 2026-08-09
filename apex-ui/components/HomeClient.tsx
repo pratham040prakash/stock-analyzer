@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ConnectZerodhaCard from "./ConnectZerodhaCard";
 import DecisionHistoryPanel from "./DecisionHistoryPanel";
@@ -68,6 +68,15 @@ type FundsResponse = {
   status?: "OK" | "PARTIAL" | "ERROR" | "NOT_CONNECTED" | "TOKEN_EXPIRED";
   message?: string;
 };
+
+function finiteFunds(value: unknown, fallback = 0): number {
+  const parsed = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+
+  return Math.max(0, Math.round(parsed));
+}
 
 function LoadingState() {
   return (
@@ -146,6 +155,7 @@ export default function HomeClient({
   const [capitalMode, setCapitalMode] = useState<CapitalFundingMode>("CASH");
   const [fundsLoading, setFundsLoading] = useState(false);
   const [fundsSynced, setFundsSynced] = useState(false);
+  const fundsRequestRef = useRef(0);
   const [brokerMessage, setBrokerMessage] = useState<string | null>(
     zerodhaNotice === "connected"
       ? "Zerodha connected — syncing your portfolio now."
@@ -299,45 +309,80 @@ export default function HomeClient({
   const loadFunds = useCallback(async () => {
     if (!configured || !user) return;
 
+    const requestId = ++fundsRequestRef.current;
     setFundsLoading(true);
-    try {
-      const res = await apiFetch("/api/funds", { method: "GET" });
-      const data = await parseApiJson<FundsResponse>(res, "Funds");
-      if (!data) {
-        setFundsSynced(false);
+
+    const applyFunds = (patch: {
+      availableCash: number;
+      ledgerCash: number;
+      collateral: number;
+      brokerPortfolioValue: number | null;
+      totalCapital: number | null;
+    }) => {
+      if (requestId !== fundsRequestRef.current) {
         return;
       }
 
-      const marginAvailable = Math.max(
-        0,
-        Math.round(data.margin_available ?? data.available_cash ?? 0),
+      setAvailableCash(patch.availableCash);
+      setLedgerCash(patch.ledgerCash);
+      setCollateral(patch.collateral);
+      setBrokerPortfolioValue(patch.brokerPortfolioValue);
+      setTotalCapital(patch.totalCapital);
+      setFundsSynced(true);
+    };
+
+    try {
+      const res = await apiFetch("/api/funds", { method: "GET" });
+      const data = await parseApiJson<FundsResponse>(res, "Funds");
+
+      if (requestId !== fundsRequestRef.current) {
+        return;
+      }
+
+      if (!data) {
+        applyFunds({
+          availableCash: 0,
+          ledgerCash: 0,
+          collateral: 0,
+          brokerPortfolioValue: null,
+          totalCapital: null,
+        });
+        return;
+      }
+
+      const marginAvailable = finiteFunds(
+        data.margin_available ?? data.available_cash,
       );
-      const nextLedgerCash = Math.max(0, Math.round(data.ledger_cash ?? 0));
-      const nextCollateral = Math.max(0, Math.round(data.collateral ?? 0));
+      const nextLedgerCash = finiteFunds(data.ledger_cash);
+      const nextCollateral = finiteFunds(data.collateral);
       const nextPortfolioValue = Number.isFinite(data.portfolio_value)
-        ? Math.max(0, Math.round(data.portfolio_value ?? 0))
+        ? finiteFunds(data.portfolio_value)
         : null;
       const nextTotalCapital = Number.isFinite(data.total_capital)
-        ? Math.max(0, Math.round(data.total_capital ?? 0))
+        ? finiteFunds(data.total_capital)
         : nextPortfolioValue !== null
           ? nextPortfolioValue + nextLedgerCash
           : null;
 
-      setAvailableCash(marginAvailable);
-      setLedgerCash(nextLedgerCash);
-      setCollateral(nextCollateral);
-      setBrokerPortfolioValue(nextPortfolioValue);
-      setTotalCapital(nextTotalCapital);
-      setFundsSynced(true);
+      applyFunds({
+        availableCash: marginAvailable,
+        ledgerCash: nextLedgerCash,
+        collateral: nextCollateral,
+        brokerPortfolioValue: nextPortfolioValue,
+        totalCapital: nextTotalCapital,
+      });
     } catch {
-      setAvailableCash(null);
-      setLedgerCash(null);
-      setCollateral(0);
-      setBrokerPortfolioValue(null);
-      setTotalCapital(null);
-      setFundsSynced(false);
+      applyFunds({
+        availableCash: 0,
+        ledgerCash: 0,
+        collateral: 0,
+        brokerPortfolioValue: null,
+        totalCapital: null,
+      });
     } finally {
-      setFundsLoading(false);
+      if (requestId === fundsRequestRef.current) {
+        setFundsLoading(false);
+      }
     }
   }, [configured, user]);
 
@@ -726,8 +771,8 @@ export default function HomeClient({
               decision={dailyDecision}
               entryTiming={entryTiming}
               intent={userIntent}
-              availableCash={availableCash ?? undefined}
-              ledgerCash={ledgerCash ?? undefined}
+              availableCash={availableCash ?? (fundsSynced ? 0 : undefined)}
+              ledgerCash={ledgerCash ?? (fundsSynced ? 0 : undefined)}
               topSymbol={portfolioData?.top_symbol}
               topAllocationPct={portfolioData?.top_allocation_pct}
               portfolioValue={

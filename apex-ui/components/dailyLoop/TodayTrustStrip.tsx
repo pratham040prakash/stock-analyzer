@@ -62,7 +62,11 @@ export default function TodayTrustStrip({
   fundsSynced = false,
 }: TodayTrustStripProps) {
   const syncedAt = formatUpdatedAt(updatedAt);
-  const deployableKnown = fundsSynced && knownAmount(marginAvailable);
+  const deployableResolved = knownAmount(marginAvailable)
+    ? Math.max(0, marginAvailable)
+    : fundsSynced || (connectionStatus === "CONNECTED" && !fundsLoading)
+      ? 0
+      : null;
   const portfolioKnown = knownAmount(portfolioValue);
   const totalKnown = knownAmount(totalCapital);
   const dayKnown = knownAmount(dayPnl);
@@ -95,8 +99,8 @@ export default function TodayTrustStrip({
       <div className="mt-2 space-y-1.5 text-sm text-apex-text/80">
         <p>
           <span className="text-apex-muted/75">Available to deploy: </span>
-          {deployableKnown ? (
-            formatInr(Math.max(0, marginAvailable ?? 0))
+          {deployableResolved !== null ? (
+            formatInr(deployableResolved)
           ) : fundsLoading ? (
             "…"
           ) : (
@@ -105,7 +109,7 @@ export default function TodayTrustStrip({
           <span className="text-xs text-apex-muted/60"> · Zerodha margin available</span>
         </p>
 
-        {fundsSynced ? (
+        {fundsSynced || (connectionStatus === "CONNECTED" && !fundsLoading) ? (
           <p className="text-xs text-apex-muted/75">
             <span>Cash {formatInr(Math.max(0, ledgerCash ?? 0))}</span>
             {(collateral ?? 0) > 0 ? (
