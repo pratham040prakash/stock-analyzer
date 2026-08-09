@@ -5,22 +5,52 @@ import {
   type CapitalFundingMode,
   writeStoredCapitalMode,
 } from "@/lib/dailyLoop/capitalMargin";
+import PremiumFeatureGate from "@/components/dailyLoop/PremiumFeatureGate";
 
 type Props = {
   mode: CapitalFundingMode;
   onModeChange: (mode: CapitalFundingMode) => void;
   collateral?: number;
+  premiumLocked?: boolean;
 };
 
 export default function CapitalModeToggle({
   mode,
   onModeChange,
   collateral = 0,
+  premiumLocked = false,
 }: Props) {
   const setMode = (next: CapitalFundingMode) => {
+    if (premiumLocked && next === "MARGIN") {
+      return;
+    }
+
     writeStoredCapitalMode(next);
     onModeChange(next);
   };
+
+  if (premiumLocked) {
+    return (
+      <div className="space-y-3">
+        <div className="rounded-xl border border-apex-border/15 bg-white/[0.02] px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-apex-muted">
+                Capital mode
+              </p>
+              <p className="mt-1 text-sm text-apex-text/80">
+                Cash only — no leverage
+              </p>
+            </div>
+            <span className="rounded-md border border-apex-border/25 bg-white/10 px-3 py-1.5 text-xs font-medium text-apex-text">
+              Cash
+            </span>
+          </div>
+        </div>
+        <PremiumFeatureGate feature="marginMode" compact />
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-xl border border-apex-border/15 bg-white/[0.02] px-4 py-3">

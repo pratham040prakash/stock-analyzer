@@ -25,6 +25,8 @@ import type { ConnectionStatus } from "@/lib/broker/zerodha";
 import type { StockPick } from "@/types/decision";
 import type { UserIntent } from "@/types/intent";
 import type { CapitalFundingMode } from "@/lib/dailyLoop/capitalMargin";
+import type { TierFeatures } from "@/services/subscription/tier";
+import PremiumFeatureGate from "@/components/dailyLoop/PremiumFeatureGate";
 import { useExploreTriggers } from "@/lib/useExploreTriggers";
 import { useOpenMonitor } from "@/lib/useOpenMonitor";
 
@@ -78,6 +80,7 @@ export type HomeDecisionScreenProps = {
   fundsSyncError?: string | null;
   isRefreshing?: boolean;
   onCapitalRefresh?: () => void;
+  premiumFeatures?: TierFeatures;
   className?: string;
 };
 
@@ -127,8 +130,14 @@ export default function HomeDecisionScreen({
   fundsSyncError = null,
   isRefreshing = false,
   onCapitalRefresh,
+  premiumFeatures,
   className = "",
 }: HomeDecisionScreenProps) {
+  const features = premiumFeatures ?? {
+    marginMode: false,
+    decisionDepth: false,
+    decisionHistory: false,
+  };
   const { renderIntent, contentClassName } = useIntentTransition(intent);
   const experience = getIntentExperience(renderIntent);
   const {
@@ -313,6 +322,7 @@ export default function HomeDecisionScreen({
                 mode={capitalMode ?? "CASH"}
                 onModeChange={onCapitalModeChange}
                 collateral={collateral}
+                premiumLocked={!features.marginMode}
               />
             ) : null}
 
@@ -379,11 +389,15 @@ export default function HomeDecisionScreen({
                 Decision depth
               </summary>
               <div className="border-t border-apex-border/10 px-4 py-4">
-                <CapitalActionsBlock
-                  decision={capitalDecision}
-                  delayMs={nextDelay()}
-                  depthOnly
-                />
+                {features.decisionDepth ? (
+                  <CapitalActionsBlock
+                    decision={capitalDecision}
+                    delayMs={nextDelay()}
+                    depthOnly
+                  />
+                ) : (
+                  <PremiumFeatureGate feature="decisionDepth" />
+                )}
               </div>
             </details>
           ) : (
@@ -399,15 +413,19 @@ export default function HomeDecisionScreen({
                   Why &amp; watch
                 </summary>
                 <div className="border-t border-apex-border/10 px-4 py-4">
-                  <ExploreDecisionDepth
-                    decision={decision}
-                    intent={renderIntent}
-                    entryTiming={entryTiming}
-                    topSymbol={topSymbol}
-                    topAllocationPct={topAllocationPct}
-                    planConviction={plan?.conviction}
-                    delayMs={nextDelay()}
-                  />
+                  {features.decisionDepth ? (
+                    <ExploreDecisionDepth
+                      decision={decision}
+                      intent={renderIntent}
+                      entryTiming={entryTiming}
+                      topSymbol={topSymbol}
+                      topAllocationPct={topAllocationPct}
+                      planConviction={plan?.conviction}
+                      delayMs={nextDelay()}
+                    />
+                  ) : (
+                    <PremiumFeatureGate feature="decisionDepth" />
+                  )}
                 </div>
               </details>
             </>

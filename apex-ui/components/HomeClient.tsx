@@ -22,8 +22,11 @@ import type { DailyInsight } from "@/types/dailyInsight";
 import type { DecisionHistoryEntry } from "@/types/decisionHistory";
 import {
   readStoredCapitalMode,
+  writeStoredCapitalMode,
   type CapitalFundingMode,
 } from "@/lib/dailyLoop/capitalMargin";
+import { usePremiumTier } from "@/lib/usePremiumTier";
+import PremiumFeatureGate from "@/components/dailyLoop/PremiumFeatureGate";
 import type { PortfolioApiResponse } from "@/types/portfolioApi";
 import { recordVisit, saveCachedPortfolio } from "@/lib/portfolioCache";
 import { portfolioRiskFromAllocation } from "@/lib/portfolioRisk";
@@ -122,6 +125,7 @@ export default function HomeClient({
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, loading: authLoading, configured, signOut, supabase } = useAuth();
+  const { features: premiumFeatures } = usePremiumTier(Boolean(user));
 
   const [financialProfile, setFinancialProfile] = useState<FinancialProfile | null>(
     initialFinancialProfile,
@@ -183,8 +187,16 @@ export default function HomeClient({
   }, [router, searchParams]);
 
   useEffect(() => {
-    setCapitalMode(readStoredCapitalMode());
-  }, []);
+    const stored = readStoredCapitalMode();
+
+    if (!premiumFeatures.marginMode && stored === "MARGIN") {
+      writeStoredCapitalMode("CASH");
+      setCapitalMode("CASH");
+      return;
+    }
+
+    setCapitalMode(stored);
+  }, [premiumFeatures.marginMode]);
 
   useEffect(() => {
     if (!supabase) return;
@@ -653,10 +665,14 @@ export default function HomeClient({
 
   const handleCapitalModeChange = useCallback(
     (mode: CapitalFundingMode) => {
+      if (!premiumFeatures.marginMode && mode === "MARGIN") {
+        return;
+      }
+
       setCapitalMode(mode);
       refreshDecision();
     },
-    [refreshDecision],
+    [premiumFeatures.marginMode, refreshDecision],
   );
 
   if (authLoading) {
@@ -818,13 +834,17 @@ export default function HomeClient({
               fundsSyncError={fundsSyncError}
               isRefreshing={decisionRefreshing}
               onCapitalRefresh={refreshAfterExecution}
+              premiumFeatures={premiumFeatures}
             />
           ) : null}
 
-          {showHomeDecision && decisionHistory.length > 0 ? (
-            <DecisionHistoryPanel history={decisionHistory} showConfidence />
-          ) : !showHomeDecision ? (
-            <DecisionHistoryPanel history={decisionHistory} />
+          {decisionHistory.length > 0 && premiumFeatures.decisionHistory ? (
+            <DecisionHistoryPanel
+              history={decisionHistory}
+              showConfidence={showHomeDecision}
+            />
+          ) : decisionHistory.length > 0 ? (
+            <PremiumFeatureGate feature="decisionHistory" />
           ) : null}
         </>
       ) : null}
