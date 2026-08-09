@@ -316,26 +316,25 @@ function ExploreSetupRow({ setup }: { setup: ExploreSetup }) {
           : undefined
       }
     >
-      <p className="text-lg font-semibold leading-snug text-apex-text">
+      <p className="text-base font-medium tracking-wide text-apex-text/70">
         {setup.symbol}
       </p>
-      <p className="mt-1 text-base font-medium leading-snug text-apex-text">
+      <p className="mt-0.5 text-xl font-semibold leading-tight text-apex-text">
         {setup.scanLine}
       </p>
-      <p className="mt-1 text-sm leading-snug text-apex-text/85">
-        {setup.stage}
-        {setup.priorityMarker ? (
-          <span className="text-apex-text/70"> · {setup.priorityMarker}</span>
-        ) : null}
+      <p className="mt-1.5 text-xs font-medium uppercase tracking-wider text-apex-text/55">
+        {setup.stageLine}
       </p>
-      <div className="mt-2 space-y-0.5 border-t border-apex-border/10 pt-2 text-sm leading-snug text-apex-text/75">
+      <div className="mt-2.5 space-y-1 border-t border-apex-border/10 pt-2.5 text-sm leading-snug text-apex-text/70">
         <p>{setup.progressDelta}</p>
-        <p>Progress: {setup.progressLine}</p>
+        <p>{setup.progressLine}</p>
         {setup.whyThisMatters ? (
-          <p>Why this matters: {setup.whyThisMatters}</p>
+          <p className="border-l-2 border-blue-200/50 pl-2.5 font-medium text-apex-text/90">
+            {setup.whyThisMatters}
+          </p>
         ) : null}
-        <p>Activation: {setup.activation}</p>
-        <p>Time horizon: {setup.timeHorizon}</p>
+        <p>{setup.activation}</p>
+        <p>{setup.timeHorizon}</p>
       </div>
     </li>
   );

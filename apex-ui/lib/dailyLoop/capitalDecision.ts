@@ -39,6 +39,7 @@ export type ExplorePriorityMarker = "Closest to activation" | "High priority";
 export type ExploreSetup = {
   symbol: string;
   scanLine: string;
+  stageLine: string;
   stage: ExplorePipelineStage;
   priorityMarker?: ExplorePriorityMarker;
   setupDescription: string;
@@ -517,10 +518,10 @@ function buildActivationCondition(pick: StockPick): string {
   const level = resolveActivationLevel(pick);
 
   if (level) {
-    return `Breakout above ${formatInr(level)} with volume confirms entry.`;
+    return `Break above ${formatInr(level)} on volume.`;
   }
 
-  return "Breakout above the recent range high with volume confirms entry.";
+  return "Break above range high on volume.";
 }
 
 function buildProgressiveSetupDescription(
@@ -553,20 +554,16 @@ function buildProgressiveSetupDescription(
 
 function exploreTimeHorizon(
   stage: ExplorePipelineStage,
-  pick: StockPick,
 ): string {
-  const level = resolveActivationLevel(pick);
-  const levelRef = level ? formatInr(level) : "the activation level";
-
   if (stage === "Close to readiness") {
-    return `If ${levelRef} breaks on volume, activation within 1–2 sessions — without confirmation, stays in pipeline.`;
+    return "1–2 sessions on confirmed break.";
   }
 
   if (stage === "Developing setup") {
-    return "If structure completes, moves to readiness in 2–3 sessions — without follow-through, timeline extends.";
+    return "2–3 sessions if structure completes.";
   }
 
-  return "If trend builds, reassess over next sessions — without momentum, remains early formation.";
+  return "Next sessions if momentum builds.";
 }
 
 function resolveActivationGap(
@@ -656,37 +653,60 @@ function buildProgressLine(
   pick: StockPick,
   stage: ExplorePipelineStage,
 ): string {
-  const alignment = Math.round(pick.score);
   const { trend, momentum, volume } = pick.signals;
-  const lines: string[] = [];
 
   if (stage === "Close to readiness") {
-    lines.push("Price compressed toward the activation range.");
-  }
-
-  if (trend >= 60) {
-    lines.push("Trend held above the 50-day baseline recently.");
-  }
-
-  if (momentum >= 80) {
-    lines.push("Momentum is holding at elevated levels.");
-  } else if (momentum >= 55) {
-    lines.push("Momentum has picked up over recent sessions.");
+    return "Price compressing toward activation.";
   }
 
   if (volume >= 65) {
-    lines.push("Volume participation improved vs the recent average.");
+    return "Volume improved vs recent average.";
   }
 
-  if (alignment >= 55 && stage === "Developing setup") {
-    lines.push("Alignment moved into the development band.");
+  if (momentum >= 55) {
+    return "Momentum picking up recently.";
   }
 
-  if (lines.length === 0) {
-    return "Base structure is forming — early signal improvement pending.";
+  if (trend >= 60) {
+    return "Trend holding above 50-day baseline.";
   }
 
-  return lines.slice(0, 2).join(" ");
+  if (stage === "Developing setup") {
+    return "Direction emerging — confirmation pending.";
+  }
+
+  return "Early structure forming — signals pending.";
+}
+
+function compressExploreStage(stage: ExplorePipelineStage): string {
+  if (stage === "Close to readiness") {
+    return "Close";
+  }
+
+  if (stage === "Developing setup") {
+    return "Developing";
+  }
+
+  return "Early";
+}
+
+function compressExplorePriority(
+  rank: number,
+  pick: StockPick,
+): string {
+  if (rank === 0 || (rank <= 2 && Math.round(pick.score) >= 65)) {
+    return "High";
+  }
+
+  return "Medium";
+}
+
+function buildExploreStageLine(
+  stage: ExplorePipelineStage,
+  rank: number,
+  pick: StockPick,
+): string {
+  return `${compressExploreStage(stage)} · ${compressExplorePriority(rank, pick)}`;
 }
 
 function buildWhyThisMatters(
@@ -700,10 +720,10 @@ function buildWhyThisMatters(
   const stage = resolveExplorePipelineStage(pick);
 
   if (stage === "Close to readiness") {
-    return "Leads the pipeline — first slot for Grow capital if activation confirms.";
+    return "First Grow slot if activation confirms.";
   }
 
-  return "Top-ranked in today's scan — moves to front of line as readiness improves.";
+  return "Pipeline lead as readiness improves.";
 }
 
 function buildExplorePipelineSummary(setups: ExploreSetup[]): string | undefined {
@@ -737,6 +757,7 @@ function buildExploreSetup(
   return {
     symbol: pick.stock,
     scanLine: sanitizeCopy(buildScanLine(pick, stage)),
+    stageLine: buildExploreStageLine(stage, rank, pick),
     stage,
     priorityMarker,
     setupDescription: sanitizeCopy(
@@ -746,7 +767,7 @@ function buildExploreSetup(
     progressLine: sanitizeCopy(buildProgressLine(pick, stage)),
     whyThisMatters: buildWhyThisMatters(pick, rank),
     activation: sanitizeCopy(buildActivationCondition(pick)),
-    timeHorizon: sanitizeCopy(exploreTimeHorizon(stage, pick)),
+    timeHorizon: sanitizeCopy(exploreTimeHorizon(stage)),
     readinessScore: readinessScore(pick),
     isPrimary: pick.stock === input.stock,
   };
