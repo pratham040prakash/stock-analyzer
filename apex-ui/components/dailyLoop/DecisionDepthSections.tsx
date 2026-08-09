@@ -331,7 +331,11 @@ function ExploreSetupRow({ setup }: { setup: ExploreSetup }) {
         Setup: {setup.setupDescription}
       </p>
       <div className="mt-1 space-y-0.5 text-sm leading-snug text-apex-text/75">
-        <p>What&apos;s missing: {setup.missing}</p>
+        <p>Progress needed: {setup.progressDelta}</p>
+        <p>Progress: {setup.progressLine}</p>
+        {setup.whyThisMatters ? (
+          <p>Why this matters: {setup.whyThisMatters}</p>
+        ) : null}
         <p>Activation: {setup.activation}</p>
         <p>Time horizon: {setup.timeHorizon}</p>
       </div>

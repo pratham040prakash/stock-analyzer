@@ -41,7 +41,9 @@ export type ExploreSetup = {
   stage: ExplorePipelineStage;
   priorityMarker?: ExplorePriorityMarker;
   setupDescription: string;
-  missing: string;
+  progressDelta: string;
+  progressLine: string;
+  whyThisMatters?: string;
   activation: string;
   timeHorizon: string;
   readinessScore: number;
@@ -49,9 +51,9 @@ export type ExploreSetup = {
 };
 
 export const EXPLORE_PIPELINE_EMPTY_HEADLINE =
-  "Nothing is progressing toward readiness.";
+  "Nothing close to activation yet.";
 export const EXPLORE_PIPELINE_EMPTY_BODY =
-  "Wait — new opportunities will be identified as conditions improve.";
+  "APEX is scanning for setups — opportunities enter the pipeline as conditions improve.";
 
 export type CapitalDecision = {
   mode: DecisionMode;
@@ -478,18 +480,6 @@ function buildPrimaryAction(
   };
 }
 
-function exploreTimeHorizon(stage: ExplorePipelineStage): string {
-  if (stage === "Close to readiness") {
-    return "Could activate within next 1–2 sessions.";
-  }
-
-  if (stage === "Developing setup") {
-    return "Tracking over next 2–3 sessions.";
-  }
-
-  return "Early formation — monitor over next sessions.";
-}
-
 function resolveExplorePipelineStage(pick: StockPick): ExplorePipelineStage {
   const score = Math.round(pick.score);
 
@@ -560,31 +550,123 @@ function buildProgressiveSetupDescription(
   return "Formation is early — structure still assembling before readiness.";
 }
 
-function buildExploreMissing(
+function exploreTimeHorizon(
+  stage: ExplorePipelineStage,
+  pick: StockPick,
+): string {
+  const level = resolveActivationLevel(pick);
+  const levelRef = level ? formatInr(level) : "the activation level";
+
+  if (stage === "Close to readiness") {
+    return `If ${levelRef} breaks on volume, activation within 1–2 sessions — without confirmation, stays in pipeline.`;
+  }
+
+  if (stage === "Developing setup") {
+    return "If structure completes, moves to readiness in 2–3 sessions — without follow-through, timeline extends.";
+  }
+
+  return "If trend builds, reassess over next sessions — without momentum, remains early formation.";
+}
+
+function buildProgressDelta(
   pick: StockPick,
   stage: ExplorePipelineStage,
 ): string {
   const level = resolveActivationLevel(pick);
-  const { trend, momentum } = pick.signals;
+  const price = pick.price;
   const alignment = Math.round(pick.score);
+  const { trend, momentum } = pick.signals;
 
-  if (stage === "Close to readiness" && level) {
-    return `Price has not cleared ${formatInr(level)} on volume yet.`;
+  if (
+    stage === "Close to readiness" &&
+    level &&
+    price &&
+    price > 0 &&
+    level > price
+  ) {
+    const gap = Math.round(level - price);
+    const gapPct = Math.max(1, Math.round(((level - price) / price) * 100));
+
+    return `Needs +${formatInr(gap)} (${gapPct}%) to clear ${formatInr(level)} on volume.`;
   }
 
   if (alignment < 65) {
-    return "Alignment has not reached the Grow deployment threshold.";
+    const gap = 65 - alignment;
+    return `Needs +${gap} alignment points to reach Grow threshold (at ${alignment} now).`;
   }
 
   if (trend < 60) {
-    return "Price has not cleared the prior range — direction unconfirmed.";
+    if (level) {
+      return `Needs sustained close above ${formatInr(level)} to confirm direction.`;
+    }
+
+    return "Needs a closing hold above the recent range high.";
   }
 
   if (momentum < 60) {
-    return "Volume follow-through is not present yet.";
+    return "Needs volume expansion above the 20-day average on the next push.";
   }
 
-  return "Final confirmation bar has not cleared yet.";
+  if (level && price && level > price) {
+    const gap = Math.round(level - price);
+    return `Needs +${formatInr(gap)} breakout close above ${formatInr(level)} with volume.`;
+  }
+
+  return "Needs confirmed breakout with volume before Grow can activate.";
+}
+
+function buildProgressLine(
+  pick: StockPick,
+  stage: ExplorePipelineStage,
+): string {
+  const alignment = Math.round(pick.score);
+  const { trend, momentum, volume } = pick.signals;
+  const lines: string[] = [];
+
+  if (stage === "Close to readiness") {
+    lines.push("Price compressed toward the activation range.");
+  }
+
+  if (trend >= 60) {
+    lines.push("Trend held above the 50-day baseline recently.");
+  }
+
+  if (momentum >= 80) {
+    lines.push("Momentum is holding at elevated levels.");
+  } else if (momentum >= 55) {
+    lines.push("Momentum has picked up over recent sessions.");
+  }
+
+  if (volume >= 65) {
+    lines.push("Volume participation improved vs the recent average.");
+  }
+
+  if (alignment >= 55 && stage === "Developing setup") {
+    lines.push("Alignment moved into the development band.");
+  }
+
+  if (lines.length === 0) {
+    return "Base structure is forming — early signal improvement pending.";
+  }
+
+  return lines.slice(0, 2).join(" ");
+}
+
+function buildWhyThisMatters(
+  pick: StockPick,
+  rank: number,
+): string | undefined {
+  if (rank !== 0) {
+    return undefined;
+  }
+
+  const stage = resolveExplorePipelineStage(pick);
+
+  if (stage === "Close to readiness") {
+    return "Leads the pipeline — first slot for Grow capital if activation confirms.";
+  }
+
+  return "Top-ranked in today's scan — moves to front of line as readiness improves.";
 }
 
 function buildExplorePipelineSummary(setups: ExploreSetup[]): string | undefined {
@@ -592,13 +674,13 @@ function buildExplorePipelineSummary(setups: ExploreSetup[]): string | undefined
     return undefined;
   }
 
-  const nearing = setups.filter(
+  const closeCount = setups.filter(
     (item) => item.stage === "Close to readiness",
   ).length;
-  const developing = setups.length - nearing;
-  const nearingLabel = nearing === 1 ? "setup" : "setups";
+  const buildingCount = setups.length - closeCount;
+  const closeLabel = closeCount === 1 ? "setup" : "setups";
 
-  return `${nearing} ${nearingLabel} nearing readiness · ${developing} in development`;
+  return `${closeCount} ${closeLabel} close to activation · ${buildingCount} building`;
 }
 
 function buildExploreSetup(
@@ -622,9 +704,11 @@ function buildExploreSetup(
     setupDescription: sanitizeCopy(
       buildProgressiveSetupDescription(pick, stage),
     ),
-    missing: sanitizeCopy(buildExploreMissing(pick, stage)),
+    progressDelta: sanitizeCopy(buildProgressDelta(pick, stage)),
+    progressLine: sanitizeCopy(buildProgressLine(pick, stage)),
+    whyThisMatters: buildWhyThisMatters(pick, rank),
     activation: sanitizeCopy(buildActivationCondition(pick)),
-    timeHorizon: sanitizeCopy(exploreTimeHorizon(stage)),
+    timeHorizon: sanitizeCopy(exploreTimeHorizon(stage, pick)),
     readinessScore: readinessScore(pick),
     isPrimary: pick.stock === input.stock,
   };
