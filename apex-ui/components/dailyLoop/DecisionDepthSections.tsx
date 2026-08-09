@@ -5,6 +5,10 @@ import type {
   DecisionDepth,
   ProtectAllocationInsight,
 } from "@/lib/dailyLoop/decisionDepth";
+import type {
+  CapitalAction,
+  CapitalDecision,
+} from "@/lib/dailyLoop/capitalDecision";
 import type { SetupInsight } from "@/lib/dailyLoop/setupInsight";
 import { convictionLabel } from "@/lib/dailyLoop/decisionDepth";
 import {
@@ -174,6 +178,53 @@ export function ProtectPrimaryBlock({
         </p>
       ) : null}
     </TierBlock>
+  );
+}
+
+export function CapitalActionsBlock({
+  decision,
+  delayMs,
+}: {
+  decision: CapitalDecision;
+  delayMs: number;
+}) {
+  if (decision.actions.length === 0) {
+    return (
+      <TierBlock tier="primary" delayMs={delayMs}>
+        <p className="text-sm leading-snug text-apex-text/85">
+          {decision.stance}. {decision.cashPercentage}% stays in cash.
+        </p>
+      </TierBlock>
+    );
+  }
+
+  return (
+    <TierBlock tier="primary" delayMs={delayMs}>
+      <ul className="space-y-5">
+        {decision.actions.map((item) => (
+          <CapitalActionRow key={item.symbol} action={item} />
+        ))}
+      </ul>
+    </TierBlock>
+  );
+}
+
+function CapitalActionRow({ action }: { action: CapitalAction }) {
+  return (
+    <li>
+      <p className="text-lg font-semibold leading-snug text-apex-text">
+        {action.symbol}
+      </p>
+      <p className="mt-1 text-sm leading-snug text-apex-text/85">
+        Action: {action.action}
+      </p>
+      <p className="text-sm leading-snug text-apex-text/85">
+        Allocation: {action.allocation}%
+      </p>
+      <p className="mt-0.5 text-sm leading-snug text-apex-text/75">
+        {action.reason}
+      </p>
+    </li>
   );
 }
 

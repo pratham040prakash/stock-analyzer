@@ -7,12 +7,9 @@ import {
   instrumentPlanWithoutFunds,
   recommendationsToPlanItems,
 } from "@/lib/allocation";
-import { buildDecisionDepth } from "@/lib/dailyLoop/decisionDepth";
+import { buildCapitalDecision } from "@/lib/dailyLoop/capitalDecision";
 import {
-  ProtectPrimaryBlock,
-  SystemContextLine,
-  WatchSection,
-  WhySection,
+  CapitalActionsBlock,
 } from "@/components/dailyLoop/DecisionDepthSections";
 import {
   getAllRecommendations,
@@ -98,28 +95,30 @@ export default function DailyDecisionCard({
       ? decisionRiskMicrocopy(decision.allocation, activeSellPercent)
       : null;
 
-  const decisionDepth = useMemo(
+  const capitalDecision = useMemo(
     () =>
-      buildDecisionDepth({
+      buildCapitalDecision({
         action: decision.action,
         stock: decision.stock,
         confidence: decision.confidence,
-        structureScore: decision.structureScore,
-        reason: decision.reason,
-        message: decision.message,
-        confidence_factors: decision.confidence_factors,
-        validation: decision.validation,
-        confidenceMetrics: decision.confidenceMetrics,
         picks: decision.picks,
-        allocation: decision.allocation,
         suggested_sell_percent: decision.suggested_sell_percent,
         allocationPercent: decision.allocationPercent,
-        allocationReason: decision.allocationReason,
         intent: resolveIntent(intent),
-        topSymbol: portfolioContext.top_symbol,
         topAllocationPct: portfolioContext.top_allocation_pct,
+        entryTiming: { enter: isBuy },
       }),
-    [decision, intent, portfolioContext.top_allocation_pct, portfolioContext.top_symbol],
+    [
+      decision.action,
+      decision.allocationPercent,
+      decision.confidence,
+      decision.picks,
+      decision.stock,
+      decision.suggested_sell_percent,
+      intent,
+      isBuy,
+      portfolioContext.top_allocation_pct,
+    ],
   );
 
   const opportunities = decision.opportunities ?? [];
@@ -283,26 +282,15 @@ export default function DailyDecisionCard({
         {view === "summary" ? (
           <>
             <header className="mb-6 space-y-2">
-              <ApexTitle className="text-3xl sm:text-4xl">{heroAction}</ApexTitle>
-              {decision.suggestion ? (
-                <ApexBody className="text-sm text-apex-muted">
-                  {decision.suggestion}
-                </ApexBody>
-              ) : null}
+              <ApexTitle className="text-3xl sm:text-4xl">
+                {capitalDecision.heroHeadline}
+              </ApexTitle>
+              <ApexBody className="text-sm text-apex-muted">
+                {capitalDecision.heroSubline}
+              </ApexBody>
             </header>
 
-            {canTrim ? (
-              <ProtectPrimaryBlock
-                reason={decision.reason ?? decision.message}
-                riskElevated={decision.validation?.risk_ok === false}
-                insight={decisionDepth.protectAllocation}
-                delayMs={0}
-              />
-            ) : null}
-
-            <WhySection bullets={decisionDepth.whyBullets} delayMs={0} />
-            <WatchSection items={decisionDepth.watchNext} delayMs={0} />
-            <SystemContextLine depth={decisionDepth} delayMs={0} />
+            <CapitalActionsBlock decision={capitalDecision} delayMs={0} />
           </>
         ) : null}
 

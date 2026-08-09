@@ -2,31 +2,19 @@
 
 import { useMemo } from "react";
 import { formatInr } from "@/lib/funds";
-import { buildDecisionDepth } from "@/lib/dailyLoop/decisionDepth";
+import { buildCapitalDecision } from "@/lib/dailyLoop/capitalDecision";
 import { getDisciplineInterpretation } from "@/lib/dailyLoop/disciplineCopy";
-import { getHeroTone } from "@/lib/dailyLoop/heroTone";
-import {
-  EXPLORE_EMPTY_BODY,
-  EXPLORE_EMPTY_HEADLINE,
-  formatJudgment,
-  getApexHeroSignature,
-} from "@/lib/dailyLoop/apexVoice";
+import { getApexHeroSignature } from "@/lib/dailyLoop/apexVoice";
 import { getIntentExperience } from "@/lib/dailyLoop/intentExperience";
 import { useDailyLoop } from "@/lib/useDailyLoop";
 import { useDisciplineStreak } from "@/lib/useDisciplineStreak";
 import { useIntentTransition } from "@/lib/useIntentTransition";
 import type { EntryTimingState } from "@/components/decision/ExecutionPlanCard";
 import {
-  BackgroundNote,
-  ExplorePrimaryBlock,
+  CapitalActionsBlock,
   PrimaryEmphasis,
-  ProtectPrimaryBlock,
-  SystemContextLine,
-  WatchSection,
-  WhySection,
 } from "@/components/dailyLoop/DecisionDepthSections";
 import { ApexCard } from "@/components/ui/apex";
-import { isSellAction, type DecisionActionType } from "@/types/decision";
 import type { StockPick } from "@/types/decision";
 import type { UserIntent } from "@/types/intent";
 
@@ -155,7 +143,6 @@ export default function HomeDecisionScreen({
   const { renderIntent, contentClassName } = useIntentTransition(intent);
   const experience = getIntentExperience(renderIntent);
   const {
-    actionText,
     plan,
     planLoading,
     trustScore,
@@ -169,20 +156,27 @@ export default function HomeDecisionScreen({
     stock: decision.stock,
   });
 
-  const resolvedDepth = useMemo(
+  const capitalDecision = useMemo(
     () =>
-      buildDecisionDepth({
-        ...decision,
+      buildCapitalDecision({
         intent: renderIntent,
-        entryTiming,
-        planConviction: plan?.conviction,
-        topSymbol,
+        action: decision.action,
+        stock: decision.stock ?? topSymbol,
+        picks: decision.picks,
+        allocationPercent: decision.allocationPercent,
+        suggested_sell_percent: decision.suggested_sell_percent,
         topAllocationPct,
+        entryTiming,
+        confidence: decision.confidence,
       }),
     [
-      decision,
+      decision.action,
+      decision.allocationPercent,
+      decision.confidence,
+      decision.picks,
+      decision.stock,
+      decision.suggested_sell_percent,
       entryTiming,
-      plan?.conviction,
       renderIntent,
       topAllocationPct,
       topSymbol,
@@ -191,16 +185,9 @@ export default function HomeDecisionScreen({
 
   const isBuy = decision.action === "buy";
   const isExplore = renderIntent === "explore";
-  const isProtect = renderIntent === "protect";
   const isGrow = renderIntent === "grow";
-  const isSell =
-    isSellAction(decision.action as DecisionActionType) ||
-    decision.action === "sell" ||
-    decision.action === "reduce";
   const hasPicks = (decision.picks?.length ?? 0) > 0;
-  const isExploreEmpty = isExplore && !hasPicks;
-  const isNoTradeHero =
-    (decision.action === "wait" || decision.action === "hold") && !hasPicks;
+  const isExploreEmpty = isExplore && !hasPicks && capitalDecision.actions.length === 0;
   const hasPlan = Boolean(plan && plan.steps.length > 0);
   let sectionDelay = 80;
 
@@ -210,29 +197,14 @@ export default function HomeDecisionScreen({
     return value;
   };
 
-  const heroTitle = isExploreEmpty
-    ? EXPLORE_EMPTY_HEADLINE
-    : isExplore
-      ? "What is interesting today"
-      : isNoTradeHero
-        ? EXPLORE_EMPTY_HEADLINE
-        : actionText;
-  const heroTone = isExploreEmpty || isNoTradeHero
-    ? EXPLORE_EMPTY_BODY
-    : getHeroTone({
-        intent: renderIntent,
-        action: decision.action,
-      });
+  const heroTitle = capitalDecision.heroHeadline;
+  const heroTone = capitalDecision.heroSubline;
   const heroSignature = getApexHeroSignature({
     intent: renderIntent,
     action: decision.action,
     seed: `${renderIntent}:${decision.action}:${decision.stock ?? "none"}`,
   });
   const disciplineLine = getDisciplineInterpretation(trustScore);
-  const protectReason =
-    decision.message ??
-    decision.reason ??
-    formatJudgment("Nothing is clean enough to risk capital", "patience matters");
 
   return (
     <div className={`mx-auto w-full max-w-[600px] ${className}`.trim()}>
@@ -265,12 +237,10 @@ export default function HomeDecisionScreen({
             ) : null}
           </header>
 
-          {isExplore && !isExploreEmpty ? (
-            <ExplorePrimaryBlock
-              setupItems={resolvedDepth.exploreSetupItems}
-              delayMs={nextDelay()}
-            />
-          ) : null}
+          <CapitalActionsBlock
+            decision={capitalDecision}
+            delayMs={nextDelay()}
+          />
 
           {isGrow && isBuy ? (
             <ExecutionPrimaryBlock
@@ -281,58 +251,13 @@ export default function HomeDecisionScreen({
             />
           ) : null}
 
-          {isProtect ? (
-            <ProtectPrimaryBlock
-              reason={protectReason}
-              riskElevated={decision.validation?.risk_ok === false}
-              insight={resolvedDepth.protectAllocation}
-              delayMs={nextDelay()}
-            />
-          ) : null}
-
-          {isGrow && !isBuy ? (
-            <section
-              className="mb-5 animate-apex-fade-in"
+          {hasPlan && plan?.behaviorNote && isGrow && isBuy ? (
+            <p
+              className="mt-4 text-sm leading-relaxed text-apex-text/60 animate-apex-fade-in"
               style={{ animationDelay: `${nextDelay()}ms` }}
             >
-              <PrimaryEmphasis>
-                <p className="text-lg font-medium leading-snug text-apex-text">
-                  {decision.reason ?? decision.message ?? actionText}
-                </p>
-              </PrimaryEmphasis>
-            </section>
-          ) : null}
-
-          {!isExplore ? (
-            <>
-              <WhySection bullets={resolvedDepth.whyBullets} delayMs={nextDelay()} />
-              <WatchSection items={resolvedDepth.watchNext} delayMs={nextDelay()} />
-            </>
-          ) : null}
-
-          {!isExploreEmpty ? (
-            <SystemContextLine depth={resolvedDepth} delayMs={nextDelay()} />
-          ) : null}
-
-          {hasPlan && plan?.behaviorNote && isGrow ? (
-            <BackgroundNote text={plan.behaviorNote} delayMs={nextDelay()} />
-          ) : null}
-
-          {isExplore && !isExploreEmpty ? (
-            <BackgroundNote
-              text={formatJudgment(
-                "Observation builds judgment",
-                "patience matters",
-              )}
-              delayMs={nextDelay()}
-            />
-          ) : null}
-
-          {isProtect && isSell ? (
-            <BackgroundNote
-              text="Trim first, then wait for a cleaner setup before adding back."
-              delayMs={nextDelay()}
-            />
+              {plan.behaviorNote}
+            </p>
           ) : null}
 
           {!isExploreEmpty ? (
