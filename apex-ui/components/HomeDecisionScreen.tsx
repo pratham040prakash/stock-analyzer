@@ -25,6 +25,7 @@ import type { ConnectionStatus } from "@/lib/broker/zerodha";
 import type { StockPick } from "@/types/decision";
 import type { UserIntent } from "@/types/intent";
 import type { CapitalFundingMode } from "@/lib/dailyLoop/capitalMargin";
+import { useExploreTriggers } from "@/lib/useExploreTriggers";
 import { useOpenMonitor } from "@/lib/useOpenMonitor";
 
 export type HomeDecision = {
@@ -214,6 +215,27 @@ export default function HomeDecisionScreen({
     onCapitalRefresh?.();
     void refreshMonitor();
   }, [onCapitalRefresh, refreshMonitor]);
+
+  const explorePicks = useMemo(() => {
+    if (!isExplore || !decision.picks?.length) {
+      return [];
+    }
+
+    const symbols = new Set(
+      capitalDecision.exploreSetups.map((setup) => setup.symbol),
+    );
+
+    return decision.picks.filter((pick) => symbols.has(pick.stock));
+  }, [capitalDecision.exploreSetups, decision.picks, isExplore]);
+
+  const {
+    triggerBySymbol: exploreTriggerBySymbol,
+    loading: exploreTriggersLoading,
+  } = useExploreTriggers({
+    enabled: isExplore && explorePicks.length > 0,
+    picks: explorePicks,
+    refreshKey: decisionUpdatedAt,
+  });
   const isExploreEmpty =
     isExplore &&
     capitalDecision.exploreSetups.length === 0 &&
@@ -369,6 +391,8 @@ export default function HomeDecisionScreen({
               <CapitalActionsBlock
                 decision={capitalDecision}
                 delayMs={nextDelay()}
+                liveTriggers={exploreTriggerBySymbol}
+                liveTriggersLoading={exploreTriggersLoading}
               />
               <details className="mb-6 group rounded-xl border border-apex-border/15 bg-white/[0.02]">
                 <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium text-apex-text/85 marker:content-none">

@@ -10,6 +10,7 @@ import type {
   CapitalDecision,
   ExploreSetup,
 } from "@/lib/dailyLoop/capitalDecision";
+import type { ExploreLiveTrigger } from "@/services/explore/liveTriggers";
 import {
   EXPLORE_PIPELINE_EMPTY_BODY,
   EXPLORE_PIPELINE_EMPTY_HEADLINE,
@@ -199,13 +200,24 @@ export function CapitalActionsBlock({
   decision,
   delayMs,
   depthOnly = false,
+  liveTriggers,
+  liveTriggersLoading = false,
 }: {
   decision: CapitalDecision;
   delayMs: number;
   depthOnly?: boolean;
+  liveTriggers?: Map<string, ExploreLiveTrigger>;
+  liveTriggersLoading?: boolean;
 }) {
   if (decision.mode === "explore") {
-    return <ExploreMonitoringBlock decision={decision} delayMs={delayMs} />;
+    return (
+      <ExploreMonitoringBlock
+        decision={decision}
+        delayMs={delayMs}
+        liveTriggers={liveTriggers}
+        liveTriggersLoading={liveTriggersLoading}
+      />
+    );
   }
 
   return (
@@ -355,14 +367,26 @@ function GrowCapitalActionsBlock({
 function ExploreMonitoringBlock({
   decision,
   delayMs,
+  liveTriggers,
+  liveTriggersLoading = false,
 }: {
   decision: CapitalDecision;
   delayMs: number;
+  liveTriggers?: Map<string, ExploreLiveTrigger>;
+  liveTriggersLoading?: boolean;
 }) {
   return (
     <TierBlock tier="primary" delayMs={delayMs}>
       <div className="space-y-4">
         <StancePrimaryHeader decision={decision} />
+
+        {liveTriggersLoading ? (
+          <p className="text-xs text-apex-muted/70">Refreshing live triggers…</p>
+        ) : liveTriggers && liveTriggers.size > 0 ? (
+          <p className="text-xs text-apex-muted/65">
+            Live trigger states from Zerodha / market data.
+          </p>
+        ) : null}
 
         {decision.explorePipelineSummary ? (
           <p className="text-sm font-medium leading-snug text-apex-text/90">
@@ -373,7 +397,11 @@ function ExploreMonitoringBlock({
         {decision.exploreSetups.length > 0 ? (
           <ul className="space-y-5 border-t border-apex-border/15 pt-4">
             {decision.exploreSetups.map((item) => (
-              <ExploreSetupRow key={item.symbol} setup={item} />
+              <ExploreSetupRow
+                key={item.symbol}
+                setup={item}
+                liveTrigger={liveTriggers?.get(item.symbol)}
+              />
             ))}
           </ul>
         ) : (
@@ -391,9 +419,32 @@ function ExploreMonitoringBlock({
   );
 }
 
-function ExploreSetupRow({ setup }: { setup: ExploreSetup }) {
+function triggerStateClass(state: ExploreLiveTrigger["state"]): string {
+  if (state === "confirmed") {
+    return "border-emerald-400/30 bg-emerald-500/10 text-emerald-200/95";
+  }
+
+  if (state === "near_entry") {
+    return "border-amber-400/30 bg-amber-500/10 text-amber-200/95";
+  }
+
+  if (state === "watch") {
+    return "border-blue-300/25 bg-blue-500/10 text-blue-100/90";
+  }
+
+  return "border-apex-border/20 bg-white/[0.03] text-apex-muted/80";
+}
+
+function ExploreSetupRow({
+  setup,
+  liveTrigger,
+}: {
+  setup: ExploreSetup;
+  liveTrigger?: ExploreLiveTrigger;
+}) {
   const isHighlighted =
     setup.priorityMarker === "Closest to activation" || setup.isPrimary;
+  const headline = liveTrigger?.liveScanLine ?? setup.scanLine;
 
   return (
     <li
@@ -403,12 +454,29 @@ function ExploreSetupRow({ setup }: { setup: ExploreSetup }) {
           : undefined
       }
     >
-      <p className="text-base font-medium tracking-wide text-apex-text/70">
-        {setup.symbol}
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-base font-medium tracking-wide text-apex-text/70">
+          {setup.symbol}
+        </p>
+        {liveTrigger ? (
+          <span
+            className={`rounded-full border px-2.5 py-0.5 text-[11px] font-medium uppercase tracking-wide ${triggerStateClass(liveTrigger.state)}`}
+          >
+            {liveTrigger.label}
+          </span>
+        ) : null}
+      </div>
       <p className="mt-0.5 text-xl font-semibold leading-tight text-apex-text">
-        {setup.scanLine}
+        {headline}
       </p>
+      {liveTrigger ? (
+        <p className="mt-1 text-xs text-apex-muted/70">
+          Live {formatInr(liveTrigger.livePrice)}
+          {liveTrigger.gapPct !== undefined && liveTrigger.activationLevel
+            ? ` · ${liveTrigger.gapPct}% to ${formatInr(liveTrigger.activationLevel)}`
+            : null}
+        </p>
+      ) : null}
       <p className="mt-1.5 text-xs font-medium uppercase tracking-wider text-apex-text/55">
         {setup.stageLine}
       </p>
