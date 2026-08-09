@@ -22,22 +22,25 @@ APS-001 Today's Brief
 
 ## Current Architecture
 
-React  
+Next.js (App Router)  
+React 19  
 TypeScript  
 Tailwind  
-FastAPI  
-Postgres  
+Supabase (auth + Postgres)  
+Vercel (hosting)  
 
-**Status:** Architecture Frozen
+**Status:** Production stack locked — `apex-ui/` on Vercel
 
 ## Next Task
 
-UX-001
+UX-001 — One canonical Today surface (`ETS-003`)
 
 ---
 
 ## Repository note
 
-This workspace (`stock-analyzer`) currently ships the Daily Decision Experience via **Streamlit + Python** while Sprint 1 target architecture above is frozen for planning. See `.cursor/TECH_STACK.md` for production pins, CI, and deploy reality.
+**Production:** Daily Decision Experience ships from **`apex-ui/`** — deployed on **Vercel**. User-facing product work happens here only.
 
-Canonical product/engineering docs: `docs/apex/`.
+**Legacy (reference, not production UI):** `analyzer/` + `ui/` Streamlit — domain logic and Alpha AI; may feed APIs later. Do not treat Streamlit as the shipping surface.
+
+Canonical product/engineering docs: `docs/apex/` (interpret through Vercel/`apex-ui` reality).

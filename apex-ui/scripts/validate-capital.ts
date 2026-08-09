@@ -5,10 +5,12 @@ import { runCapitalProjectionSelfCheck } from "../lib/dailyLoop/capitalProjectio
 import { runCapitalFinalStateSelfCheck } from "../lib/dailyLoop/capitalFinalState";
 import { runCapitalDecisionLockSelfCheck } from "../lib/dailyLoop/capitalDecisionLock";
 import { runCapitalMarginSelfCheck } from "../lib/dailyLoop/capitalMargin";
+import { runTodaySurfaceSelfCheck } from "../lib/dailyLoop/todaySurface";
 import { runCommitmentSelfCheck } from "../lib/dailyLoop/disciplineCommitment";
 
 runCapitalProjectionSelfCheck();
 runCapitalFinalStateSelfCheck();
 runCapitalDecisionLockSelfCheck();
 runCapitalMarginSelfCheck();
+runTodaySurfaceSelfCheck();
 runCommitmentSelfCheck();

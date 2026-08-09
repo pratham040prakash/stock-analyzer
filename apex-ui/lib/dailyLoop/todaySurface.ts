@@ -1,0 +1,121 @@
+import type { CapitalAction, CapitalDecision } from "@/lib/dailyLoop/capitalDecision";
+
+export type TodayExecutionKind = "WAIT" | "SELL" | "BUY" | "OBSERVE";
+
+export type TodayHero = {
+  headline: string;
+  subline: string;
+  executionKind: TodayExecutionKind;
+  symbol?: string;
+  /** Percent of holding quantity to sell (1–100). */
+  sellPercent?: number;
+  deployAmount?: number;
+  targetWeightAfter?: number;
+  currentWeight?: number;
+};
+
+export function sellPercentToReachTargetWeight(
+  currentWeight: number,
+  targetWeight: number,
+): number {
+  if (
+    !Number.isFinite(currentWeight) ||
+    !Number.isFinite(targetWeight) ||
+    currentWeight <= 0 ||
+    currentWeight <= targetWeight
+  ) {
+    return 0;
+  }
+
+  return Math.min(
+    100,
+    Math.max(1, Math.round(((currentWeight - targetWeight) / currentWeight) * 100)),
+  );
+}
+
+function resolvePrimaryAction(decision: CapitalDecision): CapitalAction | undefined {
+  return (
+    decision.actions.find((action) => action.isPrimary) ??
+    decision.actions.find((action) => action.action === "SELL") ??
+    decision.actions.find((action) => action.action === "BUY") ??
+    decision.actions[0]
+  );
+}
+
+export function resolveTodayHero(
+  decision: CapitalDecision,
+  options?: {
+    suggestedSellPercent?: number;
+  },
+): TodayHero {
+  if (decision.mode === "explore") {
+    return {
+      headline: decision.heroHeadline,
+      subline: decision.heroSubline,
+      executionKind: "OBSERVE",
+    };
+  }
+
+  const primary = resolvePrimaryAction(decision);
+
+  if (primary?.action === "SELL") {
+    const currentWeight = primary.portfolioWeight ?? 0;
+    const targetWeight = primary.deployPercentage;
+    const computed = sellPercentToReachTargetWeight(currentWeight, targetWeight);
+    const suggested = options?.suggestedSellPercent;
+    const sellPercent =
+      typeof suggested === "number" &&
+      suggested > 0 &&
+      suggested <= 100
+        ? Math.round(suggested)
+        : computed;
+
+    return {
+      headline: decision.primaryAction,
+      subline: decision.primaryActionDetail,
+      executionKind: "SELL",
+      symbol: primary.symbol,
+      sellPercent: sellPercent > 0 ? sellPercent : undefined,
+      targetWeightAfter: targetWeight,
+      currentWeight,
+    };
+  }
+
+  if (primary?.action === "BUY" && (primary.deployAmount ?? decision.deployAmount) > 0) {
+    return {
+      headline: decision.primaryAction,
+      subline: decision.primaryActionDetail,
+      executionKind: "BUY",
+      symbol: primary.symbol,
+      deployAmount: primary.deployAmount ?? decision.deployAmount,
+    };
+  }
+
+  return {
+    headline: decision.heroHeadline,
+    subline: decision.heroSubline,
+    executionKind: "WAIT",
+    symbol: primary?.symbol,
+  };
+}
+
+export function runTodaySurfaceSelfCheck(): void {
+  const assert = (condition: boolean, message: string) => {
+    if (!condition) {
+      throw new Error(`Today surface self-check failed: ${message}`);
+    }
+  };
+
+  assert(
+    sellPercentToReachTargetWeight(100, 25) === 75,
+    "Sell percent must reach target weight from full concentration",
+  );
+  assert(
+    sellPercentToReachTargetWeight(32, 25) === 22,
+    "Sell percent must trim overweight positions",
+  );
+  assert(
+    sellPercentToReachTargetWeight(20, 25) === 0,
+    "No sell when already at or below target weight",
+  );
+}

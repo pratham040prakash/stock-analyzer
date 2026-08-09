@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ConnectZerodhaCard from "./ConnectZerodhaCard";
-import DailyDecisionCard from "./DailyDecisionCard";
 import DecisionHistoryPanel from "./DecisionHistoryPanel";
 import HomeDecisionScreen from "./HomeDecisionScreen";
 import FinancialProfileSetup from "./FinancialProfileSetup";
@@ -19,8 +18,6 @@ import type { Portfolio } from "@/types/portfolio";
 import type { ConnectionStatus } from "@/lib/broker/zerodha";
 import type { FinancialProfile } from "@/lib/financialProfile";
 import { isProfileComplete } from "@/lib/financialProfile";
-import type { DailyDecisionOutput } from "@/types/decision";
-import { isSellAction } from "@/types/decision";
 import type { DailyInsight } from "@/types/dailyInsight";
 import type { DecisionHistoryEntry } from "@/types/decisionHistory";
 import {
@@ -518,6 +515,13 @@ export default function HomeClient({
     };
   }, [configured, user, authLoading, refreshDashboard]);
 
+  const refreshAfterExecution = useCallback(() => {
+    void loadPortfolio({ silent: true });
+    refreshDecision();
+    void loadFunds();
+    void loadDecisionHistory();
+  }, [loadPortfolio, refreshDecision, loadFunds, loadDecisionHistory]);
+
   if (authLoading) {
     return <LoadingState />;
   }
@@ -551,15 +555,8 @@ export default function HomeClient({
       brokerMessage?.includes("syncing") ||
       brokerMessage?.includes("connected"));
 
-  const needsActionCard =
-    Boolean(dailyDecision) &&
-    userIntent !== "explore" &&
-    (isSellAction(dailyDecision.action) || dailyDecision.action === "sell");
-
   const showHomeDecision =
-    Boolean(dailyDecision) &&
-    connectionStatus === "CONNECTED" &&
-    !needsActionCard;
+    Boolean(dailyDecision) && connectionStatus === "CONNECTED";
 
   return (
     <ApexShell>
@@ -671,22 +668,11 @@ export default function HomeClient({
                 symbol: holding.tradingsymbol,
                 weight: holding.allocation_pct,
               }))}
-            />
-          ) : null}
-
-          {needsActionCard && dailyDecision ? (
-            <DailyDecisionCard
-              decision={dailyDecision}
-              totalValue={portfolioData?.total_value ?? 0}
+              connectionStatus={connectionStatus}
+              decisionUpdatedAt={decisionUpdatedAt}
+              fundsLoading={fundsLoading}
               isRefreshing={decisionRefreshing}
-              intent={userIntent}
-              availableCash={availableCash ?? undefined}
-              collateral={collateral}
-              capitalMode={capitalMode}
-              riskLevel={portfolioData?.risk_level}
-              portfolioContext={recommendationPortfolio}
-              onIntentChange={setUserIntent}
-              updatedAt={decisionUpdatedAt}
+              onCapitalRefresh={refreshAfterExecution}
             />
           ) : null}
 

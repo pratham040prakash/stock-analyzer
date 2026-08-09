@@ -198,15 +198,23 @@ export function ProtectPrimaryBlock({
 export function CapitalActionsBlock({
   decision,
   delayMs,
+  depthOnly = false,
 }: {
   decision: CapitalDecision;
   delayMs: number;
+  depthOnly?: boolean;
 }) {
   if (decision.mode === "explore") {
     return <ExploreMonitoringBlock decision={decision} delayMs={delayMs} />;
   }
 
-  return <GrowCapitalActionsBlock decision={decision} delayMs={delayMs} />;
+  return (
+    <GrowCapitalActionsBlock
+      decision={decision}
+      delayMs={delayMs}
+      depthOnly={depthOnly}
+    />
+  );
 }
 
 function StancePrimaryHeader({ decision }: { decision: CapitalDecision }) {
@@ -242,52 +250,58 @@ function StancePrimaryHeader({ decision }: { decision: CapitalDecision }) {
 function GrowCapitalActionsBlock({
   decision,
   delayMs,
+  depthOnly = false,
 }: {
   decision: CapitalDecision;
   delayMs: number;
+  depthOnly?: boolean;
 }) {
   return (
     <section
       className="space-y-8 animate-apex-fade-in"
       style={{ animationDelay: `${delayMs}ms` }}
     >
-      <div className="space-y-1">
-        <p className="text-sm font-medium leading-snug text-apex-text">
-          {decision.portfolioStance}
-        </p>
-        <p className="text-sm leading-snug text-apex-text/70">
-          {decision.portfolioStanceDetail}
-        </p>
-        <p className="text-sm leading-snug text-apex-text/75">
-          Available cash: {formatInr(decision.availableCash)}
-        </p>
-        {decision.capitalMode === "MARGIN" ? (
-          <>
-            <p className="text-sm font-medium leading-snug text-apex-text/85">
-              Capital Mode: MARGIN
-            </p>
-            {decision.marginWarning ? (
-              <p className="text-sm leading-snug text-amber-200/85">
-                {decision.marginWarning}
-              </p>
-            ) : null}
-          </>
-        ) : null}
-        {decision.deployAmount > 0 ? (
-          <p className="text-sm leading-snug text-apex-text/75">
-            Deploy amount: {formatInr(decision.deployAmount)}
+      {!depthOnly ? (
+        <div className="space-y-1">
+          <p className="text-sm font-medium leading-snug text-apex-text">
+            {decision.portfolioStance}
           </p>
-        ) : null}
-      </div>
+          <p className="text-sm leading-snug text-apex-text/70">
+            {decision.portfolioStanceDetail}
+          </p>
+          <p className="text-sm leading-snug text-apex-text/75">
+            Available cash: {formatInr(decision.availableCash)}
+          </p>
+          {decision.capitalMode === "MARGIN" ? (
+            <>
+              <p className="text-sm font-medium leading-snug text-apex-text/85">
+                Capital Mode: MARGIN
+              </p>
+              {decision.marginWarning ? (
+                <p className="text-sm leading-snug text-amber-200/85">
+                  {decision.marginWarning}
+                </p>
+              ) : null}
+            </>
+          ) : null}
+          {decision.deployAmount > 0 ? (
+            <p className="text-sm leading-snug text-apex-text/75">
+              Deploy amount: {formatInr(decision.deployAmount)}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
-      <div className="space-y-1">
-        <p className="text-lg font-medium leading-snug text-apex-text">
-          {decision.primaryAction}
-        </p>
-        <p className="text-sm leading-snug text-apex-text/75">
-          {decision.primaryActionDetail}
-        </p>
-      </div>
+      {!depthOnly ? (
+        <div className="space-y-1">
+          <p className="text-lg font-medium leading-snug text-apex-text">
+            {decision.primaryAction}
+          </p>
+          <p className="text-sm leading-snug text-apex-text/75">
+            {decision.primaryActionDetail}
+          </p>
+        </div>
+      ) : null}
 
       {decision.growEmptyMessage ? (
         <p className="text-sm font-medium leading-snug text-apex-text/90">

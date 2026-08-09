@@ -1,6 +1,7 @@
 import { apiError, apiOk } from "@/lib/api/response";
 import { createClient } from "@/lib/supabase/server";
 import { executeTrade } from "@/services/trade/execute";
+import { executeSellTrim } from "@/services/trade/executeSell";
 import { getMarketRegime } from "@/services/decision/stockScoring";
 import { getLatestPortfolioSnapshotWithMetrics } from "@/services/portfolio/repository";
 import { computePortfolioMetrics } from "@/services/brokers/zerodha";
@@ -9,6 +10,8 @@ import { normalizeSymbol } from "@/lib/stockPool";
 type ExecuteTradeRequest = {
   stock?: string;
   amount?: number;
+  sellPercent?: number;
+  side?: "buy" | "sell";
 };
 
 export async function POST(request: Request) {
@@ -30,11 +33,53 @@ export async function POST(request: Request) {
   }
 
   const stock = body.stock ? normalizeSymbol(body.stock) : "";
-  const amount = Math.round(Number(body.amount ?? 0));
+  const side = body.side === "sell" ? "sell" : "buy";
 
   if (!stock) {
     return apiError("stock is required", 400);
   }
+
+  if (side === "sell") {
+    const sellPercent = Math.round(Number(body.sellPercent ?? 0));
+
+    if (!Number.isFinite(sellPercent) || sellPercent < 1 || sellPercent > 100) {
+      return apiError("sellPercent must be between 1 and 100", 400);
+    }
+
+    const result = await executeSellTrim(supabase, user.id, {
+      stock,
+      sellPercent,
+    });
+
+    if (result.status === "NOT_CONNECTED") {
+      return apiError("Zerodha is not connected", 409);
+    }
+
+    if (result.status === "TOKEN_EXPIRED") {
+      return apiError("Zerodha session expired — reconnect to trade", 401);
+    }
+
+    if (result.status === "NO_HOLDING") {
+      return apiError(`No holding found for ${result.stock}`, 400);
+    }
+
+    if (result.status === "INVALID_QUANTITY") {
+      return apiError(result.message, 400);
+    }
+
+    if (result.status === "ERROR") {
+      return apiError(result.message, 400);
+    }
+
+    return apiOk({
+      stock: result.stock,
+      sellPercent: result.sellPercent,
+      quantity: result.quantity,
+      orderId: result.orderId,
+    });
+  }
+
+  const amount = Math.round(Number(body.amount ?? 0));
 
   if (!Number.isFinite(amount) || amount <= 0) {
     return apiError("amount must be a positive number", 400);

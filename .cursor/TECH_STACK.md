@@ -1,7 +1,7 @@
 # APEX — Tech Stack
 
-**Status:** Architecture Frozen (Sprint 1)  
-**Last updated:** 2026-08-06
+**Status:** Production locked  
+**Last updated:** 2026-08-09
 
 ---
 
@@ -15,27 +15,32 @@
 
 ---
 
-## Backend
+## Backend (production)
 
-- FastAPI
-- Python
-- SQLAlchemy
-- Postgres
-- Redis
+- Next.js Route Handlers (`apex-ui/app/api/`)
+- Supabase (Postgres, auth, RLS)
+- Zerodha Kite (broker sync via server routes)
+
+## Backend (future / intelligence)
+
+- Python `analyzer/` — Alpha AI, context/evidence/decision engines (not the Vercel UI shell)
+- FastAPI — optional later if Python services split from Next.js
 
 ---
 
 ## AI
 
-- OpenAI
-- LangGraph
-- LlamaIndex
-- Vector DB
+- OpenAI (via existing analyzer paths when integrated)
+- Alpha AI reports (`analyzer/alpha_ai_report.py`) — premium depth, future API bridge
 
 ---
 
-## Repository note (current production)
+## Deploy
 
-This workspace (`stock-analyzer`) still runs the Daily Decision Experience on **Streamlit + Python** with pinned deps in `requirements-lock.txt`. Use the stack above for Sprint 1 target architecture; see `.github/workflows/ci.yml` and `requirements-lock.txt` for deploy reality until migration.
+- **Vercel** — `apex-ui/` root for production
+- **Supabase** — auth, profiles, session storage
+- Cron via `vercel.json` where configured
 
-**Change policy:** Stack changes require CTO approval + ADR.
+**Not production UI:** Streamlit (`ui/`, `app.py`) — legacy local tooling only.
+
+**Change policy:** Stack changes require Founder + ADR for structural shifts.

@@ -44,11 +44,18 @@ Every feature must satisfy [MASTER_PROMPT.md](./MASTER_PROMPT.md):
 
 ---
 
-## Repository note (current production)
+## Repository note (production)
 
-This workspace (`stock-analyzer`) is **Python + Streamlit** until Sprint 1 migration. Python standards until then: PEP 8, type hints on decision-path public APIs, tests in `tests/`, business logic in `analyzer/` not `ui/`.
+**Ship from `apex-ui/` only** (Next.js + TypeScript on Vercel).
 
-See `.cursor/TECH_STACK.md` for target vs current stack.
+- Business logic: `apex-ui/lib/`, `apex-ui/services/` — not in React components
+- API routes: `apex-ui/app/api/` — auth, broker sync, decision
+- Capital/decision rules: `apex-ui/lib/dailyLoop/` — single source for Today
+- Prebuild gate: `npm run build` runs `scripts/validate-capital.ts`
+
+**Legacy Python (`analyzer/`, `ui/`):** reference for Alpha AI and future API bridges; not the production UI path.
+
+See `.cursor/TECH_STACK.md` for full stack.
 
 ---
 

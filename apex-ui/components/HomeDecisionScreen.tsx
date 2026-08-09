@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { buildCapitalDecision } from "@/lib/dailyLoop/capitalDecision";
+import { resolveTodayHero } from "@/lib/dailyLoop/todaySurface";
 import { getDisciplineInterpretation } from "@/lib/dailyLoop/disciplineCopy";
 import { getApexHeroSignature } from "@/lib/dailyLoop/apexVoice";
 import { getIntentExperience } from "@/lib/dailyLoop/intentExperience";
@@ -13,7 +14,10 @@ import {
   CapitalActionsBlock,
   ExecutionStatusBlock,
 } from "@/components/dailyLoop/DecisionDepthSections";
+import TodayExecutionPanel from "@/components/dailyLoop/TodayExecutionPanel";
+import TodayTrustStrip from "@/components/dailyLoop/TodayTrustStrip";
 import { ApexCard } from "@/components/ui/apex";
+import type { ConnectionStatus } from "@/lib/broker/zerodha";
 import type { StockPick } from "@/types/decision";
 import type { UserIntent } from "@/types/intent";
 import type { CapitalFundingMode } from "@/lib/dailyLoop/capitalMargin";
@@ -57,6 +61,11 @@ export type HomeDecisionScreenProps = {
   collateral?: number;
   capitalMode?: CapitalFundingMode;
   holdings?: { symbol: string; weight: number }[];
+  connectionStatus?: ConnectionStatus;
+  decisionUpdatedAt?: string | null;
+  fundsLoading?: boolean;
+  isRefreshing?: boolean;
+  onCapitalRefresh?: () => void;
   className?: string;
 };
 
@@ -95,6 +104,11 @@ export default function HomeDecisionScreen({
   collateral,
   capitalMode,
   holdings,
+  connectionStatus = "NOT_CONNECTED",
+  decisionUpdatedAt,
+  fundsLoading = false,
+  isRefreshing = false,
+  onCapitalRefresh,
   className = "",
 }: HomeDecisionScreenProps) {
   const { renderIntent, contentClassName } = useIntentTransition(intent);
@@ -150,6 +164,20 @@ export default function HomeDecisionScreen({
     deploymentPercentage: capitalDecision.deploymentPercentage,
   });
 
+  const todayHero = useMemo(
+    () =>
+      resolveTodayHero(capitalDecision, {
+        suggestedSellPercent: decision.suggested_sell_percent,
+      }),
+    [capitalDecision, decision.suggested_sell_percent],
+  );
+
+  const holdingAllocationPct =
+    todayHero.currentWeight ??
+    topAllocationPct ??
+    capitalDecision.actions.find((action) => action.symbol === todayHero.symbol)
+      ?.portfolioWeight;
+
   const isExplore = renderIntent === "explore";
   const isGrow = renderIntent === "grow";
   const isProtect = renderIntent === "protect";
@@ -166,8 +194,12 @@ export default function HomeDecisionScreen({
     return value;
   };
 
-  const heroTitle = capitalDecision.heroHeadline;
-  const heroTone = capitalDecision.heroSubline;
+  const heroTitle = isCapitalDeployment
+    ? todayHero.headline
+    : capitalDecision.heroHeadline;
+  const heroTone = isCapitalDeployment
+    ? todayHero.subline
+    : capitalDecision.heroSubline;
   const heroSignature = isCapitalDeployment
     ? null
     : getApexHeroSignature({
@@ -192,38 +224,44 @@ export default function HomeDecisionScreen({
         />
 
         <div className={`relative p-6 ${contentClassName}`}>
+          <div className="mb-6 space-y-4">
+            <TodayTrustStrip
+              connectionStatus={connectionStatus}
+              availableCash={availableCash}
+              portfolioValue={portfolioValue}
+              updatedAt={decisionUpdatedAt}
+              fundsLoading={fundsLoading}
+            />
+
+            {isRefreshing ? (
+              <p className="text-xs text-apex-muted/60">Refreshing decision…</p>
+            ) : null}
+          </div>
+
           <header className="mb-6 space-y-2">
             <p className="text-xs text-apex-muted/60">
               {retention.dailyContextLabel}
             </p>
-            <p className="text-xs text-apex-muted/55">
-              {retention.decisionTensionLine}
-            </p>
+            {retention.decisionTensionLine ? (
+              <p className="text-xs text-apex-muted/55">
+                {retention.decisionTensionLine}
+              </p>
+            ) : null}
             {isCapitalDeployment ? (
               <p className="text-xs text-apex-muted/50">
                 {retention.sessionTimeContext}
               </p>
             ) : null}
             <p className="text-xs font-medium uppercase tracking-[0.14em] text-apex-muted">
-              {isCapitalDeployment ? "Capital deployment" : experience.tagline}
+              {isCapitalDeployment ? "Today's capital decision" : experience.tagline}
             </p>
             <h1 className="text-3xl font-bold leading-tight tracking-tight text-apex-text">
               {heroTitle}
             </h1>
             <p className="mt-2 text-sm text-apex-muted">{heroTone}</p>
-            {capitalDecision.heroDecisionCue ? (
-              <p className="text-xs text-apex-muted/60">
-                {capitalDecision.heroDecisionCue}
-              </p>
-            ) : null}
             {capitalDecision.behaviorLock ? (
               <p className="text-xs font-medium text-apex-text/75">
                 {capitalDecision.behaviorLock}
-              </p>
-            ) : null}
-            {capitalDecision.heroAccountability ? (
-              <p className="text-xs text-apex-muted/70">
-                {capitalDecision.heroAccountability}
               </p>
             ) : null}
             {heroSignature ? (
@@ -231,10 +269,36 @@ export default function HomeDecisionScreen({
             ) : null}
           </header>
 
-          <CapitalActionsBlock
-            decision={capitalDecision}
-            delayMs={nextDelay()}
-          />
+          {isCapitalDeployment ? (
+            <div className="mb-6">
+              <TodayExecutionPanel
+                hero={todayHero}
+                portfolioValue={portfolioValue ?? 0}
+                holdingAllocationPct={holdingAllocationPct}
+                onExecuted={onCapitalRefresh}
+              />
+            </div>
+          ) : null}
+
+          {isCapitalDeployment ? (
+            <details className="mb-6 group rounded-xl border border-apex-border/15 bg-white/[0.02]">
+              <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium text-apex-text/85 marker:content-none">
+                Decision depth
+              </summary>
+              <div className="border-t border-apex-border/10 px-4 py-4">
+                <CapitalActionsBlock
+                  decision={capitalDecision}
+                  delayMs={nextDelay()}
+                  depthOnly
+                />
+              </div>
+            </details>
+          ) : (
+            <CapitalActionsBlock
+              decision={capitalDecision}
+              delayMs={nextDelay()}
+            />
+          )}
 
           {!isExploreEmpty && !isCapitalDeployment ? (
             <section
