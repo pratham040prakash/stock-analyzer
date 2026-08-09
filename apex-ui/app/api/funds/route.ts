@@ -28,6 +28,17 @@ function emptyFunds(status: string, extra?: Record<string, unknown>) {
   });
 }
 
+function resolvePortfolioValue(
+  holdingsResult: Awaited<ReturnType<typeof fetchZerodhaHoldings>>,
+): number {
+  if (holdingsResult.status !== "OK") {
+    return 0;
+  }
+
+  const portfolio = mapKiteHoldingsToPortfolio(holdingsResult.data);
+  return computePortfolioMetrics(portfolio).totalValue;
+}
+
 export async function GET() {
   const supabase = await createClient();
   const {
@@ -56,28 +67,20 @@ export async function GET() {
     return emptyFunds("TOKEN_EXPIRED");
   }
 
+  const portfolioValue = resolvePortfolioValue(holdingsResult);
+
   if (marginsResult.status === "ERROR") {
-    return NextResponse.json(
-      {
-        ledger_cash: 0,
-        collateral: 0,
-        margin_available: 0,
-        live_balance: 0,
-        portfolio_value: 0,
-        total_capital: 0,
-        available_cash: 0,
-        status: "ERROR",
-        message: marginsResult.message,
-      },
-      { status: 502 },
-    );
-  }
-
-  let portfolioValue = 0;
-
-  if (holdingsResult.status === "OK") {
-    const portfolio = mapKiteHoldingsToPortfolio(holdingsResult.data);
-    portfolioValue = computePortfolioMetrics(portfolio).totalValue;
+    return NextResponse.json({
+      ledger_cash: 0,
+      collateral: 0,
+      margin_available: 0,
+      live_balance: 0,
+      portfolio_value: portfolioValue,
+      total_capital: computeTotalCapital(portfolioValue, 0),
+      available_cash: 0,
+      status: portfolioValue > 0 ? "PARTIAL" : "ERROR",
+      message: marginsResult.message,
+    });
   }
 
   const totalCapital = computeTotalCapital(

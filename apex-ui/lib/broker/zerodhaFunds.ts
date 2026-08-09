@@ -15,6 +15,9 @@ type KiteEquityMargins = {
     cash?: number;
     collateral?: number;
     live_balance?: number;
+    opening_balance?: number;
+    intraday_payin?: number;
+    adhoc_margin?: number;
   };
 };
 
@@ -49,12 +52,22 @@ export function parseZerodhaEquityFunds(
     return null;
   }
 
-  const rawCash = coerceFundsNumber(equity.available?.cash);
+  const rawCash =
+    coerceFundsNumber(equity.available?.cash) ??
+    coerceFundsNumber(equity.available?.opening_balance);
   const rawNet = coerceFundsNumber(equity.net);
   const rawLive = coerceFundsNumber(equity.available?.live_balance);
   const rawCollateral = coerceFundsNumber(equity.available?.collateral);
+  const rawIntraday = coerceFundsNumber(equity.available?.intraday_payin);
+  const rawAdhoc = coerceFundsNumber(equity.available?.adhoc_margin);
 
-  if (rawCash === null && rawNet === null && rawLive === null) {
+  if (
+    rawCash === null &&
+    rawNet === null &&
+    rawLive === null &&
+    rawIntraday === null &&
+    rawAdhoc === null
+  ) {
     return null;
   }
 
@@ -68,7 +81,7 @@ export function parseZerodhaEquityFunds(
       ? net
       : rawLive !== null && rawLive > 0
         ? roundFunds(rawLive)
-        : roundFunds((rawCash ?? 0) + (rawCollateral ?? 0));
+        : roundFunds((rawCash ?? 0) + (rawCollateral ?? 0) + (rawIntraday ?? 0) + (rawAdhoc ?? 0));
 
   return {
     ledgerCash,
@@ -124,6 +137,12 @@ export function runZerodhaFundsSelfCheck(): void {
     available: {},
   });
   assert(netOnly?.marginAvailable === 12_500, "Net-only margins must parse");
+
+  const emptyAccount = parseZerodhaEquityFunds({
+    net: 0,
+    available: { cash: 0, collateral: 0, live_balance: 0 },
+  });
+  assert(emptyAccount?.marginAvailable === 0, "Zero-balance account must parse");
 
   assert(computeTotalCapital(400_000, 50_000) === 450_000, "Total capital sums portfolio + ledger cash");
 }

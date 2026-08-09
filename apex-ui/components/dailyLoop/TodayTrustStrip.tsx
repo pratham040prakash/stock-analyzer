@@ -63,13 +63,15 @@ export default function TodayTrustStrip({
 }: TodayTrustStripProps) {
   const syncedAt = formatUpdatedAt(updatedAt);
   const deployableKnown = fundsSynced && knownAmount(marginAvailable);
-  const ledgerKnown = fundsSynced && knownAmount(ledgerCash);
-  const collateralKnown = fundsSynced && knownAmount(collateral) && collateral > 0;
   const portfolioKnown = knownAmount(portfolioValue);
   const totalKnown = knownAmount(totalCapital);
   const dayKnown = knownAmount(dayPnl);
-  const showFundsPending =
-    connectionStatus === "CONNECTED" && !fundsSynced && !fundsLoading;
+  const resolvedTotal =
+    totalKnown
+      ? totalCapital
+      : portfolioKnown && knownAmount(ledgerCash)
+        ? (portfolioValue ?? 0) + (ledgerCash ?? 0)
+        : null;
 
   return (
     <div
@@ -88,7 +90,6 @@ export default function TodayTrustStrip({
         </span>
         {syncedAt ? <span>Updated {syncedAt} IST</span> : null}
         {fundsLoading ? <span>Syncing Zerodha funds…</span> : null}
-        {showFundsPending ? <span>Loading deployable balance…</span> : null}
       </div>
 
       <div className="mt-2 space-y-1.5 text-sm text-apex-text/80">
@@ -96,7 +97,7 @@ export default function TodayTrustStrip({
           <span className="text-apex-muted/75">Available to deploy: </span>
           {deployableKnown ? (
             formatInr(Math.max(0, marginAvailable ?? 0))
-          ) : fundsLoading || showFundsPending ? (
+          ) : fundsLoading ? (
             "…"
           ) : (
             "—"
@@ -104,14 +105,11 @@ export default function TodayTrustStrip({
           <span className="text-xs text-apex-muted/60"> · Zerodha margin available</span>
         </p>
 
-        {fundsSynced && (ledgerKnown || collateralKnown) ? (
+        {fundsSynced ? (
           <p className="text-xs text-apex-muted/75">
-            {ledgerKnown ? (
-              <span>Cash {formatInr(Math.max(0, ledgerCash ?? 0))}</span>
-            ) : null}
-            {ledgerKnown && collateralKnown ? <span> · </span> : null}
-            {collateralKnown ? (
-              <span>Collateral {formatInr(Math.max(0, collateral ?? 0))}</span>
+            <span>Cash {formatInr(Math.max(0, ledgerCash ?? 0))}</span>
+            {(collateral ?? 0) > 0 ? (
+              <span> · Collateral {formatInr(Math.max(0, collateral ?? 0))}</span>
             ) : null}
           </p>
         ) : null}
@@ -120,8 +118,8 @@ export default function TodayTrustStrip({
           {portfolioKnown ? (
             <span>Portfolio {formatInr(Math.max(0, portfolioValue ?? 0))}</span>
           ) : null}
-          {totalKnown ? (
-            <span>Total capital {formatInr(Math.max(0, totalCapital ?? 0))}</span>
+          {resolvedTotal !== null ? (
+            <span>Total capital {formatInr(Math.max(0, resolvedTotal))}</span>
           ) : null}
           {dayKnown ? (
             <span

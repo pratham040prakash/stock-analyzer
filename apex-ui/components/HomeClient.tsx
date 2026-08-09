@@ -65,7 +65,8 @@ type FundsResponse = {
   portfolio_value?: number;
   total_capital?: number;
   available_cash: number;
-  status?: string;
+  status?: "OK" | "PARTIAL" | "ERROR" | "NOT_CONNECTED" | "TOKEN_EXPIRED";
+  message?: string;
 };
 
 function LoadingState() {
@@ -327,7 +328,7 @@ export default function HomeClient({
       setCollateral(nextCollateral);
       setBrokerPortfolioValue(nextPortfolioValue);
       setTotalCapital(nextTotalCapital);
-      setFundsSynced(data.status === "OK");
+      setFundsSynced(true);
     } catch {
       setAvailableCash(null);
       setLedgerCash(null);

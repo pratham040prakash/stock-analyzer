@@ -35,7 +35,24 @@ type KiteMarginsResponse = {
         cash?: number;
         collateral?: number;
         live_balance?: number;
+        opening_balance?: number;
+        intraday_payin?: number;
+        adhoc_margin?: number;
       };
+    };
+  };
+};
+
+type KiteEquityMarginSegmentResponse = {
+  data?: {
+    net?: number;
+    available?: {
+      cash?: number;
+      collateral?: number;
+      live_balance?: number;
+      opening_balance?: number;
+      intraday_payin?: number;
+      adhoc_margin?: number;
     };
   };
 };
@@ -246,15 +263,23 @@ export async function fetchZerodhaMargins(
     return { status: "ERROR", message: "Zerodha is not configured" };
   }
 
+  const headers = kiteAuthHeaders(config.apiKey, accessToken);
+
   try {
     const res = await axios.get<KiteMarginsResponse>(
       "https://api.kite.trade/user/margins",
-      {
-        headers: kiteAuthHeaders(config.apiKey, accessToken),
-      },
+      { headers },
     );
 
-    const funds = parseZerodhaEquityFunds(res.data?.data?.equity);
+    let funds = parseZerodhaEquityFunds(res.data?.data?.equity);
+
+    if (!funds) {
+      const segmentRes = await axios.get<KiteEquityMarginSegmentResponse>(
+        "https://api.kite.trade/user/margins/equity",
+        { headers },
+      );
+      funds = parseZerodhaEquityFunds(segmentRes.data?.data);
+    }
 
     if (!funds) {
       return { status: "ERROR", message: "Invalid margins response from Zerodha" };
