@@ -585,7 +585,7 @@ function buildWaitDecisionFromValidation(
     reason: summarizeCapitalDecision(capital),
     confidence_factors: [
       capital.heroSubline,
-      capital.actions[0]?.reason ?? "Not confirmed for deployment today.",
+      capital.actions[0]?.reason.missing ?? "Not confirmed for deployment today.",
       validation.breakdown.risk_ok
         ? `${capital.cashPercentage}% capital can stay in cash safely`
         : "Elevated portfolio risk — keep capital idle",
@@ -665,7 +665,7 @@ async function buildGrowDecision(
         reason: summarizeCapitalDecision(capital),
         confidence_factors: [
           capital.heroSubline,
-          capital.actions[0]?.reason ?? "Deploy only the allocated sleeve.",
+          capital.actions[0]?.reason.missing ?? "Deploy only the allocated sleeve.",
           best
             ? `${best.stock}: BUY at ${capital.deploymentPercentage}% of capital`
             : `Partial deployment — ${capital.deploymentPercentage}% only`,
@@ -731,7 +731,7 @@ async function buildExploreDecision(
       reason: summarizeCapitalDecision(capital),
       confidence_factors: [
         capital.heroSubline,
-        capital.actions[0]?.reason ?? "Capital allocation locked at 0%.",
+        capital.actions[0]?.reason.missing ?? "Capital allocation locked at 0%.",
         best
           ? `${best.stock} — WAIT, 0% capital allocated`
           : "No symbol confirmed for capital today",

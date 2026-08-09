@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo } from "react";
-import { formatInr } from "@/lib/funds";
 import { buildCapitalDecision } from "@/lib/dailyLoop/capitalDecision";
 import { getDisciplineInterpretation } from "@/lib/dailyLoop/disciplineCopy";
 import { getApexHeroSignature } from "@/lib/dailyLoop/apexVoice";
@@ -13,7 +12,6 @@ import type { EntryTimingState } from "@/components/decision/ExecutionPlanCard";
 import {
   CapitalActionsBlock,
   ExecutionStatusBlock,
-  PrimaryEmphasis,
 } from "@/components/dailyLoop/DecisionDepthSections";
 import { ApexCard } from "@/components/ui/apex";
 import type { StockPick } from "@/types/decision";
@@ -68,10 +66,6 @@ function TrustDelta({ delta }: { delta: number }) {
   return <span className="text-apex-muted/70">—</span>;
 }
 
-function formatEntryType(entryType: "aggressive" | "confirmed"): string {
-  return entryType === "aggressive" ? "Aggressive" : "Confirmed";
-}
-
 function formatOutcome(outcome: "win" | "loss" | "breakeven"): string {
   if (outcome === "win") {
     return "Win";
@@ -82,55 +76,6 @@ function formatOutcome(outcome: "win" | "loss" | "breakeven"): string {
   }
 
   return "Breakeven";
-}
-
-function ExecutionPrimaryBlock({
-  planLoading,
-  hasPlan,
-  plan,
-  delayMs,
-}: {
-  planLoading: boolean;
-  hasPlan: boolean;
-  plan: ReturnType<typeof useDailyLoop>["plan"];
-  delayMs: number;
-}) {
-  return (
-    <section
-      className="mb-5 animate-apex-fade-in"
-      style={{ animationDelay: `${delayMs}ms` }}
-    >
-      <PrimaryEmphasis>
-        {planLoading ? (
-          <p className="text-lg font-medium text-apex-text/80">Building your plan…</p>
-        ) : hasPlan && plan ? (
-          <>
-            <ol className="space-y-3">
-              {plan.steps.map((step, index) => (
-                <li
-                  key={step}
-                  className="flex gap-3 text-lg font-medium leading-snug text-apex-text"
-                >
-                  <span className="mt-1 text-sm tabular-nums text-apex-muted">
-                    {index + 1}.
-                  </span>
-                  {step}
-                </li>
-              ))}
-            </ol>
-            <p className="text-sm text-apex-muted">
-              Stop {plan.stopLoss !== null ? formatInr(plan.stopLoss) : "—"} · Entry{" "}
-              {formatEntryType(plan.entryType)}
-            </p>
-          </>
-        ) : (
-          <p className="text-lg font-medium text-apex-text/80">
-            Plan unavailable — check back shortly.
-          </p>
-        )}
-      </PrimaryEmphasis>
-    </section>
-  );
 }
 
 export default function HomeDecisionScreen({
@@ -144,8 +89,6 @@ export default function HomeDecisionScreen({
   const { renderIntent, contentClassName } = useIntentTransition(intent);
   const experience = getIntentExperience(renderIntent);
   const {
-    plan,
-    planLoading,
     trustScore,
     trustDelta,
     trustMessage,
@@ -186,15 +129,14 @@ export default function HomeDecisionScreen({
     deploymentPercentage: capitalDecision.deploymentPercentage,
   });
 
-  const isBuy = decision.action === "buy";
   const isExplore = renderIntent === "explore";
   const isGrow = renderIntent === "grow";
-  const hasPicks = (decision.picks?.length ?? 0) > 0;
+  const isProtect = renderIntent === "protect";
+  const isCapitalDeployment = isGrow || isProtect;
   const isExploreEmpty =
     isExplore &&
     capitalDecision.exploreSetups.length === 0 &&
     capitalDecision.actions.length === 0;
-  const hasPlan = Boolean(plan && plan.steps.length > 0);
   let sectionDelay = 80;
 
   const nextDelay = () => {
@@ -205,11 +147,13 @@ export default function HomeDecisionScreen({
 
   const heroTitle = capitalDecision.heroHeadline;
   const heroTone = capitalDecision.heroSubline;
-  const heroSignature = getApexHeroSignature({
-    intent: renderIntent,
-    action: decision.action,
-    seed: `${renderIntent}:${decision.action}:${decision.stock ?? "none"}`,
-  });
+  const heroSignature = isCapitalDeployment
+    ? null
+    : getApexHeroSignature({
+        intent: renderIntent,
+        action: decision.action,
+        seed: `${renderIntent}:${decision.action}:${decision.stock ?? "none"}`,
+      });
   const disciplineLine = getDisciplineInterpretation(trustScore);
 
   return (
@@ -232,15 +176,17 @@ export default function HomeDecisionScreen({
               {retention.dailyContextLabel}
             </p>
             <p className="text-xs font-medium uppercase tracking-[0.14em] text-apex-muted">
-              {experience.tagline}
+              {isCapitalDeployment ? "Capital deployment" : experience.tagline}
             </p>
-            <h1 className="text-3xl font-semibold leading-tight tracking-tight text-apex-text sm:text-4xl">
+            <h1 className="text-3xl font-bold leading-tight tracking-tight text-apex-text">
               {heroTitle}
             </h1>
             <p className="mt-2 text-sm text-apex-muted">{heroTone}</p>
-            <p className="text-xs text-apex-muted/70">
-              {capitalDecision.heroAccountability}
-            </p>
+            {capitalDecision.heroAccountability ? (
+              <p className="text-xs text-apex-muted/70">
+                {capitalDecision.heroAccountability}
+              </p>
+            ) : null}
             {heroSignature ? (
               <p className="text-xs text-apex-muted/80">{heroSignature}</p>
             ) : null}
@@ -251,25 +197,7 @@ export default function HomeDecisionScreen({
             delayMs={nextDelay()}
           />
 
-          {isGrow && isBuy ? (
-            <ExecutionPrimaryBlock
-              planLoading={planLoading}
-              hasPlan={hasPlan}
-              plan={plan}
-              delayMs={nextDelay()}
-            />
-          ) : null}
-
-          {hasPlan && plan?.behaviorNote && isGrow && isBuy ? (
-            <p
-              className="mt-4 text-sm leading-relaxed text-apex-text/60 animate-apex-fade-in"
-              style={{ animationDelay: `${nextDelay()}ms` }}
-            >
-              {plan.behaviorNote}
-            </p>
-          ) : null}
-
-          {!isExploreEmpty ? (
+          {!isExploreEmpty && !isCapitalDeployment ? (
             <section
               className="mt-6 space-y-1 animate-apex-fade-in"
               style={{ animationDelay: `${nextDelay()}ms` }}
@@ -300,9 +228,10 @@ export default function HomeDecisionScreen({
             waitDisciplineReward={retention.waitDisciplineReward}
             rewardHook={retention.rewardHook}
             delayMs={nextDelay()}
+            capitalDeployment={isCapitalDeployment}
           />
 
-          {lastOutcome && !isExploreEmpty ? (
+          {lastOutcome && !isExploreEmpty && !isCapitalDeployment ? (
             <section
               className="mt-6 space-y-3 animate-apex-fade-in opacity-90"
               style={{ animationDelay: `${nextDelay()}ms` }}

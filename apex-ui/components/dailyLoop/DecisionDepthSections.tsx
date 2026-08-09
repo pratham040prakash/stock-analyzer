@@ -13,6 +13,7 @@ import type {
 import {
   EXPLORE_PIPELINE_EMPTY_BODY,
   EXPLORE_PIPELINE_EMPTY_HEADLINE,
+  formatGrowActionStage,
 } from "@/lib/dailyLoop/capitalDecision";
 import {
   DAILY_CLOSURE_BODY,
@@ -243,25 +244,42 @@ function GrowCapitalActionsBlock({
   delayMs: number;
 }) {
   return (
-    <TierBlock tier="primary" delayMs={delayMs}>
-      <div className="space-y-4">
-        <StancePrimaryHeader decision={decision} />
-
-        {decision.growEmptyMessage ? (
-          <p className="text-sm font-medium leading-snug text-apex-text/90">
-            {decision.growEmptyMessage}
-          </p>
-        ) : null}
-
-        {decision.actions.length > 0 ? (
-          <ul className="space-y-5 border-t border-apex-border/15 pt-4">
-            {decision.actions.map((item) => (
-              <CapitalActionRow key={item.symbol} action={item} />
-            ))}
-          </ul>
-        ) : null}
+    <section
+      className="space-y-8 animate-apex-fade-in"
+      style={{ animationDelay: `${delayMs}ms` }}
+    >
+      <div className="space-y-1">
+        <p className="text-sm font-medium leading-snug text-apex-text">
+          {decision.portfolioStance}
+        </p>
+        <p className="text-sm leading-snug text-apex-text/70">
+          {decision.portfolioStanceDetail}
+        </p>
       </div>
-    </TierBlock>
+
+      <div className="space-y-1">
+        <p className="text-lg font-medium leading-snug text-apex-text">
+          {decision.primaryAction}
+        </p>
+        <p className="text-sm leading-snug text-apex-text/75">
+          {decision.primaryActionDetail}
+        </p>
+      </div>
+
+      {decision.growEmptyMessage ? (
+        <p className="text-sm font-medium leading-snug text-apex-text/90">
+          {decision.growEmptyMessage}
+        </p>
+      ) : null}
+
+      {decision.actions.length > 0 ? (
+        <ul className="space-y-8">
+          {decision.actions.map((item) => (
+            <CapitalActionRow key={item.symbol} action={item} />
+          ))}
+        </ul>
+      ) : null}
+    </section>
   );
 }
 
@@ -342,39 +360,34 @@ function ExploreSetupRow({ setup }: { setup: ExploreSetup }) {
 
 function CapitalActionRow({ action }: { action: CapitalAction }) {
   return (
-    <li
-      className={
-        action.isPrimary
-          ? "rounded-lg border border-apex-border/20 bg-white/[0.02] p-3"
-          : undefined
-      }
-    >
-      <p className="text-lg font-semibold leading-snug text-apex-text">
+    <li className="space-y-2">
+      <p className="text-base font-semibold leading-snug text-apex-text">
         {action.symbol}
-        {action.isPrimary ? (
-          <span className="ml-2 text-xs font-medium uppercase tracking-wide text-apex-muted">
-            Primary
-          </span>
-        ) : null}
       </p>
-      <p className="mt-1 text-sm leading-snug text-apex-text/85">
-        Action: {action.action}
-      </p>
-      <p className="text-sm leading-snug text-apex-text/85">{action.deployLabel}</p>
-      {action.stage ? (
+      <p className="text-sm leading-snug text-apex-text/85">{action.action}</p>
+      {action.action === "BUY" ? (
         <p className="text-sm leading-snug text-apex-text/85">
-          Stage: {action.stage}
+          Deploy {action.deployPercentage}% of your capital
         </p>
       ) : null}
-      <div className="mt-1 space-y-0.5 text-sm leading-snug text-apex-text/75">
-        <p>Reason:</p>
-        {action.missing ? <p>Missing: {action.missing}</p> : null}
-        {action.confirm ? <p>Confirm: {action.confirm}</p> : null}
-        {action.timing ? <p>Timing: {action.timing}</p> : null}
-        {action.ifIgnored ? <p>{action.ifIgnored}</p> : null}
+      {action.action === "WAIT" && action.stage ? (
+        <p className="text-sm leading-snug text-apex-text/70">
+          {formatGrowActionStage(action.stage)}
+        </p>
+      ) : null}
+      <div className="space-y-0.5 text-sm leading-snug text-apex-text/75">
+        <p>Missing: {action.reason.missing}</p>
+        <p>Confirm: {action.reason.confirm}</p>
+        <p>Timing: {action.reason.timing}</p>
       </div>
+      {action.ifIgnored &&
+      (action.action === "WAIT" || action.action === "SELL") ? (
+        <p className="text-sm leading-snug text-apex-text/75">
+          {action.ifIgnored}
+        </p>
+      ) : null}
       {action.postActionImpact ? (
-        <p className="mt-2 text-sm leading-snug text-apex-text/80">
+        <p className="text-sm leading-snug text-apex-text/75">
           {action.postActionImpact}
         </p>
       ) : null}
@@ -390,6 +403,7 @@ export function ExecutionStatusBlock({
   waitDisciplineReward,
   rewardHook,
   delayMs,
+  capitalDeployment = false,
 }: {
   committedToday: boolean;
   onMarkFollowed: () => void;
@@ -398,7 +412,34 @@ export function ExecutionStatusBlock({
   waitDisciplineReward: string | null;
   rewardHook: string | null;
   delayMs: number;
+  capitalDeployment?: boolean;
 }) {
+  if (capitalDeployment) {
+    return (
+      <section
+        className="mt-8 space-y-2 animate-apex-fade-in"
+        style={{ animationDelay: `${delayMs}ms` }}
+      >
+        {committedToday ? (
+          <p className="text-sm leading-snug text-apex-text/90">
+            [✓] Followed today
+          </p>
+        ) : (
+          <button
+            type="button"
+            onClick={onMarkFollowed}
+            className="text-left text-sm leading-snug text-apex-text/85 transition-opacity hover:text-apex-text"
+          >
+            [ ] Followed today
+          </button>
+        )}
+        <p className="text-sm leading-snug text-apex-text/70">
+          Discipline builds capital protection.
+        </p>
+      </section>
+    );
+  }
+
   return (
     <section
       className="mt-5 space-y-3 animate-apex-fade-in"
