@@ -1,10 +1,12 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import type { EntryTimingState } from "@/components/decision/ExecutionPlanCard";
 import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
 import { formatInr } from "@/lib/funds";
 import type { TodayHero } from "@/lib/dailyLoop/todaySurface";
 import { computeSellImpact } from "@/lib/sellImpact";
+import type { ExecutionPlanSafeOutput } from "@/services/execution/executionPlanEngine";
 import { ApexButton } from "@/components/ui/apex";
 import SellConfirmModal from "@/components/SellConfirmModal";
 
@@ -27,13 +29,30 @@ type Props = {
   hero: TodayHero;
   portfolioValue: number;
   holdingAllocationPct?: number;
+  entryTiming?: EntryTimingState;
+  plan?: ExecutionPlanSafeOutput | null;
+  planLoading?: boolean;
   onExecuted?: () => void;
 };
+
+function PlanStepRow({ index, text }: { index: number; text: string }) {
+  return (
+    <li className="flex items-start gap-2 text-sm leading-snug text-apex-text/80">
+      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-apex-border/30 text-[10px] font-semibold text-apex-muted">
+        {index}
+      </span>
+      <span>{text}</span>
+    </li>
+  );
+}
 
 export default function TodayExecutionPanel({
   hero,
   portfolioValue,
   holdingAllocationPct,
+  entryTiming,
+  plan,
+  planLoading = false,
   onExecuted,
 }: Props) {
   const [pendingSellPercent, setPendingSellPercent] = useState<number | null>(
@@ -42,6 +61,8 @@ export default function TodayExecutionPanel({
   const [processing, setProcessing] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const canEnter = entryTiming?.enter ?? true;
 
   const sellImpact = useMemo(() => {
     if (pendingSellPercent === null || !hero.symbol) {
@@ -110,7 +131,7 @@ export default function TodayExecutionPanel({
   );
 
   const runBuy = useCallback(async () => {
-    if (!hero.symbol || !hero.deployAmount || processing) {
+    if (!hero.symbol || !hero.deployAmount || processing || !canEnter) {
       return;
     }
 
@@ -135,8 +156,13 @@ export default function TodayExecutionPanel({
         return;
       }
 
+      const stopNote =
+        plan?.stopLoss !== null && plan?.stopLoss !== undefined
+          ? ` Stop monitoring from ${formatInr(plan.stopLoss)}.`
+          : "";
+
       setFeedback(
-        `Buy order placed on Zerodha · ${data.quantity} shares · order ${data.orderId}`,
+        `Buy order placed on Zerodha · ${data.quantity} shares · order ${data.orderId}.${stopNote}`,
       );
       onExecuted?.();
     } catch (err) {
@@ -144,7 +170,7 @@ export default function TodayExecutionPanel({
     } finally {
       setProcessing(false);
     }
-  }, [hero.deployAmount, hero.symbol, onExecuted, processing]);
+  }, [canEnter, hero.deployAmount, hero.symbol, onExecuted, plan?.stopLoss, processing]);
 
   if (hero.executionKind === "OBSERVE") {
     return null;
@@ -225,23 +251,76 @@ export default function TodayExecutionPanel({
 
   if (hero.executionKind === "BUY" && hero.symbol && hero.deployAmount) {
     return (
-      <div className="rounded-xl border border-apex-border/20 bg-white/[0.03] px-4 py-4 space-y-3">
-        <p className="text-base font-semibold text-apex-text">
-          Deploy {formatInr(hero.deployAmount)} into {hero.symbol}
-        </p>
-        <p className="text-sm text-apex-text/75">{hero.subline}</p>
+      <div className="rounded-xl border border-apex-border/20 bg-white/[0.03] px-4 py-4 space-y-4">
+        <div>
+          <p className="text-base font-semibold text-apex-text">
+            Deploy {formatInr(hero.deployAmount)} into {hero.symbol}
+          </p>
+          <p className="mt-1 text-sm text-apex-text/75">{hero.subline}</p>
+        </div>
+
+        {entryTiming ? (
+          <div
+            className={[
+              "rounded-lg border px-3 py-2.5 text-sm",
+              canEnter
+                ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-200/95"
+                : "border-amber-500/20 bg-amber-500/5 text-amber-100/95",
+            ].join(" ")}
+          >
+            {canEnter
+              ? "Entry conditions confirmed — you may proceed with the plan"
+              : entryTiming.reason || "Waiting for entry confirmation"}
+          </div>
+        ) : null}
+
+        <section className="space-y-2">
+          <p className="text-xs font-medium uppercase tracking-wide text-apex-muted">
+            Execution plan
+          </p>
+          {planLoading ? (
+            <p className="text-sm text-apex-muted/70">Building your plan…</p>
+          ) : plan && plan.steps.length > 0 ? (
+            <>
+              {plan.stopLoss !== null ? (
+                <p className="text-sm text-apex-text/80">
+                  Stop loss: {formatInr(plan.stopLoss)} · Target: staged adds in
+                  plan steps below
+                </p>
+              ) : null}
+              <ol className="space-y-2">
+                {plan.steps.map((step, index) => (
+                  <PlanStepRow key={step} index={index + 1} text={step} />
+                ))}
+              </ol>
+              {plan.riskNote ? (
+                <p className="text-xs text-apex-muted/75">{plan.riskNote}</p>
+              ) : null}
+            </>
+          ) : (
+            <p className="text-sm text-apex-muted/70">
+              Plan unavailable — review entry rules before buying.
+            </p>
+          )}
+        </section>
+
         <p className="text-xs text-apex-muted/70">
-          Stop loss and target monitoring apply after fill — confirm only if this
-          matches your plan.
+          After fill, APEX monitors stop and staged targets on your open position
+          — verify the order in Zerodha.
         </p>
         <ApexButton
           type="button"
-          disabled={processing}
+          disabled={processing || !canEnter}
           onClick={() => void runBuy()}
           className="w-full sm:w-auto"
         >
-          {processing ? "Placing order…" : "Confirm buy on Zerodha"}
+          {processing
+            ? "Placing order…"
+            : canEnter
+              ? "Confirm buy on Zerodha"
+              : "Entry not confirmed yet"}
         </ApexButton>
+
         {feedback ? (
           <p className="text-sm text-emerald-200/90">{feedback}</p>
         ) : null}

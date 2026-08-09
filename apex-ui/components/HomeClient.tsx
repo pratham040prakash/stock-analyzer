@@ -270,7 +270,7 @@ export default function HomeClient({
     if (!configured || !user) return;
 
     try {
-      const res = await apiFetch("/api/decision/history?days=3", {
+      const res = await apiFetch("/api/decision/history?days=7", {
         method: "GET",
       });
       const data = await parseApiJson<DecisionHistoryResponse>(
@@ -522,6 +522,14 @@ export default function HomeClient({
     void loadDecisionHistory();
   }, [loadPortfolio, refreshDecision, loadFunds, loadDecisionHistory]);
 
+  const handleCapitalModeChange = useCallback(
+    (mode: CapitalFundingMode) => {
+      setCapitalMode(mode);
+      refreshDecision();
+    },
+    [refreshDecision],
+  );
+
   if (authLoading) {
     return <LoadingState />;
   }
@@ -664,6 +672,8 @@ export default function HomeClient({
               portfolioValue={portfolioData?.total_value}
               collateral={collateral}
               capitalMode={capitalMode}
+              onCapitalModeChange={handleCapitalModeChange}
+              dayPnl={portfolioData?.day_pnl ?? dailyInsight?.day_pnl ?? null}
               holdings={portfolioData?.holdings?.map((holding) => ({
                 symbol: holding.tradingsymbol,
                 weight: holding.allocation_pct,
@@ -676,7 +686,9 @@ export default function HomeClient({
             />
           ) : null}
 
-          {!showHomeDecision ? (
+          {showHomeDecision && decisionHistory.length > 0 ? (
+            <DecisionHistoryPanel history={decisionHistory} showConfidence />
+          ) : !showHomeDecision ? (
             <DecisionHistoryPanel history={decisionHistory} />
           ) : null}
         </>

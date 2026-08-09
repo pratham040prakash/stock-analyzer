@@ -14,15 +14,31 @@ export const MARGIN_LEVERAGE_WARNING = "Using leverage increases risk.";
 export const MARGIN_DECISION_LOCK_NOTE =
   "This uses leveraged capital. Follow limits strictly.";
 
+const CAPITAL_MODE_STORAGE_KEY = "apex_capital_mode";
+
 export function readStoredCapitalMode(): CapitalFundingMode {
   if (typeof window === "undefined") {
     return "CASH";
   }
 
   try {
-    return localStorage.getItem("apex_capital_mode") === "MARGIN" ? "MARGIN" : "CASH";
+    return localStorage.getItem(CAPITAL_MODE_STORAGE_KEY) === "MARGIN"
+      ? "MARGIN"
+      : "CASH";
   } catch {
     return "CASH";
+  }
+}
+
+export function writeStoredCapitalMode(mode: CapitalFundingMode): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    localStorage.setItem(CAPITAL_MODE_STORAGE_KEY, mode);
+  } catch {
+    // Ignore storage failures — engine defaults to CASH on next read.
   }
 }
 

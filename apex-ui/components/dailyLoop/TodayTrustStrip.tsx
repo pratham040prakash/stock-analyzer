@@ -7,6 +7,7 @@ export type TodayTrustStripProps = {
   connectionStatus: ConnectionStatus;
   availableCash?: number | null;
   portfolioValue?: number;
+  dayPnl?: number | null;
   updatedAt?: string | null;
   fundsLoading?: boolean;
 };
@@ -44,6 +45,7 @@ export default function TodayTrustStrip({
   connectionStatus,
   availableCash,
   portfolioValue,
+  dayPnl,
   updatedAt,
   fundsLoading = false,
 }: TodayTrustStripProps) {
@@ -51,6 +53,7 @@ export default function TodayTrustStrip({
   const cashKnown = availableCash !== null && availableCash !== undefined;
   const portfolioKnown =
     portfolioValue !== undefined && Number.isFinite(portfolioValue);
+  const dayKnown = dayPnl !== null && dayPnl !== undefined && Number.isFinite(dayPnl);
 
   return (
     <div
@@ -77,6 +80,16 @@ export default function TodayTrustStrip({
         </span>
         {portfolioKnown ? (
           <span>Portfolio: {formatInr(Math.max(0, portfolioValue ?? 0))}</span>
+        ) : null}
+        {dayKnown ? (
+          <span
+            className={
+              (dayPnl ?? 0) >= 0 ? "text-emerald-300/90" : "text-amber-200/90"
+            }
+          >
+            Day P&amp;L: {(dayPnl ?? 0) >= 0 ? "+" : ""}
+            {formatInr(Math.round(dayPnl ?? 0))}
+          </span>
         ) : null}
       </div>
     </div>

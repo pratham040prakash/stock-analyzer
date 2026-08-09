@@ -16,6 +16,9 @@ import {
 } from "@/components/dailyLoop/DecisionDepthSections";
 import TodayExecutionPanel from "@/components/dailyLoop/TodayExecutionPanel";
 import TodayTrustStrip from "@/components/dailyLoop/TodayTrustStrip";
+import TodayProgressStrip from "@/components/dailyLoop/TodayProgressStrip";
+import CapitalModeToggle from "@/components/dailyLoop/CapitalModeToggle";
+import ExploreDecisionDepth from "@/components/dailyLoop/ExploreDecisionDepth";
 import { ApexCard } from "@/components/ui/apex";
 import type { ConnectionStatus } from "@/lib/broker/zerodha";
 import type { StockPick } from "@/types/decision";
@@ -60,6 +63,8 @@ export type HomeDecisionScreenProps = {
   portfolioValue?: number;
   collateral?: number;
   capitalMode?: CapitalFundingMode;
+  onCapitalModeChange?: (mode: CapitalFundingMode) => void;
+  dayPnl?: number | null;
   holdings?: { symbol: string; weight: number }[];
   connectionStatus?: ConnectionStatus;
   decisionUpdatedAt?: string | null;
@@ -103,6 +108,8 @@ export default function HomeDecisionScreen({
   portfolioValue,
   collateral,
   capitalMode,
+  onCapitalModeChange,
+  dayPnl,
   holdings,
   connectionStatus = "NOT_CONNECTED",
   decisionUpdatedAt,
@@ -118,6 +125,8 @@ export default function HomeDecisionScreen({
     trustDelta,
     trustMessage,
     lastOutcome,
+    plan,
+    planLoading,
   } = useDailyLoop(decision, entryTiming, intent);
 
   const capitalDecision = useMemo(
@@ -229,9 +238,28 @@ export default function HomeDecisionScreen({
               connectionStatus={connectionStatus}
               availableCash={availableCash}
               portfolioValue={portfolioValue}
+              dayPnl={dayPnl}
               updatedAt={decisionUpdatedAt}
               fundsLoading={fundsLoading}
             />
+
+            {isCapitalDeployment ? (
+              <TodayProgressStrip
+                dayPnl={dayPnl}
+                trustScore={trustScore}
+                trustDelta={trustDelta}
+                streakCount={retention.streakCount}
+                streakMessage={retention.streakMessage}
+              />
+            ) : null}
+
+            {isCapitalDeployment && onCapitalModeChange ? (
+              <CapitalModeToggle
+                mode={capitalMode ?? "CASH"}
+                onModeChange={onCapitalModeChange}
+                collateral={collateral}
+              />
+            ) : null}
 
             {isRefreshing ? (
               <p className="text-xs text-apex-muted/60">Refreshing decision…</p>
@@ -275,6 +303,9 @@ export default function HomeDecisionScreen({
                 hero={todayHero}
                 portfolioValue={portfolioValue ?? 0}
                 holdingAllocationPct={holdingAllocationPct}
+                entryTiming={entryTiming}
+                plan={plan}
+                planLoading={planLoading}
                 onExecuted={onCapitalRefresh}
               />
             </div>
@@ -294,10 +325,28 @@ export default function HomeDecisionScreen({
               </div>
             </details>
           ) : (
-            <CapitalActionsBlock
-              decision={capitalDecision}
-              delayMs={nextDelay()}
-            />
+            <>
+              <CapitalActionsBlock
+                decision={capitalDecision}
+                delayMs={nextDelay()}
+              />
+              <details className="mb-6 group rounded-xl border border-apex-border/15 bg-white/[0.02]">
+                <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium text-apex-text/85 marker:content-none">
+                  Why &amp; watch
+                </summary>
+                <div className="border-t border-apex-border/10 px-4 py-4">
+                  <ExploreDecisionDepth
+                    decision={decision}
+                    intent={renderIntent}
+                    entryTiming={entryTiming}
+                    topSymbol={topSymbol}
+                    topAllocationPct={topAllocationPct}
+                    planConviction={plan?.conviction}
+                    delayMs={nextDelay()}
+                  />
+                </div>
+              </details>
+            </>
           )}
 
           {!isExploreEmpty && !isCapitalDeployment ? (

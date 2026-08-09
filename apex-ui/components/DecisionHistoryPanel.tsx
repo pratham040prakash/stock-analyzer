@@ -9,6 +9,7 @@ import { ApexBody, ApexCard, ApexEyebrow } from "@/components/ui/apex";
 
 type Props = {
   history: DecisionHistoryEntry[];
+  showConfidence?: boolean;
 };
 
 function formatHistoryDate(date: string): string {
@@ -59,7 +60,10 @@ function actionTone(action: DecisionActionType): string {
   }
 }
 
-export default function DecisionHistoryPanel({ history }: Props) {
+export default function DecisionHistoryPanel({
+  history,
+  showConfidence = false,
+}: Props) {
   if (history.length === 0) {
     return null;
   }
@@ -78,6 +82,9 @@ export default function DecisionHistoryPanel({ history }: Props) {
               className={`text-[13px] font-medium text-right ${actionTone(entry.action)}`}
             >
               {historyLabel(entry)}
+              {showConfidence && entry.confidence > 0
+                ? ` · ${Math.round(entry.confidence)}%`
+                : null}
             </span>
           </li>
         ))}
