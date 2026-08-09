@@ -61,6 +61,8 @@ cd apex-ui
 APEX_VERIFY_BASE_URL=https://your-app.vercel.app npm run verify:prod
 ```
 
+Use the **site root only** — not `/app` (wrong: `…vercel.app/app` → 307 redirects).
+
 Optional authenticated checks (copy session cookie from browser devtools):
 
 ```bash

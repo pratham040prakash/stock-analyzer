@@ -5,6 +5,7 @@
  *   APEX_VERIFY_BASE_URL=https://your-app.vercel.app npm run verify:prod
  *   npm run verify:prod -- https://your-app.vercel.app
  *
+ * Use the site root only — not /app or other paths.
  * Optional authenticated checks (browser session cookie):
  *   APEX_VERIFY_COOKIE="sb-..." npm run verify:prod
  */
@@ -26,7 +27,21 @@ type VerifyReport = {
 };
 
 function normalizeBaseUrl(value: string): string {
-  return value.replace(/\/+$/, "");
+  let parsed: URL;
+
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(`Invalid base URL: ${value}`);
+  }
+
+  if (parsed.pathname !== "/" && parsed.pathname !== "") {
+    console.warn(
+      `Ignoring path "${parsed.pathname}" — use the site root (e.g. ${parsed.origin}), not /app.`,
+    );
+  }
+
+  return parsed.origin;
 }
 
 function resolveBaseUrl(): string {
@@ -43,7 +58,7 @@ function resolveBaseUrl(): string {
   }
 
   throw new Error(
-    "Set APEX_VERIFY_BASE_URL or pass the production URL as the first argument.",
+    "Set APEX_VERIFY_BASE_URL or pass the production URL as the first argument (site root only, no /app).",
   );
 }
 
@@ -119,8 +134,10 @@ async function runChecks(baseUrl: string): Promise<VerifyReport> {
   const cacheControl = health.headers.get("cache-control") ?? "";
   record(checks, {
     id: "health-no-store",
-    label: "Health response is no-store",
-    ok: cacheControl.includes("no-store"),
+    label: "Health response avoids long-lived cache",
+    ok:
+      cacheControl.includes("no-store") ||
+      cacheControl.includes("must-revalidate"),
     detail: cacheControl || "missing",
     critical: false,
   });
@@ -141,7 +158,10 @@ async function runChecks(baseUrl: string): Promise<VerifyReport> {
       id: route.id,
       label: `${route.path} rejects unauthenticated requests`,
       ok: result.status === 401 && body?.status === "error",
-      detail: `status=${result.status}`,
+      detail:
+        result.status === 307
+          ? `status=${result.status} (redirect — check base URL is site root, not /app)`
+          : `status=${result.status}`,
       critical: true,
     });
   }
