@@ -318,20 +318,18 @@ function ExploreSetupRow({ setup }: { setup: ExploreSetup }) {
     >
       <p className="text-lg font-semibold leading-snug text-apex-text">
         {setup.symbol}
-        {setup.priorityMarker ? (
-          <span className="ml-2 text-xs font-medium uppercase tracking-wide text-blue-200/80">
-            {setup.priorityMarker}
-          </span>
-        ) : null}
+      </p>
+      <p className="mt-1 text-base font-medium leading-snug text-apex-text">
+        {setup.scanLine}
       </p>
       <p className="mt-1 text-sm leading-snug text-apex-text/85">
-        Stage: {setup.stage}
+        {setup.stage}
+        {setup.priorityMarker ? (
+          <span className="text-apex-text/70"> · {setup.priorityMarker}</span>
+        ) : null}
       </p>
-      <p className="text-sm leading-snug text-apex-text/85">
-        Setup: {setup.setupDescription}
-      </p>
-      <div className="mt-1 space-y-0.5 text-sm leading-snug text-apex-text/75">
-        <p>Progress needed: {setup.progressDelta}</p>
+      <div className="mt-2 space-y-0.5 border-t border-apex-border/10 pt-2 text-sm leading-snug text-apex-text/75">
+        <p>{setup.progressDelta}</p>
         <p>Progress: {setup.progressLine}</p>
         {setup.whyThisMatters ? (
           <p>Why this matters: {setup.whyThisMatters}</p>

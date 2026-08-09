@@ -38,6 +38,7 @@ export type ExplorePriorityMarker = "Closest to activation" | "High priority";
 
 export type ExploreSetup = {
   symbol: string;
+  scanLine: string;
   stage: ExplorePipelineStage;
   priorityMarker?: ExplorePriorityMarker;
   setupDescription: string;
@@ -568,51 +569,87 @@ function exploreTimeHorizon(
   return "If trend builds, reassess over next sessions — without momentum, remains early formation.";
 }
 
+function resolveActivationGap(
+  pick: StockPick,
+): { gap: number; gapPct: number; level: number } | undefined {
+  const level = resolveActivationLevel(pick);
+  const price = pick.price;
+
+  if (!level || !price || price <= 0 || level <= price) {
+    return undefined;
+  }
+
+  return {
+    gap: Math.round(level - price),
+    gapPct: Math.max(1, Math.round(((level - price) / price) * 100)),
+    level,
+  };
+}
+
+function buildScanLine(
+  pick: StockPick,
+  stage: ExplorePipelineStage,
+): string {
+  const activationGap = resolveActivationGap(pick);
+  const alignment = Math.round(pick.score);
+  const { trend, momentum } = pick.signals;
+
+  if (activationGap) {
+    if (activationGap.gapPct <= 3) {
+      return `${activationGap.gapPct}% below breakout level`;
+    }
+
+    return `${formatInr(activationGap.gap)} away from activation`;
+  }
+
+  if (alignment < 65) {
+    return `${65 - alignment} points to Grow threshold`;
+  }
+
+  if (trend < 60) {
+    return "Direction not confirmed";
+  }
+
+  if (momentum < 60) {
+    return "Volume follow-through pending";
+  }
+
+  if (stage === "Early formation") {
+    return "Early formation — building";
+  }
+
+  return "Breakout confirmation pending";
+}
+
 function buildProgressDelta(
   pick: StockPick,
   stage: ExplorePipelineStage,
 ): string {
-  const level = resolveActivationLevel(pick);
-  const price = pick.price;
+  const activationGap = resolveActivationGap(pick);
   const alignment = Math.round(pick.score);
   const { trend, momentum } = pick.signals;
 
-  if (
-    stage === "Close to readiness" &&
-    level &&
-    price &&
-    price > 0 &&
-    level > price
-  ) {
-    const gap = Math.round(level - price);
-    const gapPct = Math.max(1, Math.round(((level - price) / price) * 100));
-
-    return `Needs +${formatInr(gap)} (${gapPct}%) to clear ${formatInr(level)} on volume.`;
+  if (activationGap) {
+    return `${formatInr(activationGap.gap)} (${activationGap.gapPct}%) move to activation`;
   }
 
   if (alignment < 65) {
-    const gap = 65 - alignment;
-    return `Needs +${gap} alignment points to reach Grow threshold (at ${alignment} now).`;
+    return `+${65 - alignment} alignment move to Grow`;
   }
 
   if (trend < 60) {
-    if (level) {
-      return `Needs sustained close above ${formatInr(level)} to confirm direction.`;
-    }
-
-    return "Needs a closing hold above the recent range high.";
+    return "Range break move to activation";
   }
 
   if (momentum < 60) {
-    return "Needs volume expansion above the 20-day average on the next push.";
+    return "Volume push move to activation";
   }
 
-  if (level && price && level > price) {
-    const gap = Math.round(level - price);
-    return `Needs +${formatInr(gap)} breakout close above ${formatInr(level)} with volume.`;
+  if (stage === "Early formation") {
+    return "Structure build move to activation";
   }
 
-  return "Needs confirmed breakout with volume before Grow can activate.";
+  return "Breakout + volume move to activation";
 }
 
 function buildProgressLine(
@@ -699,6 +736,7 @@ function buildExploreSetup(
 
   return {
     symbol: pick.stock,
+    scanLine: sanitizeCopy(buildScanLine(pick, stage)),
     stage,
     priorityMarker,
     setupDescription: sanitizeCopy(
