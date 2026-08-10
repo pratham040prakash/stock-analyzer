@@ -61,6 +61,13 @@ type HoldingSnapshot = {
   closePrice: number;
   dayChange: number | null;
   m2m: number | null;
+  /** Zerodha net-position unrealised P&L when available. */
+  brokerPnl: number | null;
+};
+
+type SyncHoldContext = {
+  symbols: Set<string>;
+  orderIds: Set<string>;
 };
 
 type PendingMonitorRow = {
@@ -134,15 +141,139 @@ function isApexExecuteFill(
     return true;
   }
 
-  const filledDay = sig.filled_at?.slice(0, 10);
-  const todayKey = tradingDateKey();
+  return false;
+}
 
-  // Legacy overnight holds (filled before today) — still monitor at broker avg.
-  if (filledDay && filledDay < todayKey) {
+async function loadSyncHoldContext(
+  supabase: Client,
+  userId: string,
+  dateKey = tradingDateKey(),
+): Promise<SyncHoldContext> {
+  const { data, error } = await supabase
+    .from("decision_memory")
+    .select("stock, signals")
+    .eq("user_id", userId)
+    .eq("decision_date", dateKey)
+    .eq("action", "hold");
+
+  if (error || !data?.length) {
+    return { symbols: new Set(), orderIds: new Set() };
+  }
+
+  const symbols = new Set<string>();
+  const orderIds = new Set<string>();
+
+  for (const row of data) {
+    const sig = row.signals as Signals | null;
+    if (sig?.fill_source !== "sync" || !sig.order_id) {
+      continue;
+    }
+
+    const stock = normalizeSymbol(row.stock ?? "");
+    if (!stock) {
+      continue;
+    }
+
+    symbols.add(stock);
+    orderIds.add(String(sig.order_id));
+  }
+
+  return { symbols, orderIds };
+}
+
+function stripBrokerFillSignals(signals: Signals | null): Signals {
+  return {
+    trend: signals?.trend ?? 0,
+    momentum: signals?.momentum ?? 0,
+    volume: signals?.volume ?? 0,
+    monitored: false,
+  };
+}
+
+/** Remove sync-attached broker fills from open buy rows (persisted ghosts). */
+async function sanitizeSyncGhostOpenBuys(
+  supabase: Client,
+  userId: string,
+  syncContext: SyncHoldContext,
+): Promise<void> {
+  const { data: rows, error } = await supabase
+    .from("decision_memory")
+    .select("id, stock, signals")
+    .eq("user_id", userId)
+    .eq("action", "buy")
+    .is("exit_price", null);
+
+  if (error || !rows?.length) {
+    return;
+  }
+
+  for (const row of rows) {
+    const sig = row.signals as Signals | null;
+    if (!signalsIndicateBrokerFill(sig)) {
+      continue;
+    }
+
+    const stock = normalizeSymbol(row.stock ?? "");
+    const orderId = sig?.order_id ? String(sig.order_id) : "";
+    const shouldStrip =
+      sig?.fill_source === "sync" ||
+      (orderId && syncContext.orderIds.has(orderId)) ||
+      (stock && syncContext.symbols.has(stock) && sig?.apex_executed !== true);
+
+    if (!shouldStrip) {
+      continue;
+    }
+
+    await supabase
+      .from("decision_memory")
+      .update({
+        signals: stripBrokerFillSignals(sig),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", row.id);
+  }
+}
+
+/** Manual Kite buys synced today must not appear on the APEX monitor strip. */
+function isManualSyncMonitorGhost(
+  stock: string,
+  signals: unknown,
+  syncContext: SyncHoldContext,
+  row: { created_at?: string | null; decision_date?: string | null },
+): boolean {
+  const sig = signals as Signals | null;
+
+  if (!sig) {
     return true;
   }
 
-  // Same-day fills without an execute tag are sync ghosts or explore picks — skip.
+  if (sig.apex_executed === true) {
+    return false;
+  }
+
+  const orderId = sig.order_id ? String(sig.order_id) : "";
+  if (orderId && syncContext.orderIds.has(orderId)) {
+    return true;
+  }
+
+  const todayKey = tradingDateKey();
+  const filledDay = sig.filled_at?.slice(0, 10);
+  const createdDay = row.created_at?.slice(0, 10);
+
+  if (
+    createdDay &&
+    createdDay < todayKey &&
+    row.decision_date === todayKey &&
+    filledDay === todayKey &&
+    sig.fill_source !== "execute"
+  ) {
+    return true;
+  }
+
+  if (syncContext.symbols.has(stock)) {
+    return true;
+  }
+
   return false;
 }
 
@@ -293,6 +424,26 @@ function computeBrokerOpenPnl(
     holding && holding.lastPrice > 0
       ? holding.lastPrice
       : resolveLiveLastPrice(undefined, holding, avg);
+
+  if (
+    holding &&
+    holding.brokerPnl !== null &&
+    Number.isFinite(holding.brokerPnl)
+  ) {
+    const effectiveQty = effectiveHoldingQuantity(holding);
+    const pnl =
+      effectiveQty > 0 && quantity !== effectiveQty
+        ? (holding.brokerPnl / effectiveQty) * quantity
+        : holding.brokerPnl;
+    const pnlPct = avg > 0 ? ((ltp - avg) / avg) * 100 : 0;
+
+    return {
+      ltp: roundPrice(ltp),
+      pnl: roundPnl(pnl),
+      pnlPct,
+    };
+  }
+
   const pnl = (ltp - avg) * quantity;
   const pnlPct = avg > 0 ? ((ltp - avg) / avg) * 100 : 0;
 
@@ -352,6 +503,10 @@ function holdingsMapFromLivePortfolio(
       m2m:
         typeof holding.m2m === "number" && Number.isFinite(holding.m2m)
           ? holding.m2m
+          : null,
+      brokerPnl:
+        typeof holding.pnl === "number" && Number.isFinite(holding.pnl)
+          ? holding.pnl
           : null,
     });
   }
@@ -448,10 +603,13 @@ async function buildPendingMonitorRows(
   userId: string,
   holdingsBySymbol: Map<string, HoldingSnapshot>,
 ): Promise<PendingMonitorRow[]> {
+  const syncContext = await loadSyncHoldContext(supabase, userId);
+  await sanitizeSyncGhostOpenBuys(supabase, userId, syncContext);
+
   const { data: rows, error } = await supabase
     .from("decision_memory")
     .select(
-      "id, stock, entry_price, stop_loss, quantity, amount, signals, decision_date",
+      "id, stock, entry_price, stop_loss, quantity, amount, signals, decision_date, created_at",
     )
     .eq("user_id", userId)
     .eq("action", "buy")
@@ -485,6 +643,10 @@ async function buildPendingMonitorRows(
     const holding = holdingsBySymbol.get(stock);
 
     if (!isExecutedOpenMonitorDecision(row.signals, holding, plannedEntry, row.decision_date)) {
+      continue;
+    }
+
+    if (isManualSyncMonitorGhost(stock, row.signals, syncContext, row)) {
       continue;
     }
 
@@ -661,6 +823,7 @@ export function runOpenMonitorEntrySelfCheck(): void {
     closePrice: 5040,
     dayChange: 18.7,
     m2m: null,
+    brokerPnl: 39.5,
   };
 
   const resolved = resolveMonitorEntryPrice(5067, null, holding);
@@ -759,7 +922,7 @@ export function runOpenMonitorEntrySelfCheck(): void {
 
   const legacyOvernightFill = {
     ...filledSignals,
-    fill_source: undefined,
+    fill_source: "execute" as const,
     apex_executed: undefined,
     filled_at: "2026-08-09T09:30:00.000Z",
   };
@@ -783,7 +946,22 @@ export function runOpenMonitorEntrySelfCheck(): void {
   }
 
   const brokerPnl = computeBrokerOpenPnl(1, 5058.7, holding);
-  if (Math.abs(brokerPnl.pnl) > 0.01 || Math.abs(brokerPnl.ltp - 5058.7) > 0.01) {
-    throw new Error("computeBrokerOpenPnl must use broker last_price and average_price");
+  if (Math.abs(brokerPnl.pnl - 39.5) > 0.01 || Math.abs(brokerPnl.ltp - 5058.7) > 0.01) {
+    throw new Error("computeBrokerOpenPnl must prefer broker net-position pnl when present");
+  }
+
+  const syncGhostContext: SyncHoldContext = {
+    symbols: new Set(["GRASIM"]),
+    orderIds: new Set(),
+  };
+  if (
+    isManualSyncMonitorGhost(
+      "GRASIM",
+      { ...filledSignals, apex_executed: undefined },
+      syncGhostContext,
+      { created_at: `${tradingDateKey()}T08:00:00.000Z`, decision_date: tradingDateKey() },
+    ) !== true
+  ) {
+    throw new Error("isManualSyncMonitorGhost must exclude symbols with sync hold imports today");
   }
 }

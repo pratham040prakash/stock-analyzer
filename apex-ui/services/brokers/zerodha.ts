@@ -24,6 +24,8 @@ export type KiteHolding = {
   day_change?: number;
   /** Daily mark-to-market P&L from Kite positions, when available. */
   m2m?: number;
+  /** Unrealised P&L from Kite net positions (LTP − avg). */
+  pnl?: number;
 };
 
 export type FetchHoldingsResult =
@@ -110,6 +112,7 @@ export type KiteNetPosition = {
   close_price?: number;
   day_change?: number;
   m2m?: number;
+  pnl?: number;
 };
 
 export type FetchNetPositionsResult =
@@ -174,11 +177,36 @@ export function mergeKiteHoldingsAndPositions(
     }
 
     const symbol = normalizeSymbol(position.tradingsymbol);
+    const positionLast = resolveKiteLastPrice(position);
+    const positionDayChange =
+      typeof position.day_change === "number" && Number.isFinite(position.day_change)
+        ? position.day_change
+        : typeof position.close_price === "number" &&
+            position.close_price > 0 &&
+            positionLast > 0
+          ? positionLast - position.close_price
+          : undefined;
+
     if (merged.has(symbol)) {
       const existing = merged.get(symbol)!;
-      if (typeof position.m2m === "number" && Number.isFinite(position.m2m)) {
-        merged.set(symbol, { ...existing, m2m: position.m2m });
-      }
+      merged.set(symbol, {
+        ...existing,
+        average_price:
+          position.average_price > 0
+            ? position.average_price
+            : existing.average_price,
+        last_price: positionLast > 0 ? positionLast : existing.last_price,
+        close_price: position.close_price ?? existing.close_price,
+        day_change: positionDayChange ?? existing.day_change,
+        m2m:
+          typeof position.m2m === "number" && Number.isFinite(position.m2m)
+            ? position.m2m
+            : existing.m2m,
+        pnl:
+          typeof position.pnl === "number" && Number.isFinite(position.pnl)
+            ? position.pnl
+            : existing.pnl,
+      });
       continue;
     }
 
@@ -186,17 +214,11 @@ export function mergeKiteHoldingsAndPositions(
       tradingsymbol: position.tradingsymbol,
       quantity: position.quantity,
       average_price: position.average_price,
-      last_price: resolveKiteLastPrice(position),
+      last_price: positionLast,
       close_price: position.close_price,
-      day_change:
-        typeof position.day_change === "number" && Number.isFinite(position.day_change)
-          ? position.day_change
-          : typeof position.close_price === "number" &&
-              position.close_price > 0 &&
-              position.last_price > 0
-            ? position.last_price - position.close_price
-            : undefined,
+      day_change: positionDayChange,
       m2m: position.m2m,
+      pnl: position.pnl,
     });
   }
 
@@ -293,6 +315,34 @@ export function runKiteDayPnlSelfCheck(): void {
 
   const fromM2m = computePortfolioDayPnl(mapKiteHoldingsToPortfolio(merged));
   assert(fromM2m === 48.5, "Day P&L must prefer broker m2m over day_change");
+
+  const overlaid = mergeKiteHoldingsAndPositions(
+    [
+      {
+        tradingsymbol: "HEROMOTOCO",
+        quantity: 1,
+        average_price: 5856.1,
+        last_price: 5801.4,
+        close_price: 5800,
+        day_change: 1.4,
+      },
+    ],
+    [
+      {
+        tradingsymbol: "HEROMOTOCO",
+        product: "CNC",
+        quantity: 1,
+        average_price: 5856.1,
+        last_price: 5860,
+        close_price: 5800,
+        pnl: 3.9,
+      },
+    ],
+  );
+  assert(
+    overlaid[0]?.last_price === 5860 && overlaid[0]?.pnl === 3.9,
+    "Merged holding must prefer live CNC position LTP and pnl over stale holdings",
+  );
 
   const dayChangeOnly = computePortfolioDayPnl(
     mapKiteHoldingsToPortfolio([
