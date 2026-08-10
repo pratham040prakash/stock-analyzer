@@ -23,6 +23,7 @@ import TodayExecutionPanel from "@/components/dailyLoop/TodayExecutionPanel";
 import TodayMonitorStrip from "@/components/dailyLoop/TodayMonitorStrip";
 import TodayTrustStrip from "@/components/dailyLoop/TodayTrustStrip";
 import TodayProgressStrip from "@/components/dailyLoop/TodayProgressStrip";
+import WeeklyReviewStrip from "@/components/dailyLoop/WeeklyReviewStrip";
 import LastClosedTrustBlock from "@/components/dailyLoop/LastClosedTrustBlock";
 import CapitalModeToggle from "@/components/dailyLoop/CapitalModeToggle";
 import ExploreDecisionDepth from "@/components/dailyLoop/ExploreDecisionDepth";
@@ -32,6 +33,10 @@ import type { StockPick } from "@/types/decision";
 import type { UserIntent } from "@/types/intent";
 import type { CapitalFundingMode } from "@/lib/dailyLoop/capitalMargin";
 import type { TierFeatures } from "@/services/subscription/tier";
+import type {
+  DisciplineHistoryEntry,
+  DisciplineHistorySummary,
+} from "@/types/decisionHistory";
 import PremiumFeatureGate from "@/components/dailyLoop/PremiumFeatureGate";
 import { useExploreTriggers } from "@/lib/useExploreTriggers";
 import { useOpenMonitor } from "@/lib/useOpenMonitor";
@@ -88,6 +93,9 @@ export type HomeDecisionScreenProps = {
   isRefreshing?: boolean;
   onCapitalRefresh?: () => void;
   onDisciplineCommitted?: () => void;
+  disciplineHistory?: DisciplineHistoryEntry[];
+  disciplineSummary?: DisciplineHistorySummary;
+  disciplineDays?: string[];
   premiumFeatures?: TierFeatures;
   premiumActivationEnabled?: boolean;
   onPremiumActivated?: () => void;
@@ -129,6 +137,9 @@ export default function HomeDecisionScreen({
   isRefreshing = false,
   onCapitalRefresh,
   onDisciplineCommitted,
+  disciplineHistory = [],
+  disciplineSummary,
+  disciplineDays = [],
   premiumFeatures,
   premiumActivationEnabled = false,
   onPremiumActivated,
@@ -373,6 +384,14 @@ export default function HomeDecisionScreen({
                 trustDelta={trustDelta}
                 streakCount={retention.streakCount}
                 streakMessage={retention.streakMessage}
+              />
+            ) : null}
+
+            {isCapitalDeployment ? (
+              <WeeklyReviewStrip
+                history={disciplineHistory}
+                summary={disciplineSummary}
+                days={disciplineDays}
               />
             ) : null}
 

@@ -899,6 +899,13 @@ export default function HomeClient({
               onDisciplineCommitted={() => {
                 void loadDecisionHistory();
               }}
+              disciplineHistory={decisionHistory}
+              disciplineSummary={disciplineSummary}
+              disciplineDays={
+                disciplineDays.length > 0
+                  ? disciplineDays
+                  : decisionHistory.map((entry) => entry.date)
+              }
               premiumFeatures={premiumFeatures}
               premiumActivationEnabled={activationEnabled}
               onPremiumActivated={() => {

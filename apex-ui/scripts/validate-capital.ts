@@ -14,6 +14,7 @@ import { runDisciplineStatusSelfCheck } from "../lib/dailyLoop/disciplineStreak"
 import { runBrokerStepStateSelfCheck } from "../lib/dailyLoop/brokerStepState";
 import { runMarketSessionSelfCheck } from "../lib/broker/marketSession";
 import { runTradeExecutionErrorSelfCheck } from "../lib/api/clientFetch";
+import { runWeeklyReviewSelfCheck } from "../lib/dailyLoop/weeklyReview";
 import { runTradeFillSelfCheck } from "../services/trade/logTradeFill";
 
 runCapitalProjectionSelfCheck();
@@ -29,4 +30,5 @@ runDisciplineStatusSelfCheck();
 runBrokerStepStateSelfCheck();
 runMarketSessionSelfCheck();
 runTradeExecutionErrorSelfCheck();
+runWeeklyReviewSelfCheck();
 runTradeFillSelfCheck();
