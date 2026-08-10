@@ -72,17 +72,23 @@ export function resolveTodayHero(
         : computed;
     const resolvedSellPercent =
       sellPercent > 0 ? sellPercent : Math.round(primary.deployPercentage);
+    const postTrimWeight =
+      currentWeight > 0 && resolvedSellPercent > 0
+        ? Math.max(
+            0,
+            Math.round(currentWeight * (1 - resolvedSellPercent / 100)),
+          )
+        : undefined;
 
     return {
       headline: `Trim ${primary.symbol} by ${resolvedSellPercent}% today`,
       subline:
-        primary.postActionImpact ??
         decision.primaryActionDetail ??
         "Reduce exposure before new deployment.",
       executionKind: "SELL",
       symbol: primary.symbol,
       sellPercent: resolvedSellPercent,
-      targetWeightAfter: targetWeight,
+      targetWeightAfter: postTrimWeight,
       currentWeight,
     };
   }
@@ -145,6 +151,10 @@ export function runTodaySurfaceSelfCheck(): void {
   assert(
     trimHero.headline.includes("Trim JIOFIN"),
     "Today hero headline must name the trim action",
+  );
+  assert(
+    trimHero.targetWeightAfter === 75,
+    "Post-trim weight must reflect shares sold, not trim percent",
   );
   assert(
     !trimHero.headline.includes("Remain fully in cash"),

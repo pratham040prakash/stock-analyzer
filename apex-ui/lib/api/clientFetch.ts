@@ -48,6 +48,23 @@ export async function parseApiJson<T>(
   }
 }
 
+type ApiEnvelope = {
+  status?: string;
+  message?: string;
+};
+
+/** Read server error text from APEX API envelopes. */
+export function readApiErrorMessage(
+  data: ApiEnvelope | null | undefined,
+  fallback: string,
+): string {
+  if (data?.status === "error" && typeof data.message === "string" && data.message) {
+    return data.message;
+  }
+
+  return fallback;
+}
+
 export async function apiFetchJson<T>(
   input: RequestInfo | URL,
   init?: RequestInit,

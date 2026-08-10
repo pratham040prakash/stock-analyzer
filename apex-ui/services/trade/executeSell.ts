@@ -1,8 +1,9 @@
+import { getMarketOrderBlockReason } from "@/lib/broker/marketSession";
 import {
   fetchZerodhaHoldings,
   placeZerodhaOrder,
 } from "@/services/brokers/zerodha";
-import { getActiveBrokerConnection } from "@/services/broker/connections";
+import { listTradeAccessTokens } from "@/services/broker/tradeAccess";
 import { normalizeSymbol } from "@/lib/stockPool";
 import type { Database } from "@/types/database";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -54,61 +55,80 @@ export async function executeSellTrim(
     return { status: "ERROR", message: "sellPercent must be between 1 and 100" };
   }
 
-  const connection = await getActiveBrokerConnection(supabase, userId);
+  const marketBlock = getMarketOrderBlockReason();
+  if (marketBlock) {
+    return { status: "ERROR", message: marketBlock };
+  }
 
-  if (!connection?.accessToken || connection.status !== "active") {
+  const candidates = await listTradeAccessTokens(supabase, userId);
+  if (candidates.length === 0) {
     return { status: "NOT_CONNECTED" };
   }
 
-  const holdings = await fetchZerodhaHoldings(connection.accessToken);
+  let sawExpired = false;
+  let lastError = "Could not place sell order on Zerodha.";
 
-  if (holdings.status === "TOKEN_EXPIRED") {
-    return { status: "TOKEN_EXPIRED" };
-  }
+  for (const candidate of candidates) {
+    const holdings = await fetchZerodhaHoldings(candidate.accessToken);
 
-  if (holdings.status !== "OK") {
-    return { status: "ERROR", message: holdings.message };
-  }
+    if (holdings.status === "TOKEN_EXPIRED") {
+      sawExpired = true;
+      continue;
+    }
 
-  const holding = holdings.data.find(
-    (item) => normalizeSymbol(item.tradingsymbol) === stock,
-  );
+    if (holdings.status !== "OK") {
+      lastError = holdings.message;
+      continue;
+    }
 
-  if (!holding || holding.quantity < 1) {
-    return { status: "NO_HOLDING", stock };
-  }
+    const holding = holdings.data.find(
+      (item) => normalizeSymbol(item.tradingsymbol) === stock,
+    );
 
-  const quantity = resolveSellQuantity(holding.quantity, sellPercent);
+    if (!holding || holding.quantity < 1) {
+      return { status: "NO_HOLDING", stock };
+    }
 
-  if (quantity < 1) {
+    const quantity = resolveSellQuantity(holding.quantity, sellPercent);
+
+    if (quantity < 1) {
+      return {
+        status: "INVALID_QUANTITY",
+        message: `Cannot sell ${sellPercent}% — holding quantity too small`,
+      };
+    }
+
+    const order = await placeZerodhaOrder(candidate.accessToken, {
+      tradingsymbol: stock,
+      transaction_type: "SELL",
+      quantity,
+      order_type: "MARKET",
+      product: "CNC",
+    });
+
+    if (order.status === "TOKEN_EXPIRED") {
+      sawExpired = true;
+      continue;
+    }
+
+    if (order.status !== "OK") {
+      lastError = order.message;
+      continue;
+    }
+
     return {
-      status: "INVALID_QUANTITY",
-      message: `Cannot sell ${sellPercent}% — holding quantity too small`,
+      status: "OK",
+      stock,
+      sellPercent,
+      quantity,
+      price: holding.last_price,
+      orderId: order.orderId,
     };
   }
 
-  const order = await placeZerodhaOrder(connection.accessToken, {
-    tradingsymbol: stock,
-    transaction_type: "SELL",
-    quantity,
-    order_type: "MARKET",
-    product: "CNC",
-  });
-
-  if (order.status === "TOKEN_EXPIRED") {
+  if (sawExpired) {
     return { status: "TOKEN_EXPIRED" };
   }
 
-  if (order.status !== "OK") {
-    return { status: "ERROR", message: order.message };
-  }
-
-  return {
-    status: "OK",
-    stock,
-    sellPercent,
-    quantity,
-    price: holding.last_price,
-    orderId: order.orderId,
-  };
+  return { status: "ERROR", message: lastError };
 }

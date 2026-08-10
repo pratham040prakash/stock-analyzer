@@ -1,13 +1,14 @@
+import { getMarketOrderBlockReason } from "@/lib/broker/marketSession";
 import { fetchStockData } from "@/services/market/stockData";
 import {
   fetchZerodhaMargins,
   fetchZerodhaQuote,
   placeZerodhaOrder,
 } from "@/services/brokers/zerodha";
-import { getActiveBrokerConnection } from "@/services/broker/connections";
+import { listTradeAccessTokens } from "@/services/broker/tradeAccess";
 import { normalizeSymbol } from "@/lib/stockPool";
 import { evaluateEntryTimingSafe } from "@/services/execution/entryTiming";
-import { runRiskChecksSafe } from "@/services/risk/riskControl";
+import { computeStopLoss, runRiskChecksSafe } from "@/services/risk/riskControl";
 import type { MarketTrend } from "@/types/decision";
 import type { Database } from "@/types/database";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -29,6 +30,9 @@ export type ExecuteTradeResult =
       price: number;
       quantity: number;
       orderId: string;
+      stopLoss?: number;
+      stopLossOrderId?: string;
+      stopLossNote?: string;
     }
   | { status: "INSUFFICIENT_FUNDS"; availableCash: number; requested: number }
   | { status: "NOT_CONNECTED" }
@@ -70,6 +74,11 @@ export async function executeTrade(
     return { status: "ERROR", message: "Amount must be greater than zero" };
   }
 
+  const marketBlock = getMarketOrderBlockReason();
+  if (marketBlock) {
+    return { status: "ERROR", message: marketBlock };
+  }
+
   const risk = await runRiskChecksSafe(supabase, {
     userId,
     amount,
@@ -84,78 +93,121 @@ export async function executeTrade(
     };
   }
 
-  const connection = await getActiveBrokerConnection(supabase, userId);
+  const connection = await listTradeAccessTokens(supabase, userId);
 
-  if (!connection?.accessToken || connection.status !== "active") {
+  if (connection.length === 0) {
     return { status: "NOT_CONNECTED" };
   }
 
-  const margins = await fetchZerodhaMargins(connection.accessToken);
+  let sawExpired = false;
+  let lastError = "Could not place buy order on Zerodha.";
 
-  if (margins.status === "TOKEN_EXPIRED") {
+  for (const candidate of connection) {
+    const margins = await fetchZerodhaMargins(candidate.accessToken);
+
+    if (margins.status === "TOKEN_EXPIRED") {
+      sawExpired = true;
+      continue;
+    }
+
+    if (margins.status !== "OK") {
+      lastError = margins.message;
+      continue;
+    }
+
+    if (amount > margins.marginAvailable) {
+      return {
+        status: "INSUFFICIENT_FUNDS",
+        availableCash: margins.marginAvailable,
+        requested: amount,
+      };
+    }
+
+    const price = await resolveLatestPrice(candidate.accessToken, stock);
+
+    if (!price || price <= 0) {
+      lastError = "Unable to fetch latest price";
+      continue;
+    }
+
+    const entryTiming = await evaluateEntryTimingSafe(stock, price);
+
+    if (!entryTiming.enter) {
+      return {
+        status: "ENTRY_BLOCKED",
+        reason: entryTiming.reason,
+      };
+    }
+
+    const quantity = Math.floor(amount / price);
+
+    if (quantity < 1) {
+      return {
+        status: "ERROR",
+        message: `Amount too small for 1 share at ${price.toFixed(2)}`,
+      };
+    }
+
+    const order = await placeZerodhaOrder(candidate.accessToken, {
+      tradingsymbol: stock,
+      transaction_type: "BUY",
+      quantity,
+      order_type: "MARKET",
+      product: "CNC",
+    });
+
+    if (order.status === "TOKEN_EXPIRED") {
+      sawExpired = true;
+      continue;
+    }
+
+    if (order.status !== "OK") {
+      lastError = order.message;
+      continue;
+    }
+
+    const stopLoss = computeStopLoss(price);
+    const triggerPrice = Math.round(stopLoss * 100) / 100;
+    const limitPrice = Math.max(0.05, Math.round(triggerPrice * 0.995 * 100) / 100);
+
+    const stopOrder = await placeZerodhaOrder(candidate.accessToken, {
+      tradingsymbol: stock,
+      transaction_type: "SELL",
+      quantity,
+      order_type: "SL-M",
+      product: "CNC",
+      trigger_price: triggerPrice,
+      price: limitPrice,
+    });
+
+    let stopLossNote: string | undefined;
+    let stopLossOrderId: string | undefined;
+
+    if (stopOrder.status === "OK") {
+      stopLossOrderId = stopOrder.orderId;
+      stopLossNote = `Stop loss order placed at ${triggerPrice.toFixed(2)}.`;
+    } else {
+      stopLossNote = `Buy filled. Place stop near ${triggerPrice.toFixed(2)} in Zerodha — ${stopOrder.status === "ERROR" ? stopOrder.message : "SL order pending"}.`;
+    }
+
+    return {
+      status: "OK",
+      stock,
+      amount: quantity * price,
+      price,
+      quantity,
+      orderId: order.orderId,
+      stopLoss: triggerPrice,
+      stopLossOrderId,
+      stopLossNote,
+    };
+  }
+
+  if (sawExpired) {
     return { status: "TOKEN_EXPIRED" };
   }
 
-  if (margins.status !== "OK") {
-    return { status: "ERROR", message: margins.message };
-  }
-
-  if (amount > margins.marginAvailable) {
-    return {
-      status: "INSUFFICIENT_FUNDS",
-      availableCash: margins.marginAvailable,
-      requested: amount,
-    };
-  }
-
-  const price = await resolveLatestPrice(connection.accessToken, stock);
-
-  if (!price || price <= 0) {
-    return { status: "ERROR", message: "Unable to fetch latest price" };
-  }
-
-  const entryTiming = await evaluateEntryTimingSafe(stock, price);
-
-  if (!entryTiming.enter) {
-    return {
-      status: "ENTRY_BLOCKED",
-      reason: entryTiming.reason,
-    };
-  }
-
-  const quantity = Math.floor(amount / price);
-
-  if (quantity < 1) {
-    return {
-      status: "ERROR",
-      message: `Amount too small for 1 share at ${price.toFixed(2)}`,
-    };
-  }
-
-  const order = await placeZerodhaOrder(connection.accessToken, {
-    tradingsymbol: stock,
-    transaction_type: "BUY",
-    quantity,
-    order_type: "MARKET",
-    product: "CNC",
-  });
-
-  if (order.status === "TOKEN_EXPIRED") {
-    return { status: "TOKEN_EXPIRED" };
-  }
-
-  if (order.status !== "OK") {
-    return { status: "ERROR", message: order.message };
-  }
-
-  return {
-    status: "OK",
-    stock,
-    amount: quantity * price,
-    price,
-    quantity,
-    orderId: order.orderId,
-  };
+  return { status: "ERROR", message: lastError };
 }
 
 export async function executeTradeSafe(

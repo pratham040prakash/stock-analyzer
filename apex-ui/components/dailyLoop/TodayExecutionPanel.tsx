@@ -2,8 +2,9 @@
 
 import { useCallback, useMemo, useState } from "react";
 import type { EntryTimingState } from "@/components/decision/ExecutionPlanCard";
-import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
+import { apiFetch, parseApiJson, readApiErrorMessage } from "@/lib/api/clientFetch";
 import { formatInr } from "@/lib/funds";
+import { getMarketOrderBlockReason } from "@/lib/broker/marketSession";
 import type { TodayHero } from "@/lib/dailyLoop/todaySurface";
 import { computeSellImpact } from "@/lib/sellImpact";
 import type { ExecutionPlanSafeOutput } from "@/services/execution/executionPlanEngine";
@@ -23,6 +24,14 @@ type ExecuteBuyResponse = {
   price: number;
   quantity: number;
   orderId: string;
+  stopLoss?: number;
+  stopLossOrderId?: string;
+  stopLossNote?: string;
+};
+
+type ApiErrorBody = {
+  status?: string;
+  message?: string;
 };
 
 type Props = {
@@ -63,6 +72,23 @@ export default function TodayExecutionPanel({
   const [error, setError] = useState<string | null>(null);
 
   const canEnter = entryTiming?.enter ?? true;
+  const marketBlockReason = getMarketOrderBlockReason();
+  const canPlaceMarketOrder = marketBlockReason === null;
+
+  const targetFromPlan = useMemo(() => {
+    if (!plan?.steps.length) {
+      return null;
+    }
+
+    for (const step of plan.steps) {
+      const breakoutMatch = step.match(/breakout above ([₹,\d]+)/i);
+      if (breakoutMatch?.[1]) {
+        return breakoutMatch[1];
+      }
+    }
+
+    return null;
+  }, [plan?.steps]);
 
   const sellImpact = useMemo(() => {
     if (pendingSellPercent === null || !hero.symbol) {
@@ -109,10 +135,18 @@ export default function TodayExecutionPanel({
             sellPercent,
           }),
         });
-        const data = await parseApiJson<ExecuteSellResponse>(res, "Sell order");
+        const data = await parseApiJson<ExecuteSellResponse & ApiErrorBody>(
+          res,
+          "Sell order",
+        );
 
-        if (!res.ok || !data) {
-          setError("Could not place sell order. Check Zerodha connection.");
+        if (!res.ok || !data?.orderId) {
+          setError(
+            readApiErrorMessage(
+              data,
+              "Could not place sell order. Check Zerodha connection.",
+            ),
+          );
           return;
         }
 
@@ -149,15 +183,24 @@ export default function TodayExecutionPanel({
           amount: hero.deployAmount,
         }),
       });
-      const data = await parseApiJson<ExecuteBuyResponse>(res, "Buy order");
+      const data = await parseApiJson<ExecuteBuyResponse & ApiErrorBody>(
+        res,
+        "Buy order",
+      );
 
-      if (!res.ok || !data) {
-        setError("Could not place buy order. Check cash and entry rules.");
+      if (!res.ok || !data?.orderId) {
+        setError(
+          readApiErrorMessage(
+            data,
+            "Could not place buy order. Check cash and entry rules.",
+          ),
+        );
         return;
       }
 
-      const stopNote =
-        plan?.stopLoss !== null && plan?.stopLoss !== undefined
+      const stopNote = data.stopLossNote
+        ? ` ${data.stopLossNote}`
+        : plan?.stopLoss !== null && plan?.stopLoss !== undefined
           ? ` Stop monitoring from ${formatInr(plan.stopLoss)}.`
           : "";
 
@@ -200,9 +243,17 @@ export default function TodayExecutionPanel({
               Position {hero.currentWeight}% → {hero.targetWeightAfter}% after trim
             </p>
           ) : null}
+          {marketBlockReason ? (
+            <p className="text-sm text-amber-200/90">{marketBlockReason}</p>
+          ) : (
+            <p className="text-xs text-apex-muted/65">
+              Stop loss and staged targets apply on buy setups. Today is a trim-only
+              action.
+            </p>
+          )}
           <ApexButton
             type="button"
-            disabled={processing}
+            disabled={processing || !canPlaceMarketOrder}
             onClick={() => {
               const pct = hero.sellPercent ?? null;
               if (pct === null) {
@@ -276,6 +327,32 @@ export default function TodayExecutionPanel({
 
         <section className="space-y-2">
           <p className="text-xs font-medium uppercase tracking-wide text-apex-muted">
+            Risk plan
+          </p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div className="rounded-lg border border-apex-border/15 bg-white/[0.02] px-3 py-2.5">
+              <p className="text-[11px] uppercase tracking-wide text-apex-muted">
+                Stop loss
+              </p>
+              <p className="mt-1 text-sm font-medium text-apex-text">
+                {plan?.stopLoss !== null && plan?.stopLoss !== undefined
+                  ? formatInr(plan.stopLoss)
+                  : "Set after entry"}
+              </p>
+            </div>
+            <div className="rounded-lg border border-apex-border/15 bg-white/[0.02] px-3 py-2.5">
+              <p className="text-[11px] uppercase tracking-wide text-apex-muted">
+                Target zone
+              </p>
+              <p className="mt-1 text-sm font-medium text-apex-text">
+                {targetFromPlan ? `Breakout above ${targetFromPlan}` : "Staged in plan steps"}
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section className="space-y-2">
+          <p className="text-xs font-medium uppercase tracking-wide text-apex-muted">
             Execution plan
           </p>
           {planLoading ? (
@@ -305,12 +382,16 @@ export default function TodayExecutionPanel({
         </section>
 
         <p className="text-xs text-apex-muted/70">
-          After fill, APEX monitors stop and staged targets on your open position
-          — verify the order in Zerodha.
+          Confirm buy places the entry on Zerodha and attempts a protective stop-loss
+          sell order. Staged targets stay in the plan below — verify all orders in
+          Zerodha.
         </p>
+        {marketBlockReason ? (
+          <p className="text-sm text-amber-200/90">{marketBlockReason}</p>
+        ) : null}
         <ApexButton
           type="button"
-          disabled={processing || !canEnter}
+          disabled={processing || !canEnter || !canPlaceMarketOrder}
           onClick={() => void runBuy()}
           className="w-full sm:w-auto"
         >

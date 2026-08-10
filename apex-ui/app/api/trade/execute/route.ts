@@ -157,5 +157,8 @@ export async function POST(request: Request) {
     price: result.price,
     quantity: result.quantity,
     orderId: result.orderId,
+    stopLoss: result.stopLoss,
+    stopLossOrderId: result.stopLossOrderId,
+    stopLossNote: result.stopLossNote,
   });
 }

@@ -164,8 +164,11 @@ export async function placeZerodhaOrder(
     exchange?: string;
     transaction_type: "BUY" | "SELL";
     quantity: number;
-    order_type?: "MARKET" | "LIMIT";
+    order_type?: "MARKET" | "LIMIT" | "SL-M";
     product?: "CNC" | "MIS";
+    price?: number;
+    trigger_price?: number;
+    validity?: "DAY";
   },
 ): Promise<PlaceOrderResult> {
   const config = getZerodhaConfig();
@@ -186,7 +189,19 @@ export async function placeZerodhaOrder(
       quantity: String(params.quantity),
       order_type: params.order_type ?? "MARKET",
       product: params.product ?? "CNC",
+      validity: params.validity ?? "DAY",
     });
+
+    if (params.price !== undefined && Number.isFinite(params.price)) {
+      form.set("price", String(params.price));
+    }
+
+    if (
+      params.trigger_price !== undefined &&
+      Number.isFinite(params.trigger_price)
+    ) {
+      form.set("trigger_price", String(params.trigger_price));
+    }
 
     const res = await axios.post(
       "https://api.kite.trade/orders/regular",
