@@ -162,6 +162,16 @@ export function computeZerodhaPositionsPnl(
   holdings: KiteHolding[],
   netPositions: KiteNetPosition[],
 ): number | null {
+  const ltpBySymbol = new Map<string, number>();
+
+  for (const holding of holdings) {
+    const symbol = normalizeSymbol(holding.tradingsymbol);
+    const ltp = resolveKiteLastPrice(holding);
+    if (symbol && ltp > 0) {
+      ltpBySymbol.set(symbol, ltp);
+    }
+  }
+
   const netBySymbol = new Map<string, KiteNetPosition>();
 
   for (const position of netPositions) {
@@ -179,7 +189,8 @@ export function computeZerodhaPositionsPnl(
   for (const [symbol, position] of netBySymbol) {
     counted.add(symbol);
     hasRow = true;
-    const ltp = resolveKiteLastPrice(position);
+    const ltp =
+      ltpBySymbol.get(symbol) ?? resolveKiteLastPrice(position);
     total += (ltp - position.average_price) * position.quantity;
   }
 
@@ -195,7 +206,7 @@ export function computeZerodhaPositionsPnl(
     }
 
     hasRow = true;
-    const ltp = resolveKiteLastPrice(holding);
+    const ltp = ltpBySymbol.get(symbol) ?? resolveKiteLastPrice(holding);
     total += (ltp - holding.average_price) * qty;
   }
 
@@ -290,7 +301,13 @@ export function mergeKiteHoldingsAndPositions(
           position.average_price > 0
             ? position.average_price
             : existing.average_price,
-        last_price: positionLast > 0 ? positionLast : existing.last_price,
+        // Holdings LTP is usually fresher than net position last_price.
+        last_price:
+          existing.last_price > 0
+            ? existing.last_price
+            : positionLast > 0
+              ? positionLast
+              : existing.last_price,
         close_price: position.close_price ?? existing.close_price,
         day_change: positionDayChange ?? existing.day_change,
         m2m:
@@ -639,6 +656,30 @@ export function runKiteDayPnlSelfCheck(): void {
   assert(
     ignoreStaleKitePnl !== null && Math.abs(ignoreStaleKitePnl - 31.3) < 0.01,
     "Positions P&L must derive from LTP and avg, not stale Kite pnl field",
+  );
+
+  const preferHoldingsLtp = computeZerodhaPositionsPnl(
+    [
+      {
+        tradingsymbol: "HEROMOTOCO",
+        quantity: 1,
+        average_price: 5856.1,
+        last_price: 5860,
+      },
+    ],
+    [
+      {
+        tradingsymbol: "HEROMOTOCO",
+        product: "CNC",
+        quantity: 1,
+        average_price: 5856.1,
+        last_price: 5801,
+      },
+    ],
+  );
+  assert(
+    preferHoldingsLtp !== null && Math.abs(preferHoldingsLtp - 3.9) < 0.01,
+    "Positions P&L must prefer live holdings LTP over stale net position LTP",
   );
 }
 

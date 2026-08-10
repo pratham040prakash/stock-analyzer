@@ -29,24 +29,32 @@ export type LiveKitePortfolioResult =
   | { status: "TOKEN_EXPIRED" }
   | { status: "ERROR"; message: string };
 
-async function enrichHoldingsWithLiveQuotes(
+function roundPnl(value: number): number {
+  return Math.round(value * 10) / 10;
+}
+
+/** One /quote batch for holdings + net legs — avoids stale Kite position LTP. */
+async function enrichKitePortfolioPrices(
   accessToken: string,
   holdings: KiteHolding[],
-): Promise<KiteHolding[]> {
-  if (holdings.length === 0) {
-    return holdings;
+  netPnl: KiteNetPosition[],
+): Promise<{ holdings: KiteHolding[]; netPnl: KiteNetPosition[] }> {
+  const symbols = [
+    ...new Set(
+      [
+        ...holdings.map((holding) => normalizeSymbol(holding.tradingsymbol)),
+        ...netPnl.map((position) => normalizeSymbol(position.tradingsymbol)),
+      ].filter(Boolean),
+    ),
+  ];
+
+  if (symbols.length === 0) {
+    return { holdings, netPnl };
   }
 
-  const quotes = await fetchZerodhaQuotes(
-    accessToken,
-    holdings.map((holding) => holding.tradingsymbol),
-  );
+  const quotes = await fetchZerodhaQuotes(accessToken, symbols);
 
-  if (quotes.size === 0) {
-    return holdings;
-  }
-
-  return holdings.map((holding) => {
+  const enrichedHoldings = holdings.map((holding) => {
     const quote = quotes.get(normalizeSymbol(holding.tradingsymbol));
     if (!quote?.lastPrice) {
       return holding;
@@ -65,45 +73,34 @@ async function enrichHoldingsWithLiveQuotes(
       day_change: dayChange ?? holding.day_change,
     };
   });
-}
 
-async function enrichNetPositionsWithLiveQuotes(
-  accessToken: string,
-  positions: KiteNetPosition[],
-): Promise<KiteNetPosition[]> {
-  if (positions.length === 0) {
-    return positions;
+  const ltpBySymbol = new Map<string, number>();
+  for (const holding of enrichedHoldings) {
+    const symbol = normalizeSymbol(holding.tradingsymbol);
+    if (symbol && holding.last_price > 0) {
+      ltpBySymbol.set(symbol, holding.last_price);
+    }
   }
 
-  const quotes = await fetchZerodhaQuotes(
-    accessToken,
-    positions.map((position) => position.tradingsymbol),
-  );
+  const enrichedNetPnl = netPnl.map((position) => {
+    const symbol = normalizeSymbol(position.tradingsymbol);
+    const ltp =
+      ltpBySymbol.get(symbol) ??
+      quotes.get(symbol)?.lastPrice ??
+      position.last_price;
 
-  if (quotes.size === 0) {
-    return positions;
-  }
-
-  return positions.map((position) => {
-    const quote = quotes.get(normalizeSymbol(position.tradingsymbol));
-    if (!quote?.lastPrice) {
+    if (!ltp || ltp <= 0) {
       return position;
     }
-
-    const ltp = quote.lastPrice;
-    const avg = position.average_price;
-    const pnl = (ltp - avg) * position.quantity;
 
     return {
       ...position,
       last_price: ltp,
-      pnl: roundPnl(pnl),
+      pnl: roundPnl((ltp - position.average_price) * position.quantity),
     };
   });
-}
 
-function roundPnl(value: number): number {
-  return Math.round(value * 10) / 10;
+  return { holdings: enrichedHoldings, netPnl: enrichedNetPnl };
 }
 
 /** Load CNC holdings + same-day positions using every usable Zerodha token. */
@@ -148,15 +145,16 @@ export async function fetchLiveKitePortfolio(
     const dayPositions: KiteNetPosition[] =
       positionsResult.status === "OK" ? positionsResult.day : [];
     const merged = mergeKiteHoldingsAndPositions(holdings, netPositions);
-    const [enriched, enrichedNetPnl] = await Promise.all([
-      enrichHoldingsWithLiveQuotes(candidate.accessToken, merged),
-      enrichNetPositionsWithLiveQuotes(candidate.accessToken, netPnlPositions),
-    ]);
+    const enriched = await enrichKitePortfolioPrices(
+      candidate.accessToken,
+      merged,
+      netPnlPositions,
+    );
 
     return {
       status: "OK",
-      holdings: enriched,
-      netPnlPositions: enrichedNetPnl,
+      holdings: enriched.holdings,
+      netPnlPositions: enriched.netPnl,
       dayPositions,
       token: candidate,
     };

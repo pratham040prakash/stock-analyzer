@@ -112,7 +112,7 @@ export async function GET() {
     holdings: formatted.holdings,
     total_value: formatted.total_value,
     total_pnl: formatted.total_pnl,
-    day_pnl: positions_pnl ?? formatted.day_pnl,
+    day_pnl: positions_pnl,
     positions_pnl,
     concentrated: formatted.concentrated,
     top_symbol: formatted.top_symbol ?? undefined,
