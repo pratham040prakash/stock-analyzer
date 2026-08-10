@@ -1,6 +1,7 @@
 /**
  * VERIFY-001 — production smoke checks after deploy.
- * VERIFY-002 — authenticated trade status when APEX_VERIFY_COOKIE is set.
+ * VERIFY-002 — authenticated API checks when APEX_VERIFY_COOKIE is set.
+ * VERIFY-003 — Today + trade status contract checks for the live trim loop.
  *
  * Usage:
  *   APEX_VERIFY_BASE_URL=https://your-app.vercel.app npm run verify:prod
@@ -218,6 +219,12 @@ async function runChecks(baseUrl: string): Promise<VerifyReport> {
   if (authHeaders) {
     const authedRoutes = [
       {
+        id: "authed-today",
+        path: "/api/decision/today",
+        validate: (body: Record<string, unknown> | null) =>
+          isRecord(body?.decision) && typeof body?.action === "string",
+      },
+      {
         id: "authed-discipline",
         path: "/api/discipline/streak",
         validate: (body: Record<string, unknown> | null) =>
@@ -250,6 +257,10 @@ async function runChecks(baseUrl: string): Promise<VerifyReport> {
             return false;
           }
 
+          if (typeof body.stock !== "string" || body.stock.length === 0) {
+            return false;
+          }
+
           if (body.filledToday !== true) {
             return true;
           }
@@ -262,6 +273,14 @@ async function runChecks(baseUrl: string): Promise<VerifyReport> {
               body.side === "sell")
           );
         },
+      },
+      {
+        id: "authed-trade-status-jiofin",
+        path: "/api/trade/status?stock=JIOFIN",
+        validate: (body: Record<string, unknown> | null) =>
+          body?.status === "ok" &&
+          body.stock === "JIOFIN" &&
+          typeof body.filledToday === "boolean",
       },
       {
         id: "authed-funds",
