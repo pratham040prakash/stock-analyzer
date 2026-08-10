@@ -74,29 +74,19 @@ async function enrichKitePortfolioPrices(
     };
   });
 
-  const ltpBySymbol = new Map<string, number>();
-  for (const holding of enrichedHoldings) {
-    const symbol = normalizeSymbol(holding.tradingsymbol);
-    if (symbol && holding.last_price > 0) {
-      ltpBySymbol.set(symbol, holding.last_price);
-    }
-  }
-
   const enrichedNetPnl = netPnl.map((position) => {
     const symbol = normalizeSymbol(position.tradingsymbol);
-    const ltp =
-      ltpBySymbol.get(symbol) ??
-      quotes.get(symbol)?.lastPrice ??
-      position.last_price;
+    const quoteLtp = quotes.get(symbol)?.lastPrice;
 
-    if (!ltp || ltp <= 0) {
+    if (!quoteLtp || quoteLtp <= 0) {
+      // Keep Kite net row as-is — matches Zerodha Positions better than stale holdings LTP.
       return position;
     }
 
     return {
       ...position,
-      last_price: ltp,
-      pnl: roundPnl((ltp - position.average_price) * position.quantity),
+      last_price: quoteLtp,
+      pnl: roundPnl((quoteLtp - position.average_price) * position.quantity),
     };
   });
 

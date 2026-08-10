@@ -165,21 +165,26 @@ export type ZerodhaPositionPnlRow = {
   pnl: number;
 };
 
+function netPositionRowPnl(position: KiteNetPosition, ltp: number): number {
+  const calc = roundPnl((ltp - position.average_price) * position.quantity);
+
+  if (typeof position.pnl !== "number" || !Number.isFinite(position.pnl)) {
+    return calc;
+  }
+
+  if (Math.abs(calc - position.pnl) > 1) {
+    // Kite Positions pnl disagrees with LTP — trust Kite (holdings LTP is often staler).
+    return roundPnl(position.pnl);
+  }
+
+  return calc;
+}
+
 /** Per-symbol rows matching Zerodha Positions tab (LTP − avg) × qty. */
 export function computeZerodhaPositionsBreakdown(
   holdings: KiteHolding[],
   netPositions: KiteNetPosition[],
 ): ZerodhaPositionPnlRow[] {
-  const ltpBySymbol = new Map<string, number>();
-
-  for (const holding of holdings) {
-    const symbol = normalizeSymbol(holding.tradingsymbol);
-    const ltp = resolveKiteLastPrice(holding);
-    if (symbol && ltp > 0) {
-      ltpBySymbol.set(symbol, ltp);
-    }
-  }
-
   const netBySymbol = new Map<string, KiteNetPosition>();
 
   for (const position of netPositions) {
@@ -195,14 +200,13 @@ export function computeZerodhaPositionsBreakdown(
 
   for (const [symbol, position] of netBySymbol) {
     counted.add(symbol);
-    const ltp =
-      ltpBySymbol.get(symbol) ?? resolveKiteLastPrice(position);
+    const ltp = resolveKiteLastPrice(position);
     rows.push({
       symbol,
       quantity: position.quantity,
       average_price: position.average_price,
       last_price: ltp,
-      pnl: roundPnl((ltp - position.average_price) * position.quantity),
+      pnl: netPositionRowPnl(position, ltp),
     });
   }
 
@@ -217,7 +221,7 @@ export function computeZerodhaPositionsBreakdown(
       continue;
     }
 
-    const ltp = ltpBySymbol.get(symbol) ?? resolveKiteLastPrice(holding);
+    const ltp = resolveKiteLastPrice(holding);
     rows.push({
       symbol,
       quantity: qty,
@@ -674,19 +678,18 @@ export function runKiteDayPnlSelfCheck(): void {
     "Positions P&L must include CNC holdings missing from net positions",
   );
 
-  const ignoreStaleKitePnl = computeZerodhaPositionsPnl([], [
+  const fromLtpOnly = computeZerodhaPositionsPnl([], [
     {
       tradingsymbol: "TITAN",
       product: "CNC",
       quantity: 1,
       average_price: 5058.7,
       last_price: 5090,
-      pnl: -999,
     },
   ]);
   assert(
-    ignoreStaleKitePnl !== null && Math.abs(ignoreStaleKitePnl - 31.3) < 0.01,
-    "Positions P&L must derive from LTP and avg, not stale Kite pnl field",
+    fromLtpOnly !== null && Math.abs(fromLtpOnly - 31.3) < 0.01,
+    "Positions P&L must derive from LTP and avg when Kite pnl is absent",
   );
 
   const preferHoldingsLtp = computeZerodhaPositionsPnl(
@@ -695,7 +698,7 @@ export function runKiteDayPnlSelfCheck(): void {
         tradingsymbol: "HEROMOTOCO",
         quantity: 1,
         average_price: 5856.1,
-        last_price: 5860,
+        last_price: 5801,
       },
     ],
     [
@@ -704,13 +707,14 @@ export function runKiteDayPnlSelfCheck(): void {
         product: "CNC",
         quantity: 1,
         average_price: 5856.1,
-        last_price: 5801,
+        last_price: 5860,
+        pnl: 3.9,
       },
     ],
   );
   assert(
     preferHoldingsLtp !== null && Math.abs(preferHoldingsLtp - 3.9) < 0.01,
-    "Positions P&L must prefer live holdings LTP over stale net position LTP",
+    "Positions P&L must use Kite net position pnl, not stale holdings LTP",
   );
 
   const breakdown = computeZerodhaPositionsBreakdown(

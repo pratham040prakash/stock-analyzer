@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
-import { isNseCashSessionOpen } from "@/lib/broker/marketSession";
 import type { MonitorLiveTick } from "@/services/monitor/openPositions";
 import type { ZerodhaPositionPnlRow } from "@/services/brokers/zerodha";
 
@@ -106,13 +105,9 @@ export function useDayPnlPoll({ enabled }: Options) {
       return;
     }
 
-    const tick = () => {
-      if (isNseCashSessionOpen()) {
-        void refresh();
-      }
-    };
-
-    const intervalId = window.setInterval(tick, DAY_PNL_REFRESH_MS);
+    const intervalId = window.setInterval(() => {
+      void refresh();
+    }, DAY_PNL_REFRESH_MS);
     return () => window.clearInterval(intervalId);
   }, [enabled, refresh]);
 
