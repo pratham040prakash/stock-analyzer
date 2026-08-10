@@ -24,7 +24,74 @@ function fillSignals(orderId: string, price: number): Signals {
     fill_price: price,
     filled_at: new Date().toISOString(),
     monitored: true,
-  } as Signals;
+  };
+}
+
+export function signalsIndicateBrokerFill(signals: Signals | null | undefined): boolean {
+  return Boolean(signals?.order_id && signals?.filled_at);
+}
+
+async function logStandaloneSellFill(
+  supabase: Client,
+  userId: string,
+  fill: TradeFillInput,
+): Promise<string | null> {
+  const today = tradingDateKey();
+
+  const { data, error } = await supabase
+    .from("decision_memory")
+    .insert({
+      user_id: userId,
+      timestamp_ms: Date.now(),
+      decision_date: today,
+      stock: fill.stock,
+      action: "sell",
+      amount: fill.amount,
+      confidence: 75,
+      entry_price: fill.price,
+      exit_price: fill.price,
+      quantity: fill.quantity,
+      take_profit_taken: true,
+      signals: fillSignals(fill.orderId, fill.price),
+    })
+    .select("id")
+    .single();
+
+  if (error || !data) {
+    return null;
+  }
+
+  return data.id;
+}
+
+export async function hasBrokerFillToday(
+  supabase: Client,
+  userId: string,
+  stock: string,
+  dateKey = tradingDateKey(),
+): Promise<boolean> {
+  const normalized = stock.trim().toUpperCase();
+
+  if (!normalized) {
+    return false;
+  }
+
+  const { data, error } = await supabase
+    .from("decision_memory")
+    .select("signals")
+    .eq("user_id", userId)
+    .eq("stock", normalized)
+    .eq("decision_date", dateKey)
+    .order("updated_at", { ascending: false })
+    .limit(10);
+
+  if (error || !data?.length) {
+    return false;
+  }
+
+  return data.some((row) =>
+    signalsIndicateBrokerFill(row.signals as Signals | null),
+  );
 }
 
 export async function logTradeFill(
@@ -101,7 +168,7 @@ export async function logTradeFill(
     .maybeSingle();
 
   if (!open?.id) {
-    return null;
+    return logStandaloneSellFill(supabase, userId, fill);
   }
 
   const priorQty = Math.max(0, Math.round(Number(open.quantity ?? 0)));
@@ -149,4 +216,27 @@ export async function logTradeFillSafe(
     console.error("Trade fill log failed:", error);
     return null;
   }
+}
+
+export function runTradeFillSelfCheck(): void {
+  const assert = (condition: boolean, message: string) => {
+    if (!condition) {
+      throw new Error(`Trade fill self-check failed: ${message}`);
+    }
+  };
+
+  assert(
+    signalsIndicateBrokerFill({
+      trend: 0,
+      momentum: 0,
+      volume: 0,
+      order_id: "123",
+      filled_at: "2026-08-10T09:00:00.000Z",
+    }),
+    "Fill signals must include order id and timestamp",
+  );
+  assert(
+    !signalsIndicateBrokerFill({ trend: 1, momentum: 1, volume: 1 }),
+    "Missing fill metadata must not count as broker fill",
+  );
 }

@@ -81,14 +81,16 @@ export function computePerformance(
   };
 }
 
+type NumericSignalKey = "trend" | "momentum" | "volume";
+
 function signalSuccessRate(
   records: CompletedDecision[],
-  signalKey: keyof Signals,
+  signalKey: NumericSignalKey,
 ): number {
-  const strong = records.filter(
-    (record) =>
-      record.signals !== null && record.signals[signalKey] > SIGNAL_THRESHOLD,
-  );
+  const strong = records.filter((record) => {
+    const value = record.signals?.[signalKey];
+    return typeof value === "number" && value > SIGNAL_THRESHOLD;
+  });
 
   if (strong.length === 0) {
     return 0.5;

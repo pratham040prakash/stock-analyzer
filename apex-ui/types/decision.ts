@@ -32,6 +32,10 @@ export type Signals = {
   trend: number;
   momentum: number;
   volume: number;
+  order_id?: string;
+  fill_price?: number;
+  filled_at?: string;
+  monitored?: boolean;
 };
 
 export type MarketTrend = "bullish" | "bearish" | "sideways";

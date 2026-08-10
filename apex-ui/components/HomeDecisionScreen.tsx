@@ -35,6 +35,7 @@ import type { TierFeatures } from "@/services/subscription/tier";
 import PremiumFeatureGate from "@/components/dailyLoop/PremiumFeatureGate";
 import { useExploreTriggers } from "@/lib/useExploreTriggers";
 import { useOpenMonitor } from "@/lib/useOpenMonitor";
+import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
 
 export type HomeDecision = {
   action: string;
@@ -209,7 +210,43 @@ export default function HomeDecisionScreen({
   const [brokerStepCompleted, setBrokerStepCompleted] = useState(false);
 
   useEffect(() => {
-    setBrokerStepCompleted(readBrokerStepCompleted(todayHero.symbol));
+    if (!todayHero.symbol) {
+      setBrokerStepCompleted(false);
+      return;
+    }
+
+    if (readBrokerStepCompleted(todayHero.symbol)) {
+      setBrokerStepCompleted(true);
+      return;
+    }
+
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const response = await apiFetch(
+          `/api/trade/status?stock=${encodeURIComponent(todayHero.symbol ?? "")}`,
+          { cache: "no-store" },
+        );
+        const payload = await parseApiJson<{ filledToday?: boolean }>(
+          response,
+          "Trade status",
+        );
+
+        if (cancelled || !response.ok || !payload?.filledToday) {
+          return;
+        }
+
+        markBrokerStepCompleted(todayHero.symbol ?? "");
+        setBrokerStepCompleted(true);
+      } catch {
+        // Session cache remains the fallback when the status API is unavailable.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [todayHero.symbol]);
 
   const holdingAllocationPct =

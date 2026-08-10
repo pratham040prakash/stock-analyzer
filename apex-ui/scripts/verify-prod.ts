@@ -1,5 +1,6 @@
 /**
  * VERIFY-001 — production smoke checks after deploy.
+ * VERIFY-002 — authenticated trade status when APEX_VERIFY_COOKIE is set.
  *
  * Usage:
  *   APEX_VERIFY_BASE_URL=https://your-app.vercel.app npm run verify:prod
@@ -148,6 +149,7 @@ async function runChecks(baseUrl: string): Promise<VerifyReport> {
     { path: "/api/trust/outcome", id: "auth-trust" },
     { path: "/api/subscription/tier", id: "auth-tier" },
     { path: "/api/decision/history?days=7", id: "auth-history" },
+    { path: "/api/trade/status?stock=RELIANCE", id: "auth-trade-status" },
   ] as const;
 
   for (const route of protectedRoutes) {
@@ -210,6 +212,12 @@ async function runChecks(baseUrl: string): Promise<VerifyReport> {
         validate: (body: Record<string, unknown> | null) =>
           body?.status === "ok" &&
           (body.tier === "free" || body.tier === "premium"),
+      },
+      {
+        id: "authed-trade-status",
+        path: "/api/trade/status?stock=RELIANCE",
+        validate: (body: Record<string, unknown> | null) =>
+          body?.status === "ok" && typeof body.filledToday === "boolean",
       },
     ] as const;
 
