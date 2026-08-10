@@ -128,8 +128,8 @@ export async function getBrokerFillToday(
     const side: "buy" | "sell" = row.action === "sell" ? "sell" : "buy";
     const price =
       side === "sell"
-        ? (row.exit_price ?? row.entry_price ?? signals?.fill_price ?? undefined)
-        : (row.entry_price ?? signals?.fill_price ?? undefined);
+        ? (row.exit_price ?? signals?.fill_price ?? row.entry_price ?? undefined)
+        : (signals?.fill_price ?? row.entry_price ?? undefined);
 
     return {
       filled: true,

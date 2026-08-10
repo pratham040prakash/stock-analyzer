@@ -14,6 +14,7 @@ import { runDisciplineStatusSelfCheck } from "../lib/dailyLoop/disciplineStreak"
 import { runBrokerStepStateSelfCheck } from "../lib/dailyLoop/brokerStepState";
 import { runMarketSessionSelfCheck } from "../lib/broker/marketSession";
 import { runKiteOrderProxySelfCheck } from "../lib/broker/kiteOrderProxy";
+import { runOpenMonitorEntrySelfCheck } from "../services/monitor/openPositions";
 import { runTradeExecutionErrorSelfCheck } from "../lib/api/clientFetch";
 import { runWeeklyReviewSelfCheck } from "../lib/dailyLoop/weeklyReview";
 import { runTradeFillSelfCheck } from "../services/trade/logTradeFill";
@@ -33,6 +34,7 @@ runDisciplineStatusSelfCheck();
 runBrokerStepStateSelfCheck();
 runMarketSessionSelfCheck();
 runKiteOrderProxySelfCheck();
+runOpenMonitorEntrySelfCheck();
 runTradeExecutionErrorSelfCheck();
 runWeeklyReviewSelfCheck();
 runTradeFillSelfCheck();

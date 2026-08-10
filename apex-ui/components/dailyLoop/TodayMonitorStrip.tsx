@@ -34,7 +34,8 @@ function MonitorRow({ position }: { position: OpenMonitorPosition }) {
       </div>
 
       <p className="text-xs text-apex-muted/75">
-        Entry {formatInr(position.entryPrice)} · Now {formatInr(position.currentPrice)}
+        Entry ₹{position.entryPrice.toLocaleString("en-IN")} · Now ₹
+        {position.currentPrice.toLocaleString("en-IN")}
       </p>
     </div>
   );
