@@ -1,15 +1,33 @@
 "use client";
 
-import type { OpenMonitorPosition } from "@/services/monitor/openPositions";
+import type {
+  MonitorLiveTick,
+  OpenMonitorPosition,
+} from "@/services/monitor/openPositions";
 
 export type TodayMonitorStripProps = {
   positions: OpenMonitorPosition[];
   dayPnl?: number | null;
+  liveTicksById?: Record<string, MonitorLiveTick>;
   loading?: boolean;
 };
 
-function MonitorRow({ position }: { position: OpenMonitorPosition }) {
-  const pnlPositive = position.unrealizedPnl >= 0;
+function MonitorRow({
+  position,
+  liveTick,
+}: {
+  position: OpenMonitorPosition;
+  liveTick?: MonitorLiveTick;
+}) {
+  const currentPrice = liveTick?.currentPrice ?? position.currentPrice;
+  const unrealizedPnl = liveTick?.unrealizedPnl ?? position.unrealizedPnl;
+  const pnlPct = liveTick?.pnlPct ?? position.pnlPct;
+  const positionDayPnl = liveTick?.positionDayPnl;
+  const pnlPositive = unrealizedPnl >= 0;
+  const dayPositive =
+    positionDayPnl !== null &&
+    positionDayPnl !== undefined &&
+    positionDayPnl >= 0;
 
   return (
     <div className="rounded-lg border border-apex-border/15 bg-white/[0.02] px-3 py-3 space-y-2">
@@ -23,19 +41,32 @@ function MonitorRow({ position }: { position: OpenMonitorPosition }) {
           }
         >
           {pnlPositive ? "+" : ""}
-          ₹{Math.abs(position.unrealizedPnl).toLocaleString("en-IN")}
+          ₹{Math.abs(unrealizedPnl).toLocaleString("en-IN")}
           <span className="text-xs text-apex-muted/70">
             {" "}
             ({pnlPositive ? "+" : ""}
-            {position.pnlPct.toFixed(1)}%)
+            {pnlPct.toFixed(1)}%)
           </span>
         </p>
       </div>
 
       <p className="text-xs text-apex-muted/75">
         Entry ₹{position.entryPrice.toLocaleString("en-IN")} · Now ₹
-        {position.currentPrice.toLocaleString("en-IN")}
+        {currentPrice.toLocaleString("en-IN")}
       </p>
+
+      {positionDayPnl !== null && positionDayPnl !== undefined ? (
+        <p
+          className={
+            dayPositive
+              ? "text-[11px] text-emerald-200/75"
+              : "text-[11px] text-amber-200/75"
+          }
+        >
+          Today {dayPositive ? "+" : "−"}₹
+          {Math.abs(positionDayPnl).toLocaleString("en-IN")}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -43,6 +74,7 @@ function MonitorRow({ position }: { position: OpenMonitorPosition }) {
 export default function TodayMonitorStrip({
   positions,
   dayPnl,
+  liveTicksById,
   loading = false,
 }: TodayMonitorStripProps) {
   if (loading) {
@@ -85,12 +117,16 @@ export default function TodayMonitorStrip({
 
       <div className="space-y-2">
         {positions.map((position) => (
-          <MonitorRow key={position.id} position={position} />
+          <MonitorRow
+            key={position.id}
+            position={position}
+            liveTick={liveTicksById?.[position.id]}
+          />
         ))}
       </div>
 
       <p className="text-[11px] leading-snug text-apex-muted/60">
-        Day P&amp;L updates every 5s during market hours · positions refresh after trades.
+        Live prices update every 5s during market hours · positions refresh after trades.
       </p>
     </div>
   );

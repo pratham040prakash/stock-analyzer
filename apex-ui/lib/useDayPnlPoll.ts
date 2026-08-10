@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
 import { isNseCashSessionOpen } from "@/lib/broker/marketSession";
+import type { MonitorLiveTick } from "@/services/monitor/openPositions";
 
 type LivePnlResponse = {
   portfolio_day_pnl: number | null;
   monitor_day_pnl: number | null;
+  position_ticks?: MonitorLiveTick[];
 };
 
 type Options = {
@@ -19,12 +21,14 @@ export const DAY_PNL_REFRESH_MS = 5_000;
 export function useDayPnlPoll({ enabled }: Options) {
   const [portfolioDayPnl, setPortfolioDayPnl] = useState<number | null>(null);
   const [monitorDayPnl, setMonitorDayPnl] = useState<number | null>(null);
+  const [positionTicks, setPositionTicks] = useState<MonitorLiveTick[]>([]);
   const requestRef = useRef(0);
 
   const refresh = useCallback(async () => {
     if (!enabled) {
       setPortfolioDayPnl(null);
       setMonitorDayPnl(null);
+      setPositionTicks([]);
       return;
     }
 
@@ -47,6 +51,7 @@ export function useDayPnlPoll({ enabled }: Options) {
 
       setPortfolioDayPnl(data.portfolio_day_pnl ?? null);
       setMonitorDayPnl(data.monitor_day_pnl ?? null);
+      setPositionTicks(data.position_ticks ?? []);
     } catch {
       // Keep the last known values on transient failures.
     }
@@ -71,5 +76,5 @@ export function useDayPnlPoll({ enabled }: Options) {
     return () => window.clearInterval(intervalId);
   }, [enabled, refresh]);
 
-  return { portfolioDayPnl, monitorDayPnl, refresh };
+  return { portfolioDayPnl, monitorDayPnl, positionTicks, refresh };
 }

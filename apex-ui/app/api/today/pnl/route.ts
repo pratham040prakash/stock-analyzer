@@ -1,6 +1,6 @@
 import { apiError, apiOk } from "@/lib/api/response";
 import { fetchLiveKitePortfolioCached } from "@/services/broker/kitePortfolio";
-import { getOpenMonitorDayPnl } from "@/services/monitor/openPositions";
+import { getOpenMonitorLiveSnapshot } from "@/services/monitor/openPositions";
 import {
   computePortfolioDayPnl,
   mapKiteHoldingsToPortfolio,
@@ -27,10 +27,11 @@ export async function GET() {
       ? computePortfolioDayPnl(mapKiteHoldingsToPortfolio(live.holdings))
       : null;
 
-  const monitorDayPnl = await getOpenMonitorDayPnl(supabase, user.id, live);
+  const monitor = await getOpenMonitorLiveSnapshot(supabase, user.id, live);
 
   return apiOk({
     portfolio_day_pnl: portfolioDayPnl,
-    monitor_day_pnl: monitorDayPnl,
+    monitor_day_pnl: monitor.dayPnl,
+    position_ticks: monitor.ticks,
   });
 }

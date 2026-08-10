@@ -33,6 +33,21 @@ export type OpenMonitorResult = {
   dayPnl: number | null;
 };
 
+/** Live price + P&L tick for one open position (5s poll, no card reload). */
+export type MonitorLiveTick = {
+  id: string;
+  currentPrice: number;
+  unrealizedPnl: number;
+  pnlPct: number;
+  positionDayPnl: number | null;
+  stopStatus: MonitorStopStatus;
+};
+
+export type MonitorLiveSnapshot = {
+  dayPnl: number | null;
+  ticks: MonitorLiveTick[];
+};
+
 type HoldingSnapshot = {
   quantity: number;
   lastPrice: number;
@@ -253,26 +268,48 @@ function sumMonitorDayPnl(
   return hasDayPnl ? roundPnl(dayPnlTotal) : null;
 }
 
-export async function getOpenMonitorDayPnl(
-  supabase: Client,
-  userId: string,
-  livePortfolio?: LiveKitePortfolioResult,
-): Promise<number | null> {
-  const result = await getOpenMonitorPositions(supabase, userId, {
-    livePortfolio,
-    includePositions: false,
-  });
-  return result.dayPnl;
+function buildMonitorLiveTicks(
+  pending: PendingMonitorRow[],
+  holdingsBySymbol: Map<string, HoldingSnapshot>,
+): MonitorLiveTick[] {
+  const ticks: MonitorLiveTick[] = [];
+
+  for (const item of pending) {
+    const holding = holdingsBySymbol.get(item.stock);
+    const liveLast = resolveLiveLastPrice(undefined, holding, item.entryPrice);
+    const unrealizedPnl = (liveLast - item.entryPrice) * item.quantity;
+    const pnlPct =
+      item.entryPrice > 0
+        ? ((liveLast - item.entryPrice) / item.entryPrice) * 100
+        : 0;
+    const positionDayPnl = computeMonitorPositionDayPnl(
+      item.quantity,
+      item.entryPrice,
+      liveLast,
+      holding && holding.closePrice > 0 ? holding.closePrice : null,
+      holding,
+    );
+    const { status } = resolveStopStatus(liveLast, item.stopLoss);
+
+    ticks.push({
+      id: item.id,
+      currentPrice: roundPrice(liveLast),
+      unrealizedPnl: roundPnl(unrealizedPnl),
+      pnlPct,
+      positionDayPnl:
+        positionDayPnl === null ? null : roundPnl(positionDayPnl),
+      stopStatus: status,
+    });
+  }
+
+  return ticks;
 }
 
-export async function getOpenMonitorPositions(
+async function buildPendingMonitorRows(
   supabase: Client,
   userId: string,
-  options?: {
-    livePortfolio?: LiveKitePortfolioResult;
-    includePositions?: boolean;
-  },
-): Promise<OpenMonitorResult> {
+  holdingsBySymbol: Map<string, HoldingSnapshot>,
+): Promise<PendingMonitorRow[]> {
   const { data: rows, error } = await supabase
     .from("decision_memory")
     .select(
@@ -287,15 +324,10 @@ export async function getOpenMonitorPositions(
     .limit(10);
 
   if (error || !rows?.length) {
-    return { positions: [], dayPnl: null };
+    return [];
   }
 
   const todayKey = tradingDateKey();
-  const livePortfolio =
-    options?.livePortfolio ??
-    (await fetchLiveKitePortfolioCached(supabase, userId));
-  const holdingsBySymbol = holdingsMapFromLivePortfolio(livePortfolio);
-
   const pending: PendingMonitorRow[] = [];
   const seenStocks = new Set<string>();
 
@@ -341,6 +373,68 @@ export async function getOpenMonitorPositions(
       quantity,
       openedToday: resolveOpenedToday(row.decision_date, row.signals, todayKey),
     });
+  }
+
+  return pending;
+}
+
+export async function getOpenMonitorLiveSnapshot(
+  supabase: Client,
+  userId: string,
+  livePortfolio?: LiveKitePortfolioResult,
+): Promise<MonitorLiveSnapshot> {
+  const live =
+    livePortfolio ?? (await fetchLiveKitePortfolioCached(supabase, userId));
+  const holdingsBySymbol = holdingsMapFromLivePortfolio(live);
+  const pending = await buildPendingMonitorRows(
+    supabase,
+    userId,
+    holdingsBySymbol,
+  );
+
+  if (pending.length === 0) {
+    return { dayPnl: null, ticks: [] };
+  }
+
+  return {
+    dayPnl: sumMonitorDayPnl(pending, holdingsBySymbol),
+    ticks: buildMonitorLiveTicks(pending, holdingsBySymbol),
+  };
+}
+
+export async function getOpenMonitorDayPnl(
+  supabase: Client,
+  userId: string,
+  livePortfolio?: LiveKitePortfolioResult,
+): Promise<number | null> {
+  const snapshot = await getOpenMonitorLiveSnapshot(
+    supabase,
+    userId,
+    livePortfolio,
+  );
+  return snapshot.dayPnl;
+}
+
+export async function getOpenMonitorPositions(
+  supabase: Client,
+  userId: string,
+  options?: {
+    livePortfolio?: LiveKitePortfolioResult;
+    includePositions?: boolean;
+  },
+): Promise<OpenMonitorResult> {
+  const livePortfolio =
+    options?.livePortfolio ??
+    (await fetchLiveKitePortfolioCached(supabase, userId));
+  const holdingsBySymbol = holdingsMapFromLivePortfolio(livePortfolio);
+  const pending = await buildPendingMonitorRows(
+    supabase,
+    userId,
+    holdingsBySymbol,
+  );
+
+  if (pending.length === 0) {
+    return { positions: [], dayPnl: null };
   }
 
   const includePositions = options?.includePositions !== false;

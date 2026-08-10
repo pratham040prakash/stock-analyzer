@@ -363,12 +363,23 @@ export default function HomeDecisionScreen({
     loading: monitorLoading,
     refresh: refreshMonitor,
   } = useOpenMonitor({ enabled: monitorEnabled });
-  const { portfolioDayPnl: liveDayPnl, monitorDayPnl: monitorLiveDayPnl, refresh: refreshLiveDayPnl } =
-    useDayPnlPoll({
+  const {
+    portfolioDayPnl: liveDayPnl,
+    monitorDayPnl: monitorLiveDayPnl,
+    positionTicks,
+    refresh: refreshLiveDayPnl,
+  } = useDayPnlPoll({
     enabled: monitorEnabled,
   });
   const resolvedDayPnl = liveDayPnl ?? dayPnl;
   const monitorStripDayPnl = monitorLiveDayPnl;
+  const monitorLiveTicksById = useMemo(() => {
+    const map: Record<string, (typeof positionTicks)[number]> = {};
+    for (const tick of positionTicks) {
+      map[tick.id] = tick;
+    }
+    return map;
+  }, [positionTicks]);
 
   const handleExecuted = useCallback(
     (fill?: BrokerFillSummary) => {
@@ -597,6 +608,7 @@ export default function HomeDecisionScreen({
                 <TodayMonitorStrip
                   positions={monitorPositions}
                   dayPnl={monitorStripDayPnl}
+                  liveTicksById={monitorLiveTicksById}
                   loading={monitorLoading}
                 />
               </div>
