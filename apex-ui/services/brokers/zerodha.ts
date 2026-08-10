@@ -163,6 +163,79 @@ function parseKiteQuotePayload(payload: unknown): ZerodhaLiveQuote | null {
   };
 }
 
+function buildInstrumentQuery(
+  symbols: string[],
+  exchange: string,
+): string {
+  return symbols
+    .map((symbol) => {
+      const instrument = `${exchange}:${symbol}`;
+      return `i=${encodeURIComponent(instrument)}`;
+    })
+    .join("&");
+}
+
+async function fetchZerodhaLtpOhlcBatch(
+  accessToken: string,
+  symbols: string[],
+  exchange: string,
+  quotes: Map<string, ZerodhaLiveQuote>,
+): Promise<void> {
+  if (symbols.length === 0) {
+    return;
+  }
+
+  const config = getZerodhaConfig();
+  if (!config.configured) {
+    return;
+  }
+
+  const query = buildInstrumentQuery(symbols, exchange);
+  const headers = kiteAuthHeaders(config.apiKey, accessToken);
+
+  try {
+    const [ltpRes, ohlcRes] = await Promise.all([
+      axios.get(`https://api.kite.trade/quote/ltp?${query}`, { headers }),
+      axios.get(`https://api.kite.trade/quote/ohlc?${query}`, { headers }),
+    ]);
+
+    for (const symbol of symbols) {
+      const instrument = `${exchange}:${symbol}`;
+      const lastPrice = (
+        ltpRes.data?.data?.[instrument] as { last_price?: number } | undefined
+      )?.last_price;
+      const previousClose = (
+        ohlcRes.data?.data?.[instrument] as
+          | { ohlc?: { close?: number } }
+          | undefined
+      )?.ohlc?.close;
+
+      if (
+        typeof lastPrice !== "number" ||
+        Number.isNaN(lastPrice) ||
+        lastPrice <= 0
+      ) {
+        continue;
+      }
+
+      quotes.set(symbol, {
+        lastPrice,
+        previousClose:
+          typeof previousClose === "number" &&
+          Number.isFinite(previousClose) &&
+          previousClose > 0
+            ? previousClose
+            : null,
+      });
+    }
+  } catch (err) {
+    brokerError(
+      "fetchZerodhaLtpOhlcBatch failed",
+      err instanceof Error ? err.message : err,
+    );
+  }
+}
+
 async function fetchZerodhaLiveQuote(
   accessToken: string,
   tradingsymbol: string,
@@ -174,16 +247,19 @@ async function fetchZerodhaLiveQuote(
     return null;
   }
 
+  const instrument = `${exchange}:${tradingsymbol}`;
+  const headers = kiteAuthHeaders(config.apiKey, accessToken);
+
   try {
-    const instrument = `${exchange}:${tradingsymbol}`;
     const res = await axios.get(
       `https://api.kite.trade/quote?i=${encodeURIComponent(instrument)}`,
-      {
-        headers: kiteAuthHeaders(config.apiKey, accessToken),
-      },
+      { headers },
     );
 
-    return parseKiteQuotePayload(res.data?.data?.[instrument]);
+    const parsed = parseKiteQuotePayload(res.data?.data?.[instrument]);
+    if (parsed) {
+      return parsed;
+    }
   } catch (err) {
     if (axios.isAxiosError(err) && err.response?.status === 401) {
       return null;
@@ -193,8 +269,16 @@ async function fetchZerodhaLiveQuote(
       `fetchZerodhaLiveQuote failed for ${tradingsymbol}`,
       err instanceof Error ? err.message : err,
     );
-    return null;
   }
+
+  const fallback = new Map<string, ZerodhaLiveQuote>();
+  await fetchZerodhaLtpOhlcBatch(
+    accessToken,
+    [tradingsymbol],
+    exchange,
+    fallback,
+  );
+  return fallback.get(tradingsymbol) ?? null;
 }
 
 export async function fetchZerodhaQuote(
@@ -251,12 +335,7 @@ export async function fetchZerodhaQuotes(
   }
 
   try {
-    const query = symbols
-      .map((symbol) => {
-        const instrument = `${exchange}:${symbol}`;
-        return `i=${encodeURIComponent(instrument)}`;
-      })
-      .join("&");
+    const query = buildInstrumentQuery(symbols, exchange);
     const res = await axios.get(`https://api.kite.trade/quote?${query}`, {
       headers: kiteAuthHeaders(config.apiKey, accessToken),
     });
@@ -272,6 +351,16 @@ export async function fetchZerodhaQuotes(
     brokerError(
       "fetchZerodhaQuotes batch failed",
       err instanceof Error ? err.message : err,
+    );
+  }
+
+  const missingAfterFull = symbols.filter((symbol) => !quotes.has(symbol));
+  if (missingAfterFull.length > 0) {
+    await fetchZerodhaLtpOhlcBatch(
+      accessToken,
+      missingAfterFull,
+      exchange,
+      quotes,
     );
   }
 

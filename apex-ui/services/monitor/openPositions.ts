@@ -1,5 +1,5 @@
 import { tradingDateKey } from "@/lib/dailyLoop/disciplineDates";
-import { resolveZerodhaAccessToken } from "@/services/broker/accessToken";
+import { listZerodhaAccessTokenCandidates } from "@/services/broker/accessToken";
 import {
   fetchZerodhaHoldings,
   fetchZerodhaQuotes,
@@ -81,28 +81,49 @@ export function resolveOpenedToday(
   return decisionDate === todayKey;
 }
 
-/** Day P&L for one monitored open position using live LTP + prior close. */
+/** Resolve display LTP — quote first, then close+day_change from holdings. */
+export function resolveLiveLastPrice(
+  quote: ZerodhaLiveQuote | undefined,
+  holding: HoldingSnapshot | undefined,
+  entryPrice: number,
+): number {
+  if (quote?.lastPrice && quote.lastPrice > 0) {
+    return quote.lastPrice;
+  }
+
+  if (holding) {
+    if (holding.closePrice > 0 && holding.dayChange !== null) {
+      const derived = holding.closePrice + holding.dayChange;
+      if (derived > 0) {
+        return derived;
+      }
+    }
+
+    if (holding.lastPrice > 0) {
+      return holding.lastPrice;
+    }
+  }
+
+  return entryPrice;
+}
+
+/** Day P&L for one monitored position — broker standard vs prior close / day_change. */
 export function computeMonitorPositionDayPnl(
   quantity: number,
   entryPrice: number,
   liveLastPrice: number,
   previousClose: number | null,
   holding: HoldingSnapshot | undefined,
-  openedToday: boolean,
 ): number | null {
-  if (liveLastPrice <= 0 || quantity <= 0) {
+  if (quantity <= 0) {
     return null;
-  }
-
-  if (openedToday && entryPrice > 0) {
-    return (liveLastPrice - entryPrice) * quantity;
   }
 
   const close =
     previousClose ??
     (holding && holding.closePrice > 0 ? holding.closePrice : null);
 
-  if (close !== null && close > 0) {
+  if (close !== null && close > 0 && liveLastPrice > 0) {
     return (liveLastPrice - close) * quantity;
   }
 
@@ -112,6 +133,10 @@ export function computeMonitorPositionDayPnl(
     Number.isFinite(holding.dayChange)
   ) {
     return holding.dayChange * quantity;
+  }
+
+  if (entryPrice > 0 && liveLastPrice > 0) {
+    return (liveLastPrice - entryPrice) * quantity;
   }
 
   return null;
@@ -177,30 +202,33 @@ export async function getOpenMonitorPositions(
   }
 
   const todayKey = tradingDateKey();
-  const token = await resolveZerodhaAccessToken(supabase, userId);
+  const candidates = await listZerodhaAccessTokenCandidates(supabase, userId);
   const holdingsBySymbol = new Map<string, HoldingSnapshot>();
 
-  if (token) {
-    const holdingsResult = await fetchZerodhaHoldings(token.accessToken);
-    if (holdingsResult.status === "OK") {
-      for (const holding of holdingsResult.data) {
-        const symbol = normalizeSymbol(holding.tradingsymbol);
-        holdingsBySymbol.set(symbol, {
-          quantity: holding.quantity,
-          lastPrice: holding.last_price,
-          averagePrice: holding.average_price,
-          closePrice:
-            typeof holding.close_price === "number" && holding.close_price > 0
-              ? holding.close_price
-              : 0,
-          dayChange:
-            typeof holding.day_change === "number" &&
-            Number.isFinite(holding.day_change)
-              ? holding.day_change
-              : null,
-        });
-      }
+  for (const candidate of candidates) {
+    const holdingsResult = await fetchZerodhaHoldings(candidate.accessToken);
+    if (holdingsResult.status !== "OK") {
+      continue;
     }
+
+    for (const holding of holdingsResult.data) {
+      const symbol = normalizeSymbol(holding.tradingsymbol);
+      holdingsBySymbol.set(symbol, {
+        quantity: holding.quantity,
+        lastPrice: holding.last_price,
+        averagePrice: holding.average_price,
+        closePrice:
+          typeof holding.close_price === "number" && holding.close_price > 0
+            ? holding.close_price
+            : 0,
+        dayChange:
+          typeof holding.day_change === "number" &&
+          Number.isFinite(holding.day_change)
+            ? holding.day_change
+            : null,
+      });
+    }
+    break;
   }
 
   const pending: PendingMonitorRow[] = [];
@@ -251,13 +279,19 @@ export async function getOpenMonitorPositions(
     });
   }
 
-  const liveQuotes: Map<string, ZerodhaLiveQuote> =
-    token && pending.length > 0
-      ? await fetchZerodhaQuotes(
-          token.accessToken,
-          pending.map((item) => item.stock),
-        )
-      : new Map<string, ZerodhaLiveQuote>();
+  const liveQuotes = new Map<string, ZerodhaLiveQuote>();
+  if (pending.length > 0) {
+    const symbols = pending.map((item) => item.stock);
+    for (const candidate of candidates) {
+      const quotes = await fetchZerodhaQuotes(candidate.accessToken, symbols);
+      for (const [symbol, quote] of quotes) {
+        liveQuotes.set(symbol, quote);
+      }
+      if (liveQuotes.size >= symbols.length) {
+        break;
+      }
+    }
+  }
 
   const monitors: OpenMonitorPosition[] = [];
   let dayPnlTotal = 0;
@@ -266,8 +300,7 @@ export async function getOpenMonitorPositions(
   for (const item of pending) {
     const holding = holdingsBySymbol.get(item.stock);
     const quote = liveQuotes.get(item.stock);
-    const liveLast =
-      quote?.lastPrice ?? holding?.lastPrice ?? item.entryPrice;
+    const liveLast = resolveLiveLastPrice(quote, holding, item.entryPrice);
 
     const positionDayPnl = computeMonitorPositionDayPnl(
       item.quantity,
@@ -275,7 +308,6 @@ export async function getOpenMonitorPositions(
       liveLast,
       quote?.previousClose ?? null,
       holding,
-      item.openedToday,
     );
 
     if (positionDayPnl !== null) {
@@ -319,7 +351,7 @@ export function runOpenMonitorEntrySelfCheck(): void {
     lastPrice: 5058.7,
     averagePrice: 5058.7,
     closePrice: 5040,
-    dayChange: 0,
+    dayChange: 18.7,
   };
 
   const resolved = resolveMonitorEntryPrice(5067, null, holding);
@@ -332,16 +364,20 @@ export function runOpenMonitorEntrySelfCheck(): void {
     throw new Error("resolveMonitorEntryPrice should use fill price when holdings missing");
   }
 
+  const derived = resolveLiveLastPrice(undefined, holding, 5058.7);
+  if (Math.abs(derived - 5058.7) > 0.01) {
+    throw new Error("resolveLiveLastPrice should derive LTP from close + day_change");
+  }
+
   const openedTodayPnl = computeMonitorPositionDayPnl(
     1,
     5058.7,
-    5067,
+    5058.7,
     5040,
     holding,
-    true,
   );
-  if (openedTodayPnl === null || Math.abs(openedTodayPnl - 8.3) > 0.01) {
-    throw new Error("computeMonitorPositionDayPnl should use live LTP vs entry for same-day opens");
+  if (openedTodayPnl === null || Math.abs(openedTodayPnl - 18.7) > 0.01) {
+    throw new Error("computeMonitorPositionDayPnl should use prior close for day P&L");
   }
 
   const overnightPnl = computeMonitorPositionDayPnl(
@@ -350,9 +386,8 @@ export function runOpenMonitorEntrySelfCheck(): void {
     5067,
     5040,
     holding,
-    false,
   );
   if (overnightPnl === null || Math.abs(overnightPnl - 27) > 0.01) {
-    throw new Error("computeMonitorPositionDayPnl should use live LTP vs prior close overnight");
+    throw new Error("computeMonitorPositionDayPnl should use live LTP vs prior close");
   }
 }
