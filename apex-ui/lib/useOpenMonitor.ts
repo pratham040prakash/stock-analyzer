@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
+import { isNseCashSessionOpen } from "@/lib/broker/marketSession";
 import type { OpenMonitorPosition } from "@/services/monitor/openPositions";
 
 type MonitorResponse = {
@@ -12,6 +13,8 @@ type MonitorResponse = {
 type Options = {
   enabled: boolean;
 };
+
+const MARKET_REFRESH_MS = 45_000;
 
 export function useOpenMonitor({ enabled }: Options) {
   const [positions, setPositions] = useState<OpenMonitorPosition[]>([]);
@@ -30,7 +33,10 @@ export function useOpenMonitor({ enabled }: Options) {
     setLoading(true);
 
     try {
-      const res = await apiFetch("/api/monitor/open", { method: "GET" });
+      const res = await apiFetch("/api/monitor/open", {
+        method: "GET",
+        cache: "no-store",
+      });
       const data = await parseApiJson<MonitorResponse>(res, "Open monitor");
 
       if (requestId !== requestRef.current) {
@@ -61,6 +67,21 @@ export function useOpenMonitor({ enabled }: Options) {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+
+    const tick = () => {
+      if (isNseCashSessionOpen()) {
+        void refresh();
+      }
+    };
+
+    const intervalId = window.setInterval(tick, MARKET_REFRESH_MS);
+    return () => window.clearInterval(intervalId);
+  }, [enabled, refresh]);
 
   return {
     positions,

@@ -3,6 +3,7 @@ import { resolveZerodhaAccessToken } from "@/services/broker/accessToken";
 import {
   fetchZerodhaHoldings,
   fetchZerodhaQuotes,
+  type ZerodhaLiveQuote,
 } from "@/services/brokers/zerodha";
 import { checkStopLoss } from "@/services/risk/riskControl";
 import { normalizeSymbol } from "@/lib/stockPool";
@@ -66,11 +67,26 @@ export function resolveMonitorEntryPrice(
   return plannedEntry;
 }
 
-/** Day P&L for one monitored open position using live LTP. */
+export function resolveOpenedToday(
+  decisionDate: string | null | undefined,
+  signals: unknown,
+  todayKey: string,
+): boolean {
+  const sig = signals as Signals | null;
+
+  if (sig?.filled_at && typeof sig.filled_at === "string") {
+    return sig.filled_at.slice(0, 10) === todayKey;
+  }
+
+  return decisionDate === todayKey;
+}
+
+/** Day P&L for one monitored open position using live LTP + prior close. */
 export function computeMonitorPositionDayPnl(
   quantity: number,
   entryPrice: number,
   liveLastPrice: number,
+  previousClose: number | null,
   holding: HoldingSnapshot | undefined,
   openedToday: boolean,
 ): number | null {
@@ -82,8 +98,12 @@ export function computeMonitorPositionDayPnl(
     return (liveLastPrice - entryPrice) * quantity;
   }
 
-  if (holding && holding.closePrice > 0) {
-    return (liveLastPrice - holding.closePrice) * quantity;
+  const close =
+    previousClose ??
+    (holding && holding.closePrice > 0 ? holding.closePrice : null);
+
+  if (close !== null && close > 0) {
+    return (liveLastPrice - close) * quantity;
   }
 
   if (
@@ -107,6 +127,10 @@ function parseFillPrice(signals: unknown): number | null {
 }
 
 function roundPrice(value: number): number {
+  return Math.round(value * 10) / 10;
+}
+
+function roundPnl(value: number): number {
   return Math.round(value * 10) / 10;
 }
 
@@ -223,17 +247,17 @@ export async function getOpenMonitorPositions(
       entryPrice,
       stopLoss,
       quantity,
-      openedToday: row.decision_date === todayKey,
+      openedToday: resolveOpenedToday(row.decision_date, row.signals, todayKey),
     });
   }
 
-  const liveQuotes =
+  const liveQuotes: Map<string, ZerodhaLiveQuote> =
     token && pending.length > 0
       ? await fetchZerodhaQuotes(
           token.accessToken,
           pending.map((item) => item.stock),
         )
-      : new Map<string, number>();
+      : new Map<string, ZerodhaLiveQuote>();
 
   const monitors: OpenMonitorPosition[] = [];
   let dayPnlTotal = 0;
@@ -241,13 +265,15 @@ export async function getOpenMonitorPositions(
 
   for (const item of pending) {
     const holding = holdingsBySymbol.get(item.stock);
+    const quote = liveQuotes.get(item.stock);
     const liveLast =
-      liveQuotes.get(item.stock) ?? holding?.lastPrice ?? item.entryPrice;
+      quote?.lastPrice ?? holding?.lastPrice ?? item.entryPrice;
 
     const positionDayPnl = computeMonitorPositionDayPnl(
       item.quantity,
       item.entryPrice,
       liveLast,
+      quote?.previousClose ?? null,
       holding,
       item.openedToday,
     );
@@ -274,7 +300,7 @@ export async function getOpenMonitorPositions(
       entryPrice: roundPrice(item.entryPrice),
       currentPrice: roundPrice(liveLast),
       stopLoss: Math.round(item.stopLoss),
-      unrealizedPnl: Math.round(unrealizedPnl),
+      unrealizedPnl: roundPnl(unrealizedPnl),
       pnlPct,
       stopStatus: status,
       distanceToStopPct,
@@ -283,7 +309,7 @@ export async function getOpenMonitorPositions(
 
   return {
     positions: monitors,
-    dayPnl: hasDayPnl ? Math.round(dayPnlTotal) : null,
+    dayPnl: hasDayPnl ? roundPnl(dayPnlTotal) : null,
   };
 }
 
@@ -310,6 +336,7 @@ export function runOpenMonitorEntrySelfCheck(): void {
     1,
     5058.7,
     5067,
+    5040,
     holding,
     true,
   );
@@ -321,6 +348,7 @@ export function runOpenMonitorEntrySelfCheck(): void {
     1,
     5058.7,
     5067,
+    5040,
     holding,
     false,
   );

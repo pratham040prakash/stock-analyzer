@@ -1,6 +1,5 @@
 "use client";
 
-import { formatInr } from "@/lib/funds";
 import type { OpenMonitorPosition } from "@/services/monitor/openPositions";
 
 export type TodayMonitorStripProps = {
@@ -24,7 +23,7 @@ function MonitorRow({ position }: { position: OpenMonitorPosition }) {
           }
         >
           {pnlPositive ? "+" : ""}
-          {formatInr(position.unrealizedPnl)}
+          ₹{Math.abs(position.unrealizedPnl).toLocaleString("en-IN")}
           <span className="text-xs text-apex-muted/70">
             {" "}
             ({pnlPositive ? "+" : ""}
@@ -78,8 +77,8 @@ export default function TodayMonitorStrip({
                 : "text-xs text-amber-200/90"
             }
           >
-            Day P&amp;L {dayPnl >= 0 ? "+" : "−"}
-            {formatInr(Math.abs(Math.round(dayPnl)))}
+            Day P&amp;L {dayPnl >= 0 ? "+" : "−"}₹
+            {Math.abs(dayPnl).toLocaleString("en-IN")}
           </p>
         ) : null}
       </div>
@@ -91,7 +90,7 @@ export default function TodayMonitorStrip({
       </div>
 
       <p className="text-[11px] leading-snug text-apex-muted/60">
-        Prices from Zerodha holdings.
+        Live prices from Zerodha · refreshes during market hours.
       </p>
     </div>
   );

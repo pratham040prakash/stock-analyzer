@@ -131,6 +131,72 @@ export type FetchQuoteResult =
   | { status: "TOKEN_EXPIRED" }
   | { status: "ERROR"; message: string };
 
+export type ZerodhaLiveQuote = {
+  lastPrice: number;
+  previousClose: number | null;
+};
+
+function parseKiteQuotePayload(payload: unknown): ZerodhaLiveQuote | null {
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+
+  const record = payload as {
+    last_price?: number;
+    ohlc?: { close?: number };
+  };
+  const lastPrice = record.last_price;
+
+  if (typeof lastPrice !== "number" || Number.isNaN(lastPrice) || lastPrice <= 0) {
+    return null;
+  }
+
+  const previousClose = record.ohlc?.close;
+  return {
+    lastPrice,
+    previousClose:
+      typeof previousClose === "number" &&
+      Number.isFinite(previousClose) &&
+      previousClose > 0
+        ? previousClose
+        : null,
+  };
+}
+
+async function fetchZerodhaLiveQuote(
+  accessToken: string,
+  tradingsymbol: string,
+  exchange = "NSE",
+): Promise<ZerodhaLiveQuote | null> {
+  const config = getZerodhaConfig();
+
+  if (!config.configured) {
+    return null;
+  }
+
+  try {
+    const instrument = `${exchange}:${tradingsymbol}`;
+    const res = await axios.get(
+      `https://api.kite.trade/quote?i=${encodeURIComponent(instrument)}`,
+      {
+        headers: kiteAuthHeaders(config.apiKey, accessToken),
+      },
+    );
+
+    return parseKiteQuotePayload(res.data?.data?.[instrument]);
+  } catch (err) {
+    if (axios.isAxiosError(err) && err.response?.status === 401) {
+      return null;
+    }
+
+    brokerError(
+      `fetchZerodhaLiveQuote failed for ${tradingsymbol}`,
+      err instanceof Error ? err.message : err,
+    );
+    return null;
+  }
+}
+
 export async function fetchZerodhaQuote(
   accessToken: string,
   tradingsymbol: string,
@@ -143,22 +209,13 @@ export async function fetchZerodhaQuote(
   }
 
   try {
-    const instrument = `${exchange}:${tradingsymbol}`;
-    const res = await axios.get(
-      `https://api.kite.trade/quote?i=${encodeURIComponent(instrument)}`,
-      {
-        headers: kiteAuthHeaders(config.apiKey, accessToken),
-      },
-    );
+    const quote = await fetchZerodhaLiveQuote(accessToken, tradingsymbol, exchange);
 
-    const quote = res.data?.data?.[instrument];
-    const lastPrice = quote?.last_price;
-
-    if (typeof lastPrice !== "number" || Number.isNaN(lastPrice) || lastPrice <= 0) {
+    if (!quote) {
       return { status: "ERROR", message: "Invalid quote response from Zerodha" };
     }
 
-    return { status: "OK", lastPrice };
+    return { status: "OK", lastPrice: quote.lastPrice };
   } catch (err) {
     if (axios.isAxiosError(err) && err.response?.status === 401) {
       return { status: "TOKEN_EXPIRED" };
@@ -170,13 +227,13 @@ export async function fetchZerodhaQuote(
   }
 }
 
-/** Live LTP for multiple NSE symbols in one Kite quote call. */
+/** Live LTP (+ prior close) for multiple NSE symbols; falls back per symbol on batch miss. */
 export async function fetchZerodhaQuotes(
   accessToken: string,
   tradingsymbols: string[],
   exchange = "NSE",
-): Promise<Map<string, number>> {
-  const prices = new Map<string, number>();
+): Promise<Map<string, ZerodhaLiveQuote>> {
+  const quotes = new Map<string, ZerodhaLiveQuote>();
   const symbols = [
     ...new Set(
       tradingsymbols.map((symbol) => normalizeSymbol(symbol)).filter(Boolean),
@@ -184,18 +241,21 @@ export async function fetchZerodhaQuotes(
   ];
 
   if (symbols.length === 0) {
-    return prices;
+    return quotes;
   }
 
   const config = getZerodhaConfig();
 
   if (!config.configured) {
-    return prices;
+    return quotes;
   }
 
   try {
     const query = symbols
-      .map((symbol) => `i=${encodeURIComponent(`${exchange}:${symbol}`)}`)
+      .map((symbol) => {
+        const instrument = `${exchange}:${symbol}`;
+        return `i=${encodeURIComponent(instrument)}`;
+      })
       .join("&");
     const res = await axios.get(`https://api.kite.trade/quote?${query}`, {
       headers: kiteAuthHeaders(config.apiKey, accessToken),
@@ -203,17 +263,30 @@ export async function fetchZerodhaQuotes(
 
     for (const symbol of symbols) {
       const instrument = `${exchange}:${symbol}`;
-      const lastPrice = res.data?.data?.[instrument]?.last_price;
-
-      if (typeof lastPrice === "number" && lastPrice > 0) {
-        prices.set(symbol, lastPrice);
+      const parsed = parseKiteQuotePayload(res.data?.data?.[instrument]);
+      if (parsed) {
+        quotes.set(symbol, parsed);
       }
     }
-  } catch {
-    return prices;
+  } catch (err) {
+    brokerError(
+      "fetchZerodhaQuotes batch failed",
+      err instanceof Error ? err.message : err,
+    );
   }
 
-  return prices;
+  for (const symbol of symbols) {
+    if (quotes.has(symbol)) {
+      continue;
+    }
+
+    const parsed = await fetchZerodhaLiveQuote(accessToken, symbol, exchange);
+    if (parsed) {
+      quotes.set(symbol, parsed);
+    }
+  }
+
+  return quotes;
 }
 
 export type PlaceOrderResult =
