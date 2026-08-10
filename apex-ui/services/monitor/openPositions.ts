@@ -86,7 +86,11 @@ export function computeMonitorPositionDayPnl(
     return (liveLastPrice - holding.closePrice) * quantity;
   }
 
-  if (holding?.dayChange !== null && Number.isFinite(holding.dayChange)) {
+  if (
+    holding &&
+    holding.dayChange !== null &&
+    Number.isFinite(holding.dayChange)
+  ) {
     return holding.dayChange * quantity;
   }
 
