@@ -245,8 +245,23 @@ async function runChecks(baseUrl: string): Promise<VerifyReport> {
       {
         id: "authed-trade-status",
         path: "/api/trade/status?stock=RELIANCE",
-        validate: (body: Record<string, unknown> | null) =>
-          body?.status === "ok" && typeof body.filledToday === "boolean",
+        validate: (body: Record<string, unknown> | null) => {
+          if (body?.status !== "ok" || typeof body.filledToday !== "boolean") {
+            return false;
+          }
+
+          if (body.filledToday !== true) {
+            return true;
+          }
+
+          return (
+            (body.orderId === undefined || typeof body.orderId === "string") &&
+            (body.quantity === undefined || typeof body.quantity === "number") &&
+            (body.side === undefined ||
+              body.side === "buy" ||
+              body.side === "sell")
+          );
+        },
       },
       {
         id: "authed-funds",

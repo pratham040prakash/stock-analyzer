@@ -31,6 +31,35 @@ export function signalsIndicateBrokerFill(signals: Signals | null | undefined): 
   return Boolean(signals?.order_id && signals?.filled_at);
 }
 
+export type BrokerFillSummary = {
+  orderId: string;
+  quantity: number;
+  side: "buy" | "sell";
+  price?: number;
+};
+
+export type BrokerFillToday = {
+  filled: boolean;
+  orderId?: string;
+  quantity?: number;
+  side?: "buy" | "sell";
+  price?: number;
+};
+
+export function describeBrokerFill(
+  fill: BrokerFillSummary,
+  symbol: string,
+): string {
+  const sideLabel = fill.side === "sell" ? "Sold" : "Bought";
+  const shareLabel = fill.quantity === 1 ? "share" : "shares";
+  const pricePart =
+    fill.price !== undefined && Number.isFinite(fill.price)
+      ? ` at ₹${fill.price.toLocaleString("en-IN")}`
+      : "";
+
+  return `${sideLabel} ${fill.quantity} ${shareLabel} of ${symbol}${pricePart}. Order ${fill.orderId}.`;
+}
+
 async function logStandaloneSellFill(
   supabase: Client,
   userId: string,
@@ -64,21 +93,21 @@ async function logStandaloneSellFill(
   return data.id;
 }
 
-export async function hasBrokerFillToday(
+export async function getBrokerFillToday(
   supabase: Client,
   userId: string,
   stock: string,
   dateKey = tradingDateKey(),
-): Promise<boolean> {
+): Promise<BrokerFillToday> {
   const normalized = stock.trim().toUpperCase();
 
   if (!normalized) {
-    return false;
+    return { filled: false };
   }
 
   const { data, error } = await supabase
     .from("decision_memory")
-    .select("signals")
+    .select("action, quantity, entry_price, exit_price, signals")
     .eq("user_id", userId)
     .eq("stock", normalized)
     .eq("decision_date", dateKey)
@@ -86,12 +115,42 @@ export async function hasBrokerFillToday(
     .limit(10);
 
   if (error || !data?.length) {
-    return false;
+    return { filled: false };
   }
 
-  return data.some((row) =>
-    signalsIndicateBrokerFill(row.signals as Signals | null),
-  );
+  for (const row of data) {
+    const signals = row.signals as Signals | null;
+
+    if (!signalsIndicateBrokerFill(signals)) {
+      continue;
+    }
+
+    const side: "buy" | "sell" = row.action === "sell" ? "sell" : "buy";
+    const price =
+      side === "sell"
+        ? (row.exit_price ?? row.entry_price ?? signals?.fill_price ?? undefined)
+        : (row.entry_price ?? signals?.fill_price ?? undefined);
+
+    return {
+      filled: true,
+      orderId: signals?.order_id,
+      quantity: row.quantity ?? undefined,
+      side,
+      price: price ?? undefined,
+    };
+  }
+
+  return { filled: false };
+}
+
+export async function hasBrokerFillToday(
+  supabase: Client,
+  userId: string,
+  stock: string,
+  dateKey = tradingDateKey(),
+): Promise<boolean> {
+  const fill = await getBrokerFillToday(supabase, userId, stock, dateKey);
+  return fill.filled;
 }
 
 export async function logTradeFill(
@@ -238,5 +297,14 @@ export function runTradeFillSelfCheck(): void {
   assert(
     !signalsIndicateBrokerFill({ trend: 1, momentum: 1, volume: 1 }),
     "Missing fill metadata must not count as broker fill",
+  );
+
+  const detail = describeBrokerFill(
+    { orderId: "240810000123456", quantity: 5, side: "sell", price: 312.5 },
+    "JIOFIN",
+  );
+  assert(
+    detail.includes("240810000123456") && detail.includes("JIOFIN"),
+    "Broker fill detail must include order id and symbol",
   );
 }

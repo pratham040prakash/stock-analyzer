@@ -32,6 +32,7 @@ import type { ConnectionStatus } from "@/lib/broker/zerodha";
 import type { StockPick } from "@/types/decision";
 import type { UserIntent } from "@/types/intent";
 import type { CapitalFundingMode } from "@/lib/dailyLoop/capitalMargin";
+import type { BrokerFillSummary } from "@/services/trade/logTradeFill";
 import type { TierFeatures } from "@/services/subscription/tier";
 import type {
   DisciplineHistoryEntry,
@@ -219,6 +220,8 @@ export default function HomeDecisionScreen({
   );
 
   const [brokerStepCompleted, setBrokerStepCompleted] = useState(false);
+  const [brokerFillSummary, setBrokerFillSummary] =
+    useState<BrokerFillSummary | null>(null);
 
   const displayHero = useMemo(
     () => resolveTodayHeroDisplay(todayHero, brokerStepCompleted),
@@ -228,12 +231,13 @@ export default function HomeDecisionScreen({
   useEffect(() => {
     if (!todayHero.symbol) {
       setBrokerStepCompleted(false);
+      setBrokerFillSummary(null);
       return;
     }
 
-    if (readBrokerStepCompleted(todayHero.symbol)) {
+    const sessionComplete = readBrokerStepCompleted(todayHero.symbol);
+    if (sessionComplete) {
       setBrokerStepCompleted(true);
-      return;
     }
 
     let cancelled = false;
@@ -244,13 +248,37 @@ export default function HomeDecisionScreen({
           `/api/trade/status?stock=${encodeURIComponent(todayHero.symbol ?? "")}`,
           { cache: "no-store" },
         );
-        const payload = await parseApiJson<{ filledToday?: boolean }>(
-          response,
-          "Trade status",
-        );
+        const payload = await parseApiJson<{
+          filledToday?: boolean;
+          orderId?: string;
+          quantity?: number;
+          side?: "buy" | "sell";
+          price?: number;
+        }>(response, "Trade status");
 
-        if (cancelled || !response.ok || !payload?.filledToday) {
+        if (cancelled || !response.ok) {
           return;
+        }
+
+        if (!payload?.filledToday) {
+          if (!sessionComplete) {
+            setBrokerStepCompleted(false);
+            setBrokerFillSummary(null);
+          }
+          return;
+        }
+
+        if (
+          payload.orderId &&
+          typeof payload.quantity === "number" &&
+          (payload.side === "buy" || payload.side === "sell")
+        ) {
+          setBrokerFillSummary({
+            orderId: payload.orderId,
+            quantity: payload.quantity,
+            side: payload.side,
+            price: payload.price,
+          });
         }
 
         markBrokerStepCompleted(todayHero.symbol ?? "");
@@ -468,6 +496,7 @@ export default function HomeDecisionScreen({
                 plan={plan}
                 planLoading={planLoading}
                 brokerStepCompleted={brokerStepCompleted}
+                brokerFillSummary={brokerFillSummary}
                 onExecuted={handleExecuted}
               />
               <div className="mt-4">

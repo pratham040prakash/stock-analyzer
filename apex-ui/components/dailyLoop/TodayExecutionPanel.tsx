@@ -8,6 +8,10 @@ import { useMarketSession } from "@/lib/broker/useMarketSession";
 import type { TodayHero } from "@/lib/dailyLoop/todaySurface";
 import { computeSellImpact } from "@/lib/sellImpact";
 import type { ExecutionPlanSafeOutput } from "@/services/execution/executionPlanEngine";
+import {
+  describeBrokerFill,
+  type BrokerFillSummary,
+} from "@/services/trade/logTradeFill";
 import { ApexButton } from "@/components/ui/apex";
 import SellConfirmModal from "@/components/SellConfirmModal";
 
@@ -42,8 +46,26 @@ type Props = {
   plan?: ExecutionPlanSafeOutput | null;
   planLoading?: boolean;
   brokerStepCompleted?: boolean;
+  brokerFillSummary?: BrokerFillSummary | null;
   onExecuted?: () => void;
 };
+
+function resolveBrokerCompleteDetail(
+  symbol: string,
+  feedback: string | null,
+  brokerFillSummary: BrokerFillSummary | null | undefined,
+  fallback: string,
+): string {
+  if (feedback) {
+    return feedback;
+  }
+
+  if (brokerFillSummary?.orderId) {
+    return describeBrokerFill(brokerFillSummary, symbol);
+  }
+
+  return fallback;
+}
 
 function PlanStepRow({ index, text }: { index: number; text: string }) {
   return (
@@ -103,6 +125,7 @@ export default function TodayExecutionPanel({
   plan,
   planLoading = false,
   brokerStepCompleted = false,
+  brokerFillSummary = null,
   onExecuted,
 }: Props) {
   const [pendingSellPercent, setPendingSellPercent] = useState<number | null>(
@@ -280,10 +303,12 @@ export default function TodayExecutionPanel({
       return (
         <BrokerStepCompleteNotice
           actionLabel="Broker step completed for today."
-          detail={
-            feedback ??
-            `Trim on ${hero.symbol} is logged. Confirm the fill in Zerodha if needed.`
-          }
+          detail={resolveBrokerCompleteDetail(
+            hero.symbol,
+            feedback,
+            brokerFillSummary,
+            `Trim on ${hero.symbol} is logged. Confirm the fill in Zerodha if needed.`,
+          )}
         />
       );
     }
@@ -366,10 +391,12 @@ export default function TodayExecutionPanel({
       return (
         <BrokerStepCompleteNotice
           actionLabel="Broker step completed for today."
-          detail={
-            feedback ??
-            `Buy on ${hero.symbol} is logged. Verify entry and stop orders in Zerodha.`
-          }
+          detail={resolveBrokerCompleteDetail(
+            hero.symbol,
+            feedback,
+            brokerFillSummary,
+            `Buy on ${hero.symbol} is logged. Verify entry and stop orders in Zerodha.`,
+          )}
         />
       );
     }
