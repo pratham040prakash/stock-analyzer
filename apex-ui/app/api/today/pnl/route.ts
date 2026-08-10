@@ -44,8 +44,11 @@ export async function GET() {
 
   const quotesApplied =
     live.status === "OK"
-      ? positionsBreakdown.filter((row) => row.last_price > 0).length
+      ? live.netPnlPositions.filter((row) => row.ltpFromQuote === true).length
       : 0;
+
+  const quotesRequested =
+    live.status === "OK" ? live.netPnlPositions.length : 0;
 
   const monitor = await getOpenMonitorLiveSnapshot(supabase, user.id, live);
 
@@ -56,6 +59,7 @@ export async function GET() {
     positions_net_legs:
       live.status === "OK" ? live.netPnlPositions.length : 0,
     quotes_applied: quotesApplied,
+    quotes_requested: quotesRequested,
     monitor_open_pnl: monitor.openPnl,
     monitor_day_pnl: monitor.dayPnl,
     position_ticks: monitor.ticks,

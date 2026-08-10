@@ -79,21 +79,17 @@ async function enrichKitePortfolioPrices(
     const symbol = normalizeSymbol(position.tradingsymbol);
     const quoteLtp = quotes.get(symbol)?.lastPrice;
 
-    if (!quoteLtp || quoteLtp <= 0) {
+    if (quoteLtp && quoteLtp > 0) {
       return {
         ...position,
-        pnl: roundPnl(
-          (resolveKiteLastPrice(position) - position.average_price) *
-            position.quantity,
-        ),
+        last_price: quoteLtp,
+        ltpFromQuote: true as const,
+        pnl: roundPnl((quoteLtp - position.average_price) * position.quantity),
       };
     }
 
-    return {
-      ...position,
-      last_price: quoteLtp,
-      pnl: roundPnl((quoteLtp - position.average_price) * position.quantity),
-    };
+    // Keep Kite's native pnl — stale last_price recalc caused −₹48 vs Positions +₹24.
+    return position;
   });
 
   return { holdings: enrichedHoldings, netPnl: enrichedNetPnl };

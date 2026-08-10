@@ -43,8 +43,8 @@ export function getKiteOrderProxyStatus(): KiteOrderProxyStatus {
   }
 }
 
-/** Axios config for Kite order POST only — routes through the whitelisted VM. */
-export function buildKiteOrderProxyAxiosConfig(): Pick<
+/** Axios config for Kite API calls — routes through the whitelisted VM when set. */
+export function buildKiteAxiosConfig(): Pick<
   AxiosRequestConfig,
   "httpsAgent" | "proxy"
 > {
@@ -57,6 +57,14 @@ export function buildKiteOrderProxyAxiosConfig(): Pick<
     httpsAgent: new HttpsProxyAgent(status.url),
     proxy: false,
   };
+}
+
+/** @deprecated Use buildKiteAxiosConfig */
+export function buildKiteOrderProxyAxiosConfig(): Pick<
+  AxiosRequestConfig,
+  "httpsAgent" | "proxy"
+> {
+  return buildKiteAxiosConfig();
 }
 
 export function isStaticIpRequiredMessage(message: string): boolean {

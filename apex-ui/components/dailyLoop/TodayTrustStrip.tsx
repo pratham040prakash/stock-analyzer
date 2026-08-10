@@ -187,7 +187,7 @@ export default function TodayTrustStrip({
               ))}
             </ul>
             <p className="mt-1.5 text-[11px] text-apex-muted/55">
-              LTP − avg × qty · live quote when available
+              Zerodha Positions P&amp;L · live quote when available
             </p>
           </details>
         ) : null}
