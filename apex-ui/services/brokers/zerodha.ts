@@ -1,5 +1,10 @@
 import axios from "axios";
 import { brokerError, brokerLog } from "@/lib/broker/log";
+import {
+  buildKiteOrderProxyAxiosConfig,
+  formatStaticIpOrderError,
+  getKiteOrderProxyStatus,
+} from "@/lib/broker/kiteOrderProxy";
 import { getZerodhaConfig } from "@/lib/broker/zerodhaConfig";
 import {
   parseZerodhaEquityFunds,
@@ -270,6 +275,18 @@ export async function placeZerodhaOrder(
     return { status: "ERROR", message: "Order quantity must be at least 1" };
   }
 
+  const proxyStatus = getKiteOrderProxyStatus();
+  const requireProxy =
+    process.env.VERCEL === "1" || process.env.NODE_ENV === "production";
+
+  if (requireProxy && !proxyStatus.configured) {
+    return {
+      status: "ERROR",
+      message:
+        "Order proxy is not configured. Set KITE_ORDER_PROXY_URL to your Oracle VM and whitelist that IP in the Kite developer console.",
+    };
+  }
+
   try {
     const form = new URLSearchParams({
       exchange: params.exchange ?? "NSE",
@@ -300,6 +317,7 @@ export async function placeZerodhaOrder(
           ...kiteAuthHeaders(config.apiKey, accessToken),
           "Content-Type": "application/x-www-form-urlencoded",
         },
+        ...buildKiteOrderProxyAxiosConfig(),
       },
     );
 
@@ -322,9 +340,10 @@ export async function placeZerodhaOrder(
         ? String((err.response.data as { message?: string }).message)
         : null;
 
-    const message =
+    const message = formatStaticIpOrderError(
       kiteMessage ??
-      (err instanceof Error ? err.message : "Failed to place Zerodha order");
+        (err instanceof Error ? err.message : "Failed to place Zerodha order"),
+    );
     return { status: "ERROR", message };
   }
 }

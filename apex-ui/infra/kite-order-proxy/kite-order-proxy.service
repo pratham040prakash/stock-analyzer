@@ -1,0 +1,16 @@
+[Unit]
+Description=APEX Kite order CONNECT proxy (api.kite.trade only)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/apex-kite-order-proxy
+EnvironmentFile=/opt/apex-kite-order-proxy/.env
+ExecStart=/usr/bin/node /opt/apex-kite-order-proxy/server.mjs
+Restart=on-failure
+RestartSec=5
+User=apexproxy
+Group=apexproxy
+
+[Install]
+WantedBy=multi-user.target
