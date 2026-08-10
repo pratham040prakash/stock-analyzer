@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { KITE_ACCESS_TOKEN_COOKIE } from "@/lib/broker/zerodhaSession";
 import { computeTotalCapital } from "@/lib/broker/zerodhaFunds";
 import { fetchZerodhaFundsForUser } from "@/services/broker/funds";
+import { fetchLiveKitePortfolio } from "@/services/broker/kitePortfolio";
 import { markBrokerConnectionExpired } from "@/services/broker/connections";
 import {
   computePortfolioMetrics,
@@ -25,7 +26,7 @@ function emptyFunds(status: string, extra?: Record<string, unknown>) {
 }
 
 function portfolioValueFromHoldings(
-  holdings: { data: { tradingsymbol: string; quantity: number; average_price: number; last_price: number; close_price?: number }[] } | null,
+  holdings: { data: { tradingsymbol: string; quantity: number; average_price: number; last_price: number; close_price?: number; day_change?: number }[] } | null,
 ): number {
   if (!holdings) {
     return 0;
@@ -33,6 +34,20 @@ function portfolioValueFromHoldings(
 
   const portfolio = mapKiteHoldingsToPortfolio(holdings.data);
   return computePortfolioMetrics(portfolio).totalValue;
+}
+
+async function resolvePortfolioValue(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  fallbackHoldings: Parameters<typeof portfolioValueFromHoldings>[0],
+): Promise<number> {
+  const live = await fetchLiveKitePortfolio(supabase, userId);
+  if (live.status === "OK") {
+    return computePortfolioMetrics(mapKiteHoldingsToPortfolio(live.holdings))
+      .totalValue;
+  }
+
+  return portfolioValueFromHoldings(fallbackHoldings);
 }
 
 export async function GET() {
@@ -56,9 +71,11 @@ export async function GET() {
     const cookieStore = await cookies();
     cookieStore.delete(KITE_ACCESS_TOKEN_COOKIE);
 
-    const portfolioValue = result.holdings
-      ? portfolioValueFromHoldings(result.holdings)
-      : 0;
+    const portfolioValue = await resolvePortfolioValue(
+      supabase,
+      user.id,
+      result.holdings,
+    );
 
     return NextResponse.json({
       ledger_cash: 0,
@@ -74,9 +91,11 @@ export async function GET() {
   }
 
   if (result.status === "ERROR") {
-    const portfolioValue = result.holdings
-      ? portfolioValueFromHoldings(result.holdings)
-      : 0;
+    const portfolioValue = await resolvePortfolioValue(
+      supabase,
+      user.id,
+      result.holdings,
+    );
 
     return NextResponse.json({
       ledger_cash: 0,
@@ -92,7 +111,11 @@ export async function GET() {
   }
 
   const { margins, holdings } = result;
-  const portfolioValue = portfolioValueFromHoldings(holdings);
+  const portfolioValue = await resolvePortfolioValue(
+    supabase,
+    user.id,
+    holdings,
+  );
   const totalCapital = computeTotalCapital(portfolioValue, margins.ledgerCash);
 
   return NextResponse.json({

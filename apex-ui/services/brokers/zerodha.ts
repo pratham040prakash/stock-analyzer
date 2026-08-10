@@ -41,7 +41,7 @@ export function mapKiteHoldingsToPortfolio(holdings: KiteHolding[]): Portfolio {
       symbol: h.tradingsymbol,
       quantity: h.quantity,
       avgPrice: h.average_price,
-      currentPrice: h.last_price,
+      currentPrice: resolveKiteLastPrice(h),
       closePrice:
         typeof h.close_price === "number" && h.close_price > 0
           ? h.close_price
@@ -52,6 +52,118 @@ export function mapKiteHoldingsToPortfolio(holdings: KiteHolding[]): Portfolio {
           : undefined,
     })),
   };
+}
+
+type KitePriceRow = {
+  last_price: number;
+  close_price?: number;
+  day_change?: number;
+};
+
+/** Prefer close + day_change when holdings last_price is stale after a fill. */
+export function resolveKiteLastPrice(row: KitePriceRow): number {
+  if (
+    typeof row.close_price === "number" &&
+    row.close_price > 0 &&
+    typeof row.day_change === "number" &&
+    Number.isFinite(row.day_change)
+  ) {
+    const derived = row.close_price + row.day_change;
+    if (derived > 0) {
+      return derived;
+    }
+  }
+
+  return row.last_price;
+}
+
+export type KiteNetPosition = {
+  tradingsymbol: string;
+  product: string;
+  quantity: number;
+  average_price: number;
+  last_price: number;
+  close_price?: number;
+  day_change?: number;
+};
+
+export type FetchNetPositionsResult =
+  | { status: "OK"; data: KiteNetPosition[] }
+  | { status: "TOKEN_EXPIRED" }
+  | { status: "ERROR"; message: string };
+
+export async function fetchZerodhaNetPositions(
+  accessToken: string,
+): Promise<FetchNetPositionsResult> {
+  const config = getZerodhaConfig();
+
+  if (!config.configured) {
+    return { status: "ERROR", message: "Zerodha is not configured" };
+  }
+
+  try {
+    const res = await axios.get("https://api.kite.trade/portfolio/positions", {
+      headers: kiteAuthHeaders(config.apiKey, accessToken),
+    });
+    const net = (res.data?.data?.net ?? []) as KiteNetPosition[];
+
+    return {
+      status: "OK",
+      data: net.filter(
+        (position) => position.product === "CNC" && position.quantity > 0,
+      ),
+    };
+  } catch (err) {
+    if (axios.isAxiosError(err) && err.response?.status === 401) {
+      return { status: "TOKEN_EXPIRED" };
+    }
+
+    const message =
+      err instanceof Error ? err.message : "Failed to fetch Zerodha positions";
+    return { status: "ERROR", message };
+  }
+}
+
+/** Holdings omit same-day CNC buys until settlement — merge open CNC positions. */
+export function mergeKiteHoldingsAndPositions(
+  holdings: KiteHolding[],
+  positions: KiteNetPosition[],
+): KiteHolding[] {
+  const merged = new Map<string, KiteHolding>();
+
+  for (const holding of holdings) {
+    if (holding.quantity <= 0) {
+      continue;
+    }
+
+    const symbol = normalizeSymbol(holding.tradingsymbol);
+    merged.set(symbol, {
+      ...holding,
+      last_price: resolveKiteLastPrice(holding),
+    });
+  }
+
+  for (const position of positions) {
+    if (position.product !== "CNC" || position.quantity <= 0) {
+      continue;
+    }
+
+    const symbol = normalizeSymbol(position.tradingsymbol);
+    if (merged.has(symbol)) {
+      continue;
+    }
+
+    merged.set(symbol, {
+      tradingsymbol: position.tradingsymbol,
+      quantity: position.quantity,
+      average_price: position.average_price,
+      last_price: resolveKiteLastPrice(position),
+      close_price: position.close_price,
+      day_change: position.day_change,
+    });
+  }
+
+  return [...merged.values()];
 }
 
 export function computePortfolioDayPnl(portfolio: Portfolio): number | null {

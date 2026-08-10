@@ -80,11 +80,15 @@ export async function fetchZerodhaFundsForUser(
   for (const candidate of candidates) {
     const margins = await fetchZerodhaMargins(candidate.accessToken);
     if (margins.status === "OK") {
-      const holdings = await fetchZerodhaHoldings(candidate.accessToken);
+      let holdingsResult = await fetchZerodhaHoldings(candidate.accessToken);
+      if (holdingsResult.status !== "OK") {
+        holdingsResult = await fetchHoldingsWithCandidates(candidates);
+      }
+
       return {
         status: "OK",
         margins,
-        holdings: holdings.status === "OK" ? holdings : null,
+        holdings: holdingsResult.status === "OK" ? holdingsResult : null,
         token: candidate,
       };
     }

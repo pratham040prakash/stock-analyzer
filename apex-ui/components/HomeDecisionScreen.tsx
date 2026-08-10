@@ -361,6 +361,7 @@ export default function HomeDecisionScreen({
     loading: monitorLoading,
     refresh: refreshMonitor,
   } = useOpenMonitor({ enabled: isCapitalDeployment });
+  const resolvedDayPnl = monitorDayPnl ?? dayPnl;
 
   const handleExecuted = useCallback(
     (fill?: BrokerFillSummary) => {
@@ -486,7 +487,7 @@ export default function HomeDecisionScreen({
                   ? portfolioValue + ledgerCash
                   : undefined)
               }
-              dayPnl={dayPnl}
+              dayPnl={resolvedDayPnl}
               updatedAt={decisionUpdatedAt}
               fundsLoading={fundsLoading}
               fundsSynced={fundsSynced}
@@ -495,7 +496,7 @@ export default function HomeDecisionScreen({
 
             {isCapitalDeployment ? (
               <TodayProgressStrip
-                dayPnl={dayPnl}
+                dayPnl={resolvedDayPnl}
                 trustScore={trustScore}
                 trustDelta={trustDelta}
                 streakCount={retention.streakCount}
@@ -587,7 +588,7 @@ export default function HomeDecisionScreen({
               <div className="mt-4">
                 <TodayMonitorStrip
                   positions={monitorPositions}
-                  dayPnl={monitorDayPnl ?? dayPnl}
+                  dayPnl={resolvedDayPnl}
                   loading={monitorLoading}
                 />
               </div>

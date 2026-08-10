@@ -1,13 +1,10 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { KITE_ACCESS_TOKEN_COOKIE } from "@/lib/broker/zerodhaSession";
-import {
-  getActiveBrokerConnection,
-  markBrokerConnectionExpired,
-} from "@/services/broker/connections";
+import { fetchLiveKitePortfolio } from "@/services/broker/kitePortfolio";
+import { markBrokerConnectionExpired } from "@/services/broker/connections";
 import {
   computePortfolioMetrics,
-  fetchZerodhaHoldings,
   mapKiteHoldingsToPortfolio,
 } from "@/services/brokers/zerodha";
 import { formatPortfolioHoldings } from "@/services/portfolio/format";
@@ -30,6 +27,36 @@ function okResponse(
   });
 }
 
+function formattedCachedResponse(
+  status: PortfolioApiResponse["status"],
+  stale = false,
+) {
+  return async (
+    supabase: Awaited<ReturnType<typeof createClient>>,
+    userId: string,
+  ) => {
+    const cached = await getLatestPortfolioSnapshot(supabase, userId);
+    if (!cached || cached.holdings.length === 0) {
+      return null;
+    }
+
+    const formatted = formatPortfolioHoldings(cached);
+    return NextResponse.json({
+      status,
+      stale,
+      holdings: formatted.holdings,
+      total_value: formatted.total_value,
+      total_pnl: formatted.total_pnl,
+      day_pnl: formatted.day_pnl,
+      concentrated: formatted.concentrated,
+      top_symbol: formatted.top_symbol ?? undefined,
+      top_allocation_pct: formatted.top_allocation_pct,
+      risk_score: formatted.risk_score,
+      risk_level: formatted.risk_level,
+    });
+  };
+}
+
 export async function GET() {
   const supabase = await createClient();
   const {
@@ -43,84 +70,37 @@ export async function GET() {
     );
   }
 
-  const connection = await getActiveBrokerConnection(supabase, user.id);
+  const live = await fetchLiveKitePortfolio(supabase, user.id);
+  const fromCache = formattedCachedResponse("TOKEN_EXPIRED");
 
-  if (!connection || connection.status !== "active") {
-    const cached = await getLatestPortfolioSnapshot(supabase, user.id);
-    if (cached && cached.holdings.length > 0) {
-      const formatted = formatPortfolioHoldings(cached);
-      return NextResponse.json({
-        status: "TOKEN_EXPIRED",
-        holdings: formatted.holdings,
-        total_value: formatted.total_value,
-        total_pnl: formatted.total_pnl,
-        day_pnl: formatted.day_pnl,
-        concentrated: formatted.concentrated,
-        top_symbol: formatted.top_symbol ?? undefined,
-        top_allocation_pct: formatted.top_allocation_pct,
-        risk_score: formatted.risk_score,
-        risk_level: formatted.risk_level,
-      });
-    }
-
-    return NextResponse.json({ status: "NOT_CONNECTED", holdings: [] });
+  if (live.status === "NOT_CONNECTED") {
+    const cached = await fromCache(supabase, user.id);
+    return cached ?? NextResponse.json({ status: "NOT_CONNECTED", holdings: [] });
   }
 
-  const holdingsResult = await fetchZerodhaHoldings(connection.accessToken);
-
-  if (holdingsResult.status === "TOKEN_EXPIRED") {
+  if (live.status === "TOKEN_EXPIRED") {
     await markBrokerConnectionExpired(supabase, user.id);
     const cookieStore = await cookies();
     cookieStore.delete(KITE_ACCESS_TOKEN_COOKIE);
 
-    const cached = await getLatestPortfolioSnapshot(supabase, user.id);
-    if (cached && cached.holdings.length > 0) {
-      const formatted = formatPortfolioHoldings(cached);
-      return NextResponse.json({
-        status: "TOKEN_EXPIRED",
-        holdings: formatted.holdings,
-        total_value: formatted.total_value,
-        total_pnl: formatted.total_pnl,
-        day_pnl: formatted.day_pnl,
-        concentrated: formatted.concentrated,
-        top_symbol: formatted.top_symbol ?? undefined,
-        top_allocation_pct: formatted.top_allocation_pct,
-        risk_score: formatted.risk_score,
-        risk_level: formatted.risk_level,
-      });
-    }
-
-    return NextResponse.json({ status: "TOKEN_EXPIRED", holdings: [] });
+    const cached = await fromCache(supabase, user.id);
+    return cached ?? NextResponse.json({ status: "TOKEN_EXPIRED", holdings: [] });
   }
 
-  if (holdingsResult.status === "ERROR") {
-    const cached = await getLatestPortfolioSnapshot(supabase, user.id);
-    if (cached && cached.holdings.length > 0) {
-      const formatted = formatPortfolioHoldings(cached);
-      return okResponse(
-        {
-          holdings: formatted.holdings,
-          total_value: formatted.total_value,
-          total_pnl: formatted.total_pnl,
-          day_pnl: formatted.day_pnl,
-          concentrated: formatted.concentrated,
-          top_symbol: formatted.top_symbol ?? undefined,
-          top_allocation_pct: formatted.top_allocation_pct,
-          risk_score: formatted.risk_score,
-          risk_level: formatted.risk_level,
-        },
-        true,
-      );
+  if (live.status === "ERROR") {
+    const cached = await formattedCachedResponse("OK", true)(supabase, user.id);
+    if (cached) {
+      return cached;
     }
 
     return NextResponse.json({
       status: "ERROR",
       holdings: [],
-      message: holdingsResult.message,
+      message: live.message,
     });
   }
 
-  const portfolio = mapKiteHoldingsToPortfolio(holdingsResult.data);
+  const portfolio = mapKiteHoldingsToPortfolio(live.holdings);
   const metrics = computePortfolioMetrics(portfolio);
   await savePortfolioSnapshot(supabase, user.id, portfolio, metrics);
   await syncBrokerActivityFromKite(supabase, user.id);
