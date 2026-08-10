@@ -20,6 +20,7 @@ type ExecuteSellResponse = {
   stock: string;
   sellPercent: number;
   quantity: number;
+  price?: number;
   orderId: string;
 };
 
@@ -239,14 +240,20 @@ export default function TodayExecutionPanel({
           return;
         }
 
+        const priceNote =
+          typeof data.price === "number" && Number.isFinite(data.price)
+            ? ` at ${formatInr(data.price)}`
+            : "";
+
         setFeedback(
-          `Sell order placed on Zerodha · ${data.quantity} shares · order ${data.orderId}`,
+          `Sell order placed on Zerodha · ${data.quantity} shares${priceNote} · order ${data.orderId}`,
         );
         setPendingSellPercent(null);
         onExecuted?.({
           orderId: data.orderId,
           quantity: data.quantity,
           side: "sell",
+          price: data.price,
         });
       } catch (err) {
         setError(err instanceof Error ? err.message : "Sell order failed");

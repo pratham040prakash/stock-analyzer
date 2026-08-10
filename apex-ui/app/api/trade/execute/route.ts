@@ -88,6 +88,7 @@ export async function POST(request: Request) {
       stock: result.stock,
       sellPercent: result.sellPercent,
       quantity: result.quantity,
+      price: result.price,
       orderId: result.orderId,
     });
   }
