@@ -565,6 +565,11 @@ export default function HomeDecisionScreen({
                     decision={capitalDecision}
                     delayMs={nextDelay()}
                     depthOnly
+                    brokerStepCompleted={brokerStepCompleted}
+                    brokerSymbol={todayHero.symbol}
+                    executionKind={todayHero.executionKind}
+                    postTrimPortfolioWeight={actualSymbolWeight}
+                    projectedWeightAfter={todayHero.targetWeightAfter}
                   />
                 ) : (
                   <PremiumFeatureGate

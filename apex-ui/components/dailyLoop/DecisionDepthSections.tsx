@@ -25,6 +25,7 @@ import {
   getDailyClosureBody,
 } from "@/lib/dailyLoop/disciplineStreak";
 import type { TodayExecutionKind } from "@/lib/dailyLoop/todaySurface";
+import { formatPostTrimWeightNote, resolvePrimaryActionDisplay } from "@/lib/dailyLoop/todaySurface";
 import type { SetupInsight } from "@/lib/dailyLoop/setupInsight";
 import { convictionLabel } from "@/lib/dailyLoop/decisionDepth";
 import {
@@ -203,12 +204,22 @@ export function CapitalActionsBlock({
   depthOnly = false,
   liveTriggers,
   liveTriggersLoading = false,
+  brokerStepCompleted = false,
+  brokerSymbol,
+  executionKind,
+  postTrimPortfolioWeight,
+  projectedWeightAfter,
 }: {
   decision: CapitalDecision;
   delayMs: number;
   depthOnly?: boolean;
   liveTriggers?: Map<string, ExploreLiveTrigger>;
   liveTriggersLoading?: boolean;
+  brokerStepCompleted?: boolean;
+  brokerSymbol?: string;
+  executionKind?: TodayExecutionKind;
+  postTrimPortfolioWeight?: number;
+  projectedWeightAfter?: number;
 }) {
   if (decision.mode === "explore") {
     return (
@@ -226,6 +237,11 @@ export function CapitalActionsBlock({
       decision={decision}
       delayMs={delayMs}
       depthOnly={depthOnly}
+      brokerStepCompleted={brokerStepCompleted}
+      brokerSymbol={brokerSymbol}
+      executionKind={executionKind}
+      postTrimPortfolioWeight={postTrimPortfolioWeight}
+      projectedWeightAfter={projectedWeightAfter}
     />
   );
 }
@@ -264,11 +280,32 @@ function GrowCapitalActionsBlock({
   decision,
   delayMs,
   depthOnly = false,
+  brokerStepCompleted = false,
+  brokerSymbol,
+  executionKind,
+  postTrimPortfolioWeight,
+  projectedWeightAfter,
 }: {
   decision: CapitalDecision;
   delayMs: number;
   depthOnly?: boolean;
+  brokerStepCompleted?: boolean;
+  brokerSymbol?: string;
+  executionKind?: TodayExecutionKind;
+  postTrimPortfolioWeight?: number;
+  projectedWeightAfter?: number;
 }) {
+  const primaryDisplay = resolvePrimaryActionDisplay(
+    decision,
+    brokerStepCompleted,
+    {
+      symbol: brokerSymbol,
+      executionKind,
+      actualPortfolioWeight: postTrimPortfolioWeight,
+      projectedWeight: projectedWeightAfter,
+    },
+  );
+
   return (
     <section
       className="space-y-8 animate-apex-fade-in"
@@ -308,10 +345,10 @@ function GrowCapitalActionsBlock({
       {!depthOnly ? (
         <div className="space-y-1">
           <p className="text-lg font-medium leading-snug text-apex-text">
-            {decision.primaryAction}
+            {primaryDisplay.primaryAction}
           </p>
           <p className="text-sm leading-snug text-apex-text/75">
-            {decision.primaryActionDetail}
+            {primaryDisplay.primaryActionDetail}
           </p>
         </div>
       ) : null}
@@ -325,7 +362,23 @@ function GrowCapitalActionsBlock({
       {decision.actions.length > 0 ? (
         <ul className="space-y-8">
           {decision.actions.map((item) => (
-            <CapitalActionRow key={item.symbol} action={item} />
+            <CapitalActionRow
+              key={item.symbol}
+              action={item}
+              brokerStepCompleted={
+                brokerStepCompleted && item.symbol === brokerSymbol
+              }
+              postTrimPortfolioWeight={
+                brokerStepCompleted && item.symbol === brokerSymbol
+                  ? postTrimPortfolioWeight
+                  : undefined
+              }
+              projectedWeightAfter={
+                brokerStepCompleted && item.symbol === brokerSymbol
+                  ? projectedWeightAfter
+                  : undefined
+              }
+            />
           ))}
         </ul>
       ) : null}
@@ -496,7 +549,52 @@ function ExploreSetupRow({
   );
 }
 
-function CapitalActionRow({ action }: { action: CapitalAction }) {
+function CapitalActionRow({
+  action,
+  brokerStepCompleted = false,
+  postTrimPortfolioWeight,
+  projectedWeightAfter,
+}: {
+  action: CapitalAction;
+  brokerStepCompleted?: boolean;
+  postTrimPortfolioWeight?: number;
+  projectedWeightAfter?: number;
+}) {
+  if (brokerStepCompleted && action.action === "SELL") {
+    return (
+      <li className="space-y-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-3">
+        <p className="text-base font-semibold leading-snug text-apex-text">
+          {action.symbol}
+        </p>
+        <p className="text-sm font-medium leading-snug text-emerald-200/90">
+          Trim logged on Zerodha today.
+        </p>
+        <p className="text-sm leading-snug text-apex-text/75">
+          {formatPostTrimWeightNote(
+            postTrimPortfolioWeight,
+            projectedWeightAfter,
+          )}
+        </p>
+      </li>
+    );
+  }
+
+  if (brokerStepCompleted && action.action === "BUY") {
+    return (
+      <li className="space-y-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-3">
+        <p className="text-base font-semibold leading-snug text-apex-text">
+          {action.symbol}
+        </p>
+        <p className="text-sm font-medium leading-snug text-emerald-200/90">
+          Entry logged on Zerodha today.
+        </p>
+        <p className="text-sm leading-snug text-apex-text/75">
+          Verify entry and stop orders in Kite.
+        </p>
+      </li>
+    );
+  }
+
   return (
     <li className="space-y-2">
       <p className="text-base font-semibold leading-snug text-apex-text">

@@ -160,6 +160,49 @@ export function resolveTodayHeroDisplay(
   return hero;
 }
 
+export function resolvePrimaryActionDisplay(
+  decision: CapitalDecision,
+  brokerStepCompleted: boolean,
+  options?: {
+    symbol?: string;
+    executionKind?: TodayExecutionKind;
+    actualPortfolioWeight?: number;
+    projectedWeight?: number;
+  },
+): { primaryAction: string; primaryActionDetail: string } {
+  if (!brokerStepCompleted || !options?.symbol) {
+    return {
+      primaryAction: decision.primaryAction,
+      primaryActionDetail: decision.primaryActionDetail,
+    };
+  }
+
+  const { symbol, executionKind, actualPortfolioWeight, projectedWeight } =
+    options;
+
+  if (executionKind === "SELL") {
+    return {
+      primaryAction: `${symbol} trim logged on Zerodha`,
+      primaryActionDetail: formatPostTrimWeightNote(
+        actualPortfolioWeight,
+        projectedWeight,
+      ),
+    };
+  }
+
+  if (executionKind === "BUY") {
+    return {
+      primaryAction: `${symbol} entry logged on Zerodha`,
+      primaryActionDetail: "Verify entry and stop orders in Kite.",
+    };
+  }
+
+  return {
+    primaryAction: decision.primaryAction,
+    primaryActionDetail: decision.primaryActionDetail,
+  };
+}
+
 export function runTodaySurfaceSelfCheck(): void {
   const assert = (condition: boolean, message: string) => {
     if (!condition) {
@@ -224,5 +267,20 @@ export function runTodaySurfaceSelfCheck(): void {
   assert(
     actualWeightNote.includes("72%") && actualWeightNote.includes("now"),
     "Actual portfolio weight must override projected trim copy",
+  );
+
+  const completedPrimary = resolvePrimaryActionDisplay(trimDecision, true, {
+    symbol: "JIOFIN",
+    executionKind: "SELL",
+    actualPortfolioWeight: 72,
+    projectedWeight: 75,
+  });
+  assert(
+    completedPrimary.primaryAction.includes("logged on Zerodha"),
+    "Completed primary action must reflect broker logging",
+  );
+  assert(
+    !completedPrimary.primaryAction.includes("Trim JIOFIN exposure"),
+    "Completed primary action must not repeat pending trim copy",
   );
 }
