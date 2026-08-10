@@ -610,6 +610,7 @@ export default function HomeDecisionScreen({
                   openPnl={monitorStripOpenPnl}
                   liveTicksById={monitorLiveTicksById}
                   loading={monitorLoading}
+                  showWhenEmpty={monitorEnabled}
                 />
               </div>
             </div>

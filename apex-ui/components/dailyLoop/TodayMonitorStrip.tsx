@@ -10,6 +10,7 @@ export type TodayMonitorStripProps = {
   openPnl?: number | null;
   liveTicksById?: Record<string, MonitorLiveTick>;
   loading?: boolean;
+  showWhenEmpty?: boolean;
 };
 
 function formatSignedPnl(value: number): string {
@@ -71,6 +72,7 @@ export default function TodayMonitorStrip({
   openPnl,
   liveTicksById,
   loading = false,
+  showWhenEmpty = false,
 }: TodayMonitorStripProps) {
   if (loading) {
     return (
@@ -84,7 +86,24 @@ export default function TodayMonitorStrip({
   }
 
   if (positions.length === 0) {
-    return null;
+    if (!showWhenEmpty) {
+      return null;
+    }
+
+    return (
+      <div
+        className="rounded-xl border border-apex-border/20 bg-white/[0.02] px-4 py-3"
+        aria-label="Open position monitor"
+      >
+        <p className="text-xs font-medium uppercase tracking-wide text-apex-muted">
+          Open positions
+        </p>
+        <p className="mt-2 text-xs text-apex-muted/70">
+          No APEX-tracked open positions yet. After you buy through Today, they
+          show here with live Zerodha P&amp;L.
+        </p>
+      </div>
+    );
   }
 
   const headerPnl =

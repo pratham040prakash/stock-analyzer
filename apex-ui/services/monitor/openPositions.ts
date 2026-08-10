@@ -88,9 +88,6 @@ export function resolveMonitorEntryPrice(
   return plannedEntry;
 }
 
-const FILL_AVG_TOLERANCE = 0.02;
-const ENTRY_AVG_TOLERANCE = 0.15;
-
 function effectiveHoldingQuantity(holding: HoldingSnapshot): number {
   return Math.max(0, holding.quantity) + Math.max(0, holding.t1Quantity);
 }
@@ -148,7 +145,7 @@ export function isExecutedOpenMonitorDecision(
     return false;
   }
 
-  if (sig?.monitored !== true) {
+  if (sig?.monitored === false) {
     return false;
   }
 
@@ -157,24 +154,6 @@ export function isExecutedOpenMonitorDecision(
   }
 
   if (!holding || effectiveHoldingQuantity(holding) < 1) {
-    return false;
-  }
-
-  const fillPrice = parseFillPrice(signals);
-  const avg = holding.averagePrice;
-
-  if (fillPrice !== null && avg > 0) {
-    if (Math.abs(fillPrice - avg) / avg > FILL_AVG_TOLERANCE) {
-      return false;
-    }
-  }
-
-  if (
-    plannedEntry !== undefined &&
-    plannedEntry > 0 &&
-    avg > 0 &&
-    Math.abs(plannedEntry - avg) / avg > ENTRY_AVG_TOLERANCE
-  ) {
     return false;
   }
 
@@ -703,7 +682,7 @@ export function runOpenMonitorEntrySelfCheck(): void {
 
   const ghostSignals = {
     ...filledSignals,
-    fill_price: 5200,
+    fill_source: "sync" as const,
   };
 
   const syncFill = {
@@ -722,8 +701,15 @@ export function runOpenMonitorEntrySelfCheck(): void {
     filled_at: `${tradingDateKey()}T09:30:00.000Z`,
   };
 
+  const legacyFill = {
+    ...filledSignals,
+    monitored: undefined,
+    fill_source: undefined,
+  };
+
   if (
     isExecutedOpenMonitorDecision(filledSignals, holding, 5067, tradingDateKey()) !== true ||
+    isExecutedOpenMonitorDecision(legacyFill, holding, 5067, tradingDateKey()) !== true ||
     isExecutedOpenMonitorDecision(filledSignals, undefined, 5067, tradingDateKey()) !== false ||
     isExecutedOpenMonitorDecision(null, holding, 5067, tradingDateKey()) !== false ||
     isExecutedOpenMonitorDecision(ghostSignals, holding, 5067, tradingDateKey()) !== false ||
