@@ -3,6 +3,7 @@ import { fetchLiveKitePortfolioCached } from "@/services/broker/kitePortfolio";
 import { getOpenMonitorLiveSnapshot } from "@/services/monitor/openPositions";
 import {
   computePortfolioDayPnl,
+  computeZerodhaPositionsPnl,
   mapKiteHoldingsToPortfolio,
 } from "@/services/brokers/zerodha";
 import { createClient } from "@/lib/supabase/server";
@@ -30,10 +31,16 @@ export async function GET() {
         )
       : null;
 
+  const positionsPnl =
+    live.status === "OK"
+      ? computeZerodhaPositionsPnl(live.netPnlPositions)
+      : null;
+
   const monitor = await getOpenMonitorLiveSnapshot(supabase, user.id, live);
 
   return apiOk({
     portfolio_day_pnl: portfolioDayPnl,
+    positions_pnl: positionsPnl,
     monitor_open_pnl: monitor.openPnl,
     monitor_day_pnl: monitor.dayPnl,
     position_ticks: monitor.ticks,

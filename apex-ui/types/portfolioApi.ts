@@ -14,6 +14,8 @@ export type PortfolioApiResponse = {
   total_value?: number;
   total_pnl?: number;
   day_pnl?: number | null;
+  /** Zerodha Positions tab total — (LTP − avg) × qty incl. sold legs. */
+  positions_pnl?: number | null;
   concentrated?: boolean;
   top_symbol?: string;
   top_allocation_pct?: number;

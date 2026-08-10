@@ -5,6 +5,7 @@ import { fetchLiveKitePortfolioCached } from "@/services/broker/kitePortfolio";
 import { markBrokerConnectionExpired } from "@/services/broker/connections";
 import {
   computePortfolioMetrics,
+  computeZerodhaPositionsPnl,
   mapKiteHoldingsToPortfolio,
 } from "@/services/brokers/zerodha";
 import { formatPortfolioHoldings } from "@/services/portfolio/format";
@@ -106,11 +107,13 @@ export async function GET() {
   await syncBrokerActivityFromKite(supabase, user.id);
 
   const formatted = formatPortfolioHoldings(portfolio, live.dayPositions);
+  const positions_pnl = computeZerodhaPositionsPnl(live.netPnlPositions);
   return okResponse({
     holdings: formatted.holdings,
     total_value: formatted.total_value,
     total_pnl: formatted.total_pnl,
-    day_pnl: formatted.day_pnl,
+    day_pnl: positions_pnl ?? formatted.day_pnl,
+    positions_pnl,
     concentrated: formatted.concentrated,
     top_symbol: formatted.top_symbol ?? undefined,
     top_allocation_pct: formatted.top_allocation_pct,

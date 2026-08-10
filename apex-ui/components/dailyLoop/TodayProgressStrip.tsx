@@ -47,7 +47,7 @@ export default function TodayProgressStrip({
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-apex-muted">
-            Day P&amp;L
+            Open P&amp;L
           </p>
           {dayKnown ? (
             <p
@@ -59,7 +59,7 @@ export default function TodayProgressStrip({
               {formatDayPnl(dayPnl ?? 0)}
             </p>
           ) : (
-            <p className="mt-1 text-sm text-apex-muted/70">Day P&amp;L syncing…</p>
+            <p className="mt-1 text-sm text-apex-muted/70">Open P&amp;L syncing…</p>
           )}
         </div>
 

@@ -144,7 +144,7 @@ export default function TodayTrustStrip({
                 (dayPnl ?? 0) >= 0 ? "text-emerald-300/90" : "text-amber-200/90"
               }
             >
-              Day P&amp;L {(dayPnl ?? 0) >= 0 ? "+" : ""}
+              Open P&amp;L {(dayPnl ?? 0) >= 0 ? "+" : ""}
               {formatInr(Math.round(dayPnl ?? 0))}
             </span>
           ) : null}

@@ -2,6 +2,7 @@ import { apiError, apiOk } from "@/lib/api/response";
 import { fetchLiveKitePortfolioCached } from "@/services/broker/kitePortfolio";
 import {
   computePortfolioDayPnl,
+  computeZerodhaPositionsPnl,
   mapKiteHoldingsToPortfolio,
 } from "@/services/brokers/zerodha";
 import { createClient } from "@/lib/supabase/server";
@@ -27,6 +28,7 @@ export async function GET() {
   const portfolio = mapKiteHoldingsToPortfolio(live.holdings);
 
   return apiOk({
-    day_pnl: computePortfolioDayPnl(portfolio, live.dayPositions),
+    day_pnl: computeZerodhaPositionsPnl(live.netPnlPositions),
+    portfolio_day_pnl: computePortfolioDayPnl(portfolio, live.dayPositions),
   });
 }

@@ -123,7 +123,14 @@ export type FetchNetPositionsResult =
   | { status: "ERROR"; message: string };
 
 export type FetchCncPositionsResult =
-  | { status: "OK"; net: KiteNetPosition[]; day: KiteNetPosition[] }
+  | {
+      status: "OK";
+      /** Open CNC legs only — merged into holdings for portfolio value. */
+      net: KiteNetPosition[];
+      /** All CNC net legs with qty ≠ 0 — Positions tab P&L (incl. sold qty). */
+      netPnl: KiteNetPosition[];
+      day: KiteNetPosition[];
+    }
   | { status: "TOKEN_EXPIRED" }
   | { status: "ERROR"; message: string };
 
@@ -133,8 +140,48 @@ function filterOpenCncNetPositions(net: KiteNetPosition[]): KiteNetPosition[] {
   );
 }
 
+/** All CNC net rows with qty ≠ 0 — includes sold legs (e.g. JIOFIN −1). */
+export function filterCncNetPositionsForPnl(
+  net: KiteNetPosition[],
+): KiteNetPosition[] {
+  return net.filter(
+    (position) => position.product === "CNC" && position.quantity !== 0,
+  );
+}
+
 function filterCncDayPositions(day: KiteNetPosition[]): KiteNetPosition[] {
   return day.filter((position) => position.product === "CNC");
+}
+
+function roundPnl(value: number): number {
+  return Math.round(value * 10) / 10;
+}
+
+/** Matches Zerodha Positions tab total P&L — sum of (LTP − avg) × qty. */
+export function computeZerodhaPositionsPnl(
+  netPositions: KiteNetPosition[],
+): number | null {
+  let total = 0;
+  let hasRow = false;
+
+  for (const position of netPositions) {
+    if (position.product !== "CNC" || position.quantity === 0) {
+      continue;
+    }
+
+    hasRow = true;
+
+    if (typeof position.pnl === "number" && Number.isFinite(position.pnl)) {
+      total += position.pnl;
+      continue;
+    }
+
+    const ltp = resolveKiteLastPrice(position);
+    const avg = position.average_price;
+    total += (ltp - avg) * position.quantity;
+  }
+
+  return hasRow ? roundPnl(total) : null;
 }
 
 export async function fetchZerodhaCncPositions(
@@ -156,6 +203,7 @@ export async function fetchZerodhaCncPositions(
     return {
       status: "OK",
       net: filterOpenCncNetPositions(net),
+      netPnl: filterCncNetPositionsForPnl(net),
       day: filterCncDayPositions(day),
     };
   } catch (err) {
@@ -482,6 +530,41 @@ export function runKiteDayPnlSelfCheck(): void {
   assert(
     withClosedTrade !== null && Math.abs(withClosedTrade - (-56.7)) < 0.01,
     "Day P&L must include day-bucket closed trades and skip double-counting traded symbols in holdings",
+  );
+
+  const positionsPnl = computeZerodhaPositionsPnl([
+    {
+      tradingsymbol: "GRASIM",
+      product: "CNC",
+      quantity: 1,
+      average_price: 3393.3,
+      last_price: 3380.5,
+    },
+    {
+      tradingsymbol: "HEROMOTOCO",
+      product: "CNC",
+      quantity: 1,
+      average_price: 5856.1,
+      last_price: 5860,
+    },
+    {
+      tradingsymbol: "JIOFIN",
+      product: "CNC",
+      quantity: -1,
+      average_price: 255.9,
+      last_price: 254,
+    },
+    {
+      tradingsymbol: "TITAN",
+      product: "CNC",
+      quantity: 1,
+      average_price: 5058.7,
+      last_price: 5090,
+    },
+  ]);
+  assert(
+    positionsPnl !== null && Math.abs(positionsPnl - 24.3) < 0.01,
+    "Positions P&L must match Zerodha Positions export total",
   );
 }
 

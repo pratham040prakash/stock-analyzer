@@ -365,6 +365,7 @@ export default function HomeDecisionScreen({
     refresh: refreshMonitor,
   } = useOpenMonitor({ enabled: monitorEnabled });
   const {
+    positionsPnl: livePositionsPnl,
     portfolioDayPnl: liveDayPnl,
     monitorOpenPnl: monitorLiveOpenPnl,
     positionTicks,
@@ -372,7 +373,7 @@ export default function HomeDecisionScreen({
   } = useDayPnlPoll({
     enabled: dayPnlPollEnabled,
   });
-  const resolvedDayPnl = liveDayPnl ?? dayPnl;
+  const resolvedOpenPnl = livePositionsPnl ?? dayPnl;
   const monitorStripOpenPnl = monitorLiveOpenPnl;
   const monitorLiveTicksById = useMemo(() => {
     const map: Record<string, (typeof positionTicks)[number]> = {};
@@ -507,7 +508,7 @@ export default function HomeDecisionScreen({
                   ? portfolioValue + ledgerCash
                   : undefined)
               }
-              dayPnl={resolvedDayPnl}
+              dayPnl={resolvedOpenPnl}
               updatedAt={decisionUpdatedAt}
               fundsLoading={fundsLoading}
               fundsSynced={fundsSynced}
@@ -516,7 +517,7 @@ export default function HomeDecisionScreen({
 
             {isCapitalDeployment ? (
               <TodayProgressStrip
-                dayPnl={resolvedDayPnl}
+                dayPnl={resolvedOpenPnl}
                 trustScore={trustScore}
                 trustDelta={trustDelta}
                 streakCount={retention.streakCount}

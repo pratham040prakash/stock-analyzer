@@ -7,6 +7,7 @@ import type { MonitorLiveTick } from "@/services/monitor/openPositions";
 
 type LivePnlResponse = {
   portfolio_day_pnl: number | null;
+  positions_pnl?: number | null;
   monitor_open_pnl?: number | null;
   monitor_day_pnl: number | null;
   position_ticks?: MonitorLiveTick[];
@@ -20,6 +21,7 @@ type Options = {
 export const DAY_PNL_REFRESH_MS = 5_000;
 
 export function useDayPnlPoll({ enabled }: Options) {
+  const [positionsPnl, setPositionsPnl] = useState<number | null>(null);
   const [portfolioDayPnl, setPortfolioDayPnl] = useState<number | null>(null);
   const [monitorOpenPnl, setMonitorOpenPnl] = useState<number | null>(null);
   const [positionTicks, setPositionTicks] = useState<MonitorLiveTick[]>([]);
@@ -27,6 +29,7 @@ export function useDayPnlPoll({ enabled }: Options) {
 
   const refresh = useCallback(async () => {
     if (!enabled) {
+      setPositionsPnl(null);
       setPortfolioDayPnl(null);
       setMonitorOpenPnl(null);
       setPositionTicks([]);
@@ -50,6 +53,7 @@ export function useDayPnlPoll({ enabled }: Options) {
         return;
       }
 
+      setPositionsPnl(data.positions_pnl ?? data.portfolio_day_pnl ?? null);
       setPortfolioDayPnl(data.portfolio_day_pnl ?? null);
       setMonitorOpenPnl(data.monitor_open_pnl ?? null);
       setPositionTicks(data.position_ticks ?? []);
@@ -77,5 +81,5 @@ export function useDayPnlPoll({ enabled }: Options) {
     return () => window.clearInterval(intervalId);
   }, [enabled, refresh]);
 
-  return { portfolioDayPnl, monitorOpenPnl, positionTicks, refresh };
+  return { positionsPnl, portfolioDayPnl, monitorOpenPnl, positionTicks, refresh };
 }

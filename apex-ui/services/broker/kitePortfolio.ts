@@ -20,6 +20,8 @@ export type LiveKitePortfolioResult =
   | {
       status: "OK";
       holdings: KiteHolding[];
+      /** CNC net legs for Zerodha Positions P&L (qty may be negative). */
+      netPnlPositions: KiteNetPosition[];
       dayPositions: KiteNetPosition[];
       token: ResolvedZerodhaAccessToken;
     }
@@ -65,6 +67,45 @@ async function enrichHoldingsWithLiveQuotes(
   });
 }
 
+async function enrichNetPositionsWithLiveQuotes(
+  accessToken: string,
+  positions: KiteNetPosition[],
+): Promise<KiteNetPosition[]> {
+  if (positions.length === 0) {
+    return positions;
+  }
+
+  const quotes = await fetchZerodhaQuotes(
+    accessToken,
+    positions.map((position) => position.tradingsymbol),
+  );
+
+  if (quotes.size === 0) {
+    return positions;
+  }
+
+  return positions.map((position) => {
+    const quote = quotes.get(normalizeSymbol(position.tradingsymbol));
+    if (!quote?.lastPrice) {
+      return position;
+    }
+
+    const ltp = quote.lastPrice;
+    const avg = position.average_price;
+    const pnl = (ltp - avg) * position.quantity;
+
+    return {
+      ...position,
+      last_price: ltp,
+      pnl: roundPnl(pnl),
+    };
+  });
+}
+
+function roundPnl(value: number): number {
+  return Math.round(value * 10) / 10;
+}
+
 /** Load CNC holdings + same-day positions using every usable Zerodha token. */
 export async function fetchLiveKitePortfolio(
   supabase: Client,
@@ -102,17 +143,20 @@ export async function fetchLiveKitePortfolio(
       holdingsResult.status === "OK" ? holdingsResult.data : [];
     const netPositions =
       positionsResult.status === "OK" ? positionsResult.net : [];
+    const netPnlPositions =
+      positionsResult.status === "OK" ? positionsResult.netPnl : [];
     const dayPositions: KiteNetPosition[] =
       positionsResult.status === "OK" ? positionsResult.day : [];
     const merged = mergeKiteHoldingsAndPositions(holdings, netPositions);
-    const enriched = await enrichHoldingsWithLiveQuotes(
-      candidate.accessToken,
-      merged,
-    );
+    const [enriched, enrichedNetPnl] = await Promise.all([
+      enrichHoldingsWithLiveQuotes(candidate.accessToken, merged),
+      enrichNetPositionsWithLiveQuotes(candidate.accessToken, netPnlPositions),
+    ]);
 
     return {
       status: "OK",
       holdings: enriched,
+      netPnlPositions: enrichedNetPnl,
       dayPositions,
       token: candidate,
     };
