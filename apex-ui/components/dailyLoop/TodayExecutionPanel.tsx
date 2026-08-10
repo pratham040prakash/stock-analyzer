@@ -41,6 +41,7 @@ type Props = {
   entryTiming?: EntryTimingState;
   plan?: ExecutionPlanSafeOutput | null;
   planLoading?: boolean;
+  brokerStepCompleted?: boolean;
   onExecuted?: () => void;
 };
 
@@ -77,6 +78,23 @@ function TradeErrorNotice({
   );
 }
 
+function BrokerStepCompleteNotice({
+  actionLabel,
+  detail,
+}: {
+  actionLabel: string;
+  detail: string;
+}) {
+  return (
+    <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-4 space-y-2">
+      <p className="text-sm font-medium text-emerald-200/95">
+        {actionLabel}
+      </p>
+      <p className="text-sm text-apex-text/75">{detail}</p>
+    </div>
+  );
+}
+
 export default function TodayExecutionPanel({
   hero,
   portfolioValue,
@@ -84,6 +102,7 @@ export default function TodayExecutionPanel({
   entryTiming,
   plan,
   planLoading = false,
+  brokerStepCompleted = false,
   onExecuted,
 }: Props) {
   const [pendingSellPercent, setPendingSellPercent] = useState<number | null>(
@@ -257,6 +276,18 @@ export default function TodayExecutionPanel({
   }
 
   if (hero.executionKind === "SELL" && hero.symbol && hero.sellPercent) {
+    if (brokerStepCompleted) {
+      return (
+        <BrokerStepCompleteNotice
+          actionLabel="Broker step completed for today."
+          detail={
+            feedback ??
+            `Trim on ${hero.symbol} is logged. Confirm the fill in Zerodha if needed.`
+          }
+        />
+      );
+    }
+
     return (
       <>
         <div className="rounded-xl border border-apex-border/20 bg-white/[0.03] px-4 py-4 space-y-3">
@@ -331,6 +362,18 @@ export default function TodayExecutionPanel({
   }
 
   if (hero.executionKind === "BUY" && hero.symbol && hero.deployAmount) {
+    if (brokerStepCompleted) {
+      return (
+        <BrokerStepCompleteNotice
+          actionLabel="Broker step completed for today."
+          detail={
+            feedback ??
+            `Buy on ${hero.symbol} is logged. Verify entry and stop orders in Zerodha.`
+          }
+        />
+      );
+    }
+
     return (
       <div className="rounded-xl border border-apex-border/20 bg-white/[0.03] px-4 py-4 space-y-4">
         <div>

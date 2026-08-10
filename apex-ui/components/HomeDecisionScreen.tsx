@@ -462,6 +462,7 @@ export default function HomeDecisionScreen({
                 entryTiming={entryTiming}
                 plan={plan}
                 planLoading={planLoading}
+                brokerStepCompleted={brokerStepCompleted}
                 onExecuted={handleExecuted}
               />
               <div className="mt-4">
