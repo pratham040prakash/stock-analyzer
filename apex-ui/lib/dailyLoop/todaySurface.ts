@@ -111,20 +111,36 @@ export function resolveTodayHero(
   };
 }
 
+export function formatPostTrimWeightNote(
+  actualWeight?: number,
+  projectedWeight?: number,
+): string {
+  if (actualWeight !== undefined && Number.isFinite(actualWeight)) {
+    return `Position now ~${Math.round(actualWeight)}% of portfolio.`;
+  }
+
+  if (projectedWeight !== undefined) {
+    return `Target weight ~${projectedWeight}% after today's trim.`;
+  }
+
+  return "Broker step complete for today.";
+}
+
 /** After a logged broker fill, swap action CTAs for completion copy on Today. */
 export function resolveTodayHeroDisplay(
   hero: TodayHero,
   brokerStepCompleted: boolean,
+  options?: { actualPortfolioWeight?: number },
 ): TodayHero {
   if (!brokerStepCompleted) {
     return hero;
   }
 
   if (hero.executionKind === "SELL" && hero.symbol) {
-    const weightNote =
-      hero.targetWeightAfter !== undefined
-        ? `Target weight ~${hero.targetWeightAfter}% after today's trim.`
-        : "Broker step complete for today.";
+    const weightNote = formatPostTrimWeightNote(
+      options?.actualPortfolioWeight,
+      hero.targetWeightAfter,
+    );
 
     return {
       ...hero,
@@ -202,5 +218,11 @@ export function runTodaySurfaceSelfCheck(): void {
   assert(
     !completedTrim.headline.includes("Trim JIOFIN by"),
     "Completed trim hero must not repeat the action CTA",
+  );
+
+  const actualWeightNote = formatPostTrimWeightNote(72, 75);
+  assert(
+    actualWeightNote.includes("72%") && actualWeightNote.includes("now"),
+    "Actual portfolio weight must override projected trim copy",
   );
 }

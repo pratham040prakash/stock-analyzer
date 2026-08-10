@@ -8,6 +8,7 @@ import { useMarketSession } from "@/lib/broker/useMarketSession";
 import type { TodayHero } from "@/lib/dailyLoop/todaySurface";
 import { computeSellImpact } from "@/lib/sellImpact";
 import type { ExecutionPlanSafeOutput } from "@/services/execution/executionPlanEngine";
+import { formatPostTrimWeightNote } from "@/lib/dailyLoop/todaySurface";
 import {
   describeBrokerFill,
   type BrokerFillSummary,
@@ -47,7 +48,8 @@ type Props = {
   planLoading?: boolean;
   brokerStepCompleted?: boolean;
   brokerFillSummary?: BrokerFillSummary | null;
-  onExecuted?: () => void;
+  postTrimPortfolioWeight?: number;
+  onExecuted?: (fill?: BrokerFillSummary) => void;
 };
 
 function resolveBrokerCompleteDetail(
@@ -55,16 +57,24 @@ function resolveBrokerCompleteDetail(
   feedback: string | null,
   brokerFillSummary: BrokerFillSummary | null | undefined,
   fallback: string,
+  postTrimPortfolioWeight?: number,
+  projectedWeight?: number,
 ): string {
+  const weightNote =
+    postTrimPortfolioWeight !== undefined || projectedWeight !== undefined
+      ? formatPostTrimWeightNote(postTrimPortfolioWeight, projectedWeight)
+      : null;
+
   if (feedback) {
-    return feedback;
+    return weightNote ? `${feedback} ${weightNote}` : feedback;
   }
 
   if (brokerFillSummary?.orderId) {
-    return describeBrokerFill(brokerFillSummary, symbol);
+    const fillDetail = describeBrokerFill(brokerFillSummary, symbol);
+    return weightNote ? `${fillDetail} ${weightNote}` : fillDetail;
   }
 
-  return fallback;
+  return weightNote ?? fallback;
 }
 
 function PlanStepRow({ index, text }: { index: number; text: string }) {
@@ -126,6 +136,7 @@ export default function TodayExecutionPanel({
   planLoading = false,
   brokerStepCompleted = false,
   brokerFillSummary = null,
+  postTrimPortfolioWeight,
   onExecuted,
 }: Props) {
   const [pendingSellPercent, setPendingSellPercent] = useState<number | null>(
@@ -220,7 +231,11 @@ export default function TodayExecutionPanel({
           `Sell order placed on Zerodha · ${data.quantity} shares · order ${data.orderId}`,
         );
         setPendingSellPercent(null);
-        onExecuted?.();
+        onExecuted?.({
+          orderId: data.orderId,
+          quantity: data.quantity,
+          side: "sell",
+        });
       } catch (err) {
         setError(err instanceof Error ? err.message : "Sell order failed");
       } finally {
@@ -275,7 +290,12 @@ export default function TodayExecutionPanel({
       setFeedback(
         `Buy order placed on Zerodha · ${data.quantity} shares · order ${data.orderId}.${stopNote}`,
       );
-      onExecuted?.();
+      onExecuted?.({
+        orderId: data.orderId,
+        quantity: data.quantity,
+        side: "buy",
+        price: data.price,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Buy order failed");
     } finally {
@@ -308,6 +328,8 @@ export default function TodayExecutionPanel({
             feedback,
             brokerFillSummary,
             `Trim on ${hero.symbol} is logged. Confirm the fill in Zerodha if needed.`,
+            postTrimPortfolioWeight,
+            hero.targetWeightAfter,
           )}
         />
       );

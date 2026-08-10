@@ -223,9 +223,26 @@ export default function HomeDecisionScreen({
   const [brokerFillSummary, setBrokerFillSummary] =
     useState<BrokerFillSummary | null>(null);
 
+  const actualSymbolWeight = useMemo(() => {
+    if (!brokerStepCompleted || !todayHero.symbol || !holdings?.length) {
+      return undefined;
+    }
+
+    const match = holdings.find(
+      (holding) =>
+        holding.symbol.trim().toUpperCase() ===
+        todayHero.symbol?.trim().toUpperCase(),
+    );
+
+    return match?.weight;
+  }, [brokerStepCompleted, holdings, todayHero.symbol]);
+
   const displayHero = useMemo(
-    () => resolveTodayHeroDisplay(todayHero, brokerStepCompleted),
-    [brokerStepCompleted, todayHero],
+    () =>
+      resolveTodayHeroDisplay(todayHero, brokerStepCompleted, {
+        actualPortfolioWeight: actualSymbolWeight,
+      }),
+    [actualSymbolWeight, brokerStepCompleted, todayHero],
   );
 
   useEffect(() => {
@@ -310,16 +327,23 @@ export default function HomeDecisionScreen({
     refresh: refreshMonitor,
   } = useOpenMonitor({ enabled: isCapitalDeployment });
 
-  const handleExecuted = useCallback(() => {
-    if (todayHero.symbol) {
-      markBrokerStepCompleted(todayHero.symbol);
-      setBrokerStepCompleted(true);
-    }
+  const handleExecuted = useCallback(
+    (fill?: BrokerFillSummary) => {
+      if (todayHero.symbol) {
+        markBrokerStepCompleted(todayHero.symbol);
+        setBrokerStepCompleted(true);
+      }
 
-    onCapitalRefresh?.();
-    void refreshMonitor();
-    void refreshTrust();
-  }, [onCapitalRefresh, refreshMonitor, refreshTrust, todayHero.symbol]);
+      if (fill?.orderId) {
+        setBrokerFillSummary(fill);
+      }
+
+      onCapitalRefresh?.();
+      void refreshMonitor();
+      void refreshTrust();
+    },
+    [onCapitalRefresh, refreshMonitor, refreshTrust, todayHero.symbol],
+  );
 
   const explorePicks = useMemo(() => {
     if (!isExplore || !decision.picks?.length) {
@@ -497,6 +521,7 @@ export default function HomeDecisionScreen({
                 planLoading={planLoading}
                 brokerStepCompleted={brokerStepCompleted}
                 brokerFillSummary={brokerFillSummary}
+                postTrimPortfolioWeight={actualSymbolWeight}
                 onExecuted={handleExecuted}
               />
               <div className="mt-4">
