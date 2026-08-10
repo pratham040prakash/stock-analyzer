@@ -1,5 +1,9 @@
 import type { CapitalAction, CapitalDecision } from "@/lib/dailyLoop/capitalDecision";
 import { buildCapitalDecision } from "@/lib/dailyLoop/capitalDecision";
+import {
+  describeBrokerFill,
+  type BrokerFillSummary,
+} from "@/services/trade/logTradeFill";
 
 export type TodayExecutionKind = "WAIT" | "SELL" | "BUY" | "OBSERVE";
 
@@ -168,6 +172,7 @@ export function resolvePrimaryActionDisplay(
     executionKind?: TodayExecutionKind;
     actualPortfolioWeight?: number;
     projectedWeight?: number;
+    brokerFillSummary?: BrokerFillSummary | null;
   },
 ): { primaryAction: string; primaryActionDetail: string } {
   if (!brokerStepCompleted || !options?.symbol) {
@@ -177,23 +182,38 @@ export function resolvePrimaryActionDisplay(
     };
   }
 
-  const { symbol, executionKind, actualPortfolioWeight, projectedWeight } =
-    options;
+  const {
+    symbol,
+    executionKind,
+    actualPortfolioWeight,
+    projectedWeight,
+    brokerFillSummary,
+  } = options;
+
+  const fillDetail =
+    brokerFillSummary?.orderId && symbol
+      ? describeBrokerFill(brokerFillSummary, symbol)
+      : null;
 
   if (executionKind === "SELL") {
+    const weightNote = formatPostTrimWeightNote(
+      actualPortfolioWeight,
+      projectedWeight,
+    );
+
     return {
       primaryAction: `${symbol} trim logged on Zerodha`,
-      primaryActionDetail: formatPostTrimWeightNote(
-        actualPortfolioWeight,
-        projectedWeight,
-      ),
+      primaryActionDetail: fillDetail
+        ? `${fillDetail} ${weightNote}`
+        : weightNote,
     };
   }
 
   if (executionKind === "BUY") {
     return {
       primaryAction: `${symbol} entry logged on Zerodha`,
-      primaryActionDetail: "Verify entry and stop orders in Kite.",
+      primaryActionDetail:
+        fillDetail ?? "Verify entry and stop orders in Kite.",
     };
   }
 
@@ -282,5 +302,26 @@ export function runTodaySurfaceSelfCheck(): void {
   assert(
     !completedPrimary.primaryAction.includes("Trim JIOFIN exposure"),
     "Completed primary action must not repeat pending trim copy",
+  );
+
+  const completedWithFill = resolvePrimaryActionDisplay(trimDecision, true, {
+    symbol: "JIOFIN",
+    executionKind: "SELL",
+    actualPortfolioWeight: 72,
+    projectedWeight: 75,
+    brokerFillSummary: {
+      orderId: "260810000001",
+      quantity: 10,
+      side: "sell",
+      price: 312.5,
+    },
+  });
+  assert(
+    completedWithFill.primaryActionDetail.includes("Sold 10 shares"),
+    "Completed primary detail must include broker fill summary",
+  );
+  assert(
+    completedWithFill.primaryActionDetail.includes("72%"),
+    "Completed primary detail must still include live weight",
   );
 }

@@ -605,6 +605,7 @@ export default function HomeDecisionScreen({
                     executionKind={todayHero.executionKind}
                     postTrimPortfolioWeight={actualSymbolWeight}
                     projectedWeightAfter={todayHero.targetWeightAfter}
+                    brokerFillSummary={brokerFillSummary}
                   />
                 ) : (
                   <PremiumFeatureGate

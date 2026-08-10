@@ -26,6 +26,10 @@ import {
 } from "@/lib/dailyLoop/disciplineStreak";
 import type { TodayExecutionKind } from "@/lib/dailyLoop/todaySurface";
 import { formatPostTrimWeightNote, resolvePrimaryActionDisplay } from "@/lib/dailyLoop/todaySurface";
+import {
+  describeBrokerFill,
+  type BrokerFillSummary,
+} from "@/services/trade/logTradeFill";
 import type { SetupInsight } from "@/lib/dailyLoop/setupInsight";
 import { convictionLabel } from "@/lib/dailyLoop/decisionDepth";
 import {
@@ -209,6 +213,7 @@ export function CapitalActionsBlock({
   executionKind,
   postTrimPortfolioWeight,
   projectedWeightAfter,
+  brokerFillSummary = null,
 }: {
   decision: CapitalDecision;
   delayMs: number;
@@ -220,6 +225,7 @@ export function CapitalActionsBlock({
   executionKind?: TodayExecutionKind;
   postTrimPortfolioWeight?: number;
   projectedWeightAfter?: number;
+  brokerFillSummary?: BrokerFillSummary | null;
 }) {
   if (decision.mode === "explore") {
     return (
@@ -242,6 +248,7 @@ export function CapitalActionsBlock({
       executionKind={executionKind}
       postTrimPortfolioWeight={postTrimPortfolioWeight}
       projectedWeightAfter={projectedWeightAfter}
+      brokerFillSummary={brokerFillSummary}
     />
   );
 }
@@ -285,6 +292,7 @@ function GrowCapitalActionsBlock({
   executionKind,
   postTrimPortfolioWeight,
   projectedWeightAfter,
+  brokerFillSummary = null,
 }: {
   decision: CapitalDecision;
   delayMs: number;
@@ -294,6 +302,7 @@ function GrowCapitalActionsBlock({
   executionKind?: TodayExecutionKind;
   postTrimPortfolioWeight?: number;
   projectedWeightAfter?: number;
+  brokerFillSummary?: BrokerFillSummary | null;
 }) {
   const primaryDisplay = resolvePrimaryActionDisplay(
     decision,
@@ -303,6 +312,7 @@ function GrowCapitalActionsBlock({
       executionKind,
       actualPortfolioWeight: postTrimPortfolioWeight,
       projectedWeight: projectedWeightAfter,
+      brokerFillSummary,
     },
   );
 
@@ -377,6 +387,11 @@ function GrowCapitalActionsBlock({
                 brokerStepCompleted && item.symbol === brokerSymbol
                   ? projectedWeightAfter
                   : undefined
+              }
+              brokerFillSummary={
+                brokerStepCompleted && item.symbol === brokerSymbol
+                  ? brokerFillSummary
+                  : null
               }
             />
           ))}
@@ -554,20 +569,27 @@ function CapitalActionRow({
   brokerStepCompleted = false,
   postTrimPortfolioWeight,
   projectedWeightAfter,
+  brokerFillSummary = null,
 }: {
   action: CapitalAction;
   brokerStepCompleted?: boolean;
   postTrimPortfolioWeight?: number;
   projectedWeightAfter?: number;
+  brokerFillSummary?: BrokerFillSummary | null;
 }) {
   if (brokerStepCompleted && action.action === "SELL") {
+    const fillDetail =
+      brokerFillSummary?.orderId && action.symbol
+        ? describeBrokerFill(brokerFillSummary, action.symbol)
+        : null;
+
     return (
       <li className="space-y-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-3">
         <p className="text-base font-semibold leading-snug text-apex-text">
           {action.symbol}
         </p>
         <p className="text-sm font-medium leading-snug text-emerald-200/90">
-          Trim logged on Zerodha today.
+          {fillDetail ?? "Trim logged on Zerodha today."}
         </p>
         <p className="text-sm leading-snug text-apex-text/75">
           {formatPostTrimWeightNote(
@@ -580,13 +602,18 @@ function CapitalActionRow({
   }
 
   if (brokerStepCompleted && action.action === "BUY") {
+    const fillDetail =
+      brokerFillSummary?.orderId && action.symbol
+        ? describeBrokerFill(brokerFillSummary, action.symbol)
+        : null;
+
     return (
       <li className="space-y-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-3">
         <p className="text-base font-semibold leading-snug text-apex-text">
           {action.symbol}
         </p>
         <p className="text-sm font-medium leading-snug text-emerald-200/90">
-          Entry logged on Zerodha today.
+          {fillDetail ?? "Entry logged on Zerodha today."}
         </p>
         <p className="text-sm leading-snug text-apex-text/75">
           Verify entry and stop orders in Kite.
