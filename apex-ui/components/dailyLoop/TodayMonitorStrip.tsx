@@ -9,30 +9,6 @@ export type TodayMonitorStripProps = {
   loading?: boolean;
 };
 
-function stopStatusLabel(status: OpenMonitorPosition["stopStatus"]): string {
-  if (status === "breached") {
-    return "Stop breached — review in Zerodha";
-  }
-
-  if (status === "near") {
-    return "Near stop — watch closely";
-  }
-
-  return "Above stop";
-}
-
-function stopStatusClass(status: OpenMonitorPosition["stopStatus"]): string {
-  if (status === "breached") {
-    return "text-amber-200/95";
-  }
-
-  if (status === "near") {
-    return "text-amber-200/80";
-  }
-
-  return "text-emerald-200/90";
-}
-
 function MonitorRow({ position }: { position: OpenMonitorPosition }) {
   const pnlPositive = position.unrealizedPnl >= 0;
 
@@ -59,16 +35,6 @@ function MonitorRow({ position }: { position: OpenMonitorPosition }) {
 
       <p className="text-xs text-apex-muted/75">
         Entry {formatInr(position.entryPrice)} · Now {formatInr(position.currentPrice)}
-      </p>
-
-      <p className={`text-xs ${stopStatusClass(position.stopStatus)}`}>
-        Stop {formatInr(position.stopLoss)} · {stopStatusLabel(position.stopStatus)}
-        {position.stopStatus === "safe" && position.distanceToStopPct > 0 ? (
-          <span className="text-apex-muted/65">
-            {" "}
-            · {position.distanceToStopPct.toFixed(1)}% above stop
-          </span>
-        ) : null}
       </p>
     </div>
   );
@@ -101,7 +67,7 @@ export default function TodayMonitorStrip({
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs font-medium uppercase tracking-wide text-apex-muted">
-          Open position monitor
+          Open positions
         </p>
         {dayPnl !== null && dayPnl !== undefined ? (
           <p
@@ -124,7 +90,7 @@ export default function TodayMonitorStrip({
       </div>
 
       <p className="text-[11px] leading-snug text-apex-muted/60">
-        Prices from Zerodha holdings. Stop levels from your APEX execution plan.
+        Prices from Zerodha holdings.
       </p>
     </div>
   );
