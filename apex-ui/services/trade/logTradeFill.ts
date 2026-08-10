@@ -13,9 +13,14 @@ export type TradeFillInput = {
   quantity: number;
   amount: number;
   orderId: string;
+  fillSource?: "execute" | "sync";
 };
 
-function fillSignals(orderId: string, price: number): Signals {
+function fillSignals(
+  orderId: string,
+  price: number,
+  fillSource: "execute" | "sync" = "execute",
+): Signals {
   return {
     trend: 0,
     momentum: 0,
@@ -24,6 +29,7 @@ function fillSignals(orderId: string, price: number): Signals {
     fill_price: price,
     filled_at: new Date().toISOString(),
     monitored: true,
+    fill_source: fillSource,
   };
 }
 
@@ -81,7 +87,7 @@ async function logStandaloneSellFill(
       exit_price: fill.price,
       quantity: fill.quantity,
       take_profit_taken: true,
-      signals: fillSignals(fill.orderId, fill.price),
+      signals: fillSignals(fill.orderId, fill.price, fill.fillSource ?? "execute"),
     })
     .select("id")
     .single();
@@ -209,7 +215,7 @@ export async function logTradeFill(
           quantity: fill.quantity,
           amount: fill.amount,
           stop_loss: stopLoss,
-          signals: fillSignals(fill.orderId, fill.price),
+          signals: fillSignals(fill.orderId, fill.price, fill.fillSource ?? "execute"),
           decision_date: today,
           updated_at: new Date().toISOString(),
         })
@@ -231,7 +237,7 @@ export async function logTradeFill(
         entry_price: fill.price,
         stop_loss: stopLoss,
         quantity: fill.quantity,
-        signals: fillSignals(fill.orderId, fill.price),
+        signals: fillSignals(fill.orderId, fill.price, fill.fillSource ?? "execute"),
       })
       .select("id")
       .single();
@@ -268,7 +274,7 @@ export async function logTradeFill(
       .update({
         quantity: remainingQty,
         take_profit_taken: true,
-        signals: fillSignals(fill.orderId, fill.price),
+        signals: fillSignals(fill.orderId, fill.price, fill.fillSource ?? "execute"),
         updated_at: new Date().toISOString(),
       })
       .eq("id", open.id);
@@ -284,7 +290,7 @@ export async function logTradeFill(
       quantity: 0,
       pnl,
       success: pnl > 0,
-      signals: fillSignals(fill.orderId, fill.price),
+      signals: fillSignals(fill.orderId, fill.price, fill.fillSource ?? "execute"),
       updated_at: new Date().toISOString(),
     })
     .eq("id", open.id);

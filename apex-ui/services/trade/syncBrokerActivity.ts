@@ -127,6 +127,7 @@ export function listTodayTradeFills(
       quantity: aggregated.quantity,
       amount: Math.round(aggregated.price * aggregated.quantity),
       orderId: aggregated.orderId,
+      fillSource: "sync",
     });
   }
 

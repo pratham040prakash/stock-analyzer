@@ -36,6 +36,8 @@ export type Signals = {
   fill_price?: number;
   filled_at?: string;
   monitored?: boolean;
+  /** execute = APEX trade button; sync = imported from Kite activity. */
+  fill_source?: "execute" | "sync";
 };
 
 export type MarketTrend = "bullish" | "bearish" | "sideways";

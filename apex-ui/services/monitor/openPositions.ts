@@ -95,11 +95,52 @@ function effectiveHoldingQuantity(holding: HoldingSnapshot): number {
   return Math.max(0, holding.quantity) + Math.max(0, holding.t1Quantity);
 }
 
+/** APEX execute fills only — excludes Kite sync attaching manual trades to old decisions. */
+function isSyncAttachedGhostFill(
+  sig: Signals,
+  decisionDate: string | null | undefined,
+): boolean {
+  if (sig.fill_source === "sync") {
+    return true;
+  }
+
+  if (sig.fill_source === "execute") {
+    return false;
+  }
+
+  const filledDay = sig.filled_at?.slice(0, 10);
+  if (!filledDay || filledDay !== tradingDateKey()) {
+    return false;
+  }
+
+  return Boolean(decisionDate && decisionDate !== filledDay);
+}
+
+function isApexExecuteFill(
+  sig: Signals | null,
+  decisionDate?: string | null,
+): boolean {
+  if (!sig) {
+    return false;
+  }
+
+  if (isSyncAttachedGhostFill(sig, decisionDate)) {
+    return false;
+  }
+
+  if (sig.fill_source === "sync") {
+    return false;
+  }
+
+  return true;
+}
+
 /** Monitor strip only tracks executed buys that are still held at the broker. */
 export function isExecutedOpenMonitorDecision(
   signals: unknown,
   holding: HoldingSnapshot | undefined,
   plannedEntry?: number,
+  decisionDate?: string | null,
 ): boolean {
   const sig = signals as Signals | null;
 
@@ -108,6 +149,10 @@ export function isExecutedOpenMonitorDecision(
   }
 
   if (sig?.monitored !== true) {
+    return false;
+  }
+
+  if (!isApexExecuteFill(sig, decisionDate)) {
     return false;
   }
 
@@ -243,6 +288,28 @@ function roundPnl(value: number): number {
   return Math.round(value * 10) / 10;
 }
 
+/** Zerodha Positions P&L: (LTP − avg) × qty using broker snapshot. */
+function computeBrokerOpenPnl(
+  quantity: number,
+  entryPrice: number,
+  holding: HoldingSnapshot | undefined,
+): { ltp: number; pnl: number; pnlPct: number } {
+  const avg =
+    holding && holding.averagePrice > 0 ? holding.averagePrice : entryPrice;
+  const ltp =
+    holding && holding.lastPrice > 0
+      ? holding.lastPrice
+      : resolveLiveLastPrice(undefined, holding, avg);
+  const pnl = (ltp - avg) * quantity;
+  const pnlPct = avg > 0 ? ((ltp - avg) / avg) * 100 : 0;
+
+  return {
+    ltp: roundPrice(ltp),
+    pnl: roundPnl(pnl),
+    pnlPct,
+  };
+}
+
 function resolveStopStatus(
   currentPrice: number,
   stopLoss: number,
@@ -335,8 +402,12 @@ function sumMonitorOpenPnl(
 
   for (const item of pending) {
     const holding = holdingsBySymbol.get(item.stock);
-    const liveLast = resolveLiveLastPrice(undefined, holding, item.entryPrice);
-    openTotal += (liveLast - item.entryPrice) * item.quantity;
+    const { pnl } = computeBrokerOpenPnl(
+      item.quantity,
+      item.entryPrice,
+      holding,
+    );
+    openTotal += pnl;
     hasOpenPnl = true;
   }
 
@@ -351,25 +422,24 @@ function buildMonitorLiveTicks(
 
   for (const item of pending) {
     const holding = holdingsBySymbol.get(item.stock);
-    const liveLast = resolveLiveLastPrice(undefined, holding, item.entryPrice);
-    const unrealizedPnl = (liveLast - item.entryPrice) * item.quantity;
-    const pnlPct =
-      item.entryPrice > 0
-        ? ((liveLast - item.entryPrice) / item.entryPrice) * 100
-        : 0;
+    const { ltp, pnl, pnlPct } = computeBrokerOpenPnl(
+      item.quantity,
+      item.entryPrice,
+      holding,
+    );
     const positionDayPnl = computeMonitorPositionDayPnl(
       item.quantity,
       item.entryPrice,
-      liveLast,
+      ltp,
       holding && holding.closePrice > 0 ? holding.closePrice : null,
       holding,
     );
-    const { status } = resolveStopStatus(liveLast, item.stopLoss);
+    const { status } = resolveStopStatus(ltp, item.stopLoss);
 
     ticks.push({
       id: item.id,
-      currentPrice: roundPrice(liveLast),
-      unrealizedPnl: roundPnl(unrealizedPnl),
+      currentPrice: ltp,
+      unrealizedPnl: pnl,
       pnlPct,
       positionDayPnl:
         positionDayPnl === null ? null : roundPnl(positionDayPnl),
@@ -421,7 +491,7 @@ async function buildPendingMonitorRows(
 
     const holding = holdingsBySymbol.get(stock);
 
-    if (!isExecutedOpenMonitorDecision(row.signals, holding, plannedEntry)) {
+    if (!isExecutedOpenMonitorDecision(row.signals, holding, plannedEntry, row.decision_date)) {
       continue;
     }
 
@@ -526,26 +596,21 @@ export async function getOpenMonitorPositions(
 
   for (const item of pending) {
     const holding = holdingsBySymbol.get(item.stock);
-    const liveLast = resolveLiveLastPrice(undefined, holding, item.entryPrice);
-
-    const unrealizedPnl = (liveLast - item.entryPrice) * item.quantity;
-    const pnlPct =
-      item.entryPrice > 0
-        ? ((liveLast - item.entryPrice) / item.entryPrice) * 100
-        : 0;
-    const { status, distanceToStopPct } = resolveStopStatus(
-      liveLast,
-      item.stopLoss,
+    const { ltp, pnl, pnlPct } = computeBrokerOpenPnl(
+      item.quantity,
+      item.entryPrice,
+      holding,
     );
+    const { status, distanceToStopPct } = resolveStopStatus(ltp, item.stopLoss);
 
     monitors.push({
       id: item.id,
       stock: item.stock,
       quantity: item.quantity,
       entryPrice: roundPrice(item.entryPrice),
-      currentPrice: roundPrice(liveLast),
+      currentPrice: ltp,
       stopLoss: Math.round(item.stopLoss),
-      unrealizedPnl: roundPnl(unrealizedPnl),
+      unrealizedPnl: pnl,
       pnlPct,
       stopStatus: status,
       distanceToStopPct,
@@ -630,6 +695,7 @@ export function runOpenMonitorEntrySelfCheck(): void {
     momentum: 0,
     volume: 0,
     monitored: true,
+    fill_source: "execute" as const,
     order_id: "2086696629296996352",
     fill_price: 5058.7,
     filled_at: "2026-08-10T09:30:00.000Z",
@@ -640,12 +706,40 @@ export function runOpenMonitorEntrySelfCheck(): void {
     fill_price: 5200,
   };
 
+  const syncFill = {
+    ...filledSignals,
+    fill_source: "sync" as const,
+  };
+
+  const legacyTodayFill = {
+    ...filledSignals,
+    fill_source: undefined,
+    filled_at: `${tradingDateKey()}T09:30:00.000Z`,
+  };
+
+  const syncGhostFill = {
+    ...legacyTodayFill,
+    filled_at: `${tradingDateKey()}T09:30:00.000Z`,
+  };
+
   if (
-    isExecutedOpenMonitorDecision(filledSignals, holding, 5067) !== true ||
-    isExecutedOpenMonitorDecision(filledSignals, undefined, 5067) !== false ||
-    isExecutedOpenMonitorDecision(null, holding, 5067) !== false ||
-    isExecutedOpenMonitorDecision(ghostSignals, holding, 5067) !== false
+    isExecutedOpenMonitorDecision(filledSignals, holding, 5067, tradingDateKey()) !== true ||
+    isExecutedOpenMonitorDecision(filledSignals, undefined, 5067, tradingDateKey()) !== false ||
+    isExecutedOpenMonitorDecision(null, holding, 5067, tradingDateKey()) !== false ||
+    isExecutedOpenMonitorDecision(ghostSignals, holding, 5067, tradingDateKey()) !== false ||
+    isExecutedOpenMonitorDecision(syncFill, holding, 5067, tradingDateKey()) !== false ||
+    isExecutedOpenMonitorDecision(
+      syncGhostFill,
+      holding,
+      5067,
+      "2026-08-09",
+    ) !== false
   ) {
-    throw new Error("isExecutedOpenMonitorDecision must require monitored fill matching broker avg");
+    throw new Error("isExecutedOpenMonitorDecision must require APEX execute fills matching broker avg");
+  }
+
+  const brokerPnl = computeBrokerOpenPnl(1, 5058.7, holding);
+  if (Math.abs(brokerPnl.pnl) > 0.01 || Math.abs(brokerPnl.ltp - 5058.7) > 0.01) {
+    throw new Error("computeBrokerOpenPnl must use broker last_price and average_price");
   }
 }
