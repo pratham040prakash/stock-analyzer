@@ -63,6 +63,9 @@ export async function GET() {
       live.status === "OK" ? live.netPnlPositions.length : 0,
     quotes_applied: quotesApplied,
     quotes_requested: quotesRequested,
+    quotes_received:
+      live.status === "OK" ? live.quotesReceived : 0,
+    quotes_via: live.status === "OK" ? live.quotesVia : null,
     kite_native_pnl: kiteNativePnl,
     build_sha: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? null,
     monitor_open_pnl: monitor.openPnl,

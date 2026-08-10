@@ -5,7 +5,7 @@ import {
 import {
   fetchZerodhaHoldings,
   fetchZerodhaCncPositions,
-  fetchZerodhaQuotes,
+  fetchZerodhaQuotesWithMeta,
   mergeKiteHoldingsAndPositions,
   sumNativeKiteNetCncPnl,
   type KiteHolding,
@@ -26,6 +26,8 @@ export type LiveKitePortfolioResult =
       dayPositions: KiteNetPosition[];
       /** Raw sum of Kite net `pnl` before quote enrichment. */
       kiteNativePositionsPnl: number | null;
+      quotesReceived: number;
+      quotesVia: "direct" | "proxy" | null;
       token: ResolvedZerodhaAccessToken;
     }
   | { status: "NOT_CONNECTED" }
@@ -41,7 +43,12 @@ async function enrichKitePortfolioPrices(
   accessToken: string,
   holdings: KiteHolding[],
   netPnl: KiteNetPosition[],
-): Promise<{ holdings: KiteHolding[]; netPnl: KiteNetPosition[] }> {
+): Promise<{
+  holdings: KiteHolding[];
+  netPnl: KiteNetPosition[];
+  quotesReceived: number;
+  quotesVia: "direct" | "proxy" | null;
+}> {
   const symbols = [
     ...new Set(
       [
@@ -52,10 +59,10 @@ async function enrichKitePortfolioPrices(
   ];
 
   if (symbols.length === 0) {
-    return { holdings, netPnl };
+    return { holdings, netPnl, quotesReceived: 0, quotesVia: null };
   }
 
-  const quotes = await fetchZerodhaQuotes(accessToken, symbols);
+  const { quotes, via } = await fetchZerodhaQuotesWithMeta(accessToken, symbols);
 
   const enrichedHoldings = holdings.map((holding) => {
     const quote = quotes.get(normalizeSymbol(holding.tradingsymbol));
@@ -94,7 +101,12 @@ async function enrichKitePortfolioPrices(
     return position;
   });
 
-  return { holdings: enrichedHoldings, netPnl: enrichedNetPnl };
+  return {
+    holdings: enrichedHoldings,
+    netPnl: enrichedNetPnl,
+    quotesReceived: quotes.size,
+    quotesVia: quotes.size > 0 ? via : null,
+  };
 }
 
 /** Load CNC holdings + same-day positions using every usable Zerodha token. */
@@ -152,6 +164,8 @@ export async function fetchLiveKitePortfolio(
       netPnlPositions: enriched.netPnl,
       dayPositions,
       kiteNativePositionsPnl,
+      quotesReceived: enriched.quotesReceived,
+      quotesVia: enriched.quotesVia,
       token: candidate,
     };
   }
