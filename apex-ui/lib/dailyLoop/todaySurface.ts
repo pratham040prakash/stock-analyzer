@@ -111,6 +111,39 @@ export function resolveTodayHero(
   };
 }
 
+/** After a logged broker fill, swap action CTAs for completion copy on Today. */
+export function resolveTodayHeroDisplay(
+  hero: TodayHero,
+  brokerStepCompleted: boolean,
+): TodayHero {
+  if (!brokerStepCompleted) {
+    return hero;
+  }
+
+  if (hero.executionKind === "SELL" && hero.symbol) {
+    const weightNote =
+      hero.targetWeightAfter !== undefined
+        ? `Target weight ~${hero.targetWeightAfter}% after today's trim.`
+        : "Broker step complete for today.";
+
+    return {
+      ...hero,
+      headline: `${hero.symbol} trim logged on Zerodha`,
+      subline: weightNote,
+    };
+  }
+
+  if (hero.executionKind === "BUY" && hero.symbol) {
+    return {
+      ...hero,
+      headline: `${hero.symbol} entry logged on Zerodha`,
+      subline: "Verify entry and stop orders in Kite.",
+    };
+  }
+
+  return hero;
+}
+
 export function runTodaySurfaceSelfCheck(): void {
   const assert = (condition: boolean, message: string) => {
     if (!condition) {
@@ -159,5 +192,15 @@ export function runTodaySurfaceSelfCheck(): void {
   assert(
     !trimHero.headline.includes("Remain fully in cash"),
     "Today hero must not show cash-only copy during required trim",
+  );
+
+  const completedTrim = resolveTodayHeroDisplay(trimHero, true);
+  assert(
+    completedTrim.headline.includes("logged on Zerodha"),
+    "Completed trim hero must reflect broker logging",
+  );
+  assert(
+    !completedTrim.headline.includes("Trim JIOFIN by"),
+    "Completed trim hero must not repeat the action CTA",
   );
 }

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { buildCapitalDecision } from "@/lib/dailyLoop/capitalDecision";
-import { resolveTodayHero } from "@/lib/dailyLoop/todaySurface";
+import { resolveTodayHero, resolveTodayHeroDisplay } from "@/lib/dailyLoop/todaySurface";
 import { getDisciplineInterpretation } from "@/lib/dailyLoop/disciplineCopy";
 import { getBrokerStepLine } from "@/lib/dailyLoop/disciplineStreak";
 import {
@@ -220,6 +220,11 @@ export default function HomeDecisionScreen({
 
   const [brokerStepCompleted, setBrokerStepCompleted] = useState(false);
 
+  const displayHero = useMemo(
+    () => resolveTodayHeroDisplay(todayHero, brokerStepCompleted),
+    [brokerStepCompleted, todayHero],
+  );
+
   useEffect(() => {
     if (!todayHero.symbol) {
       setBrokerStepCompleted(false);
@@ -321,10 +326,10 @@ export default function HomeDecisionScreen({
   };
 
   const heroTitle = isCapitalDeployment
-    ? todayHero.headline
+    ? displayHero.headline
     : capitalDecision.heroHeadline;
   const heroTone = isCapitalDeployment
-    ? todayHero.subline
+    ? displayHero.subline
     : capitalDecision.heroSubline;
   const heroSignature = isCapitalDeployment
     ? null
