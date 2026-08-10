@@ -161,7 +161,7 @@ export default function TodayTrustStrip({
         ) : null}
 
         {dayKnown && positionsBreakdown.length > 0 ? (
-          <details className="mt-2 text-xs text-apex-muted/75">
+          <details className="mt-2 text-xs text-apex-muted/75" open>
             <summary className="cursor-pointer select-none hover:text-apex-muted">
               How Open P&amp;L is calculated (matches Zerodha Positions)
             </summary>

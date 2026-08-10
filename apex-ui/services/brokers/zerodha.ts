@@ -134,9 +134,60 @@ export type FetchCncPositionsResult =
   | { status: "TOKEN_EXPIRED" }
   | { status: "ERROR"; message: string };
 
+function isCncProduct(product: string | undefined): boolean {
+  return (product ?? "").trim().toUpperCase() === "CNC";
+}
+
+function readFiniteNumber(value: unknown): number | undefined {
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function normalizeKiteNetPosition(raw: unknown): KiteNetPosition | null {
+  if (!raw || typeof raw !== "object") {
+    return null;
+  }
+
+  const row = raw as Record<string, unknown>;
+  const tradingsymbol =
+    typeof row.tradingsymbol === "string" ? row.tradingsymbol : "";
+  const quantity = readFiniteNumber(row.quantity);
+
+  if (!tradingsymbol || quantity === undefined || quantity === 0) {
+    return null;
+  }
+
+  const pnl = readFiniteNumber(row.pnl);
+  const unrealised = readFiniteNumber(row.unrealised);
+
+  return {
+    tradingsymbol,
+    product: typeof row.product === "string" ? row.product : "CNC",
+    quantity,
+    average_price: readFiniteNumber(row.average_price) ?? 0,
+    last_price: readFiniteNumber(row.last_price) ?? 0,
+    close_price: readFiniteNumber(row.close_price),
+    day_change: readFiniteNumber(row.day_change),
+    m2m: readFiniteNumber(row.m2m),
+    pnl: pnl ?? unrealised,
+    unrealised,
+    realised: readFiniteNumber(row.realised),
+  };
+}
+
+function parseKiteNetPositions(raw: unknown): KiteNetPosition[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+
+  return raw
+    .map((row) => normalizeKiteNetPosition(row))
+    .filter((row): row is KiteNetPosition => row !== null);
+}
+
 function filterOpenCncNetPositions(net: KiteNetPosition[]): KiteNetPosition[] {
   return net.filter(
-    (position) => position.product === "CNC" && position.quantity > 0,
+    (position) => isCncProduct(position.product) && position.quantity > 0,
   );
 }
 
@@ -145,12 +196,12 @@ export function filterCncNetPositionsForPnl(
   net: KiteNetPosition[],
 ): KiteNetPosition[] {
   return net.filter(
-    (position) => position.product === "CNC" && position.quantity !== 0,
+    (position) => isCncProduct(position.product) && position.quantity !== 0,
   );
 }
 
 function filterCncDayPositions(day: KiteNetPosition[]): KiteNetPosition[] {
-  return day.filter((position) => position.product === "CNC");
+  return day.filter((position) => isCncProduct(position.product));
 }
 
 function roundPnl(value: number): number {
@@ -166,8 +217,16 @@ export type ZerodhaPositionPnlRow = {
 };
 
 function netPositionRowPnl(position: KiteNetPosition, ltp: number): number {
-  if (typeof position.pnl === "number" && Number.isFinite(position.pnl)) {
-    return roundPnl(position.pnl);
+  const fromKite =
+    typeof position.pnl === "number" && Number.isFinite(position.pnl)
+      ? position.pnl
+      : typeof position.unrealised === "number" &&
+          Number.isFinite(position.unrealised)
+        ? position.unrealised
+        : null;
+
+  if (fromKite !== null) {
+    return roundPnl(fromKite);
   }
 
   return roundPnl((ltp - position.average_price) * position.quantity);
@@ -181,7 +240,7 @@ export function sumKiteNetCncPositionPnl(
   let hasRow = false;
 
   for (const position of netPositions) {
-    if (position.product !== "CNC" || position.quantity === 0) {
+    if (!isCncProduct(position.product) || position.quantity === 0) {
       continue;
     }
 
@@ -201,7 +260,7 @@ export function computeZerodhaPositionsBreakdown(
   const rows: ZerodhaPositionPnlRow[] = [];
 
   for (const position of netPositions) {
-    if (position.product !== "CNC" || position.quantity === 0) {
+    if (!isCncProduct(position.product) || position.quantity === 0) {
       continue;
     }
 
@@ -255,8 +314,8 @@ export async function fetchZerodhaCncPositions(
     const res = await axios.get("https://api.kite.trade/portfolio/positions", {
       headers: kiteAuthHeaders(config.apiKey, accessToken),
     });
-    const net = (res.data?.data?.net ?? []) as KiteNetPosition[];
-    const day = (res.data?.data?.day ?? []) as KiteNetPosition[];
+    const net = parseKiteNetPositions(res.data?.data?.net);
+    const day = parseKiteNetPositions(res.data?.data?.day);
 
     return {
       status: "OK",
@@ -307,7 +366,7 @@ export function mergeKiteHoldingsAndPositions(
   }
 
   for (const position of positions) {
-    if (position.product !== "CNC" || position.quantity <= 0) {
+    if (!isCncProduct(position.product) || position.quantity <= 0) {
       continue;
     }
 
@@ -419,7 +478,7 @@ export function computePortfolioDayPnl(
   const tradedToday = new Set<string>();
 
   for (const position of dayPositions) {
-    if (position.product !== "CNC") {
+    if (!isCncProduct(position.product)) {
       continue;
     }
 

@@ -888,9 +888,7 @@ export default function HomeClient({
               capitalMode={capitalMode}
               onCapitalModeChange={handleCapitalModeChange}
               dayPnl={portfolioData?.day_pnl ?? dailyInsight?.day_pnl ?? null}
-              openPnlFromPortfolio={
-                portfolioData?.positions_pnl ?? portfolioData?.day_pnl ?? null
-              }
+              openPnlFromPortfolio={portfolioData?.positions_pnl ?? null}
               holdings={portfolioData?.holdings?.map((holding) => ({
                 symbol: holding.tradingsymbol,
                 weight: holding.allocation_pct,

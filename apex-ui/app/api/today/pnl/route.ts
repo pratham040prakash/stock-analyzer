@@ -48,6 +48,8 @@ export async function GET() {
     portfolio_day_pnl: portfolioDayPnl,
     positions_pnl: positionsPnl,
     positions_breakdown: positionsBreakdown,
+    positions_net_legs:
+      live.status === "OK" ? live.netPnlPositions.length : 0,
     monitor_open_pnl: monitor.openPnl,
     monitor_day_pnl: monitor.dayPnl,
     position_ticks: monitor.ticks,
