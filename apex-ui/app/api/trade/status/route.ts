@@ -1,6 +1,7 @@
 import { apiError, apiOk } from "@/lib/api/response";
 import { normalizeSymbol } from "@/lib/stockPool";
 import { getBrokerFillToday } from "@/services/trade/logTradeFill";
+import { syncBrokerFillFromKiteTrades } from "@/services/trade/syncKiteBrokerFill";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +23,11 @@ export async function GET(request: Request) {
     return apiError("stock is required", 400);
   }
 
-  const fill = await getBrokerFillToday(supabase, user.id, stock);
+  let fill = await getBrokerFillToday(supabase, user.id, stock);
+
+  if (!fill.filled) {
+    fill = await syncBrokerFillFromKiteTrades(supabase, user.id, stock);
+  }
 
   return apiOk({
     stock,

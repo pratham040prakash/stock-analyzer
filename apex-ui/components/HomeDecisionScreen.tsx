@@ -327,6 +327,10 @@ export default function HomeDecisionScreen({
 
         markBrokerStepCompleted(todayHero.symbol ?? "");
         setBrokerStepCompleted(true);
+
+        if (!sessionComplete) {
+          onCapitalRefresh?.();
+        }
       } catch {
         // Session cache remains the fallback when the status API is unavailable.
       } finally {
@@ -339,7 +343,7 @@ export default function HomeDecisionScreen({
     return () => {
       cancelled = true;
     };
-  }, [todayHero.symbol]);
+  }, [onCapitalRefresh, todayHero.symbol]);
 
   const holdingAllocationPct =
     todayHero.currentWeight ??
