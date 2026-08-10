@@ -4,7 +4,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { buildCapitalDecision } from "@/lib/dailyLoop/capitalDecision";
 import { resolveTodayHero, resolveTodayHeroDisplay } from "@/lib/dailyLoop/todaySurface";
 import { getDisciplineInterpretation } from "@/lib/dailyLoop/disciplineCopy";
-import { getBrokerStepLine } from "@/lib/dailyLoop/disciplineStreak";
+import {
+  getBrokerStepLine,
+  shouldAutoCommitDisciplineAfterBrokerFill,
+} from "@/lib/dailyLoop/disciplineStreak";
 import {
   markBrokerStepCompleted,
   readBrokerStepCompleted,
@@ -344,6 +347,23 @@ export default function HomeDecisionScreen({
     },
     [onCapitalRefresh, refreshMonitor, refreshTrust, todayHero.symbol],
   );
+
+  useEffect(() => {
+    if (
+      !shouldAutoCommitDisciplineAfterBrokerFill(
+        brokerStepCompleted,
+        retention.committedToday,
+      )
+    ) {
+      return;
+    }
+
+    retention.commitFollowed();
+  }, [
+    brokerStepCompleted,
+    retention.commitFollowed,
+    retention.committedToday,
+  ]);
 
   const explorePicks = useMemo(() => {
     if (!isExplore || !decision.picks?.length) {

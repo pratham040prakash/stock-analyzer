@@ -110,6 +110,14 @@ export function getBrokerStepLine(
   return "Broker step still open · See plan below.";
 }
 
+/** Broker fills prove the user followed today's capital plan. */
+export function shouldAutoCommitDisciplineAfterBrokerFill(
+  brokerStepCompleted: boolean,
+  committedToday: boolean,
+): boolean {
+  return brokerStepCompleted && !committedToday;
+}
+
 export function getDailyClosureBody(
   executionKind?: TodayExecutionKind,
   brokerStepCompleted = false,
@@ -292,5 +300,13 @@ export function runDisciplineStatusSelfCheck(): void {
   assert(
     getDailyClosureBody("WAIT") === DAILY_CLOSURE_BODY,
     "Wait closure must keep capital protection copy",
+  );
+  assert(
+    shouldAutoCommitDisciplineAfterBrokerFill(true, false),
+    "Logged broker fills must auto-commit discipline",
+  );
+  assert(
+    !shouldAutoCommitDisciplineAfterBrokerFill(true, true),
+    "Discipline must not double-commit after broker fill",
   );
 }
