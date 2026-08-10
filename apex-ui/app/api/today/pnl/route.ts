@@ -47,13 +47,11 @@ export async function GET() {
       ? live.netPnlPositions.filter((row) => row.ltpFromQuote === true).length
       : 0;
 
-  const holdingsLtpApplied =
-    live.status === "OK"
-      ? live.netPnlPositions.filter((row) => row.ltpFromHolding === true).length
-      : 0;
-
   const quotesRequested =
     live.status === "OK" ? live.netPnlPositions.length : 0;
+
+  const kiteNativePnl =
+    live.status === "OK" ? live.kiteNativePositionsPnl : null;
 
   const monitor = await getOpenMonitorLiveSnapshot(supabase, user.id, live);
 
@@ -64,8 +62,8 @@ export async function GET() {
     positions_net_legs:
       live.status === "OK" ? live.netPnlPositions.length : 0,
     quotes_applied: quotesApplied,
-    holdings_ltp_applied: holdingsLtpApplied,
     quotes_requested: quotesRequested,
+    kite_native_pnl: kiteNativePnl,
     build_sha: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? null,
     monitor_open_pnl: monitor.openPnl,
     monitor_day_pnl: monitor.dayPnl,

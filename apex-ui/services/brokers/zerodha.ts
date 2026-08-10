@@ -118,8 +118,6 @@ export type KiteNetPosition = {
   unrealised?: number;
   /** Set when last_price came from a live /quote batch. */
   ltpFromQuote?: boolean;
-  /** Set when last_price came from holdings LTP (fresher than net position). */
-  ltpFromHolding?: boolean;
 };
 
 export type FetchNetPositionsResult =
@@ -226,7 +224,7 @@ export type ZerodhaPositionPnlRow = {
 function netPositionRowPnl(position: KiteNetPosition, ltp: number): number {
   const fromLtp = roundPnl((ltp - position.average_price) * position.quantity);
 
-  if (position.ltpFromQuote || position.ltpFromHolding) {
+  if (position.ltpFromQuote) {
     return fromLtp;
   }
 
@@ -235,6 +233,29 @@ function netPositionRowPnl(position: KiteNetPosition, ltp: number): number {
   }
 
   return fromLtp;
+}
+
+/** Sum of raw Kite net CNC `pnl` before any LTP recalc. */
+export function sumNativeKiteNetCncPnl(
+  netPositions: KiteNetPosition[],
+): number | null {
+  let total = 0;
+  let hasRow = false;
+
+  for (const position of netPositions) {
+    if (!isCncProduct(position.product) || position.quantity === 0) {
+      continue;
+    }
+
+    if (typeof position.pnl !== "number" || !Number.isFinite(position.pnl)) {
+      continue;
+    }
+
+    hasRow = true;
+    total += position.pnl;
+  }
+
+  return hasRow ? roundPnl(total) : null;
 }
 
 /** Sum of Kite net CNC `pnl` — same field as Zerodha Positions tab. */
@@ -282,11 +303,7 @@ export function computeZerodhaPositionsBreakdown(
       last_price: ltp,
       pnl: netPositionRowPnl(position, ltp),
       live_quote: position.ltpFromQuote === true,
-      ltp_source: position.ltpFromQuote
-        ? "quote"
-        : position.ltpFromHolding
-          ? "holding"
-          : "kite",
+      ltp_source: position.ltpFromQuote ? "quote" : "kite",
     });
   }
 
@@ -793,22 +810,27 @@ export function runKiteDayPnlSelfCheck(): void {
     "Positions P&L must trust Kite pnl when quote LTP is unavailable",
   );
 
-  const preferHoldingLtp = computeZerodhaPositionsPnl(
-    [],
-    [
-      {
-        tradingsymbol: "HEROMOTOCO",
-        product: "CNC",
-        quantity: 1,
-        average_price: 5856.1,
-        last_price: 5860,
-        ltpFromHolding: true,
-      },
-    ],
-  );
+  const nativeSum = sumNativeKiteNetCncPnl([
+    {
+      tradingsymbol: "HEROMOTOCO",
+      product: "CNC",
+      quantity: 1,
+      average_price: 5856.1,
+      last_price: 5801,
+      pnl: 3.9,
+    },
+    {
+      tradingsymbol: "JIOFIN",
+      product: "CNC",
+      quantity: -1,
+      average_price: 255.9,
+      last_price: 254,
+      pnl: 1.9,
+    },
+  ]);
   assert(
-    preferHoldingLtp !== null && Math.abs(preferHoldingLtp - 3.9) < 0.01,
-    "Positions P&L must use holdings LTP when quote is unavailable",
+    nativeSum !== null && Math.abs(nativeSum - 5.8) < 0.01,
+    "Native Kite pnl sum must match Zerodha Positions tab fields",
   );
 
   const breakdown = computeZerodhaPositionsBreakdown(
@@ -923,6 +945,13 @@ function kiteRequestConfig(apiKey: string, accessToken: string) {
   };
 }
 
+function kiteDirectRequestConfig(apiKey: string, accessToken: string) {
+  return {
+    headers: kiteAuthHeaders(apiKey, accessToken),
+    timeout: 12_000,
+  };
+}
+
 export type FetchQuoteResult =
   | { status: "OK"; lastPrice: number }
   | { status: "TOKEN_EXPIRED" }
@@ -977,18 +1006,13 @@ async function fetchZerodhaLtpOhlcBatch(
   symbols: string[],
   exchange: string,
   quotes: Map<string, ZerodhaLiveQuote>,
+  requestConfig: ReturnType<typeof kiteRequestConfig>,
 ): Promise<void> {
   if (symbols.length === 0) {
     return;
   }
 
-  const config = getZerodhaConfig();
-  if (!config.configured) {
-    return;
-  }
-
   const query = buildInstrumentQuery(symbols, exchange);
-  const requestConfig = kiteRequestConfig(config.apiKey, accessToken);
 
   try {
     const [ltpRes, ohlcRes] = await Promise.all([
@@ -1037,6 +1061,7 @@ async function fetchZerodhaLiveQuote(
   accessToken: string,
   tradingsymbol: string,
   exchange = "NSE",
+  requestConfig?: ReturnType<typeof kiteRequestConfig>,
 ): Promise<ZerodhaLiveQuote | null> {
   const config = getZerodhaConfig();
 
@@ -1045,12 +1070,13 @@ async function fetchZerodhaLiveQuote(
   }
 
   const instrument = `${exchange}:${tradingsymbol}`;
-  const requestConfig = kiteRequestConfig(config.apiKey, accessToken);
+  const axiosConfig =
+    requestConfig ?? kiteRequestConfig(config.apiKey, accessToken);
 
   try {
     const res = await axios.get(
       `https://api.kite.trade/quote?i=${encodeURIComponent(instrument)}`,
-      requestConfig,
+      axiosConfig,
     );
 
     const parsed = parseKiteQuotePayload(res.data?.data?.[instrument]);
@@ -1069,13 +1095,15 @@ async function fetchZerodhaLiveQuote(
   }
 
   const fallback = new Map<string, ZerodhaLiveQuote>();
+  const normalized = normalizeSymbol(tradingsymbol);
   await fetchZerodhaLtpOhlcBatch(
     accessToken,
-    [tradingsymbol],
+    [normalized],
     exchange,
     fallback,
+    axiosConfig,
   );
-  return fallback.get(tradingsymbol) ?? null;
+  return fallback.get(normalized) ?? null;
 }
 
 export async function fetchZerodhaQuote(
@@ -1109,61 +1137,55 @@ export async function fetchZerodhaQuote(
 }
 
 /** Live LTP (+ prior close) for multiple NSE symbols; falls back per symbol on batch miss. */
-export async function fetchZerodhaQuotes(
+async function loadZerodhaQuotesWithConfig(
   accessToken: string,
-  tradingsymbols: string[],
-  exchange = "NSE",
+  symbols: string[],
+  exchange: string,
+  requestConfig: ReturnType<typeof kiteRequestConfig>,
 ): Promise<Map<string, ZerodhaLiveQuote>> {
   const quotes = new Map<string, ZerodhaLiveQuote>();
-  const symbols = [
-    ...new Set(
-      tradingsymbols.map((symbol) => normalizeSymbol(symbol)).filter(Boolean),
-    ),
-  ];
 
-  if (symbols.length === 0) {
-    return quotes;
-  }
-
-  const config = getZerodhaConfig();
-
-  if (!config.configured) {
-    return quotes;
-  }
-
-  const requestConfig = kiteRequestConfig(config.apiKey, accessToken);
-
-  await fetchZerodhaLtpOhlcBatch(accessToken, symbols, exchange, quotes);
+  await fetchZerodhaLtpOhlcBatch(
+    accessToken,
+    symbols,
+    exchange,
+    quotes,
+    requestConfig,
+  );
 
   const missingAfterLtp = symbols.filter((symbol) => !quotes.has(symbol));
-  if (missingAfterLtp.length === 0) {
-    return quotes;
-  }
+  if (missingAfterLtp.length > 0) {
+    try {
+      const query = buildInstrumentQuery(missingAfterLtp, exchange);
+      const res = await axios.get(
+        `https://api.kite.trade/quote?${query}`,
+        requestConfig,
+      );
 
-  try {
-    const query = buildInstrumentQuery(missingAfterLtp, exchange);
-    const res = await axios.get(
-      `https://api.kite.trade/quote?${query}`,
-      requestConfig,
-    );
-
-    for (const symbol of missingAfterLtp) {
-      const instrument = `${exchange}:${symbol}`;
-      const parsed = parseKiteQuotePayload(res.data?.data?.[instrument]);
-      if (parsed) {
-        quotes.set(symbol, parsed);
+      for (const symbol of missingAfterLtp) {
+        const instrument = `${exchange}:${symbol}`;
+        const parsed = parseKiteQuotePayload(res.data?.data?.[instrument]);
+        if (parsed) {
+          quotes.set(symbol, parsed);
+        }
       }
+    } catch (err) {
+      brokerError(
+        "fetchZerodhaQuotes batch failed",
+        err instanceof Error ? err.message : err,
+      );
     }
-  } catch (err) {
-    brokerError(
-      "fetchZerodhaQuotes batch failed",
-      err instanceof Error ? err.message : err,
-    );
   }
 
   const missingAfterFull = symbols.filter((symbol) => !quotes.has(symbol));
   if (missingAfterFull.length > 0) {
-    await fetchZerodhaLtpOhlcBatch(accessToken, missingAfterFull, exchange, quotes);
+    await fetchZerodhaLtpOhlcBatch(
+      accessToken,
+      missingAfterFull,
+      exchange,
+      quotes,
+      requestConfig,
+    );
   }
 
   for (const symbol of symbols) {
@@ -1171,10 +1193,63 @@ export async function fetchZerodhaQuotes(
       continue;
     }
 
-    const parsed = await fetchZerodhaLiveQuote(accessToken, symbol, exchange);
+    const parsed = await fetchZerodhaLiveQuote(
+      accessToken,
+      symbol,
+      exchange,
+      requestConfig,
+    );
     if (parsed) {
       quotes.set(symbol, parsed);
     }
+  }
+
+  return quotes;
+}
+
+export async function fetchZerodhaQuotes(
+  accessToken: string,
+  tradingsymbols: string[],
+  exchange = "NSE",
+): Promise<Map<string, ZerodhaLiveQuote>> {
+  const symbols = [
+    ...new Set(
+      tradingsymbols.map((symbol) => normalizeSymbol(symbol)).filter(Boolean),
+    ),
+  ];
+
+  if (symbols.length === 0) {
+    return new Map();
+  }
+
+  const config = getZerodhaConfig();
+
+  if (!config.configured) {
+    return new Map();
+  }
+
+  let quotes = await loadZerodhaQuotesWithConfig(
+    accessToken,
+    symbols,
+    exchange,
+    kiteRequestConfig(config.apiKey, accessToken),
+  );
+
+  if (quotes.size === 0 && getKiteOrderProxyStatus().configured) {
+    brokerLog("fetchZerodhaQuotes: proxy returned 0 quotes, retrying direct");
+    quotes = await loadZerodhaQuotesWithConfig(
+      accessToken,
+      symbols,
+      exchange,
+      kiteDirectRequestConfig(config.apiKey, accessToken),
+    );
+  }
+
+  if (quotes.size === 0) {
+    brokerError(
+      "fetchZerodhaQuotes returned no symbols",
+      symbols.join(","),
+    );
   }
 
   return quotes;
