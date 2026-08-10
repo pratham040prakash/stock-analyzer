@@ -417,15 +417,18 @@ export default function HomeClient({
           : null;
 
       if (data.status === "ERROR" || data.status === "PARTIAL") {
+        const rateLimited = /too many requests/i.test(data.message ?? "");
         setAvailableCash(null);
         setLedgerCash(null);
         setCollateral(0);
         setBrokerPortfolioValue(nextPortfolioValue);
         setTotalCapital(nextTotalCapital);
-        setFundsSynced(false);
+        setFundsSynced((previous) => (rateLimited ? previous : false));
         setFundsSyncError(
-          data.message ??
-            "Zerodha funds could not be loaded. Try reconnecting.",
+          rateLimited
+            ? null
+            : (data.message ??
+                "Zerodha funds could not be loaded. Try reconnecting."),
         );
         return;
       }

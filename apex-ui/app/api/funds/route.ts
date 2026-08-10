@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { KITE_ACCESS_TOKEN_COOKIE } from "@/lib/broker/zerodhaSession";
 import { computeTotalCapital } from "@/lib/broker/zerodhaFunds";
 import { fetchZerodhaFundsForUser } from "@/services/broker/funds";
-import { fetchLiveKitePortfolio } from "@/services/broker/kitePortfolio";
+import { fetchLiveKitePortfolioCached } from "@/services/broker/kitePortfolio";
 import { markBrokerConnectionExpired } from "@/services/broker/connections";
 import {
   computePortfolioMetrics,
@@ -41,7 +41,7 @@ async function resolvePortfolioValue(
   userId: string,
   fallbackHoldings: Parameters<typeof portfolioValueFromHoldings>[0],
 ): Promise<number> {
-  const live = await fetchLiveKitePortfolio(supabase, userId);
+  const live = await fetchLiveKitePortfolioCached(supabase, userId);
   if (live.status === "OK") {
     return computePortfolioMetrics(mapKiteHoldingsToPortfolio(live.holdings))
       .totalValue;

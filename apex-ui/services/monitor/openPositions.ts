@@ -1,10 +1,10 @@
 import { tradingDateKey } from "@/lib/dailyLoop/disciplineDates";
-import { fetchLiveKitePortfolio } from "@/services/broker/kitePortfolio";
 import {
-  fetchZerodhaQuotes,
-  type ZerodhaLiveQuote,
-} from "@/services/brokers/zerodha";
+  fetchLiveKitePortfolioCached,
+  type LiveKitePortfolioResult,
+} from "@/services/broker/kitePortfolio";
 import { checkStopLoss } from "@/services/risk/riskControl";
+import type { ZerodhaLiveQuote } from "@/services/brokers/zerodha";
 import { signalsIndicateBrokerFill } from "@/services/trade/logTradeFill";
 import { normalizeSymbol } from "@/lib/stockPool";
 import type { Signals } from "@/types/decision";
@@ -196,9 +196,82 @@ function resolveStopStatus(
   return { status: "safe", distanceToStopPct };
 }
 
+function holdingsMapFromLivePortfolio(
+  livePortfolio: LiveKitePortfolioResult,
+): Map<string, HoldingSnapshot> {
+  const holdingsBySymbol = new Map<string, HoldingSnapshot>();
+
+  if (livePortfolio.status !== "OK") {
+    return holdingsBySymbol;
+  }
+
+  for (const holding of livePortfolio.holdings) {
+    const symbol = normalizeSymbol(holding.tradingsymbol);
+    holdingsBySymbol.set(symbol, {
+      quantity: holding.quantity,
+      lastPrice: holding.last_price,
+      averagePrice: holding.average_price,
+      closePrice:
+        typeof holding.close_price === "number" && holding.close_price > 0
+          ? holding.close_price
+          : 0,
+      dayChange:
+        typeof holding.day_change === "number" &&
+        Number.isFinite(holding.day_change)
+          ? holding.day_change
+          : null,
+    });
+  }
+
+  return holdingsBySymbol;
+}
+
+function sumMonitorDayPnl(
+  pending: PendingMonitorRow[],
+  holdingsBySymbol: Map<string, HoldingSnapshot>,
+): number | null {
+  let dayPnlTotal = 0;
+  let hasDayPnl = false;
+
+  for (const item of pending) {
+    const holding = holdingsBySymbol.get(item.stock);
+    const liveLast = resolveLiveLastPrice(undefined, holding, item.entryPrice);
+    const positionDayPnl = computeMonitorPositionDayPnl(
+      item.quantity,
+      item.entryPrice,
+      liveLast,
+      holding && holding.closePrice > 0 ? holding.closePrice : null,
+      holding,
+    );
+
+    if (positionDayPnl !== null) {
+      hasDayPnl = true;
+      dayPnlTotal += positionDayPnl;
+    }
+  }
+
+  return hasDayPnl ? roundPnl(dayPnlTotal) : null;
+}
+
+export async function getOpenMonitorDayPnl(
+  supabase: Client,
+  userId: string,
+  livePortfolio?: LiveKitePortfolioResult,
+): Promise<number | null> {
+  const result = await getOpenMonitorPositions(supabase, userId, {
+    livePortfolio,
+    includePositions: false,
+  });
+  return result.dayPnl;
+}
+
 export async function getOpenMonitorPositions(
   supabase: Client,
   userId: string,
+  options?: {
+    livePortfolio?: LiveKitePortfolioResult;
+    includePositions?: boolean;
+  },
 ): Promise<OpenMonitorResult> {
   const { data: rows, error } = await supabase
     .from("decision_memory")
@@ -218,28 +291,10 @@ export async function getOpenMonitorPositions(
   }
 
   const todayKey = tradingDateKey();
-  const holdingsBySymbol = new Map<string, HoldingSnapshot>();
-  const livePortfolio = await fetchLiveKitePortfolio(supabase, userId);
-
-  if (livePortfolio.status === "OK") {
-    for (const holding of livePortfolio.holdings) {
-      const symbol = normalizeSymbol(holding.tradingsymbol);
-      holdingsBySymbol.set(symbol, {
-        quantity: holding.quantity,
-        lastPrice: holding.last_price,
-        averagePrice: holding.average_price,
-        closePrice:
-          typeof holding.close_price === "number" && holding.close_price > 0
-            ? holding.close_price
-            : 0,
-        dayChange:
-          typeof holding.day_change === "number" &&
-          Number.isFinite(holding.day_change)
-            ? holding.day_change
-            : null,
-      });
-    }
-  }
+  const livePortfolio =
+    options?.livePortfolio ??
+    (await fetchLiveKitePortfolioCached(supabase, userId));
+  const holdingsBySymbol = holdingsMapFromLivePortfolio(livePortfolio);
 
   const pending: PendingMonitorRow[] = [];
   const seenStocks = new Set<string>();
@@ -288,39 +343,18 @@ export async function getOpenMonitorPositions(
     });
   }
 
-  const liveQuotes = new Map<string, ZerodhaLiveQuote>();
-  if (pending.length > 0 && livePortfolio.status === "OK") {
-    const symbols = pending.map((item) => item.stock);
-    const quotes = await fetchZerodhaQuotes(
-      livePortfolio.token.accessToken,
-      symbols,
-    );
-    for (const [symbol, quote] of quotes) {
-      liveQuotes.set(symbol, quote);
-    }
+  const includePositions = options?.includePositions !== false;
+  const dayPnl = sumMonitorDayPnl(pending, holdingsBySymbol);
+
+  if (!includePositions) {
+    return { positions: [], dayPnl };
   }
 
   const monitors: OpenMonitorPosition[] = [];
-  let dayPnlTotal = 0;
-  let hasDayPnl = false;
 
   for (const item of pending) {
     const holding = holdingsBySymbol.get(item.stock);
-    const quote = liveQuotes.get(item.stock);
-    const liveLast = resolveLiveLastPrice(quote, holding, item.entryPrice);
-
-    const positionDayPnl = computeMonitorPositionDayPnl(
-      item.quantity,
-      item.entryPrice,
-      liveLast,
-      quote?.previousClose ?? null,
-      holding,
-    );
-
-    if (positionDayPnl !== null) {
-      hasDayPnl = true;
-      dayPnlTotal += positionDayPnl;
-    }
+    const liveLast = resolveLiveLastPrice(undefined, holding, item.entryPrice);
 
     const unrealizedPnl = (liveLast - item.entryPrice) * item.quantity;
     const pnlPct =
@@ -348,7 +382,7 @@ export async function getOpenMonitorPositions(
 
   return {
     positions: monitors,
-    dayPnl: hasDayPnl ? roundPnl(dayPnlTotal) : null,
+    dayPnl,
   };
 }
 

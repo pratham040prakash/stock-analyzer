@@ -44,7 +44,6 @@ import type {
 import PremiumFeatureGate from "@/components/dailyLoop/PremiumFeatureGate";
 import { useExploreTriggers } from "@/lib/useExploreTriggers";
 import { useDayPnlPoll } from "@/lib/useDayPnlPoll";
-import { useMonitorDayPnlPoll } from "@/lib/useMonitorDayPnlPoll";
 import { useOpenMonitor } from "@/lib/useOpenMonitor";
 import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
 
@@ -364,11 +363,10 @@ export default function HomeDecisionScreen({
     loading: monitorLoading,
     refresh: refreshMonitor,
   } = useOpenMonitor({ enabled: monitorEnabled });
-  const { dayPnl: liveDayPnl, refresh: refreshLiveDayPnl } = useDayPnlPoll({
+  const { portfolioDayPnl: liveDayPnl, monitorDayPnl: monitorLiveDayPnl, refresh: refreshLiveDayPnl } =
+    useDayPnlPoll({
     enabled: monitorEnabled,
   });
-  const { dayPnl: monitorLiveDayPnl, refresh: refreshMonitorDayPnl } =
-    useMonitorDayPnlPoll({ enabled: monitorEnabled });
   const resolvedDayPnl = liveDayPnl ?? dayPnl;
   const monitorStripDayPnl = monitorLiveDayPnl;
 
@@ -386,17 +384,9 @@ export default function HomeDecisionScreen({
       onCapitalRefresh?.();
       void refreshMonitor();
       void refreshLiveDayPnl();
-      void refreshMonitorDayPnl();
       void refreshTrust();
     },
-    [
-      onCapitalRefresh,
-      refreshLiveDayPnl,
-      refreshMonitor,
-      refreshMonitorDayPnl,
-      refreshTrust,
-      todayHero.symbol,
-    ],
+    [onCapitalRefresh, refreshLiveDayPnl, refreshMonitor, refreshTrust, todayHero.symbol],
   );
 
   useEffect(() => {

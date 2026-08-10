@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { KITE_ACCESS_TOKEN_COOKIE } from "@/lib/broker/zerodhaSession";
-import { fetchLiveKitePortfolio } from "@/services/broker/kitePortfolio";
+import { fetchLiveKitePortfolioCached } from "@/services/broker/kitePortfolio";
 import { markBrokerConnectionExpired } from "@/services/broker/connections";
 import {
   computePortfolioMetrics,
@@ -70,7 +70,7 @@ export async function GET() {
     );
   }
 
-  const live = await fetchLiveKitePortfolio(supabase, user.id);
+  const live = await fetchLiveKitePortfolioCached(supabase, user.id);
   const fromCache = formattedCachedResponse("TOKEN_EXPIRED");
 
   if (live.status === "NOT_CONNECTED") {

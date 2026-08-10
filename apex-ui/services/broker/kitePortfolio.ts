@@ -119,3 +119,43 @@ export async function fetchLiveKitePortfolio(
 
   return { status: "ERROR", message: lastMessage };
 }
+
+const PORTFOLIO_CACHE_MS = 5_000;
+const portfolioCache = new Map<
+  string,
+  { expiresAt: number; value: LiveKitePortfolioResult }
+>();
+const portfolioInflight = new Map<string, Promise<LiveKitePortfolioResult>>();
+
+/** Short TTL cache — one Kite fetch shared by P&L polls and funds. */
+export async function fetchLiveKitePortfolioCached(
+  supabase: Client,
+  userId: string,
+): Promise<LiveKitePortfolioResult> {
+  const now = Date.now();
+  const cached = portfolioCache.get(userId);
+
+  if (cached && cached.expiresAt > now) {
+    return cached.value;
+  }
+
+  const inflight = portfolioInflight.get(userId);
+  if (inflight) {
+    return inflight;
+  }
+
+  const request = fetchLiveKitePortfolio(supabase, userId)
+    .then((result) => {
+      portfolioCache.set(userId, {
+        expiresAt: Date.now() + PORTFOLIO_CACHE_MS,
+        value: result,
+      });
+      return result;
+    })
+    .finally(() => {
+      portfolioInflight.delete(userId);
+    });
+
+  portfolioInflight.set(userId, request);
+  return request;
+}

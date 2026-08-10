@@ -1,5 +1,6 @@
 import { apiError, apiOk } from "@/lib/api/response";
 import { fetchLiveKitePortfolioCached } from "@/services/broker/kitePortfolio";
+import { getOpenMonitorDayPnl } from "@/services/monitor/openPositions";
 import {
   computePortfolioDayPnl,
   mapKiteHoldingsToPortfolio,
@@ -8,6 +9,7 @@ import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
+/** Single poll endpoint — one cached Kite fetch for portfolio + monitor Day P&L. */
 export async function GET() {
   const supabase = await createClient();
   const {
@@ -20,13 +22,15 @@ export async function GET() {
 
   const live = await fetchLiveKitePortfolioCached(supabase, user.id);
 
-  if (live.status !== "OK") {
-    return apiOk({ day_pnl: null });
-  }
+  const portfolioDayPnl =
+    live.status === "OK"
+      ? computePortfolioDayPnl(mapKiteHoldingsToPortfolio(live.holdings))
+      : null;
 
-  const portfolio = mapKiteHoldingsToPortfolio(live.holdings);
+  const monitorDayPnl = await getOpenMonitorDayPnl(supabase, user.id, live);
 
   return apiOk({
-    day_pnl: computePortfolioDayPnl(portfolio),
+    portfolio_day_pnl: portfolioDayPnl,
+    monitor_day_pnl: monitorDayPnl,
   });
 }
