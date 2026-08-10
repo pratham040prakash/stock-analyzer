@@ -50,10 +50,12 @@ export type MonitorLiveSnapshot = {
 
 type HoldingSnapshot = {
   quantity: number;
+  t1Quantity: number;
   lastPrice: number;
   averagePrice: number;
   closePrice: number;
   dayChange: number | null;
+  m2m: number | null;
 };
 
 type PendingMonitorRow = {
@@ -150,6 +152,17 @@ export function computeMonitorPositionDayPnl(
     return null;
   }
 
+  if (
+    holding &&
+    holding.m2m !== null &&
+    Number.isFinite(holding.m2m)
+  ) {
+    const effectiveQty = holding.quantity + holding.t1Quantity;
+    if (effectiveQty > 0) {
+      return (holding.m2m / effectiveQty) * quantity;
+    }
+  }
+
   const close =
     previousClose ??
     (holding && holding.closePrice > 0 ? holding.closePrice : null);
@@ -224,6 +237,7 @@ function holdingsMapFromLivePortfolio(
     const symbol = normalizeSymbol(holding.tradingsymbol);
     holdingsBySymbol.set(symbol, {
       quantity: holding.quantity,
+      t1Quantity: Math.max(0, Math.round(holding.t1_quantity ?? 0)),
       lastPrice: holding.last_price,
       averagePrice: holding.average_price,
       closePrice:
@@ -234,6 +248,10 @@ function holdingsMapFromLivePortfolio(
         typeof holding.day_change === "number" &&
         Number.isFinite(holding.day_change)
           ? holding.day_change
+          : null,
+      m2m:
+        typeof holding.m2m === "number" && Number.isFinite(holding.m2m)
+          ? holding.m2m
           : null,
     });
   }
@@ -483,10 +501,12 @@ export async function getOpenMonitorPositions(
 export function runOpenMonitorEntrySelfCheck(): void {
   const holding: HoldingSnapshot = {
     quantity: 1,
+    t1Quantity: 0,
     lastPrice: 5058.7,
     averagePrice: 5058.7,
     closePrice: 5040,
     dayChange: 18.7,
+    m2m: null,
   };
 
   const resolved = resolveMonitorEntryPrice(5067, null, holding);

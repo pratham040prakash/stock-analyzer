@@ -109,7 +109,7 @@ export default function TodayMonitorStrip({
                 : "text-xs text-amber-200/90"
             }
           >
-            Day P&amp;L {dayPnl >= 0 ? "+" : "−"}₹
+            Tracked Day P&amp;L {dayPnl >= 0 ? "+" : "−"}₹
             {Math.abs(dayPnl).toLocaleString("en-IN")}
           </p>
         ) : null}
@@ -126,7 +126,7 @@ export default function TodayMonitorStrip({
       </div>
 
       <p className="text-[11px] leading-snug text-apex-muted/60">
-        Live prices update every 5s during market hours · positions refresh after trades.
+        Tracked positions only · full portfolio Day P&amp;L is in the header · live prices every 5s.
       </p>
     </div>
   );

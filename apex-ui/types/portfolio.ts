@@ -1,6 +1,8 @@
 export type Holding = {
   symbol: string;
   quantity: number;
+  /** Same-day CNC qty still in T1 — include in Day P&L like Zerodha. */
+  t1Quantity?: number;
   avgPrice: number;
   currentPrice: number;
   closePrice?: number;

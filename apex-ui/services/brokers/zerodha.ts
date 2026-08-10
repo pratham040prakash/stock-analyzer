@@ -16,6 +16,8 @@ import { normalizeSymbol } from "@/lib/stockPool";
 export type KiteHolding = {
   tradingsymbol: string;
   quantity: number;
+  /** Same-day purchase qty — not in `quantity` until settled. */
+  t1_quantity?: number;
   average_price: number;
   last_price: number;
   close_price?: number;
@@ -37,11 +39,24 @@ export type FetchMarginsResult =
   | { status: "TOKEN_EXPIRED" }
   | { status: "ERROR"; message: string };
 
+export function effectiveKiteHoldingQuantity(holding: {
+  quantity: number;
+  t1_quantity?: number;
+}): number {
+  const settled = Math.max(0, Math.round(holding.quantity));
+  const t1 = Math.max(0, Math.round(holding.t1_quantity ?? 0));
+  return settled + t1;
+}
+
 export function mapKiteHoldingsToPortfolio(holdings: KiteHolding[]): Portfolio {
   return {
     holdings: holdings.map((h) => ({
       symbol: h.tradingsymbol,
       quantity: h.quantity,
+      t1Quantity:
+        typeof h.t1_quantity === "number" && Number.isFinite(h.t1_quantity)
+          ? h.t1_quantity
+          : undefined,
       avgPrice: h.average_price,
       currentPrice: resolveKiteLastPrice(h),
       closePrice:
@@ -156,6 +171,10 @@ export function mergeKiteHoldingsAndPositions(
 
     const symbol = normalizeSymbol(position.tradingsymbol);
     if (merged.has(symbol)) {
+      const existing = merged.get(symbol)!;
+      if (typeof position.m2m === "number" && Number.isFinite(position.m2m)) {
+        merged.set(symbol, { ...existing, m2m: position.m2m });
+      }
       continue;
     }
 
@@ -180,30 +199,110 @@ export function mergeKiteHoldingsAndPositions(
   return [...merged.values()];
 }
 
+function effectivePortfolioQuantity(holding: {
+  quantity: number;
+  t1Quantity?: number;
+}): number {
+  const settled = Math.max(0, Math.round(holding.quantity));
+  const t1 = Math.max(0, Math.round(holding.t1Quantity ?? 0));
+  return settled + t1;
+}
+
+/** Align with Zerodha: position m2m when present, else day_change × (qty + t1). */
 export function computePortfolioDayPnl(portfolio: Portfolio): number | null {
   let total = 0;
   let hasDayData = false;
 
   for (const h of portfolio.holdings) {
+    const qty = effectivePortfolioQuantity(h);
+    if (qty <= 0) {
+      continue;
+    }
+
     if (h.dayM2m !== undefined && Number.isFinite(h.dayM2m)) {
       hasDayData = true;
       total += h.dayM2m;
       continue;
     }
 
-    if (h.closePrice !== undefined && h.closePrice > 0) {
+    if (h.dayChange !== undefined && Number.isFinite(h.dayChange)) {
       hasDayData = true;
-      total += (h.currentPrice - h.closePrice) * h.quantity;
+      total += h.dayChange * qty;
       continue;
     }
 
-    if (h.dayChange !== undefined && h.dayChange !== 0) {
+    if (h.closePrice !== undefined && h.closePrice > 0) {
       hasDayData = true;
-      total += h.dayChange * h.quantity;
+      total += (h.currentPrice - h.closePrice) * qty;
     }
   }
 
-  return hasDayData ? total : null;
+  return hasDayData ? Math.round(total * 10) / 10 : null;
+}
+
+export function runKiteDayPnlSelfCheck(): void {
+  const assert = (condition: boolean, message: string) => {
+    if (!condition) {
+      throw new Error(`Kite Day P&L self-check failed: ${message}`);
+    }
+  };
+
+  const t1Only = computePortfolioDayPnl(
+    mapKiteHoldingsToPortfolio([
+      {
+        tradingsymbol: "TITAN",
+        quantity: 0,
+        t1_quantity: 2,
+        average_price: 3500,
+        last_price: 3520,
+        close_price: 3510,
+        day_change: 10,
+      },
+    ]),
+  );
+  assert(t1Only === 20, "T1 quantity must count toward Day P&L");
+
+  const merged = mergeKiteHoldingsAndPositions(
+    [
+      {
+        tradingsymbol: "HEROMOTOCO",
+        quantity: 1,
+        average_price: 5000,
+        last_price: 5100,
+        close_price: 5050,
+        day_change: 50,
+      },
+    ],
+    [
+      {
+        tradingsymbol: "HEROMOTOCO",
+        product: "CNC",
+        quantity: 1,
+        average_price: 5000,
+        last_price: 5100,
+        close_price: 5050,
+        m2m: 48.5,
+      },
+    ],
+  );
+  assert(merged[0]?.m2m === 48.5, "Merged holding must inherit net position m2m");
+
+  const fromM2m = computePortfolioDayPnl(mapKiteHoldingsToPortfolio(merged));
+  assert(fromM2m === 48.5, "Day P&L must prefer broker m2m over day_change");
+
+  const dayChangeOnly = computePortfolioDayPnl(
+    mapKiteHoldingsToPortfolio([
+      {
+        tradingsymbol: "RELIANCE",
+        quantity: 3,
+        average_price: 1400,
+        last_price: 1410,
+        close_price: 1400,
+        day_change: 10,
+      },
+    ]),
+  );
+  assert(dayChangeOnly === 30, "Day P&L must use day_change × effective quantity");
 }
 
 export function computePortfolioMetrics(portfolio: Portfolio): {

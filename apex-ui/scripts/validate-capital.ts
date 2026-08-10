@@ -7,6 +7,7 @@ import { runCapitalDecisionLockSelfCheck } from "../lib/dailyLoop/capitalDecisio
 import { runCapitalMarginSelfCheck } from "../lib/dailyLoop/capitalMargin";
 import { runTodaySurfaceSelfCheck } from "../lib/dailyLoop/todaySurface";
 import { runZerodhaFundsSelfCheck } from "../lib/broker/zerodhaFunds";
+import { runKiteDayPnlSelfCheck } from "../services/brokers/zerodha";
 import { runCommitmentSelfCheck } from "../lib/dailyLoop/disciplineCommitment";
 import { runDisciplineHistoryMergeSelfCheck } from "../lib/dailyLoop/disciplineHistoryMerge";
 import { runTradingDateSelfCheck } from "../lib/dailyLoop/disciplineDates";
@@ -27,6 +28,7 @@ runCapitalDecisionLockSelfCheck();
 runCapitalMarginSelfCheck();
 runTodaySurfaceSelfCheck();
 runZerodhaFundsSelfCheck();
+runKiteDayPnlSelfCheck();
 runCommitmentSelfCheck();
 runDisciplineHistoryMergeSelfCheck();
 runTradingDateSelfCheck();
