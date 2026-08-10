@@ -5,6 +5,7 @@ import {
 } from "@/services/broker/kitePortfolio";
 import { checkStopLoss } from "@/services/risk/riskControl";
 import type { ZerodhaLiveQuote } from "@/services/brokers/zerodha";
+import { fetchZerodhaQuotes } from "@/services/brokers/zerodha";
 import { signalsIndicateBrokerFill } from "@/services/trade/logTradeFill";
 import { normalizeSymbol } from "@/lib/stockPool";
 import type { Signals } from "@/types/decision";
@@ -129,7 +130,20 @@ function isApexExecuteFill(
     return false;
   }
 
-  return true;
+  if (sig.fill_source === "execute" || sig.apex_executed === true) {
+    return true;
+  }
+
+  const filledDay = sig.filled_at?.slice(0, 10);
+  const todayKey = tradingDateKey();
+
+  // Legacy overnight holds (filled before today) — still monitor at broker avg.
+  if (filledDay && filledDay < todayKey) {
+    return true;
+  }
+
+  // Same-day fills without an execute tag are sync ghosts or explore picks — skip.
+  return false;
 }
 
 /** Monitor strip only tracks executed buys that are still held at the broker. */
@@ -503,6 +517,37 @@ async function buildPendingMonitorRows(
   return pending;
 }
 
+async function refreshHoldingsQuotesForMonitor(
+  live: LiveKitePortfolioResult,
+  pending: PendingMonitorRow[],
+  holdingsBySymbol: Map<string, HoldingSnapshot>,
+): Promise<void> {
+  if (live.status !== "OK" || pending.length === 0) {
+    return;
+  }
+
+  const symbols = [...new Set(pending.map((row) => row.stock))];
+  const quotes = await fetchZerodhaQuotes(live.token.accessToken, symbols);
+
+  for (const symbol of symbols) {
+    const quote = quotes.get(symbol);
+    const holding = holdingsBySymbol.get(symbol);
+
+    if (!quote?.lastPrice || !holding) {
+      continue;
+    }
+
+    const close = quote.previousClose ?? holding.closePrice;
+    holdingsBySymbol.set(symbol, {
+      ...holding,
+      lastPrice: quote.lastPrice,
+      closePrice: close > 0 ? close : holding.closePrice,
+      dayChange:
+        close > 0 ? quote.lastPrice - close : holding.dayChange,
+    });
+  }
+}
+
 export async function getOpenMonitorLiveSnapshot(
   supabase: Client,
   userId: string,
@@ -520,6 +565,8 @@ export async function getOpenMonitorLiveSnapshot(
   if (pending.length === 0) {
     return { openPnl: null, dayPnl: null, ticks: [] };
   }
+
+  await refreshHoldingsQuotesForMonitor(live, pending, holdingsBySymbol);
 
   return {
     openPnl: sumMonitorOpenPnl(pending, holdingsBySymbol),
@@ -562,6 +609,8 @@ export async function getOpenMonitorPositions(
   if (pending.length === 0) {
     return { positions: [], openPnl: null, dayPnl: null };
   }
+
+  await refreshHoldingsQuotesForMonitor(livePortfolio, pending, holdingsBySymbol);
 
   const includePositions = options?.includePositions !== false;
   const openPnl = sumMonitorOpenPnl(pending, holdingsBySymbol);
@@ -705,11 +754,20 @@ export function runOpenMonitorEntrySelfCheck(): void {
     ...filledSignals,
     monitored: undefined,
     fill_source: undefined,
+    filled_at: `${tradingDateKey()}T09:30:00.000Z`,
+  };
+
+  const legacyOvernightFill = {
+    ...filledSignals,
+    fill_source: undefined,
+    apex_executed: undefined,
+    filled_at: "2026-08-09T09:30:00.000Z",
   };
 
   if (
     isExecutedOpenMonitorDecision(filledSignals, holding, 5067, tradingDateKey()) !== true ||
-    isExecutedOpenMonitorDecision(legacyFill, holding, 5067, tradingDateKey()) !== true ||
+    isExecutedOpenMonitorDecision(legacyOvernightFill, holding, 5067, tradingDateKey()) !== true ||
+    isExecutedOpenMonitorDecision(legacyFill, holding, 5067, tradingDateKey()) !== false ||
     isExecutedOpenMonitorDecision(filledSignals, undefined, 5067, tradingDateKey()) !== false ||
     isExecutedOpenMonitorDecision(null, holding, 5067, tradingDateKey()) !== false ||
     isExecutedOpenMonitorDecision(ghostSignals, holding, 5067, tradingDateKey()) !== false ||

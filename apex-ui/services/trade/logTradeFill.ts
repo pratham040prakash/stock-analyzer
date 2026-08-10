@@ -28,9 +28,42 @@ function fillSignals(
     order_id: orderId,
     fill_price: price,
     filled_at: new Date().toISOString(),
-    monitored: true,
+    monitored: fillSource === "execute",
     fill_source: fillSource,
+    apex_executed: fillSource === "execute" ? true : undefined,
   };
+}
+
+/** Record a sync-imported order without attaching to an open APEX buy decision. */
+async function logSyncOnlyBrokerFill(
+  supabase: Client,
+  userId: string,
+  fill: TradeFillInput,
+): Promise<string | null> {
+  const today = tradingDateKey();
+
+  const { data, error } = await supabase
+    .from("decision_memory")
+    .insert({
+      user_id: userId,
+      timestamp_ms: Date.now(),
+      decision_date: today,
+      stock: fill.stock,
+      action: "hold",
+      amount: fill.amount,
+      confidence: 0,
+      entry_price: fill.price,
+      quantity: fill.quantity,
+      signals: fillSignals(fill.orderId, fill.price, "sync"),
+    })
+    .select("id")
+    .single();
+
+  if (error || !data) {
+    return null;
+  }
+
+  return data.id;
 }
 
 export function signalsIndicateBrokerFill(signals: Signals | null | undefined): boolean {
@@ -193,6 +226,10 @@ export async function logTradeFill(
   fill: TradeFillInput,
 ): Promise<string | null> {
   if (fill.side === "buy") {
+    if (fill.fillSource === "sync") {
+      return logSyncOnlyBrokerFill(supabase, userId, fill);
+    }
+
     const stopLoss = computeStopLoss(fill.price);
     const today = tradingDateKey();
 
@@ -331,6 +368,20 @@ export function runTradeFillSelfCheck(): void {
   assert(
     !signalsIndicateBrokerFill({ trend: 1, momentum: 1, volume: 1 }),
     "Missing fill metadata must not count as broker fill",
+  );
+
+  const executeSignals = fillSignals("111", 100, "execute");
+  assert(
+    executeSignals.monitored === true && executeSignals.apex_executed === true,
+    "Execute fills must be monitored and apex_executed",
+  );
+
+  const syncSignals = fillSignals("222", 100, "sync");
+  assert(
+    syncSignals.monitored === false &&
+      syncSignals.fill_source === "sync" &&
+      syncSignals.apex_executed === undefined,
+    "Sync fills must not be monitored",
   );
 
   const detail = describeBrokerFill(
