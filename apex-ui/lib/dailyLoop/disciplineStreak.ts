@@ -95,16 +95,16 @@ export function getBrokerStepLine(
   executionKind?: TodayExecutionKind,
   brokerStepCompleted = false,
 ): string | null {
-  if (!committedToday) {
-    return null;
-  }
-
   if (executionKind !== "SELL" && executionKind !== "BUY") {
     return null;
   }
 
   if (brokerStepCompleted) {
     return "Broker step completed for today.";
+  }
+
+  if (!committedToday) {
+    return null;
   }
 
   return "Broker step still open · See plan below.";
@@ -283,6 +283,11 @@ export function runDisciplineStatusSelfCheck(): void {
     getBrokerStepLine(true, "SELL") ===
       "Broker step still open · See plan below.",
     "Sell plans must surface broker step after discipline commit",
+  );
+  assert(
+    getBrokerStepLine(false, "SELL", true) ===
+      "Broker step completed for today.",
+    "Broker completion must show before discipline commit lands",
   );
   assert(
     getBrokerStepLine(true, "SELL", true) === "Broker step completed for today.",

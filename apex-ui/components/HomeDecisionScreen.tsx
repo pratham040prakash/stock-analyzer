@@ -222,7 +222,14 @@ export default function HomeDecisionScreen({
     [capitalDecision, decision.suggested_sell_percent],
   );
 
-  const [brokerStepCompleted, setBrokerStepCompleted] = useState(false);
+  const [brokerStepCompleted, setBrokerStepCompleted] = useState(() => {
+    const symbol = decision.stock?.trim().toUpperCase();
+    if (!symbol || typeof window === "undefined") {
+      return false;
+    }
+
+    return readBrokerStepCompleted(symbol);
+  });
   const [brokerFillSummary, setBrokerFillSummary] =
     useState<BrokerFillSummary | null>(null);
 
@@ -349,6 +356,12 @@ export default function HomeDecisionScreen({
   );
 
   useEffect(() => {
+    if (!brokerStepCompleted) {
+      return;
+    }
+
+    onDisciplineCommitted?.();
+
     if (
       !shouldAutoCommitDisciplineAfterBrokerFill(
         brokerStepCompleted,
@@ -361,6 +374,7 @@ export default function HomeDecisionScreen({
     retention.commitFollowed();
   }, [
     brokerStepCompleted,
+    onDisciplineCommitted,
     retention.commitFollowed,
     retention.committedToday,
   ]);
