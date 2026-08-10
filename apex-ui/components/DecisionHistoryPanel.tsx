@@ -1,8 +1,5 @@
 "use client";
 
-import DisciplineHistoryStrip, {
-  formatDisciplineSummary,
-} from "@/components/dailyLoop/DisciplineHistoryStrip";
 import type {
   DisciplineHistoryEntry,
   DisciplineHistorySummary,
@@ -114,20 +111,18 @@ function HistoryRow({ entry }: { entry: DisciplineHistoryEntry }) {
 
 export default function DecisionHistoryPanel({
   history,
-  summary,
-  days,
+  summary: _summary,
+  days: _days,
   showDetailRows = true,
   activationEnabled = false,
   onPremiumActivated,
 }: Props) {
   return (
     <ApexCard hover={false} padding="compact">
-      <ApexEyebrow className="mb-1">Last 7 days</ApexEyebrow>
+      <ApexEyebrow className="mb-1">Decision log</ApexEyebrow>
       <p className="mb-4 text-sm text-apex-muted/75">
-        {formatDisciplineSummary(summary)}
+        Day-by-day record. Your weekly summary lives on Today above.
       </p>
-
-      <DisciplineHistoryStrip days={days} history={history} />
 
       {history.length === 0 ? (
         <div className="mt-4 rounded-lg border border-apex-border/15 bg-white/[0.02] px-3 py-4">

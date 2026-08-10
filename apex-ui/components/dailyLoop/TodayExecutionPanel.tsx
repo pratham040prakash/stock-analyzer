@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import type { EntryTimingState } from "@/components/decision/ExecutionPlanCard";
 import { apiFetch, parseApiJson, readTradeExecutionError } from "@/lib/api/clientFetch";
 import { formatInr } from "@/lib/funds";
-import { getMarketOrderBlockReason } from "@/lib/broker/marketSession";
+import { useMarketSession } from "@/lib/broker/useMarketSession";
 import type { TodayHero } from "@/lib/dailyLoop/todaySurface";
 import { computeSellImpact } from "@/lib/sellImpact";
 import type { ExecutionPlanSafeOutput } from "@/services/execution/executionPlanEngine";
@@ -95,8 +95,7 @@ export default function TodayExecutionPanel({
   const [needsZerodhaReconnect, setNeedsZerodhaReconnect] = useState(false);
 
   const canEnter = entryTiming?.enter ?? true;
-  const marketBlockReason = getMarketOrderBlockReason();
-  const canPlaceMarketOrder = marketBlockReason === null;
+  const { blockReason: marketBlockReason, canPlaceMarketOrder } = useMarketSession();
 
   const targetFromPlan = useMemo(() => {
     if (!plan?.steps.length) {
@@ -273,9 +272,8 @@ export default function TodayExecutionPanel({
           {marketBlockReason ? (
             <p className="text-sm text-amber-200/90">{marketBlockReason}</p>
           ) : (
-            <p className="text-xs text-apex-muted/65">
-              Stop loss and staged targets apply on buy setups. Today is a trim-only
-              action.
+            <p className="text-sm text-emerald-200/90">
+              Market is open — orders execute on Zerodha now.
             </p>
           )}
           <ApexButton
@@ -420,7 +418,11 @@ export default function TodayExecutionPanel({
         </p>
         {marketBlockReason ? (
           <p className="text-sm text-amber-200/90">{marketBlockReason}</p>
-        ) : null}
+        ) : (
+          <p className="text-sm text-emerald-200/90">
+            Market is open — entry and stop-loss orders execute on Zerodha now.
+          </p>
+        )}
         <ApexButton
           type="button"
           disabled={processing || !canEnter || !canPlaceMarketOrder}
