@@ -118,6 +118,8 @@ export type KiteNetPosition = {
   unrealised?: number;
   /** Set when last_price came from a live /quote batch. */
   ltpFromQuote?: boolean;
+  /** Set when last_price came from holdings LTP (fresher than net position). */
+  ltpFromHolding?: boolean;
 };
 
 export type FetchNetPositionsResult =
@@ -218,12 +220,13 @@ export type ZerodhaPositionPnlRow = {
   last_price: number;
   pnl: number;
   live_quote?: boolean;
+  ltp_source?: "quote" | "holding" | "kite";
 };
 
 function netPositionRowPnl(position: KiteNetPosition, ltp: number): number {
   const fromLtp = roundPnl((ltp - position.average_price) * position.quantity);
 
-  if (position.ltpFromQuote) {
+  if (position.ltpFromQuote || position.ltpFromHolding) {
     return fromLtp;
   }
 
@@ -279,6 +282,11 @@ export function computeZerodhaPositionsBreakdown(
       last_price: ltp,
       pnl: netPositionRowPnl(position, ltp),
       live_quote: position.ltpFromQuote === true,
+      ltp_source: position.ltpFromQuote
+        ? "quote"
+        : position.ltpFromHolding
+          ? "holding"
+          : "kite",
     });
   }
 
@@ -783,6 +791,24 @@ export function runKiteDayPnlSelfCheck(): void {
   assert(
     preferKitePnl !== null && Math.abs(preferKitePnl - 3.9) < 0.01,
     "Positions P&L must trust Kite pnl when quote LTP is unavailable",
+  );
+
+  const preferHoldingLtp = computeZerodhaPositionsPnl(
+    [],
+    [
+      {
+        tradingsymbol: "HEROMOTOCO",
+        product: "CNC",
+        quantity: 1,
+        average_price: 5856.1,
+        last_price: 5860,
+        ltpFromHolding: true,
+      },
+    ],
+  );
+  assert(
+    preferHoldingLtp !== null && Math.abs(preferHoldingLtp - 3.9) < 0.01,
+    "Positions P&L must use holdings LTP when quote is unavailable",
   );
 
   const breakdown = computeZerodhaPositionsBreakdown(

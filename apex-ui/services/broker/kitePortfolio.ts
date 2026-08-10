@@ -34,11 +34,26 @@ function roundPnl(value: number): number {
   return Math.round(value * 10) / 10;
 }
 
+function holdingLtpBySymbol(holdings: KiteHolding[]): Map<string, number> {
+  const map = new Map<string, number>();
+
+  for (const holding of holdings) {
+    const symbol = normalizeSymbol(holding.tradingsymbol);
+    const ltp = resolveKiteLastPrice(holding);
+    if (symbol && ltp > 0) {
+      map.set(symbol, ltp);
+    }
+  }
+
+  return map;
+}
+
 /** One /quote batch for holdings + net legs — avoids stale Kite position LTP. */
 async function enrichKitePortfolioPrices(
   accessToken: string,
   holdings: KiteHolding[],
   netPnl: KiteNetPosition[],
+  rawHoldingLtp: Map<string, number>,
 ): Promise<{ holdings: KiteHolding[]; netPnl: KiteNetPosition[] }> {
   const symbols = [
     ...new Set(
@@ -75,6 +90,8 @@ async function enrichKitePortfolioPrices(
     };
   });
 
+  const quotedHoldingLtp = holdingLtpBySymbol(enrichedHoldings);
+
   const enrichedNetPnl = netPnl.map((position) => {
     const symbol = normalizeSymbol(position.tradingsymbol);
     const quoteLtp = quotes.get(symbol)?.lastPrice;
@@ -88,7 +105,25 @@ async function enrichKitePortfolioPrices(
       };
     }
 
-    // Keep Kite's native pnl — stale last_price recalc caused −₹48 vs Positions +₹24.
+    // Holdings /quote LTP is usually fresher than net position last_price.
+    const holdingLtp =
+      quotedHoldingLtp.get(symbol) ?? rawHoldingLtp.get(symbol);
+    if (
+      position.quantity > 0 &&
+      typeof holdingLtp === "number" &&
+      holdingLtp > 0
+    ) {
+      return {
+        ...position,
+        last_price: holdingLtp,
+        ltpFromHolding: true as const,
+        pnl: roundPnl(
+          (holdingLtp - position.average_price) * position.quantity,
+        ),
+      };
+    }
+
+    // Short legs (e.g. JIOFIN −1) — keep Kite native pnl, not stale LTP recalc.
     return position;
   });
 
@@ -137,10 +172,12 @@ export async function fetchLiveKitePortfolio(
     const dayPositions: KiteNetPosition[] =
       positionsResult.status === "OK" ? positionsResult.day : [];
     const merged = mergeKiteHoldingsAndPositions(holdings, netPositions);
+    const rawHoldingLtp = holdingLtpBySymbol(holdings);
     const enriched = await enrichKitePortfolioPrices(
       candidate.accessToken,
       merged,
       netPnlPositions,
+      rawHoldingLtp,
     );
 
     return {
