@@ -159,26 +159,44 @@ function roundPnl(value: number): number {
 
 /** Matches Zerodha Positions tab total P&L — sum of (LTP − avg) × qty. */
 export function computeZerodhaPositionsPnl(
+  holdings: KiteHolding[],
   netPositions: KiteNetPosition[],
 ): number | null {
-  let total = 0;
-  let hasRow = false;
+  const netBySymbol = new Map<string, KiteNetPosition>();
 
   for (const position of netPositions) {
     if (position.product !== "CNC" || position.quantity === 0) {
       continue;
     }
 
-    hasRow = true;
+    netBySymbol.set(normalizeSymbol(position.tradingsymbol), position);
+  }
 
-    if (typeof position.pnl === "number" && Number.isFinite(position.pnl)) {
-      total += position.pnl;
+  let total = 0;
+  let hasRow = false;
+  const counted = new Set<string>();
+
+  for (const [symbol, position] of netBySymbol) {
+    counted.add(symbol);
+    hasRow = true;
+    const ltp = resolveKiteLastPrice(position);
+    total += (ltp - position.average_price) * position.quantity;
+  }
+
+  for (const holding of holdings) {
+    const symbol = normalizeSymbol(holding.tradingsymbol);
+    if (counted.has(symbol)) {
       continue;
     }
 
-    const ltp = resolveKiteLastPrice(position);
-    const avg = position.average_price;
-    total += (ltp - avg) * position.quantity;
+    const qty = effectiveKiteHoldingQuantity(holding);
+    if (qty <= 0) {
+      continue;
+    }
+
+    hasRow = true;
+    const ltp = resolveKiteLastPrice(holding);
+    total += (ltp - holding.average_price) * qty;
   }
 
   return hasRow ? roundPnl(total) : null;
@@ -535,6 +553,31 @@ export function runKiteDayPnlSelfCheck(): void {
   const positionsPnl = computeZerodhaPositionsPnl([
     {
       tradingsymbol: "GRASIM",
+      quantity: 1,
+      average_price: 3393.3,
+      last_price: 3380.5,
+    },
+    {
+      tradingsymbol: "HEROMOTOCO",
+      quantity: 1,
+      average_price: 5856.1,
+      last_price: 5860,
+    },
+    {
+      tradingsymbol: "JIOFIN",
+      quantity: -1,
+      average_price: 255.9,
+      last_price: 254,
+    },
+    {
+      tradingsymbol: "TITAN",
+      quantity: 1,
+      average_price: 5058.7,
+      last_price: 5090,
+    },
+  ], [
+    {
+      tradingsymbol: "GRASIM",
       product: "CNC",
       quantity: 1,
       average_price: 3393.3,
@@ -565,6 +608,37 @@ export function runKiteDayPnlSelfCheck(): void {
   assert(
     positionsPnl !== null && Math.abs(positionsPnl - 24.3) < 0.01,
     "Positions P&L must match Zerodha Positions export total",
+  );
+
+  const holdingsOnly = computeZerodhaPositionsPnl(
+    [
+      {
+        tradingsymbol: "GRASIM",
+        quantity: 1,
+        average_price: 3393.3,
+        last_price: 3380.5,
+      },
+    ],
+    [],
+  );
+  assert(
+    holdingsOnly !== null && Math.abs(holdingsOnly - (-12.8)) < 0.01,
+    "Positions P&L must include CNC holdings missing from net positions",
+  );
+
+  const ignoreStaleKitePnl = computeZerodhaPositionsPnl([], [
+    {
+      tradingsymbol: "TITAN",
+      product: "CNC",
+      quantity: 1,
+      average_price: 5058.7,
+      last_price: 5090,
+      pnl: -999,
+    },
+  ]);
+  assert(
+    ignoreStaleKitePnl !== null && Math.abs(ignoreStaleKitePnl - 31.3) < 0.01,
+    "Positions P&L must derive from LTP and avg, not stale Kite pnl field",
   );
 }
 

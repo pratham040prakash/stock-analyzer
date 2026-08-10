@@ -33,7 +33,7 @@ export async function GET() {
 
   const positionsPnl =
     live.status === "OK"
-      ? computeZerodhaPositionsPnl(live.netPnlPositions)
+      ? computeZerodhaPositionsPnl(live.holdings, live.netPnlPositions)
       : null;
 
   const monitor = await getOpenMonitorLiveSnapshot(supabase, user.id, live);

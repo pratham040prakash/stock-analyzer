@@ -107,7 +107,7 @@ export async function GET() {
   await syncBrokerActivityFromKite(supabase, user.id);
 
   const formatted = formatPortfolioHoldings(portfolio, live.dayPositions);
-  const positions_pnl = computeZerodhaPositionsPnl(live.netPnlPositions);
+  const positions_pnl = computeZerodhaPositionsPnl(live.holdings, live.netPnlPositions);
   return okResponse({
     holdings: formatted.holdings,
     total_value: formatted.total_value,

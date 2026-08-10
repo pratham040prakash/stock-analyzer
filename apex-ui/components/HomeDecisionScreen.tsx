@@ -373,7 +373,9 @@ export default function HomeDecisionScreen({
   } = useDayPnlPoll({
     enabled: dayPnlPollEnabled,
   });
-  const resolvedOpenPnl = livePositionsPnl ?? dayPnl;
+  const resolvedOpenPnl =
+    livePositionsPnl ??
+    (connectionStatus === "CONNECTED" ? null : dayPnl);
   const monitorStripOpenPnl = monitorLiveOpenPnl;
   const monitorLiveTicksById = useMemo(() => {
     const map: Record<string, (typeof positionTicks)[number]> = {};

@@ -53,7 +53,9 @@ export function useDayPnlPoll({ enabled }: Options) {
         return;
       }
 
-      setPositionsPnl(data.positions_pnl ?? data.portfolio_day_pnl ?? null);
+      setPositionsPnl(
+        typeof data.positions_pnl === "number" ? data.positions_pnl : null,
+      );
       setPortfolioDayPnl(data.portfolio_day_pnl ?? null);
       setMonitorOpenPnl(data.monitor_open_pnl ?? null);
       setPositionTicks(data.position_ticks ?? []);
