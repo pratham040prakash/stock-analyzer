@@ -13,6 +13,7 @@ import { runTradingDateSelfCheck } from "../lib/dailyLoop/disciplineDates";
 import { runDisciplineStatusSelfCheck } from "../lib/dailyLoop/disciplineStreak";
 import { runBrokerStepStateSelfCheck } from "../lib/dailyLoop/brokerStepState";
 import { runMarketSessionSelfCheck } from "../lib/broker/marketSession";
+import { runTradeExecutionErrorSelfCheck } from "../lib/api/clientFetch";
 import { runTradeFillSelfCheck } from "../services/trade/logTradeFill";
 
 runCapitalProjectionSelfCheck();
@@ -27,4 +28,5 @@ runTradingDateSelfCheck();
 runDisciplineStatusSelfCheck();
 runBrokerStepStateSelfCheck();
 runMarketSessionSelfCheck();
+runTradeExecutionErrorSelfCheck();
 runTradeFillSelfCheck();

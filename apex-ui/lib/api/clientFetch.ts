@@ -65,6 +65,46 @@ export function readApiErrorMessage(
   return fallback;
 }
 
+export type TradeExecutionError = {
+  message: string;
+  needsZerodhaReconnect: boolean;
+};
+
+/** Map trade API failures to user-facing copy and reconnect affordances. */
+export function readTradeExecutionError(
+  res: Response,
+  data: ApiEnvelope | null | undefined,
+  fallback: string,
+): TradeExecutionError {
+  const message = readApiErrorMessage(data, fallback);
+  const needsZerodhaReconnect =
+    res.status === 401 ||
+    res.status === 409 ||
+    /session expired|not connected|reconnect/i.test(message);
+
+  return { message, needsZerodhaReconnect };
+}
+
+export function runTradeExecutionErrorSelfCheck(): void {
+  const expired = readTradeExecutionError(
+    { status: 401 } as Response,
+    { status: "error", message: "Zerodha session expired — reconnect to trade" },
+    "fallback",
+  );
+  if (!expired.needsZerodhaReconnect) {
+    throw new Error("Trade error self-check failed: expired session must prompt reconnect");
+  }
+
+  const marketClosed = readTradeExecutionError(
+    { status: 400 } as Response,
+    { status: "error", message: "Market is closed. NSE cash orders execute 9:15 AM – 3:30 PM IST, Monday–Friday." },
+    "fallback",
+  );
+  if (marketClosed.needsZerodhaReconnect) {
+    throw new Error("Trade error self-check failed: market closed must not prompt reconnect");
+  }
+}
+
 export async function apiFetchJson<T>(
   input: RequestInfo | URL,
   init?: RequestInit,

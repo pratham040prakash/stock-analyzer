@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import type { EntryTimingState } from "@/components/decision/ExecutionPlanCard";
-import { apiFetch, parseApiJson, readApiErrorMessage } from "@/lib/api/clientFetch";
+import { apiFetch, parseApiJson, readTradeExecutionError } from "@/lib/api/clientFetch";
 import { formatInr } from "@/lib/funds";
 import { getMarketOrderBlockReason } from "@/lib/broker/marketSession";
 import type { TodayHero } from "@/lib/dailyLoop/todaySurface";
@@ -55,6 +55,28 @@ function PlanStepRow({ index, text }: { index: number; text: string }) {
   );
 }
 
+function TradeErrorNotice({
+  message,
+  showReconnect,
+}: {
+  message: string;
+  showReconnect: boolean;
+}) {
+  return (
+    <div className="space-y-2">
+      <p className="text-sm text-amber-200/90">{message}</p>
+      {showReconnect ? (
+        <a
+          href="/api/zerodha/login"
+          className="inline-flex text-sm font-medium text-blue-200 underline underline-offset-2"
+        >
+          Reconnect Zerodha
+        </a>
+      ) : null}
+    </div>
+  );
+}
+
 export default function TodayExecutionPanel({
   hero,
   portfolioValue,
@@ -70,6 +92,7 @@ export default function TodayExecutionPanel({
   const [processing, setProcessing] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [needsZerodhaReconnect, setNeedsZerodhaReconnect] = useState(false);
 
   const canEnter = entryTiming?.enter ?? true;
   const marketBlockReason = getMarketOrderBlockReason();
@@ -123,6 +146,7 @@ export default function TodayExecutionPanel({
 
       setProcessing(true);
       setError(null);
+      setNeedsZerodhaReconnect(false);
       setFeedback(null);
 
       try {
@@ -141,12 +165,13 @@ export default function TodayExecutionPanel({
         );
 
         if (!res.ok || !data?.orderId) {
-          setError(
-            readApiErrorMessage(
-              data,
-              "Could not place sell order. Check Zerodha connection.",
-            ),
+          const tradeError = readTradeExecutionError(
+            res,
+            data,
+            "Could not place sell order. Check Zerodha connection.",
           );
+          setError(tradeError.message);
+          setNeedsZerodhaReconnect(tradeError.needsZerodhaReconnect);
           return;
         }
 
@@ -171,6 +196,7 @@ export default function TodayExecutionPanel({
 
     setProcessing(true);
     setError(null);
+    setNeedsZerodhaReconnect(false);
     setFeedback(null);
 
     try {
@@ -189,12 +215,13 @@ export default function TodayExecutionPanel({
       );
 
       if (!res.ok || !data?.orderId) {
-        setError(
-          readApiErrorMessage(
-            data,
-            "Could not place buy order. Check cash and entry rules.",
-          ),
+        const tradeError = readTradeExecutionError(
+          res,
+          data,
+          "Could not place buy order. Check cash and entry rules.",
         );
+        setError(tradeError.message);
+        setNeedsZerodhaReconnect(tradeError.needsZerodhaReconnect);
         return;
       }
 
@@ -275,7 +302,12 @@ export default function TodayExecutionPanel({
           {feedback ? (
             <p className="text-sm text-emerald-200/90">{feedback}</p>
           ) : null}
-          {error ? <p className="text-sm text-amber-200/90">{error}</p> : null}
+          {error ? (
+            <TradeErrorNotice
+              message={error}
+              showReconnect={needsZerodhaReconnect}
+            />
+          ) : null}
         </div>
 
         {sellImpact && hero.symbol ? (
@@ -405,7 +437,12 @@ export default function TodayExecutionPanel({
         {feedback ? (
           <p className="text-sm text-emerald-200/90">{feedback}</p>
         ) : null}
-        {error ? <p className="text-sm text-amber-200/90">{error}</p> : null}
+        {error ? (
+          <TradeErrorNotice
+            message={error}
+            showReconnect={needsZerodhaReconnect}
+          />
+        ) : null}
       </div>
     );
   }

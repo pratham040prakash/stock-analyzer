@@ -168,6 +168,35 @@ async function runChecks(baseUrl: string): Promise<VerifyReport> {
     });
   }
 
+  const tradeExecute = await fetchCheck(`${baseUrl}/api/trade/execute`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ side: "sell", stock: "RELIANCE", sellPercent: 25 }),
+  });
+  const tradeExecuteBody = isRecord(tradeExecute.body) ? tradeExecute.body : null;
+
+  record(checks, {
+    id: "auth-trade-execute",
+    label: "POST /api/trade/execute rejects unauthenticated requests",
+    ok: tradeExecute.status === 401 && tradeExecuteBody?.status === "error",
+    detail: `status=${tradeExecute.status}`,
+    critical: true,
+  });
+
+  const funds = await fetchCheck(`${baseUrl}/api/funds`);
+  const fundsBody = isRecord(funds.body) ? funds.body : null;
+
+  record(checks, {
+    id: "auth-funds",
+    label: "/api/funds rejects unauthenticated session",
+    ok:
+      funds.status === 200 &&
+      fundsBody?.status === "NOT_CONNECTED" &&
+      fundsBody?.statusCode === 401,
+    detail: `status=${funds.status} body=${String(fundsBody?.status ?? "missing")}`,
+    critical: true,
+  });
+
   const login = await fetchCheck(`${baseUrl}/login`);
   record(checks, {
     id: "login-page",
@@ -218,6 +247,14 @@ async function runChecks(baseUrl: string): Promise<VerifyReport> {
         path: "/api/trade/status?stock=RELIANCE",
         validate: (body: Record<string, unknown> | null) =>
           body?.status === "ok" && typeof body.filledToday === "boolean",
+      },
+      {
+        id: "authed-funds",
+        path: "/api/funds",
+        validate: (body: Record<string, unknown> | null) =>
+          typeof body?.status === "string" &&
+          typeof body?.portfolio_value === "number" &&
+          typeof body?.margin_available === "number",
       },
     ] as const;
 

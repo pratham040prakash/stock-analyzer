@@ -66,7 +66,10 @@ Use the **site root only** — not `/app` (wrong: `…vercel.app/app` → 307 re
 Optional authenticated checks (copy session cookie from browser devtools):
 
 ```bash
-APEX_VERIFY_COOKIE='sb-...' APEX_VERIFY_BASE_URL=https://your-app.vercel.app npm run verify:prod
+# Application → Cookies → your domain → sb-*-auth-token (URL-decode the value if needed)
+APEX_VERIFY_COOKIE='sb-...-auth-token=...' APEX_VERIFY_BASE_URL=https://your-app.vercel.app npm run verify:prod
 ```
+
+With a valid cookie, verify also checks discipline, trust, history, tier, trade status, and funds.
 
 Check out the [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
