@@ -15,6 +15,7 @@ import {
   getLatestPortfolioSnapshot,
   savePortfolioSnapshot,
 } from "@/services/portfolio/repository";
+import { syncBrokerActivityFromKite } from "@/services/trade/syncBrokerActivity";
 import { createClient } from "@/lib/supabase/server";
 import type { PortfolioApiResponse } from "@/types/portfolioApi";
 
@@ -122,6 +123,7 @@ export async function GET() {
   const portfolio = mapKiteHoldingsToPortfolio(holdingsResult.data);
   const metrics = computePortfolioMetrics(portfolio);
   await savePortfolioSnapshot(supabase, user.id, portfolio, metrics);
+  await syncBrokerActivityFromKite(supabase, user.id);
 
   const formatted = formatPortfolioHoldings(portfolio);
   return okResponse({

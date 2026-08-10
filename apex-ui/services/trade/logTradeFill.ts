@@ -143,6 +143,34 @@ export async function getBrokerFillToday(
   return { filled: false };
 }
 
+/** Order IDs already logged in decision_memory for the trading day. */
+export async function getLoggedBrokerOrderIdsToday(
+  supabase: Client,
+  userId: string,
+  dateKey = tradingDateKey(),
+): Promise<Set<string>> {
+  const { data, error } = await supabase
+    .from("decision_memory")
+    .select("signals")
+    .eq("user_id", userId)
+    .eq("decision_date", dateKey);
+
+  if (error || !data?.length) {
+    return new Set();
+  }
+
+  const orderIds = new Set<string>();
+
+  for (const row of data) {
+    const signals = row.signals as Signals | null;
+    if (signals?.order_id) {
+      orderIds.add(String(signals.order_id));
+    }
+  }
+
+  return orderIds;
+}
+
 export async function hasBrokerFillToday(
   supabase: Client,
   userId: string,

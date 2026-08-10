@@ -201,6 +201,51 @@ export async function fetchZerodhaTrades(
   }
 }
 
+export type KiteOrder = {
+  order_id: string;
+  tradingsymbol: string;
+  transaction_type: "BUY" | "SELL" | string;
+  status: string;
+  quantity: number;
+  filled_quantity: number;
+  average_price: number;
+  order_timestamp: string;
+};
+
+export type FetchOrdersResult =
+  | { status: "OK"; data: KiteOrder[] }
+  | { status: "TOKEN_EXPIRED" }
+  | { status: "ERROR"; message: string };
+
+export async function fetchZerodhaOrders(
+  accessToken: string,
+): Promise<FetchOrdersResult> {
+  const config = getZerodhaConfig();
+
+  if (!config.configured) {
+    return { status: "ERROR", message: "Zerodha is not configured" };
+  }
+
+  try {
+    const res = await axios.get("https://api.kite.trade/orders", {
+      headers: kiteAuthHeaders(config.apiKey, accessToken),
+    });
+
+    const data = res.data?.data;
+    if (!Array.isArray(data)) {
+      return { status: "ERROR", message: "Invalid orders response from Zerodha" };
+    }
+
+    return { status: "OK", data: data as KiteOrder[] };
+  } catch (err) {
+    if (axios.isAxiosError(err) && err.response?.status === 401) {
+      return { status: "TOKEN_EXPIRED" };
+    }
+
+    return { status: "ERROR", message: kiteErrorMessage(err) };
+  }
+}
+
 export async function placeZerodhaOrder(
   accessToken: string,
   params: {

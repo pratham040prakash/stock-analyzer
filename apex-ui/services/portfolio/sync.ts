@@ -19,6 +19,7 @@ import {
   saveMentorOutput,
   savePortfolioSnapshot,
 } from "@/services/portfolio/repository";
+import { syncBrokerActivityFromKite } from "@/services/trade/syncBrokerActivity";
 import type { Database } from "@/types/database";
 import type { DailyDecisionOutput } from "@/types/decision";
 import type { Portfolio } from "@/types/portfolio";
@@ -32,6 +33,14 @@ export type SyncResult =
       portfolio: Portfolio;
       mentorDecision: MentorDecision;
       dailyDecision: DailyDecisionOutput;
+      brokerActivity?: {
+        imported: number;
+        skipped: number;
+        symbols: string[];
+        tradesSeen: number;
+        ordersSeen: number;
+        openOrders: number;
+      };
     }
   | { status: "NOT_CONNECTED" }
   | { status: "TOKEN_EXPIRED" }
@@ -66,6 +75,19 @@ export async function syncUserPortfolio(
   const metrics = computePortfolioMetrics(portfolio);
 
   await savePortfolioSnapshot(supabase, userId, portfolio, metrics);
+
+  const brokerActivityResult = await syncBrokerActivityFromKite(supabase, userId);
+  const brokerActivity =
+    brokerActivityResult.status === "OK"
+      ? {
+          imported: brokerActivityResult.imported,
+          skipped: brokerActivityResult.skipped,
+          symbols: brokerActivityResult.symbols,
+          tradesSeen: brokerActivityResult.tradesSeen,
+          ordersSeen: brokerActivityResult.ordersSeen,
+          openOrders: brokerActivityResult.openOrders,
+        }
+      : undefined;
 
   const financialProfile = await getFinancialProfileFromDb(supabase, userId);
   const mentorResult = evaluateMentor({
@@ -106,6 +128,7 @@ export async function syncUserPortfolio(
     portfolio,
     mentorDecision: mentorResult.decision,
     dailyDecision,
+    brokerActivity,
   };
 }
 

@@ -18,6 +18,7 @@ export async function POST() {
     return apiOk({
       portfolio: result.portfolio,
       mentorDecision: result.mentorDecision,
+      brokerActivity: result.brokerActivity,
     });
   }
 
