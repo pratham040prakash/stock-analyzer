@@ -47,7 +47,7 @@ export default function TodayProgressStrip({
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-apex-muted">
-            Today&apos;s capital
+            Day P&amp;L
           </p>
           {dayKnown ? (
             <p

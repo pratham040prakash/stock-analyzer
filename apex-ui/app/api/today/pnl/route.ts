@@ -24,7 +24,10 @@ export async function GET() {
 
   const portfolioDayPnl =
     live.status === "OK"
-      ? computePortfolioDayPnl(mapKiteHoldingsToPortfolio(live.holdings))
+      ? computePortfolioDayPnl(
+          mapKiteHoldingsToPortfolio(live.holdings),
+          live.dayPositions,
+        )
       : null;
 
   const monitor = await getOpenMonitorLiveSnapshot(supabase, user.id, live);

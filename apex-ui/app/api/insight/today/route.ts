@@ -20,7 +20,7 @@ async function resolvePortfolioDayPnl(
 
   if (live.status === "OK") {
     const portfolio = mapKiteHoldingsToPortfolio(live.holdings);
-    return computePortfolioDayPnl(portfolio);
+    return computePortfolioDayPnl(portfolio, live.dayPositions);
   }
 
   const cached = await getLatestPortfolioSnapshot(supabase, userId);

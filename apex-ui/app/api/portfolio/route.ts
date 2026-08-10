@@ -105,7 +105,7 @@ export async function GET() {
   await savePortfolioSnapshot(supabase, user.id, portfolio, metrics);
   await syncBrokerActivityFromKite(supabase, user.id);
 
-  const formatted = formatPortfolioHoldings(portfolio);
+  const formatted = formatPortfolioHoldings(portfolio, live.dayPositions);
   return okResponse({
     holdings: formatted.holdings,
     total_value: formatted.total_value,

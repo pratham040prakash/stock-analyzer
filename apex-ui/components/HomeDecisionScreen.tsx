@@ -358,6 +358,7 @@ export default function HomeDecisionScreen({
   const isCapitalDeployment = isGrow || isProtect;
   const monitorEnabled =
     isCapitalDeployment && connectionStatus === "CONNECTED";
+  const dayPnlPollEnabled = connectionStatus === "CONNECTED";
   const {
     positions: monitorPositions,
     loading: monitorLoading,
@@ -369,7 +370,7 @@ export default function HomeDecisionScreen({
     positionTicks,
     refresh: refreshLiveDayPnl,
   } = useDayPnlPoll({
-    enabled: monitorEnabled,
+    enabled: dayPnlPollEnabled,
   });
   const resolvedDayPnl = liveDayPnl ?? dayPnl;
   const monitorStripOpenPnl = monitorLiveOpenPnl;

@@ -1,5 +1,6 @@
 import type { PortfolioHoldingRow } from "@/types/portfolioApi";
 import type { Portfolio } from "@/types/portfolio";
+import type { KiteNetPosition } from "@/services/brokers/zerodha";
 import { portfolioRiskFromAllocation } from "@/lib/portfolioRisk";
 import { computePortfolioDayPnl } from "@/services/brokers/zerodha";
 
@@ -7,6 +8,7 @@ const CONCENTRATION_THRESHOLD = 50;
 
 export function formatPortfolioHoldings(
   portfolio: Portfolio,
+  dayPositions: KiteNetPosition[] = [],
 ): {
   holdings: PortfolioHoldingRow[];
   total_value: number;
@@ -51,7 +53,7 @@ export function formatPortfolioHoldings(
   const top_allocation_pct = top?.allocation_pct ?? 0;
   const concentrated = top_allocation_pct > CONCENTRATION_THRESHOLD;
   const { risk_score, risk_level } = portfolioRiskFromAllocation(top_allocation_pct);
-  const day_pnl = computePortfolioDayPnl(portfolio);
+  const day_pnl = computePortfolioDayPnl(portfolio, dayPositions);
 
   return {
     holdings,

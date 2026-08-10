@@ -4,10 +4,11 @@ import {
 } from "@/services/broker/accessToken";
 import {
   fetchZerodhaHoldings,
-  fetchZerodhaNetPositions,
+  fetchZerodhaCncPositions,
   fetchZerodhaQuotes,
   mergeKiteHoldingsAndPositions,
   type KiteHolding,
+  type KiteNetPosition,
 } from "@/services/brokers/zerodha";
 import { normalizeSymbol } from "@/lib/stockPool";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -19,6 +20,7 @@ export type LiveKitePortfolioResult =
   | {
       status: "OK";
       holdings: KiteHolding[];
+      dayPositions: KiteNetPosition[];
       token: ResolvedZerodhaAccessToken;
     }
   | { status: "NOT_CONNECTED" }
@@ -80,7 +82,7 @@ export async function fetchLiveKitePortfolio(
   for (const candidate of candidates) {
     const [holdingsResult, positionsResult] = await Promise.all([
       fetchZerodhaHoldings(candidate.accessToken),
-      fetchZerodhaNetPositions(candidate.accessToken),
+      fetchZerodhaCncPositions(candidate.accessToken),
     ]);
 
     if (
@@ -98,9 +100,11 @@ export async function fetchLiveKitePortfolio(
 
     const holdings =
       holdingsResult.status === "OK" ? holdingsResult.data : [];
-    const positions =
-      positionsResult.status === "OK" ? positionsResult.data : [];
-    const merged = mergeKiteHoldingsAndPositions(holdings, positions);
+    const netPositions =
+      positionsResult.status === "OK" ? positionsResult.net : [];
+    const dayPositions: KiteNetPosition[] =
+      positionsResult.status === "OK" ? positionsResult.day : [];
+    const merged = mergeKiteHoldingsAndPositions(holdings, netPositions);
     const enriched = await enrichHoldingsWithLiveQuotes(
       candidate.accessToken,
       merged,
@@ -109,6 +113,7 @@ export async function fetchLiveKitePortfolio(
     return {
       status: "OK",
       holdings: enriched,
+      dayPositions,
       token: candidate,
     };
   }

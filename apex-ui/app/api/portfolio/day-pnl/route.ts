@@ -27,6 +27,6 @@ export async function GET() {
   const portfolio = mapKiteHoldingsToPortfolio(live.holdings);
 
   return apiOk({
-    day_pnl: computePortfolioDayPnl(portfolio),
+    day_pnl: computePortfolioDayPnl(portfolio, live.dayPositions),
   });
 }

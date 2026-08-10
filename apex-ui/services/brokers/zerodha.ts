@@ -113,6 +113,8 @@ export type KiteNetPosition = {
   day_change?: number;
   m2m?: number;
   pnl?: number;
+  realised?: number;
+  unrealised?: number;
 };
 
 export type FetchNetPositionsResult =
@@ -120,9 +122,24 @@ export type FetchNetPositionsResult =
   | { status: "TOKEN_EXPIRED" }
   | { status: "ERROR"; message: string };
 
-export async function fetchZerodhaNetPositions(
+export type FetchCncPositionsResult =
+  | { status: "OK"; net: KiteNetPosition[]; day: KiteNetPosition[] }
+  | { status: "TOKEN_EXPIRED" }
+  | { status: "ERROR"; message: string };
+
+function filterOpenCncNetPositions(net: KiteNetPosition[]): KiteNetPosition[] {
+  return net.filter(
+    (position) => position.product === "CNC" && position.quantity > 0,
+  );
+}
+
+function filterCncDayPositions(day: KiteNetPosition[]): KiteNetPosition[] {
+  return day.filter((position) => position.product === "CNC");
+}
+
+export async function fetchZerodhaCncPositions(
   accessToken: string,
-): Promise<FetchNetPositionsResult> {
+): Promise<FetchCncPositionsResult> {
   const config = getZerodhaConfig();
 
   if (!config.configured) {
@@ -134,12 +151,12 @@ export async function fetchZerodhaNetPositions(
       headers: kiteAuthHeaders(config.apiKey, accessToken),
     });
     const net = (res.data?.data?.net ?? []) as KiteNetPosition[];
+    const day = (res.data?.data?.day ?? []) as KiteNetPosition[];
 
     return {
       status: "OK",
-      data: net.filter(
-        (position) => position.product === "CNC" && position.quantity > 0,
-      ),
+      net: filterOpenCncNetPositions(net),
+      day: filterCncDayPositions(day),
     };
   } catch (err) {
     if (axios.isAxiosError(err) && err.response?.status === 401) {
@@ -150,6 +167,18 @@ export async function fetchZerodhaNetPositions(
       err instanceof Error ? err.message : "Failed to fetch Zerodha positions";
     return { status: "ERROR", message };
   }
+}
+
+export async function fetchZerodhaNetPositions(
+  accessToken: string,
+): Promise<FetchNetPositionsResult> {
+  const result = await fetchZerodhaCncPositions(accessToken);
+
+  if (result.status !== "OK") {
+    return result;
+  }
+
+  return { status: "OK", data: result.net };
 }
 
 /** Holdings omit same-day CNC buys until settlement — merge open CNC positions. */
@@ -234,14 +263,82 @@ function effectivePortfolioQuantity(holding: {
   return settled + t1;
 }
 
-/** Align with Zerodha: position m2m when present, else day_change × (qty + t1). */
-export function computePortfolioDayPnl(portfolio: Portfolio): number | null {
+function contributionFromDayPosition(position: KiteNetPosition): number | null {
+  if (typeof position.m2m === "number" && Number.isFinite(position.m2m)) {
+    return position.m2m;
+  }
+
+  const realised =
+    typeof position.realised === "number" && Number.isFinite(position.realised)
+      ? position.realised
+      : 0;
+  const unrealised =
+    typeof position.unrealised === "number" &&
+    Number.isFinite(position.unrealised)
+      ? position.unrealised
+      : 0;
+
+  if (realised !== 0 || unrealised !== 0) {
+    return realised + unrealised;
+  }
+
+  if (typeof position.pnl === "number" && Number.isFinite(position.pnl)) {
+    return position.pnl;
+  }
+
+  if (
+    typeof position.day_change === "number" &&
+    Number.isFinite(position.day_change) &&
+    position.quantity !== 0
+  ) {
+    return position.day_change * Math.abs(position.quantity);
+  }
+
+  return null;
+}
+
+/** Align with Zerodha dashboard: day-bucket m2m + overnight holdings not traded today. */
+export function computePortfolioDayPnl(
+  portfolio: Portfolio,
+  dayPositions: KiteNetPosition[] = [],
+): number | null {
   let total = 0;
   let hasDayData = false;
+  const tradedToday = new Set<string>();
+
+  for (const position of dayPositions) {
+    if (position.product !== "CNC") {
+      continue;
+    }
+
+    const symbol = normalizeSymbol(position.tradingsymbol);
+    if (!symbol) {
+      continue;
+    }
+
+    tradedToday.add(symbol);
+    const contribution = contributionFromDayPosition(position);
+
+    if (contribution !== null) {
+      hasDayData = true;
+      total += contribution;
+    }
+  }
 
   for (const h of portfolio.holdings) {
+    const symbol = normalizeSymbol(h.symbol);
+    if (tradedToday.has(symbol)) {
+      continue;
+    }
+
     const qty = effectivePortfolioQuantity(h);
     if (qty <= 0) {
+      continue;
+    }
+
+    if (h.closePrice !== undefined && h.closePrice > 0 && h.currentPrice > 0) {
+      hasDayData = true;
+      total += (h.currentPrice - h.closePrice) * qty;
       continue;
     }
 
@@ -254,12 +351,6 @@ export function computePortfolioDayPnl(portfolio: Portfolio): number | null {
     if (h.dayChange !== undefined && Number.isFinite(h.dayChange)) {
       hasDayData = true;
       total += h.dayChange * qty;
-      continue;
-    }
-
-    if (h.closePrice !== undefined && h.closePrice > 0) {
-      hasDayData = true;
-      total += (h.currentPrice - h.closePrice) * qty;
     }
   }
 
@@ -314,7 +405,7 @@ export function runKiteDayPnlSelfCheck(): void {
   assert(merged[0]?.m2m === 48.5, "Merged holding must inherit net position m2m");
 
   const fromM2m = computePortfolioDayPnl(mapKiteHoldingsToPortfolio(merged));
-  assert(fromM2m === 48.5, "Day P&L must prefer broker m2m over day_change");
+  assert(fromM2m === 50, "Day P&L must use live LTP vs prior close for overnight holdings");
 
   const overlaid = mergeKiteHoldingsAndPositions(
     [
@@ -357,6 +448,41 @@ export function runKiteDayPnlSelfCheck(): void {
     ]),
   );
   assert(dayChangeOnly === 30, "Day P&L must use day_change × effective quantity");
+
+  const withClosedTrade = computePortfolioDayPnl(
+    mapKiteHoldingsToPortfolio([
+      {
+        tradingsymbol: "GRASIM",
+        quantity: 1,
+        average_price: 3393,
+        last_price: 3380,
+        close_price: 3393,
+        day_change: -13,
+      },
+    ]),
+    [
+      {
+        tradingsymbol: "JIOFIN",
+        product: "CNC",
+        quantity: 0,
+        average_price: 0,
+        last_price: 300,
+        m2m: -75,
+      },
+      {
+        tradingsymbol: "TITAN",
+        product: "CNC",
+        quantity: 1,
+        average_price: 5058.7,
+        last_price: 5090,
+        m2m: 31.3,
+      },
+    ],
+  );
+  assert(
+    withClosedTrade !== null && Math.abs(withClosedTrade - (-56.7)) < 0.01,
+    "Day P&L must include day-bucket closed trades and skip double-counting traded symbols in holdings",
+  );
 }
 
 export function computePortfolioMetrics(portfolio: Portfolio): {
