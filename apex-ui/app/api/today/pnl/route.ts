@@ -31,6 +31,7 @@ export async function GET() {
 
   return apiOk({
     portfolio_day_pnl: portfolioDayPnl,
+    monitor_open_pnl: monitor.openPnl,
     monitor_day_pnl: monitor.dayPnl,
     position_ticks: monitor.ticks,
   });

@@ -14,10 +14,11 @@ export async function GET() {
     return apiError("Unauthorized", 401);
   }
 
-  const { positions, dayPnl } = await getOpenMonitorPositions(supabase, user.id);
+  const { positions, openPnl, dayPnl } = await getOpenMonitorPositions(supabase, user.id);
 
   return apiOk({
     positions,
+    openPnl,
     dayPnl,
   });
 }

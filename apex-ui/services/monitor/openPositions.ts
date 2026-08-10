@@ -30,6 +30,8 @@ export type OpenMonitorPosition = {
 
 export type OpenMonitorResult = {
   positions: OpenMonitorPosition[];
+  /** Open P&L vs avg — matches Zerodha Positions column. */
+  openPnl: number | null;
   dayPnl: number | null;
 };
 
@@ -44,6 +46,8 @@ export type MonitorLiveTick = {
 };
 
 export type MonitorLiveSnapshot = {
+  /** Sum of open P&L vs avg — matches Zerodha Positions P&L column. */
+  openPnl: number | null;
   dayPnl: number | null;
   ticks: MonitorLiveTick[];
 };
@@ -84,16 +88,52 @@ export function resolveMonitorEntryPrice(
   return plannedEntry;
 }
 
+const FILL_AVG_TOLERANCE = 0.02;
+const ENTRY_AVG_TOLERANCE = 0.15;
+
+function effectiveHoldingQuantity(holding: HoldingSnapshot): number {
+  return Math.max(0, holding.quantity) + Math.max(0, holding.t1Quantity);
+}
+
 /** Monitor strip only tracks executed buys that are still held at the broker. */
 export function isExecutedOpenMonitorDecision(
   signals: unknown,
   holding: HoldingSnapshot | undefined,
+  plannedEntry?: number,
 ): boolean {
-  if (!signalsIndicateBrokerFill(signals as Signals | null)) {
+  const sig = signals as Signals | null;
+
+  if (!signalsIndicateBrokerFill(sig)) {
     return false;
   }
 
-  return Boolean(holding && holding.quantity >= 1);
+  if (sig?.monitored !== true) {
+    return false;
+  }
+
+  if (!holding || effectiveHoldingQuantity(holding) < 1) {
+    return false;
+  }
+
+  const fillPrice = parseFillPrice(signals);
+  const avg = holding.averagePrice;
+
+  if (fillPrice !== null && avg > 0) {
+    if (Math.abs(fillPrice - avg) / avg > FILL_AVG_TOLERANCE) {
+      return false;
+    }
+  }
+
+  if (
+    plannedEntry !== undefined &&
+    plannedEntry > 0 &&
+    avg > 0 &&
+    Math.abs(plannedEntry - avg) / avg > ENTRY_AVG_TOLERANCE
+  ) {
+    return false;
+  }
+
+  return true;
 }
 
 export function resolveOpenedToday(
@@ -110,7 +150,7 @@ export function resolveOpenedToday(
   return decisionDate === todayKey;
 }
 
-/** Resolve display LTP — quote first, then close+day_change from holdings. */
+/** Resolve display LTP — live quote / broker last_price first (matches Zerodha LTP). */
 export function resolveLiveLastPrice(
   quote: ZerodhaLiveQuote | undefined,
   holding: HoldingSnapshot | undefined,
@@ -118,6 +158,10 @@ export function resolveLiveLastPrice(
 ): number {
   if (quote?.lastPrice && quote.lastPrice > 0) {
     return quote.lastPrice;
+  }
+
+  if (holding?.lastPrice && holding.lastPrice > 0) {
+    return holding.lastPrice;
   }
 
   if (holding) {
@@ -130,10 +174,6 @@ export function resolveLiveLastPrice(
       if (derived > 0) {
         return derived;
       }
-    }
-
-    if (holding.lastPrice > 0) {
-      return holding.lastPrice;
     }
   }
 
@@ -286,6 +326,23 @@ function sumMonitorDayPnl(
   return hasDayPnl ? roundPnl(dayPnlTotal) : null;
 }
 
+function sumMonitorOpenPnl(
+  pending: PendingMonitorRow[],
+  holdingsBySymbol: Map<string, HoldingSnapshot>,
+): number | null {
+  let openTotal = 0;
+  let hasOpenPnl = false;
+
+  for (const item of pending) {
+    const holding = holdingsBySymbol.get(item.stock);
+    const liveLast = resolveLiveLastPrice(undefined, holding, item.entryPrice);
+    openTotal += (liveLast - item.entryPrice) * item.quantity;
+    hasOpenPnl = true;
+  }
+
+  return hasOpenPnl ? roundPnl(openTotal) : null;
+}
+
 function buildMonitorLiveTicks(
   pending: PendingMonitorRow[],
   holdingsBySymbol: Map<string, HoldingSnapshot>,
@@ -364,7 +421,7 @@ async function buildPendingMonitorRows(
 
     const holding = holdingsBySymbol.get(stock);
 
-    if (!isExecutedOpenMonitorDecision(row.signals, holding)) {
+    if (!isExecutedOpenMonitorDecision(row.signals, holding, plannedEntry)) {
       continue;
     }
 
@@ -374,13 +431,14 @@ async function buildPendingMonitorRows(
       holding,
     );
 
+    const effectiveQty = effectiveHoldingQuantity(holding!);
     const quantity =
       Math.max(0, Math.round(Number(row.quantity ?? 0))) > 0
         ? Math.min(
             Math.max(0, Math.round(Number(row.quantity ?? 0))),
-            holding!.quantity,
+            effectiveQty,
           )
-        : holding!.quantity;
+        : effectiveQty;
 
     seenStocks.add(stock);
     pending.push({
@@ -411,10 +469,11 @@ export async function getOpenMonitorLiveSnapshot(
   );
 
   if (pending.length === 0) {
-    return { dayPnl: null, ticks: [] };
+    return { openPnl: null, dayPnl: null, ticks: [] };
   }
 
   return {
+    openPnl: sumMonitorOpenPnl(pending, holdingsBySymbol),
     dayPnl: sumMonitorDayPnl(pending, holdingsBySymbol),
     ticks: buildMonitorLiveTicks(pending, holdingsBySymbol),
   };
@@ -452,14 +511,15 @@ export async function getOpenMonitorPositions(
   );
 
   if (pending.length === 0) {
-    return { positions: [], dayPnl: null };
+    return { positions: [], openPnl: null, dayPnl: null };
   }
 
   const includePositions = options?.includePositions !== false;
+  const openPnl = sumMonitorOpenPnl(pending, holdingsBySymbol);
   const dayPnl = sumMonitorDayPnl(pending, holdingsBySymbol);
 
   if (!includePositions) {
-    return { positions: [], dayPnl };
+    return { positions: [], openPnl, dayPnl };
   }
 
   const monitors: OpenMonitorPosition[] = [];
@@ -494,6 +554,7 @@ export async function getOpenMonitorPositions(
 
   return {
     positions: monitors,
+    openPnl,
     dayPnl,
   };
 }
@@ -521,7 +582,16 @@ export function runOpenMonitorEntrySelfCheck(): void {
 
   const derived = resolveLiveLastPrice(undefined, holding, 5058.7);
   if (Math.abs(derived - 5058.7) > 0.01) {
-    throw new Error("resolveLiveLastPrice should derive LTP from close + day_change");
+    throw new Error("resolveLiveLastPrice should prefer broker last_price");
+  }
+
+  const staleDayChange = resolveLiveLastPrice(
+    undefined,
+    { ...holding, lastPrice: 5067, dayChange: 18.7, closePrice: 5040 },
+    5058.7,
+  );
+  if (Math.abs(staleDayChange - 5067) > 0.01) {
+    throw new Error("resolveLiveLastPrice must not prefer stale day_change over last_price");
   }
 
   const flatDay = resolveLiveLastPrice(
@@ -559,16 +629,23 @@ export function runOpenMonitorEntrySelfCheck(): void {
     trend: 0,
     momentum: 0,
     volume: 0,
+    monitored: true,
     order_id: "2086696629296996352",
     fill_price: 5058.7,
     filled_at: "2026-08-10T09:30:00.000Z",
   };
 
+  const ghostSignals = {
+    ...filledSignals,
+    fill_price: 5200,
+  };
+
   if (
-    isExecutedOpenMonitorDecision(filledSignals, holding) !== true ||
-    isExecutedOpenMonitorDecision(filledSignals, undefined) !== false ||
-    isExecutedOpenMonitorDecision(null, holding) !== false
+    isExecutedOpenMonitorDecision(filledSignals, holding, 5067) !== true ||
+    isExecutedOpenMonitorDecision(filledSignals, undefined, 5067) !== false ||
+    isExecutedOpenMonitorDecision(null, holding, 5067) !== false ||
+    isExecutedOpenMonitorDecision(ghostSignals, holding, 5067) !== false
   ) {
-    throw new Error("isExecutedOpenMonitorDecision must require broker fill and live holding");
+    throw new Error("isExecutedOpenMonitorDecision must require monitored fill matching broker avg");
   }
 }

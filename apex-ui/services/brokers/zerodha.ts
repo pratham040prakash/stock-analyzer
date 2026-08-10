@@ -79,8 +79,12 @@ type KitePriceRow = {
   day_change?: number;
 };
 
-/** Prefer close + day_change when day_change is non-zero (stale last_price after fill). */
+/** Prefer live last_price; derive close+day_change only when LTP missing. */
 export function resolveKiteLastPrice(row: KitePriceRow): number {
+  if (row.last_price > 0) {
+    return row.last_price;
+  }
+
   if (
     typeof row.close_price === "number" &&
     row.close_price > 0 &&

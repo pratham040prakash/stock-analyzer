@@ -365,14 +365,14 @@ export default function HomeDecisionScreen({
   } = useOpenMonitor({ enabled: monitorEnabled });
   const {
     portfolioDayPnl: liveDayPnl,
-    monitorDayPnl: monitorLiveDayPnl,
+    monitorOpenPnl: monitorLiveOpenPnl,
     positionTicks,
     refresh: refreshLiveDayPnl,
   } = useDayPnlPoll({
     enabled: monitorEnabled,
   });
   const resolvedDayPnl = liveDayPnl ?? dayPnl;
-  const monitorStripDayPnl = monitorLiveDayPnl;
+  const monitorStripOpenPnl = monitorLiveOpenPnl;
   const monitorLiveTicksById = useMemo(() => {
     const map: Record<string, (typeof positionTicks)[number]> = {};
     for (const tick of positionTicks) {
@@ -607,7 +607,7 @@ export default function HomeDecisionScreen({
               <div className="mt-4">
                 <TodayMonitorStrip
                   positions={monitorPositions}
-                  dayPnl={monitorStripDayPnl}
+                  openPnl={monitorStripOpenPnl}
                   liveTicksById={monitorLiveTicksById}
                   loading={monitorLoading}
                 />

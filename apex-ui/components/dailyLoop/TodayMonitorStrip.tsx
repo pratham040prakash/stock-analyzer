@@ -7,10 +7,24 @@ import type {
 
 export type TodayMonitorStripProps = {
   positions: OpenMonitorPosition[];
-  dayPnl?: number | null;
+  openPnl?: number | null;
   liveTicksById?: Record<string, MonitorLiveTick>;
   loading?: boolean;
 };
+
+function formatSignedPnl(value: number): string {
+  const abs = Math.abs(value).toLocaleString("en-IN", {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  });
+  if (value > 0) {
+    return `+₹${abs}`;
+  }
+  if (value < 0) {
+    return `−₹${abs}`;
+  }
+  return `₹${abs}`;
+}
 
 function MonitorRow({
   position,
@@ -22,12 +36,7 @@ function MonitorRow({
   const currentPrice = liveTick?.currentPrice ?? position.currentPrice;
   const unrealizedPnl = liveTick?.unrealizedPnl ?? position.unrealizedPnl;
   const pnlPct = liveTick?.pnlPct ?? position.pnlPct;
-  const positionDayPnl = liveTick?.positionDayPnl;
   const pnlPositive = unrealizedPnl >= 0;
-  const dayPositive =
-    positionDayPnl !== null &&
-    positionDayPnl !== undefined &&
-    positionDayPnl >= 0;
 
   return (
     <div className="rounded-lg border border-apex-border/15 bg-white/[0.02] px-3 py-3 space-y-2">
@@ -40,8 +49,7 @@ function MonitorRow({
             pnlPositive ? "text-sm text-emerald-200/90" : "text-sm text-amber-200/90"
           }
         >
-          {pnlPositive ? "+" : ""}
-          ₹{Math.abs(unrealizedPnl).toLocaleString("en-IN")}
+          {formatSignedPnl(unrealizedPnl)}
           <span className="text-xs text-apex-muted/70">
             {" "}
             ({pnlPositive ? "+" : ""}
@@ -51,29 +59,16 @@ function MonitorRow({
       </div>
 
       <p className="text-xs text-apex-muted/75">
-        Entry ₹{position.entryPrice.toLocaleString("en-IN")} · Now ₹
+        Avg ₹{position.entryPrice.toLocaleString("en-IN")} · LTP ₹
         {currentPrice.toLocaleString("en-IN")}
       </p>
-
-      {positionDayPnl !== null && positionDayPnl !== undefined ? (
-        <p
-          className={
-            dayPositive
-              ? "text-[11px] text-emerald-200/75"
-              : "text-[11px] text-amber-200/75"
-          }
-        >
-          Today {dayPositive ? "+" : "−"}₹
-          {Math.abs(positionDayPnl).toLocaleString("en-IN")}
-        </p>
-      ) : null}
     </div>
   );
 }
 
 export default function TodayMonitorStrip({
   positions,
-  dayPnl,
+  openPnl,
   liveTicksById,
   loading = false,
 }: TodayMonitorStripProps) {
@@ -92,6 +87,10 @@ export default function TodayMonitorStrip({
     return null;
   }
 
+  const headerPnl =
+    openPnl ??
+    positions.reduce((sum, position) => sum + position.unrealizedPnl, 0);
+
   return (
     <div
       className="rounded-xl border border-apex-border/20 bg-white/[0.02] px-4 py-3 space-y-3"
@@ -101,16 +100,15 @@ export default function TodayMonitorStrip({
         <p className="text-xs font-medium uppercase tracking-wide text-apex-muted">
           Open positions
         </p>
-        {dayPnl !== null && dayPnl !== undefined ? (
+        {headerPnl !== null && headerPnl !== undefined ? (
           <p
             className={
-              dayPnl >= 0
+              headerPnl >= 0
                 ? "text-xs text-emerald-200/90"
                 : "text-xs text-amber-200/90"
             }
           >
-            Tracked Day P&amp;L {dayPnl >= 0 ? "+" : "−"}₹
-            {Math.abs(dayPnl).toLocaleString("en-IN")}
+            Open P&amp;L {formatSignedPnl(headerPnl)}
           </p>
         ) : null}
       </div>
@@ -126,7 +124,7 @@ export default function TodayMonitorStrip({
       </div>
 
       <p className="text-[11px] leading-snug text-apex-muted/60">
-        Tracked positions only · full portfolio Day P&amp;L is in the header · live prices every 5s.
+        Matches Zerodha Positions P&amp;L (LTP − avg) · APEX-tracked only · updates every 5s.
       </p>
     </div>
   );
