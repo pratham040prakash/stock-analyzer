@@ -1,10 +1,14 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { buildCapitalDecision } from "@/lib/dailyLoop/capitalDecision";
 import { resolveTodayHero } from "@/lib/dailyLoop/todaySurface";
 import { getDisciplineInterpretation } from "@/lib/dailyLoop/disciplineCopy";
 import { getBrokerStepLine } from "@/lib/dailyLoop/disciplineStreak";
+import {
+  markBrokerStepCompleted,
+  readBrokerStepCompleted,
+} from "@/lib/dailyLoop/brokerStepState";
 import { getApexHeroSignature } from "@/lib/dailyLoop/apexVoice";
 import { getIntentExperience } from "@/lib/dailyLoop/intentExperience";
 import { useDailyLoop } from "@/lib/useDailyLoop";
@@ -202,6 +206,12 @@ export default function HomeDecisionScreen({
     [capitalDecision, decision.suggested_sell_percent],
   );
 
+  const [brokerStepCompleted, setBrokerStepCompleted] = useState(false);
+
+  useEffect(() => {
+    setBrokerStepCompleted(readBrokerStepCompleted(todayHero.symbol));
+  }, [todayHero.symbol]);
+
   const holdingAllocationPct =
     todayHero.currentWeight ??
     topAllocationPct ??
@@ -220,10 +230,15 @@ export default function HomeDecisionScreen({
   } = useOpenMonitor({ enabled: isCapitalDeployment });
 
   const handleExecuted = useCallback(() => {
+    if (todayHero.symbol) {
+      markBrokerStepCompleted(todayHero.symbol);
+      setBrokerStepCompleted(true);
+    }
+
     onCapitalRefresh?.();
     void refreshMonitor();
     void refreshTrust();
-  }, [onCapitalRefresh, refreshMonitor, refreshTrust]);
+  }, [onCapitalRefresh, refreshMonitor, refreshTrust, todayHero.symbol]);
 
   const explorePicks = useMemo(() => {
     if (!isExplore || !decision.picks?.length) {
@@ -272,7 +287,11 @@ export default function HomeDecisionScreen({
       });
   const disciplineLine = getDisciplineInterpretation(trustScore);
   const brokerStepLine = isCapitalDeployment
-    ? getBrokerStepLine(retention.committedToday, todayHero.executionKind)
+    ? getBrokerStepLine(
+        retention.committedToday,
+        todayHero.executionKind,
+        brokerStepCompleted,
+      )
     : null;
 
   return (
@@ -491,6 +510,7 @@ export default function HomeDecisionScreen({
             capitalDeployment={isCapitalDeployment}
             decision={capitalDecision}
             executionKind={todayHero.executionKind}
+            brokerStepCompleted={brokerStepCompleted}
           />
 
           {lastOutcome && !isExploreEmpty && !isCapitalDeployment ? (

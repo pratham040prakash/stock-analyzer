@@ -593,6 +593,7 @@ export function ExecutionStatusBlock({
   capitalDeployment = false,
   decision,
   executionKind,
+  brokerStepCompleted = false,
 }: {
   committedToday: boolean;
   onMarkFollowed: () => void;
@@ -606,6 +607,7 @@ export function ExecutionStatusBlock({
   capitalDeployment?: boolean;
   decision?: CapitalDecision;
   executionKind?: TodayExecutionKind;
+  brokerStepCompleted?: boolean;
 }) {
   const trustReinforcement =
     capitalDeployment && committedToday && decision
@@ -722,7 +724,7 @@ export function ExecutionStatusBlock({
             {DAILY_CLOSURE_HEADLINE}
           </p>
           <p className="text-sm leading-snug text-apex-text/75">
-            {getDailyClosureBody(executionKind)}
+            {getDailyClosureBody(executionKind, brokerStepCompleted)}
           </p>
           <p className="text-xs leading-snug text-apex-muted/70">
             {DAILY_CLOSURE_NEXT_STEP}

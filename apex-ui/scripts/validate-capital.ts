@@ -11,6 +11,7 @@ import { runCommitmentSelfCheck } from "../lib/dailyLoop/disciplineCommitment";
 import { runDisciplineHistoryMergeSelfCheck } from "../lib/dailyLoop/disciplineHistoryMerge";
 import { runTradingDateSelfCheck } from "../lib/dailyLoop/disciplineDates";
 import { runDisciplineStatusSelfCheck } from "../lib/dailyLoop/disciplineStreak";
+import { runBrokerStepStateSelfCheck } from "../lib/dailyLoop/brokerStepState";
 
 runCapitalProjectionSelfCheck();
 runCapitalFinalStateSelfCheck();
@@ -22,3 +23,4 @@ runCommitmentSelfCheck();
 runDisciplineHistoryMergeSelfCheck();
 runTradingDateSelfCheck();
 runDisciplineStatusSelfCheck();
+runBrokerStepStateSelfCheck();

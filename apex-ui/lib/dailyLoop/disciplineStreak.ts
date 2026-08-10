@@ -93,22 +93,32 @@ export function getDecisionTensionLine(committedToday: boolean): string {
 export function getBrokerStepLine(
   committedToday: boolean,
   executionKind?: TodayExecutionKind,
+  brokerStepCompleted = false,
 ): string | null {
   if (!committedToday) {
     return null;
   }
 
-  if (executionKind === "SELL" || executionKind === "BUY") {
-    return "Broker step still open · See plan below.";
+  if (executionKind !== "SELL" && executionKind !== "BUY") {
+    return null;
   }
 
-  return null;
+  if (brokerStepCompleted) {
+    return "Broker step completed for today.";
+  }
+
+  return "Broker step still open · See plan below.";
 }
 
 export function getDailyClosureBody(
   executionKind?: TodayExecutionKind,
+  brokerStepCompleted = false,
 ): string {
   if (executionKind === "SELL" || executionKind === "BUY") {
+    if (brokerStepCompleted) {
+      return "Discipline and broker action are logged for today. Review outcomes after the session.";
+    }
+
     return "Discipline is locked in. Execute on Zerodha when ready, or review the plan below.";
   }
 
@@ -266,10 +276,18 @@ export function runDisciplineStatusSelfCheck(): void {
       "Broker step still open · See plan below.",
     "Sell plans must surface broker step after discipline commit",
   );
+  assert(
+    getBrokerStepLine(true, "SELL", true) === "Broker step completed for today.",
+    "Completed broker step must update status line",
+  );
   assert(getBrokerStepLine(true, "WAIT") === null, "Wait plans have no broker step");
   assert(
     getDailyClosureBody("SELL").includes("Zerodha"),
     "Sell closure must mention broker execution",
+  );
+  assert(
+    getDailyClosureBody("SELL", true).includes("logged for today"),
+    "Completed sell closure must reflect broker action",
   );
   assert(
     getDailyClosureBody("WAIT") === DAILY_CLOSURE_BODY,
