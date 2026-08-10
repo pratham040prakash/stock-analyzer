@@ -232,6 +232,14 @@ export default function HomeDecisionScreen({
   });
   const [brokerFillSummary, setBrokerFillSummary] =
     useState<BrokerFillSummary | null>(null);
+  const [brokerFillStatusLoading, setBrokerFillStatusLoading] = useState(() => {
+    const symbol = decision.stock?.trim().toUpperCase();
+    if (!symbol || typeof window === "undefined") {
+      return false;
+    }
+
+    return !readBrokerStepCompleted(symbol);
+  });
 
   const actualSymbolWeight = useMemo(() => {
     if (!brokerStepCompleted || !todayHero.symbol || !holdings?.length) {
@@ -259,12 +267,16 @@ export default function HomeDecisionScreen({
     if (!todayHero.symbol) {
       setBrokerStepCompleted(false);
       setBrokerFillSummary(null);
+      setBrokerFillStatusLoading(false);
       return;
     }
 
     const sessionComplete = readBrokerStepCompleted(todayHero.symbol);
     if (sessionComplete) {
       setBrokerStepCompleted(true);
+      setBrokerFillStatusLoading(false);
+    } else {
+      setBrokerFillStatusLoading(true);
     }
 
     let cancelled = false;
@@ -283,7 +295,11 @@ export default function HomeDecisionScreen({
           price?: number;
         }>(response, "Trade status");
 
-        if (cancelled || !response.ok) {
+        if (cancelled) {
+          return;
+        }
+
+        if (!response.ok) {
           return;
         }
 
@@ -312,6 +328,10 @@ export default function HomeDecisionScreen({
         setBrokerStepCompleted(true);
       } catch {
         // Session cache remains the fallback when the status API is unavailable.
+      } finally {
+        if (!cancelled) {
+          setBrokerFillStatusLoading(false);
+        }
       }
     })();
 
@@ -556,6 +576,7 @@ export default function HomeDecisionScreen({
                 brokerStepCompleted={brokerStepCompleted}
                 brokerFillSummary={brokerFillSummary}
                 postTrimPortfolioWeight={actualSymbolWeight}
+                brokerFillStatusLoading={brokerFillStatusLoading}
                 onExecuted={handleExecuted}
               />
               <div className="mt-4">

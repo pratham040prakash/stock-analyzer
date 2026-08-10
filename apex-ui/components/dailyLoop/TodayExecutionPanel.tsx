@@ -49,8 +49,19 @@ type Props = {
   brokerStepCompleted?: boolean;
   brokerFillSummary?: BrokerFillSummary | null;
   postTrimPortfolioWeight?: number;
+  brokerFillStatusLoading?: boolean;
   onExecuted?: (fill?: BrokerFillSummary) => void;
 };
+
+function BrokerFillStatusNotice() {
+  return (
+    <div className="rounded-xl border border-apex-border/15 bg-white/[0.02] px-4 py-4">
+      <p className="text-sm text-apex-text/75">
+        Checking today&apos;s Zerodha fills before showing the order button…
+      </p>
+    </div>
+  );
+}
 
 function resolveBrokerCompleteDetail(
   symbol: string,
@@ -137,6 +148,7 @@ export default function TodayExecutionPanel({
   brokerStepCompleted = false,
   brokerFillSummary = null,
   postTrimPortfolioWeight,
+  brokerFillStatusLoading = false,
   onExecuted,
 }: Props) {
   const [pendingSellPercent, setPendingSellPercent] = useState<number | null>(
@@ -335,6 +347,10 @@ export default function TodayExecutionPanel({
       );
     }
 
+    if (brokerFillStatusLoading) {
+      return <BrokerFillStatusNotice />;
+    }
+
     return (
       <>
         <div className="rounded-xl border border-apex-border/20 bg-white/[0.03] px-4 py-4 space-y-3">
@@ -421,6 +437,10 @@ export default function TodayExecutionPanel({
           )}
         />
       );
+    }
+
+    if (brokerFillStatusLoading) {
+      return <BrokerFillStatusNotice />;
     }
 
     return (
