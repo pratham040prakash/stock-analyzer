@@ -223,7 +223,7 @@ export default function HomeDecisionScreen({
   );
 
   const [brokerStepCompleted, setBrokerStepCompleted] = useState(() => {
-    const symbol = decision.stock?.trim().toUpperCase();
+    const symbol = todayHero.symbol?.trim().toUpperCase();
     if (!symbol || typeof window === "undefined") {
       return false;
     }
@@ -233,7 +233,7 @@ export default function HomeDecisionScreen({
   const [brokerFillSummary, setBrokerFillSummary] =
     useState<BrokerFillSummary | null>(null);
   const [brokerFillStatusLoading, setBrokerFillStatusLoading] = useState(() => {
-    const symbol = decision.stock?.trim().toUpperCase();
+    const symbol = todayHero.symbol?.trim().toUpperCase();
     if (!symbol || typeof window === "undefined") {
       return false;
     }
@@ -259,8 +259,9 @@ export default function HomeDecisionScreen({
     () =>
       resolveTodayHeroDisplay(todayHero, brokerStepCompleted, {
         actualPortfolioWeight: actualSymbolWeight,
+        brokerFillSummary,
       }),
-    [actualSymbolWeight, brokerStepCompleted, todayHero],
+    [actualSymbolWeight, brokerFillSummary, brokerStepCompleted, todayHero],
   );
 
   useEffect(() => {

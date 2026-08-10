@@ -134,11 +134,19 @@ export function formatPostTrimWeightNote(
 export function resolveTodayHeroDisplay(
   hero: TodayHero,
   brokerStepCompleted: boolean,
-  options?: { actualPortfolioWeight?: number },
+  options?: {
+    actualPortfolioWeight?: number;
+    brokerFillSummary?: BrokerFillSummary | null;
+  },
 ): TodayHero {
   if (!brokerStepCompleted) {
     return hero;
   }
+
+  const fillDetail =
+    options?.brokerFillSummary?.orderId && hero.symbol
+      ? describeBrokerFill(options.brokerFillSummary, hero.symbol)
+      : null;
 
   if (hero.executionKind === "SELL" && hero.symbol) {
     const weightNote = formatPostTrimWeightNote(
@@ -149,7 +157,7 @@ export function resolveTodayHeroDisplay(
     return {
       ...hero,
       headline: `${hero.symbol} trim logged on Zerodha`,
-      subline: weightNote,
+      subline: fillDetail ? `${fillDetail} ${weightNote}` : weightNote,
     };
   }
 
@@ -157,7 +165,8 @@ export function resolveTodayHeroDisplay(
     return {
       ...hero,
       headline: `${hero.symbol} entry logged on Zerodha`,
-      subline: "Verify entry and stop orders in Kite.",
+      subline:
+        fillDetail ?? "Verify entry and stop orders in Kite.",
     };
   }
 
@@ -281,6 +290,24 @@ export function runTodaySurfaceSelfCheck(): void {
   assert(
     !completedTrim.headline.includes("Trim JIOFIN by"),
     "Completed trim hero must not repeat the action CTA",
+  );
+
+  const completedHeroWithFill = resolveTodayHeroDisplay(trimHero, true, {
+    actualPortfolioWeight: 72,
+    brokerFillSummary: {
+      orderId: "260810000001",
+      quantity: 10,
+      side: "sell",
+      price: 312.5,
+    },
+  });
+  assert(
+    completedHeroWithFill.subline.includes("Sold 10 shares"),
+    "Completed hero subline must include broker fill summary",
+  );
+  assert(
+    completedHeroWithFill.subline.includes("72%"),
+    "Completed hero subline must still include live weight",
   );
 
   const actualWeightNote = formatPostTrimWeightNote(72, 75);
