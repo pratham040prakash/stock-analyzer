@@ -11,6 +11,7 @@ import {
   type ZerodhaEquityFunds,
 } from "@/lib/broker/zerodhaFunds";
 import type { Portfolio } from "@/types/portfolio";
+import { normalizeSymbol } from "@/lib/stockPool";
 
 export type KiteHolding = {
   tradingsymbol: string;
@@ -167,6 +168,52 @@ export async function fetchZerodhaQuote(
       err instanceof Error ? err.message : "Failed to fetch Zerodha quote";
     return { status: "ERROR", message };
   }
+}
+
+/** Live LTP for multiple NSE symbols in one Kite quote call. */
+export async function fetchZerodhaQuotes(
+  accessToken: string,
+  tradingsymbols: string[],
+  exchange = "NSE",
+): Promise<Map<string, number>> {
+  const prices = new Map<string, number>();
+  const symbols = [
+    ...new Set(
+      tradingsymbols.map((symbol) => normalizeSymbol(symbol)).filter(Boolean),
+    ),
+  ];
+
+  if (symbols.length === 0) {
+    return prices;
+  }
+
+  const config = getZerodhaConfig();
+
+  if (!config.configured) {
+    return prices;
+  }
+
+  try {
+    const query = symbols
+      .map((symbol) => `i=${encodeURIComponent(`${exchange}:${symbol}`)}`)
+      .join("&");
+    const res = await axios.get(`https://api.kite.trade/quote?${query}`, {
+      headers: kiteAuthHeaders(config.apiKey, accessToken),
+    });
+
+    for (const symbol of symbols) {
+      const instrument = `${exchange}:${symbol}`;
+      const lastPrice = res.data?.data?.[instrument]?.last_price;
+
+      if (typeof lastPrice === "number" && lastPrice > 0) {
+        prices.set(symbol, lastPrice);
+      }
+    }
+  } catch {
+    return prices;
+  }
+
+  return prices;
 }
 
 export type PlaceOrderResult =

@@ -2,7 +2,7 @@ import { tradingDateKey } from "@/lib/dailyLoop/disciplineDates";
 import { resolveZerodhaAccessToken } from "@/services/broker/accessToken";
 import {
   fetchZerodhaHoldings,
-  fetchZerodhaQuote,
+  fetchZerodhaQuotes,
 } from "@/services/brokers/zerodha";
 import { checkStopLoss } from "@/services/risk/riskControl";
 import { normalizeSymbol } from "@/lib/stockPool";
@@ -40,6 +40,15 @@ type HoldingSnapshot = {
   dayChange: number | null;
 };
 
+type PendingMonitorRow = {
+  id: string;
+  stock: string;
+  entryPrice: number;
+  stopLoss: number;
+  quantity: number;
+  openedToday: boolean;
+};
+
 /** Prefer broker truth (avg / fill) over planned decision entry for P&L display. */
 export function resolveMonitorEntryPrice(
   plannedEntry: number,
@@ -57,27 +66,28 @@ export function resolveMonitorEntryPrice(
   return plannedEntry;
 }
 
-/** Day P&L for one monitored open position (scoped strip, not whole portfolio). */
+/** Day P&L for one monitored open position using live LTP. */
 export function computeMonitorPositionDayPnl(
   quantity: number,
   entryPrice: number,
+  liveLastPrice: number,
   holding: HoldingSnapshot | undefined,
   openedToday: boolean,
 ): number | null {
-  if (!holding || holding.lastPrice <= 0 || quantity <= 0) {
+  if (liveLastPrice <= 0 || quantity <= 0) {
     return null;
   }
 
   if (openedToday && entryPrice > 0) {
-    return (holding.lastPrice - entryPrice) * quantity;
+    return (liveLastPrice - entryPrice) * quantity;
   }
 
-  if (holding.dayChange !== null && Number.isFinite(holding.dayChange)) {
+  if (holding && holding.closePrice > 0) {
+    return (liveLastPrice - holding.closePrice) * quantity;
+  }
+
+  if (holding?.dayChange !== null && Number.isFinite(holding.dayChange)) {
     return holding.dayChange * quantity;
-  }
-
-  if (holding.closePrice > 0) {
-    return (holding.lastPrice - holding.closePrice) * quantity;
   }
 
   return null;
@@ -165,10 +175,8 @@ export async function getOpenMonitorPositions(
     }
   }
 
-  const monitors: OpenMonitorPosition[] = [];
+  const pending: PendingMonitorRow[] = [];
   const seenStocks = new Set<string>();
-  let dayPnlTotal = 0;
-  let hasDayPnl = false;
 
   for (const row of rows) {
     const stock = normalizeSymbol(row.stock ?? "");
@@ -204,25 +212,40 @@ export async function getOpenMonitorPositions(
       );
     }
 
-    let currentPrice = holding?.lastPrice ?? 0;
-
-    if (currentPrice <= 0 && token) {
-      const quote = await fetchZerodhaQuote(token.accessToken, stock);
-      if (quote.status === "OK") {
-        currentPrice = quote.lastPrice;
-      }
-    }
-
-    if (currentPrice <= 0) {
-      currentPrice = entryPrice;
-    }
-
-    const openedToday = row.decision_date === todayKey;
-    const positionDayPnl = computeMonitorPositionDayPnl(
-      quantity,
+    seenStocks.add(stock);
+    pending.push({
+      id: row.id,
+      stock,
       entryPrice,
+      stopLoss,
+      quantity,
+      openedToday: row.decision_date === todayKey,
+    });
+  }
+
+  const liveQuotes =
+    token && pending.length > 0
+      ? await fetchZerodhaQuotes(
+          token.accessToken,
+          pending.map((item) => item.stock),
+        )
+      : new Map<string, number>();
+
+  const monitors: OpenMonitorPosition[] = [];
+  let dayPnlTotal = 0;
+  let hasDayPnl = false;
+
+  for (const item of pending) {
+    const holding = holdingsBySymbol.get(item.stock);
+    const liveLast =
+      liveQuotes.get(item.stock) ?? holding?.lastPrice ?? item.entryPrice;
+
+    const positionDayPnl = computeMonitorPositionDayPnl(
+      item.quantity,
+      item.entryPrice,
+      liveLast,
       holding,
-      openedToday,
+      item.openedToday,
     );
 
     if (positionDayPnl !== null) {
@@ -230,22 +253,23 @@ export async function getOpenMonitorPositions(
       dayPnlTotal += positionDayPnl;
     }
 
-    const unrealizedPnl = (currentPrice - entryPrice) * quantity;
+    const unrealizedPnl = (liveLast - item.entryPrice) * item.quantity;
     const pnlPct =
-      entryPrice > 0 ? ((currentPrice - entryPrice) / entryPrice) * 100 : 0;
+      item.entryPrice > 0
+        ? ((liveLast - item.entryPrice) / item.entryPrice) * 100
+        : 0;
     const { status, distanceToStopPct } = resolveStopStatus(
-      currentPrice,
-      stopLoss,
+      liveLast,
+      item.stopLoss,
     );
 
-    seenStocks.add(stock);
     monitors.push({
-      id: row.id,
-      stock,
-      quantity,
-      entryPrice: roundPrice(entryPrice),
-      currentPrice: roundPrice(currentPrice),
-      stopLoss: Math.round(stopLoss),
+      id: item.id,
+      stock: item.stock,
+      quantity: item.quantity,
+      entryPrice: roundPrice(item.entryPrice),
+      currentPrice: roundPrice(liveLast),
+      stopLoss: Math.round(item.stopLoss),
       unrealizedPnl: Math.round(unrealizedPnl),
       pnlPct,
       stopStatus: status,
@@ -262,10 +286,10 @@ export async function getOpenMonitorPositions(
 export function runOpenMonitorEntrySelfCheck(): void {
   const holding: HoldingSnapshot = {
     quantity: 1,
-    lastPrice: 5067,
+    lastPrice: 5058.7,
     averagePrice: 5058.7,
     closePrice: 5040,
-    dayChange: 27,
+    dayChange: 0,
   };
 
   const resolved = resolveMonitorEntryPrice(5067, null, holding);
@@ -278,13 +302,25 @@ export function runOpenMonitorEntrySelfCheck(): void {
     throw new Error("resolveMonitorEntryPrice should use fill price when holdings missing");
   }
 
-  const openedTodayPnl = computeMonitorPositionDayPnl(1, 5058.7, holding, true);
+  const openedTodayPnl = computeMonitorPositionDayPnl(
+    1,
+    5058.7,
+    5067,
+    holding,
+    true,
+  );
   if (openedTodayPnl === null || Math.abs(openedTodayPnl - 8.3) > 0.01) {
-    throw new Error("computeMonitorPositionDayPnl should use entry for same-day opens");
+    throw new Error("computeMonitorPositionDayPnl should use live LTP vs entry for same-day opens");
   }
 
-  const overnightPnl = computeMonitorPositionDayPnl(1, 5058.7, holding, false);
+  const overnightPnl = computeMonitorPositionDayPnl(
+    1,
+    5058.7,
+    5067,
+    holding,
+    false,
+  );
   if (overnightPnl === null || Math.abs(overnightPnl - 27) > 0.01) {
-    throw new Error("computeMonitorPositionDayPnl should use Zerodha day_change when held overnight");
+    throw new Error("computeMonitorPositionDayPnl should use live LTP vs prior close overnight");
   }
 }
