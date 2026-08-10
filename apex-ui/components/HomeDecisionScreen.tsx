@@ -89,6 +89,7 @@ export type HomeDecisionScreenProps = {
   capitalMode?: CapitalFundingMode;
   onCapitalModeChange?: (mode: CapitalFundingMode) => void;
   dayPnl?: number | null;
+  openPnlFromPortfolio?: number | null;
   holdings?: { symbol: string; weight: number }[];
   connectionStatus?: ConnectionStatus;
   decisionUpdatedAt?: string | null;
@@ -133,6 +134,7 @@ export default function HomeDecisionScreen({
   capitalMode,
   onCapitalModeChange,
   dayPnl,
+  openPnlFromPortfolio,
   holdings,
   connectionStatus = "NOT_CONNECTED",
   decisionUpdatedAt,
@@ -376,6 +378,7 @@ export default function HomeDecisionScreen({
   });
   const resolvedOpenPnl =
     livePositionsPnl ??
+    openPnlFromPortfolio ??
     (connectionStatus === "CONNECTED" ? null : dayPnl);
   const monitorStripOpenPnl = monitorLiveOpenPnl;
   const monitorLiveTicksById = useMemo(() => {

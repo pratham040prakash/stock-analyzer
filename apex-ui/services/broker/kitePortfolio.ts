@@ -79,14 +79,26 @@ async function enrichKitePortfolioPrices(
     const quoteLtp = quotes.get(symbol)?.lastPrice;
 
     if (!quoteLtp || quoteLtp <= 0) {
-      // Keep Kite net row as-is — matches Zerodha Positions better than stale holdings LTP.
+      return position;
+    }
+
+    const calc = roundPnl(
+      (quoteLtp - position.average_price) * position.quantity,
+    );
+
+    if (
+      typeof position.pnl === "number" &&
+      Number.isFinite(position.pnl) &&
+      Math.abs(calc - position.pnl) > 1
+    ) {
+      // Live quote disagrees with Zerodha Positions pnl — keep Positions row.
       return position;
     }
 
     return {
       ...position,
       last_price: quoteLtp,
-      pnl: roundPnl((quoteLtp - position.average_price) * position.quantity),
+      pnl: calc,
     };
   });
 

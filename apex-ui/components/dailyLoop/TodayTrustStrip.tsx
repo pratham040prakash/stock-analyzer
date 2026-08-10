@@ -153,6 +153,13 @@ export default function TodayTrustStrip({
           ) : null}
         </div>
 
+        {dayKnown && positionsBreakdown.length === 0 ? (
+          <p className="mt-2 text-xs text-amber-200/80">
+            Zerodha net positions are syncing — expand after refresh if rows are
+            missing.
+          </p>
+        ) : null}
+
         {dayKnown && positionsBreakdown.length > 0 ? (
           <details className="mt-2 text-xs text-apex-muted/75">
             <summary className="cursor-pointer select-none hover:text-apex-muted">

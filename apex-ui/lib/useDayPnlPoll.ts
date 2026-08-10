@@ -6,6 +6,7 @@ import type { MonitorLiveTick } from "@/services/monitor/openPositions";
 import type { ZerodhaPositionPnlRow } from "@/services/brokers/zerodha";
 
 type LivePnlResponse = {
+  status?: string;
   portfolio_day_pnl: number | null;
   positions_pnl?: number | null;
   positions_breakdown?: ZerodhaPositionPnlRow[];
@@ -80,13 +81,14 @@ export function useDayPnlPoll({ enabled }: Options) {
         return;
       }
 
-      if (!res.ok || !data) {
+      if (!res.ok || !data || data.status !== "ok") {
         return;
       }
 
-      setPositionsPnl(
-        typeof data.positions_pnl === "number" ? data.positions_pnl : null,
-      );
+      const positionsPnlValue =
+        typeof data.positions_pnl === "number" ? data.positions_pnl : null;
+
+      setPositionsPnl(positionsPnlValue);
       setPositionsBreakdown(parsePositionsBreakdown(data.positions_breakdown));
       setPortfolioDayPnl(data.portfolio_day_pnl ?? null);
       setMonitorOpenPnl(data.monitor_open_pnl ?? null);
