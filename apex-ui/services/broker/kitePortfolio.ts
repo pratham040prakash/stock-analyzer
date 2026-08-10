@@ -5,9 +5,11 @@ import {
 import {
   fetchZerodhaHoldings,
   fetchZerodhaNetPositions,
+  fetchZerodhaQuotes,
   mergeKiteHoldingsAndPositions,
   type KiteHolding,
 } from "@/services/brokers/zerodha";
+import { normalizeSymbol } from "@/lib/stockPool";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
 
@@ -22,6 +24,44 @@ export type LiveKitePortfolioResult =
   | { status: "NOT_CONNECTED" }
   | { status: "TOKEN_EXPIRED" }
   | { status: "ERROR"; message: string };
+
+async function enrichHoldingsWithLiveQuotes(
+  accessToken: string,
+  holdings: KiteHolding[],
+): Promise<KiteHolding[]> {
+  if (holdings.length === 0) {
+    return holdings;
+  }
+
+  const quotes = await fetchZerodhaQuotes(
+    accessToken,
+    holdings.map((holding) => holding.tradingsymbol),
+  );
+
+  if (quotes.size === 0) {
+    return holdings;
+  }
+
+  return holdings.map((holding) => {
+    const quote = quotes.get(normalizeSymbol(holding.tradingsymbol));
+    if (!quote?.lastPrice) {
+      return holding;
+    }
+
+    const close = quote.previousClose ?? holding.close_price;
+    const dayChange =
+      typeof close === "number" && close > 0
+        ? quote.lastPrice - close
+        : holding.day_change;
+
+    return {
+      ...holding,
+      last_price: quote.lastPrice,
+      close_price: close ?? holding.close_price,
+      day_change: dayChange ?? holding.day_change,
+    };
+  });
+}
 
 /** Load CNC holdings + same-day positions using every usable Zerodha token. */
 export async function fetchLiveKitePortfolio(
@@ -60,10 +100,15 @@ export async function fetchLiveKitePortfolio(
       holdingsResult.status === "OK" ? holdingsResult.data : [];
     const positions =
       positionsResult.status === "OK" ? positionsResult.data : [];
+    const merged = mergeKiteHoldingsAndPositions(holdings, positions);
+    const enriched = await enrichHoldingsWithLiveQuotes(
+      candidate.accessToken,
+      merged,
+    );
 
     return {
       status: "OK",
-      holdings: mergeKiteHoldingsAndPositions(holdings, positions),
+      holdings: enriched,
       token: candidate,
     };
   }

@@ -92,7 +92,11 @@ export function resolveLiveLastPrice(
   }
 
   if (holding) {
-    if (holding.closePrice > 0 && holding.dayChange !== null) {
+    if (
+      holding.closePrice > 0 &&
+      holding.dayChange !== null &&
+      holding.dayChange !== 0
+    ) {
       const derived = holding.closePrice + holding.dayChange;
       if (derived > 0) {
         return derived;
@@ -367,6 +371,15 @@ export function runOpenMonitorEntrySelfCheck(): void {
   const derived = resolveLiveLastPrice(undefined, holding, 5058.7);
   if (Math.abs(derived - 5058.7) > 0.01) {
     throw new Error("resolveLiveLastPrice should derive LTP from close + day_change");
+  }
+
+  const flatDay = resolveLiveLastPrice(
+    undefined,
+    { ...holding, dayChange: 0, lastPrice: 5058.7 },
+    5058.7,
+  );
+  if (Math.abs(flatDay - 5058.7) > 0.01) {
+    throw new Error("resolveLiveLastPrice must not treat day_change 0 as yesterday close");
   }
 
   const openedTodayPnl = computeMonitorPositionDayPnl(

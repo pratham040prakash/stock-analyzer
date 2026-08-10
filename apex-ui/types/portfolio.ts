@@ -6,6 +6,8 @@ export type Holding = {
   closePrice?: number;
   /** Per-share day change from Zerodha holdings, when available. */
   dayChange?: number;
+  /** Daily mark-to-market P&L from Zerodha positions. */
+  dayM2m?: number;
 };
 
 export type Portfolio = {

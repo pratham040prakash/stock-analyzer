@@ -20,6 +20,8 @@ export type KiteHolding = {
   last_price: number;
   close_price?: number;
   day_change?: number;
+  /** Daily mark-to-market P&L from Kite positions, when available. */
+  m2m?: number;
 };
 
 export type FetchHoldingsResult =
@@ -50,6 +52,8 @@ export function mapKiteHoldingsToPortfolio(holdings: KiteHolding[]): Portfolio {
         typeof h.day_change === "number" && Number.isFinite(h.day_change)
           ? h.day_change
           : undefined,
+      dayM2m:
+        typeof h.m2m === "number" && Number.isFinite(h.m2m) ? h.m2m : undefined,
     })),
   };
 }
@@ -60,13 +64,14 @@ type KitePriceRow = {
   day_change?: number;
 };
 
-/** Prefer close + day_change when holdings last_price is stale after a fill. */
+/** Prefer close + day_change when day_change is non-zero (stale last_price after fill). */
 export function resolveKiteLastPrice(row: KitePriceRow): number {
   if (
     typeof row.close_price === "number" &&
     row.close_price > 0 &&
     typeof row.day_change === "number" &&
-    Number.isFinite(row.day_change)
+    Number.isFinite(row.day_change) &&
+    row.day_change !== 0
   ) {
     const derived = row.close_price + row.day_change;
     if (derived > 0) {
@@ -85,6 +90,7 @@ export type KiteNetPosition = {
   last_price: number;
   close_price?: number;
   day_change?: number;
+  m2m?: number;
 };
 
 export type FetchNetPositionsResult =
@@ -159,7 +165,15 @@ export function mergeKiteHoldingsAndPositions(
       average_price: position.average_price,
       last_price: resolveKiteLastPrice(position),
       close_price: position.close_price,
-      day_change: position.day_change,
+      day_change:
+        typeof position.day_change === "number" && Number.isFinite(position.day_change)
+          ? position.day_change
+          : typeof position.close_price === "number" &&
+              position.close_price > 0 &&
+              position.last_price > 0
+            ? position.last_price - position.close_price
+            : undefined,
+      m2m: position.m2m,
     });
   }
 
@@ -171,18 +185,22 @@ export function computePortfolioDayPnl(portfolio: Portfolio): number | null {
   let hasDayData = false;
 
   for (const h of portfolio.holdings) {
-    if (h.dayChange !== undefined) {
+    if (h.dayM2m !== undefined && Number.isFinite(h.dayM2m)) {
+      hasDayData = true;
+      total += h.dayM2m;
+      continue;
+    }
+
+    if (h.closePrice !== undefined && h.closePrice > 0) {
+      hasDayData = true;
+      total += (h.currentPrice - h.closePrice) * h.quantity;
+      continue;
+    }
+
+    if (h.dayChange !== undefined && h.dayChange !== 0) {
       hasDayData = true;
       total += h.dayChange * h.quantity;
-      continue;
     }
-
-    if (h.closePrice === undefined) {
-      continue;
-    }
-
-    hasDayData = true;
-    total += (h.currentPrice - h.closePrice) * h.quantity;
   }
 
   return hasDayData ? total : null;

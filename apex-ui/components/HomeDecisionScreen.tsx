@@ -361,7 +361,7 @@ export default function HomeDecisionScreen({
     loading: monitorLoading,
     refresh: refreshMonitor,
   } = useOpenMonitor({ enabled: isCapitalDeployment });
-  const resolvedDayPnl = monitorDayPnl ?? dayPnl;
+  const resolvedDayPnl = dayPnl ?? monitorDayPnl;
 
   const handleExecuted = useCallback(
     (fill?: BrokerFillSummary) => {
