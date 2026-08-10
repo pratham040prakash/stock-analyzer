@@ -186,6 +186,9 @@ export default function TodayTrustStrip({
                 </li>
               ))}
             </ul>
+            <p className="mt-1.5 text-[11px] text-apex-muted/55">
+              LTP − avg × qty · live quote when available
+            </p>
           </details>
         ) : null}
       </div>

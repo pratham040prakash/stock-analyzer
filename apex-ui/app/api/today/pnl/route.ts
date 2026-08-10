@@ -42,6 +42,11 @@ export async function GET() {
       ? computeZerodhaPositionsBreakdown(live.holdings, live.netPnlPositions)
       : [];
 
+  const quotesApplied =
+    live.status === "OK"
+      ? positionsBreakdown.filter((row) => row.last_price > 0).length
+      : 0;
+
   const monitor = await getOpenMonitorLiveSnapshot(supabase, user.id, live);
 
   return apiOk({
@@ -50,6 +55,7 @@ export async function GET() {
     positions_breakdown: positionsBreakdown,
     positions_net_legs:
       live.status === "OK" ? live.netPnlPositions.length : 0,
+    quotes_applied: quotesApplied,
     monitor_open_pnl: monitor.openPnl,
     monitor_day_pnl: monitor.dayPnl,
     position_ticks: monitor.ticks,

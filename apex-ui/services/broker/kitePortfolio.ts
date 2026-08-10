@@ -7,6 +7,7 @@ import {
   fetchZerodhaCncPositions,
   fetchZerodhaQuotes,
   mergeKiteHoldingsAndPositions,
+  resolveKiteLastPrice,
   type KiteHolding,
   type KiteNetPosition,
 } from "@/services/brokers/zerodha";
@@ -79,26 +80,19 @@ async function enrichKitePortfolioPrices(
     const quoteLtp = quotes.get(symbol)?.lastPrice;
 
     if (!quoteLtp || quoteLtp <= 0) {
-      return position;
-    }
-
-    const calc = roundPnl(
-      (quoteLtp - position.average_price) * position.quantity,
-    );
-
-    if (
-      typeof position.pnl === "number" &&
-      Number.isFinite(position.pnl) &&
-      Math.abs(calc - position.pnl) > 1
-    ) {
-      // Live quote disagrees with Zerodha Positions pnl — keep Positions row.
-      return position;
+      return {
+        ...position,
+        pnl: roundPnl(
+          (resolveKiteLastPrice(position) - position.average_price) *
+            position.quantity,
+        ),
+      };
     }
 
     return {
       ...position,
       last_price: quoteLtp,
-      pnl: calc,
+      pnl: roundPnl((quoteLtp - position.average_price) * position.quantity),
     };
   });
 
