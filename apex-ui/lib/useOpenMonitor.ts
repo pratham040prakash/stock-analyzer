@@ -14,7 +14,7 @@ type Options = {
   enabled: boolean;
 };
 
-const MARKET_REFRESH_MS = 45_000;
+const DAY_PNL_REFRESH_MS = 5_000;
 
 export function useOpenMonitor({ enabled }: Options) {
   const [positions, setPositions] = useState<OpenMonitorPosition[]>([]);
@@ -22,7 +22,7 @@ export function useOpenMonitor({ enabled }: Options) {
   const [loading, setLoading] = useState(false);
   const requestRef = useRef(0);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (options?: { silent?: boolean }) => {
     if (!enabled) {
       setPositions([]);
       setDayPnl(null);
@@ -30,7 +30,9 @@ export function useOpenMonitor({ enabled }: Options) {
     }
 
     const requestId = ++requestRef.current;
-    setLoading(true);
+    if (!options?.silent) {
+      setLoading(true);
+    }
 
     try {
       const res = await apiFetch("/api/monitor/open", {
@@ -44,8 +46,10 @@ export function useOpenMonitor({ enabled }: Options) {
       }
 
       if (!res.ok || !data) {
-        setPositions([]);
-        setDayPnl(null);
+        if (!options?.silent) {
+          setPositions([]);
+          setDayPnl(null);
+        }
         return;
       }
 
@@ -55,10 +59,12 @@ export function useOpenMonitor({ enabled }: Options) {
       if (requestId !== requestRef.current) {
         return;
       }
-      setPositions([]);
-      setDayPnl(null);
+      if (!options?.silent) {
+        setPositions([]);
+        setDayPnl(null);
+      }
     } finally {
-      if (requestId === requestRef.current) {
+      if (requestId === requestRef.current && !options?.silent) {
         setLoading(false);
       }
     }
@@ -75,11 +81,11 @@ export function useOpenMonitor({ enabled }: Options) {
 
     const tick = () => {
       if (isNseCashSessionOpen()) {
-        void refresh();
+        void refresh({ silent: true });
       }
     };
 
-    const intervalId = window.setInterval(tick, MARKET_REFRESH_MS);
+    const intervalId = window.setInterval(tick, DAY_PNL_REFRESH_MS);
     return () => window.clearInterval(intervalId);
   }, [enabled, refresh]);
 

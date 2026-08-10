@@ -43,6 +43,7 @@ import type {
 } from "@/types/decisionHistory";
 import PremiumFeatureGate from "@/components/dailyLoop/PremiumFeatureGate";
 import { useExploreTriggers } from "@/lib/useExploreTriggers";
+import { useDayPnlPoll } from "@/lib/useDayPnlPoll";
 import { useOpenMonitor } from "@/lib/useOpenMonitor";
 import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
 
@@ -355,13 +356,18 @@ export default function HomeDecisionScreen({
   const isGrow = renderIntent === "grow";
   const isProtect = renderIntent === "protect";
   const isCapitalDeployment = isGrow || isProtect;
+  const monitorEnabled =
+    isCapitalDeployment && connectionStatus === "CONNECTED";
   const {
     positions: monitorPositions,
     dayPnl: monitorDayPnl,
     loading: monitorLoading,
     refresh: refreshMonitor,
-  } = useOpenMonitor({ enabled: isCapitalDeployment });
-  const resolvedDayPnl = dayPnl ?? monitorDayPnl;
+  } = useOpenMonitor({ enabled: monitorEnabled });
+  const { dayPnl: liveDayPnl, refresh: refreshLiveDayPnl } = useDayPnlPoll({
+    enabled: monitorEnabled,
+  });
+  const resolvedDayPnl = liveDayPnl ?? dayPnl ?? monitorDayPnl;
 
   const handleExecuted = useCallback(
     (fill?: BrokerFillSummary) => {
@@ -376,9 +382,10 @@ export default function HomeDecisionScreen({
 
       onCapitalRefresh?.();
       void refreshMonitor();
+      void refreshLiveDayPnl();
       void refreshTrust();
     },
-    [onCapitalRefresh, refreshMonitor, refreshTrust, todayHero.symbol],
+    [onCapitalRefresh, refreshLiveDayPnl, refreshMonitor, refreshTrust, todayHero.symbol],
   );
 
   useEffect(() => {
