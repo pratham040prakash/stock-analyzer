@@ -1,11 +1,11 @@
 import { tradingDateKey } from "@/lib/dailyLoop/disciplineDates";
-import { listZerodhaAccessTokenCandidates } from "@/services/broker/accessToken";
+import { fetchLiveKitePortfolio } from "@/services/broker/kitePortfolio";
 import {
-  fetchZerodhaHoldings,
   fetchZerodhaQuotes,
   type ZerodhaLiveQuote,
 } from "@/services/brokers/zerodha";
 import { checkStopLoss } from "@/services/risk/riskControl";
+import { signalsIndicateBrokerFill } from "@/services/trade/logTradeFill";
 import { normalizeSymbol } from "@/lib/stockPool";
 import type { Signals } from "@/types/decision";
 import type { Database } from "@/types/database";
@@ -65,6 +65,18 @@ export function resolveMonitorEntryPrice(
   }
 
   return plannedEntry;
+}
+
+/** Monitor strip only tracks executed buys that are still held at the broker. */
+export function isExecutedOpenMonitorDecision(
+  signals: unknown,
+  holding: HoldingSnapshot | undefined,
+): boolean {
+  if (!signalsIndicateBrokerFill(signals as Signals | null)) {
+    return false;
+  }
+
+  return Boolean(holding && holding.quantity >= 1);
 }
 
 export function resolveOpenedToday(
@@ -206,16 +218,11 @@ export async function getOpenMonitorPositions(
   }
 
   const todayKey = tradingDateKey();
-  const candidates = await listZerodhaAccessTokenCandidates(supabase, userId);
   const holdingsBySymbol = new Map<string, HoldingSnapshot>();
+  const livePortfolio = await fetchLiveKitePortfolio(supabase, userId);
 
-  for (const candidate of candidates) {
-    const holdingsResult = await fetchZerodhaHoldings(candidate.accessToken);
-    if (holdingsResult.status !== "OK") {
-      continue;
-    }
-
-    for (const holding of holdingsResult.data) {
+  if (livePortfolio.status === "OK") {
+    for (const holding of livePortfolio.holdings) {
       const symbol = normalizeSymbol(holding.tradingsymbol);
       holdingsBySymbol.set(symbol, {
         quantity: holding.quantity,
@@ -232,7 +239,6 @@ export async function getOpenMonitorPositions(
             : null,
       });
     }
-    break;
   }
 
   const pending: PendingMonitorRow[] = [];
@@ -252,25 +258,24 @@ export async function getOpenMonitorPositions(
     }
 
     const holding = holdingsBySymbol.get(stock);
+
+    if (!isExecutedOpenMonitorDecision(row.signals, holding)) {
+      continue;
+    }
+
     const entryPrice = resolveMonitorEntryPrice(
       plannedEntry,
       parseFillPrice(row.signals),
       holding,
     );
 
-    let quantity = Math.max(0, Math.round(Number(row.quantity ?? 0)));
-
-    if (holding) {
-      if (holding.quantity < 1) {
-        continue;
-      }
-      quantity = quantity > 0 ? Math.min(quantity, holding.quantity) : holding.quantity;
-    } else if (quantity < 1) {
-      quantity = Math.max(
-        1,
-        Math.floor(Number(row.amount ?? 0) / entryPrice),
-      );
-    }
+    const quantity =
+      Math.max(0, Math.round(Number(row.quantity ?? 0))) > 0
+        ? Math.min(
+            Math.max(0, Math.round(Number(row.quantity ?? 0))),
+            holding!.quantity,
+          )
+        : holding!.quantity;
 
     seenStocks.add(stock);
     pending.push({
@@ -284,16 +289,14 @@ export async function getOpenMonitorPositions(
   }
 
   const liveQuotes = new Map<string, ZerodhaLiveQuote>();
-  if (pending.length > 0) {
+  if (pending.length > 0 && livePortfolio.status === "OK") {
     const symbols = pending.map((item) => item.stock);
-    for (const candidate of candidates) {
-      const quotes = await fetchZerodhaQuotes(candidate.accessToken, symbols);
-      for (const [symbol, quote] of quotes) {
-        liveQuotes.set(symbol, quote);
-      }
-      if (liveQuotes.size >= symbols.length) {
-        break;
-      }
+    const quotes = await fetchZerodhaQuotes(
+      livePortfolio.token.accessToken,
+      symbols,
+    );
+    for (const [symbol, quote] of quotes) {
+      liveQuotes.set(symbol, quote);
     }
   }
 
@@ -402,5 +405,22 @@ export function runOpenMonitorEntrySelfCheck(): void {
   );
   if (overnightPnl === null || Math.abs(overnightPnl - 27) > 0.01) {
     throw new Error("computeMonitorPositionDayPnl should use live LTP vs prior close");
+  }
+
+  const filledSignals = {
+    trend: 0,
+    momentum: 0,
+    volume: 0,
+    order_id: "2086696629296996352",
+    fill_price: 5058.7,
+    filled_at: "2026-08-10T09:30:00.000Z",
+  };
+
+  if (
+    isExecutedOpenMonitorDecision(filledSignals, holding) !== true ||
+    isExecutedOpenMonitorDecision(filledSignals, undefined) !== false ||
+    isExecutedOpenMonitorDecision(null, holding) !== false
+  ) {
+    throw new Error("isExecutedOpenMonitorDecision must require broker fill and live holding");
   }
 }
