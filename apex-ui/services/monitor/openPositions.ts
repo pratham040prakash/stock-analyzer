@@ -1,3 +1,4 @@
+import { tradingDateKey } from "@/lib/dailyLoop/disciplineDates";
 import { resolveZerodhaAccessToken } from "@/services/broker/accessToken";
 import {
   fetchZerodhaHoldings,
@@ -26,10 +27,17 @@ export type OpenMonitorPosition = {
   distanceToStopPct: number;
 };
 
+export type OpenMonitorResult = {
+  positions: OpenMonitorPosition[];
+  dayPnl: number | null;
+};
+
 type HoldingSnapshot = {
   quantity: number;
   lastPrice: number;
   averagePrice: number;
+  closePrice: number;
+  dayChange: number | null;
 };
 
 /** Prefer broker truth (avg / fill) over planned decision entry for P&L display. */
@@ -47,6 +55,32 @@ export function resolveMonitorEntryPrice(
   }
 
   return plannedEntry;
+}
+
+/** Day P&L for one monitored open position (scoped strip, not whole portfolio). */
+export function computeMonitorPositionDayPnl(
+  quantity: number,
+  entryPrice: number,
+  holding: HoldingSnapshot | undefined,
+  openedToday: boolean,
+): number | null {
+  if (!holding || holding.lastPrice <= 0 || quantity <= 0) {
+    return null;
+  }
+
+  if (openedToday && entryPrice > 0) {
+    return (holding.lastPrice - entryPrice) * quantity;
+  }
+
+  if (holding.dayChange !== null && Number.isFinite(holding.dayChange)) {
+    return holding.dayChange * quantity;
+  }
+
+  if (holding.closePrice > 0) {
+    return (holding.lastPrice - holding.closePrice) * quantity;
+  }
+
+  return null;
 }
 
 function parseFillPrice(signals: unknown): number | null {
@@ -86,11 +120,11 @@ function resolveStopStatus(
 export async function getOpenMonitorPositions(
   supabase: Client,
   userId: string,
-): Promise<OpenMonitorPosition[]> {
+): Promise<OpenMonitorResult> {
   const { data: rows, error } = await supabase
     .from("decision_memory")
     .select(
-      "id, stock, entry_price, stop_loss, quantity, amount, signals",
+      "id, stock, entry_price, stop_loss, quantity, amount, signals, decision_date",
     )
     .eq("user_id", userId)
     .eq("action", "buy")
@@ -101,9 +135,10 @@ export async function getOpenMonitorPositions(
     .limit(10);
 
   if (error || !rows?.length) {
-    return [];
+    return { positions: [], dayPnl: null };
   }
 
+  const todayKey = tradingDateKey();
   const token = await resolveZerodhaAccessToken(supabase, userId);
   const holdingsBySymbol = new Map<string, HoldingSnapshot>();
 
@@ -116,6 +151,15 @@ export async function getOpenMonitorPositions(
           quantity: holding.quantity,
           lastPrice: holding.last_price,
           averagePrice: holding.average_price,
+          closePrice:
+            typeof holding.close_price === "number" && holding.close_price > 0
+              ? holding.close_price
+              : 0,
+          dayChange:
+            typeof holding.day_change === "number" &&
+            Number.isFinite(holding.day_change)
+              ? holding.day_change
+              : null,
         });
       }
     }
@@ -123,6 +167,8 @@ export async function getOpenMonitorPositions(
 
   const monitors: OpenMonitorPosition[] = [];
   const seenStocks = new Set<string>();
+  let dayPnlTotal = 0;
+  let hasDayPnl = false;
 
   for (const row of rows) {
     const stock = normalizeSymbol(row.stock ?? "");
@@ -171,6 +217,19 @@ export async function getOpenMonitorPositions(
       currentPrice = entryPrice;
     }
 
+    const openedToday = row.decision_date === todayKey;
+    const positionDayPnl = computeMonitorPositionDayPnl(
+      quantity,
+      entryPrice,
+      holding,
+      openedToday,
+    );
+
+    if (positionDayPnl !== null) {
+      hasDayPnl = true;
+      dayPnlTotal += positionDayPnl;
+    }
+
     const unrealizedPnl = (currentPrice - entryPrice) * quantity;
     const pnlPct =
       entryPrice > 0 ? ((currentPrice - entryPrice) / entryPrice) * 100 : 0;
@@ -194,7 +253,10 @@ export async function getOpenMonitorPositions(
     });
   }
 
-  return monitors;
+  return {
+    positions: monitors,
+    dayPnl: hasDayPnl ? Math.round(dayPnlTotal) : null,
+  };
 }
 
 export function runOpenMonitorEntrySelfCheck(): void {
@@ -202,6 +264,8 @@ export function runOpenMonitorEntrySelfCheck(): void {
     quantity: 1,
     lastPrice: 5067,
     averagePrice: 5058.7,
+    closePrice: 5040,
+    dayChange: 27,
   };
 
   const resolved = resolveMonitorEntryPrice(5067, null, holding);
@@ -212,5 +276,15 @@ export function runOpenMonitorEntrySelfCheck(): void {
   const fromFill = resolveMonitorEntryPrice(5067, 5059.2, undefined);
   if (Math.abs(fromFill - 5059.2) > 0.01) {
     throw new Error("resolveMonitorEntryPrice should use fill price when holdings missing");
+  }
+
+  const openedTodayPnl = computeMonitorPositionDayPnl(1, 5058.7, holding, true);
+  if (openedTodayPnl === null || Math.abs(openedTodayPnl - 8.3) > 0.01) {
+    throw new Error("computeMonitorPositionDayPnl should use entry for same-day opens");
+  }
+
+  const overnightPnl = computeMonitorPositionDayPnl(1, 5058.7, holding, false);
+  if (overnightPnl === null || Math.abs(overnightPnl - 27) > 0.01) {
+    throw new Error("computeMonitorPositionDayPnl should use Zerodha day_change when held overnight");
   }
 }

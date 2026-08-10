@@ -4,6 +4,8 @@ export type Holding = {
   avgPrice: number;
   currentPrice: number;
   closePrice?: number;
+  /** Per-share day change from Zerodha holdings, when available. */
+  dayChange?: number;
 };
 
 export type Portfolio = {

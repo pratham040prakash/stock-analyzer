@@ -78,8 +78,8 @@ export default function TodayMonitorStrip({
                 : "text-xs text-amber-200/90"
             }
           >
-            Day P&amp;L {dayPnl >= 0 ? "+" : ""}
-            {formatInr(Math.round(dayPnl))}
+            Day P&amp;L {dayPnl >= 0 ? "+" : "−"}
+            {formatInr(Math.abs(Math.round(dayPnl)))}
           </p>
         ) : null}
       </div>
