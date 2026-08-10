@@ -90,7 +90,7 @@ export default function TodayMonitorStrip({
       </div>
 
       <p className="text-[11px] leading-snug text-apex-muted/60">
-        Live prices from Zerodha · updates every 5s during market hours.
+        Day P&amp;L updates every 5s during market hours · positions refresh after trades.
       </p>
     </div>
   );

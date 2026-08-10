@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
-import { isNseCashSessionOpen } from "@/lib/broker/marketSession";
 import type { OpenMonitorPosition } from "@/services/monitor/openPositions";
 
 type MonitorResponse = {
@@ -14,25 +13,19 @@ type Options = {
   enabled: boolean;
 };
 
-const DAY_PNL_REFRESH_MS = 5_000;
-
 export function useOpenMonitor({ enabled }: Options) {
   const [positions, setPositions] = useState<OpenMonitorPosition[]>([]);
-  const [dayPnl, setDayPnl] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const requestRef = useRef(0);
 
-  const refresh = useCallback(async (options?: { silent?: boolean }) => {
+  const refresh = useCallback(async () => {
     if (!enabled) {
       setPositions([]);
-      setDayPnl(null);
       return;
     }
 
     const requestId = ++requestRef.current;
-    if (!options?.silent) {
-      setLoading(true);
-    }
+    setLoading(true);
 
     try {
       const res = await apiFetch("/api/monitor/open", {
@@ -46,25 +39,18 @@ export function useOpenMonitor({ enabled }: Options) {
       }
 
       if (!res.ok || !data) {
-        if (!options?.silent) {
-          setPositions([]);
-          setDayPnl(null);
-        }
+        setPositions([]);
         return;
       }
 
       setPositions(data.positions ?? []);
-      setDayPnl(data.dayPnl ?? null);
     } catch {
       if (requestId !== requestRef.current) {
         return;
       }
-      if (!options?.silent) {
-        setPositions([]);
-        setDayPnl(null);
-      }
+      setPositions([]);
     } finally {
-      if (requestId === requestRef.current && !options?.silent) {
+      if (requestId === requestRef.current) {
         setLoading(false);
       }
     }
@@ -74,24 +60,8 @@ export function useOpenMonitor({ enabled }: Options) {
     void refresh();
   }, [refresh]);
 
-  useEffect(() => {
-    if (!enabled) {
-      return;
-    }
-
-    const tick = () => {
-      if (isNseCashSessionOpen()) {
-        void refresh({ silent: true });
-      }
-    };
-
-    const intervalId = window.setInterval(tick, DAY_PNL_REFRESH_MS);
-    return () => window.clearInterval(intervalId);
-  }, [enabled, refresh]);
-
   return {
     positions,
-    dayPnl: dayPnl,
     loading,
     refresh,
   };

@@ -44,6 +44,7 @@ import type {
 import PremiumFeatureGate from "@/components/dailyLoop/PremiumFeatureGate";
 import { useExploreTriggers } from "@/lib/useExploreTriggers";
 import { useDayPnlPoll } from "@/lib/useDayPnlPoll";
+import { useMonitorDayPnlPoll } from "@/lib/useMonitorDayPnlPoll";
 import { useOpenMonitor } from "@/lib/useOpenMonitor";
 import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
 
@@ -360,14 +361,16 @@ export default function HomeDecisionScreen({
     isCapitalDeployment && connectionStatus === "CONNECTED";
   const {
     positions: monitorPositions,
-    dayPnl: monitorDayPnl,
     loading: monitorLoading,
     refresh: refreshMonitor,
   } = useOpenMonitor({ enabled: monitorEnabled });
   const { dayPnl: liveDayPnl, refresh: refreshLiveDayPnl } = useDayPnlPoll({
     enabled: monitorEnabled,
   });
-  const resolvedDayPnl = liveDayPnl ?? dayPnl ?? monitorDayPnl;
+  const { dayPnl: monitorLiveDayPnl, refresh: refreshMonitorDayPnl } =
+    useMonitorDayPnlPoll({ enabled: monitorEnabled });
+  const resolvedDayPnl = liveDayPnl ?? dayPnl;
+  const monitorStripDayPnl = monitorLiveDayPnl;
 
   const handleExecuted = useCallback(
     (fill?: BrokerFillSummary) => {
@@ -383,9 +386,17 @@ export default function HomeDecisionScreen({
       onCapitalRefresh?.();
       void refreshMonitor();
       void refreshLiveDayPnl();
+      void refreshMonitorDayPnl();
       void refreshTrust();
     },
-    [onCapitalRefresh, refreshLiveDayPnl, refreshMonitor, refreshTrust, todayHero.symbol],
+    [
+      onCapitalRefresh,
+      refreshLiveDayPnl,
+      refreshMonitor,
+      refreshMonitorDayPnl,
+      refreshTrust,
+      todayHero.symbol,
+    ],
   );
 
   useEffect(() => {
@@ -595,7 +606,7 @@ export default function HomeDecisionScreen({
               <div className="mt-4">
                 <TodayMonitorStrip
                   positions={monitorPositions}
-                  dayPnl={resolvedDayPnl}
+                  dayPnl={monitorStripDayPnl}
                   loading={monitorLoading}
                 />
               </div>
