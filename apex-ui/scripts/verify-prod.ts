@@ -1,7 +1,7 @@
 /**
  * VERIFY-001 — production smoke checks after deploy.
  * VERIFY-002 — authenticated API checks when APEX_VERIFY_COOKIE is set.
- * VERIFY-003 — Today + trade status contract checks for the live trim loop.
+ * VERIFY-003 — Today Open P&L contract (positions_pnl + breakdown sum).
  *
  * Usage:
  *   APEX_VERIFY_BASE_URL=https://your-app.vercel.app npm run verify:prod
@@ -289,6 +289,29 @@ async function runChecks(baseUrl: string): Promise<VerifyReport> {
           typeof body?.status === "string" &&
           typeof body?.portfolio_value === "number" &&
           typeof body?.margin_available === "number",
+      },
+      {
+        id: "authed-today-pnl",
+        path: "/api/today/pnl",
+        validate: (body: Record<string, unknown> | null) => {
+          if (typeof body?.positions_pnl !== "number") {
+            return false;
+          }
+
+          if (!Array.isArray(body.positions_breakdown)) {
+            return false;
+          }
+
+          let breakdownSum = 0;
+          for (const row of body.positions_breakdown) {
+            if (!isRecord(row) || typeof row.pnl !== "number") {
+              return false;
+            }
+            breakdownSum += row.pnl;
+          }
+
+          return Math.abs(breakdownSum - body.positions_pnl) < 0.2;
+        },
       },
     ] as const;
 

@@ -2,6 +2,7 @@
 
 import type { ConnectionStatus } from "@/lib/broker/zerodha";
 import { formatInr } from "@/lib/funds";
+import type { ZerodhaPositionPnlRow } from "@/services/brokers/zerodha";
 
 export type TodayTrustStripProps = {
   connectionStatus: ConnectionStatus;
@@ -11,6 +12,7 @@ export type TodayTrustStripProps = {
   portfolioValue?: number | null;
   totalCapital?: number | null;
   dayPnl?: number | null;
+  positionsBreakdown?: ZerodhaPositionPnlRow[];
   updatedAt?: string | null;
   fundsLoading?: boolean;
   fundsSynced?: boolean;
@@ -58,6 +60,7 @@ export default function TodayTrustStrip({
   portfolioValue,
   totalCapital,
   dayPnl,
+  positionsBreakdown = [],
   updatedAt,
   fundsLoading = false,
   fundsSynced = false,
@@ -149,6 +152,35 @@ export default function TodayTrustStrip({
             </span>
           ) : null}
         </div>
+
+        {dayKnown && positionsBreakdown.length > 0 ? (
+          <details className="mt-2 text-xs text-apex-muted/75">
+            <summary className="cursor-pointer select-none hover:text-apex-muted">
+              How Open P&amp;L is calculated (matches Zerodha Positions)
+            </summary>
+            <ul className="mt-1.5 space-y-1 border-t border-apex-border/10 pt-1.5">
+              {positionsBreakdown.map((row) => (
+                <li
+                  key={row.symbol}
+                  className="flex items-baseline justify-between gap-3 tabular-nums"
+                >
+                  <span>
+                    {row.symbol}{" "}
+                    <span className="text-apex-muted/60">×{row.quantity}</span>
+                  </span>
+                  <span
+                    className={
+                      row.pnl >= 0 ? "text-emerald-300/90" : "text-amber-200/90"
+                    }
+                  >
+                    {row.pnl >= 0 ? "+" : ""}
+                    {formatInr(Math.round(row.pnl))}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </details>
+        ) : null}
       </div>
     </div>
   );

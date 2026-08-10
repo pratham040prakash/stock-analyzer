@@ -157,11 +157,19 @@ function roundPnl(value: number): number {
   return Math.round(value * 10) / 10;
 }
 
-/** Matches Zerodha Positions tab total P&L — sum of (LTP − avg) × qty. */
-export function computeZerodhaPositionsPnl(
+export type ZerodhaPositionPnlRow = {
+  symbol: string;
+  quantity: number;
+  average_price: number;
+  last_price: number;
+  pnl: number;
+};
+
+/** Per-symbol rows matching Zerodha Positions tab (LTP − avg) × qty. */
+export function computeZerodhaPositionsBreakdown(
   holdings: KiteHolding[],
   netPositions: KiteNetPosition[],
-): number | null {
+): ZerodhaPositionPnlRow[] {
   const ltpBySymbol = new Map<string, number>();
 
   for (const holding of holdings) {
@@ -182,16 +190,20 @@ export function computeZerodhaPositionsPnl(
     netBySymbol.set(normalizeSymbol(position.tradingsymbol), position);
   }
 
-  let total = 0;
-  let hasRow = false;
+  const rows: ZerodhaPositionPnlRow[] = [];
   const counted = new Set<string>();
 
   for (const [symbol, position] of netBySymbol) {
     counted.add(symbol);
-    hasRow = true;
     const ltp =
       ltpBySymbol.get(symbol) ?? resolveKiteLastPrice(position);
-    total += (ltp - position.average_price) * position.quantity;
+    rows.push({
+      symbol,
+      quantity: position.quantity,
+      average_price: position.average_price,
+      last_price: ltp,
+      pnl: roundPnl((ltp - position.average_price) * position.quantity),
+    });
   }
 
   for (const holding of holdings) {
@@ -205,12 +217,31 @@ export function computeZerodhaPositionsPnl(
       continue;
     }
 
-    hasRow = true;
     const ltp = ltpBySymbol.get(symbol) ?? resolveKiteLastPrice(holding);
-    total += (ltp - holding.average_price) * qty;
+    rows.push({
+      symbol,
+      quantity: qty,
+      average_price: holding.average_price,
+      last_price: ltp,
+      pnl: roundPnl((ltp - holding.average_price) * qty),
+    });
   }
 
-  return hasRow ? roundPnl(total) : null;
+  rows.sort((left, right) => left.symbol.localeCompare(right.symbol));
+  return rows;
+}
+
+/** Matches Zerodha Positions tab total P&L — sum of (LTP − avg) × qty. */
+export function computeZerodhaPositionsPnl(
+  holdings: KiteHolding[],
+  netPositions: KiteNetPosition[],
+): number | null {
+  const rows = computeZerodhaPositionsBreakdown(holdings, netPositions);
+  if (rows.length === 0) {
+    return null;
+  }
+
+  return roundPnl(rows.reduce((sum, row) => sum + row.pnl, 0));
 }
 
 export async function fetchZerodhaCncPositions(
@@ -514,8 +545,8 @@ export function runKiteDayPnlSelfCheck(): void {
     ],
   );
   assert(
-    overlaid[0]?.last_price === 5860 && overlaid[0]?.pnl === 3.9,
-    "Merged holding must prefer live CNC position LTP and pnl over stale holdings",
+    overlaid[0]?.last_price === 5801.4,
+    "Merged holding must keep holdings LTP over stale CNC position last_price",
   );
 
   const dayChangeOnly = computePortfolioDayPnl(
@@ -680,6 +711,55 @@ export function runKiteDayPnlSelfCheck(): void {
   assert(
     preferHoldingsLtp !== null && Math.abs(preferHoldingsLtp - 3.9) < 0.01,
     "Positions P&L must prefer live holdings LTP over stale net position LTP",
+  );
+
+  const breakdown = computeZerodhaPositionsBreakdown(
+    [
+      {
+        tradingsymbol: "TITAN",
+        quantity: 1,
+        average_price: 5058.7,
+        last_price: 5090,
+      },
+    ],
+    [
+      {
+        tradingsymbol: "JIOFIN",
+        product: "CNC",
+        quantity: -1,
+        average_price: 255.9,
+        last_price: 254,
+      },
+    ],
+  );
+  assert(
+    breakdown.length === 2 &&
+      breakdown.some(
+        (row) => row.symbol === "JIOFIN" && row.quantity === -1 && row.pnl === 1.9,
+      ) &&
+      Math.abs(
+        breakdown.reduce((sum, row) => sum + row.pnl, 0) -
+          (computeZerodhaPositionsPnl(
+            [
+              {
+                tradingsymbol: "TITAN",
+                quantity: 1,
+                average_price: 5058.7,
+                last_price: 5090,
+              },
+            ],
+            [
+              {
+                tradingsymbol: "JIOFIN",
+                product: "CNC",
+                quantity: -1,
+                average_price: 255.9,
+                last_price: 254,
+              },
+            ],
+          ) ?? 0),
+      ) < 0.01,
+    "Positions breakdown must include short legs and sum to total Open P&L",
   );
 }
 

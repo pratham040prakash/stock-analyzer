@@ -366,6 +366,7 @@ export default function HomeDecisionScreen({
   } = useOpenMonitor({ enabled: monitorEnabled });
   const {
     positionsPnl: livePositionsPnl,
+    positionsBreakdown: livePositionsBreakdown,
     portfolioDayPnl: liveDayPnl,
     monitorOpenPnl: monitorLiveOpenPnl,
     positionTicks,
@@ -511,6 +512,7 @@ export default function HomeDecisionScreen({
                   : undefined)
               }
               dayPnl={resolvedOpenPnl}
+              positionsBreakdown={livePositionsBreakdown}
               updatedAt={decisionUpdatedAt}
               fundsLoading={fundsLoading}
               fundsSynced={fundsSynced}
