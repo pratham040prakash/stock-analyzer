@@ -85,6 +85,8 @@ export default function TodayTrustStrip({
     : fundsSynced && !fundsSyncError
       ? 0
       : null;
+  const showInitialFundsLoad =
+    fundsLoading && deployableResolved === null && connectionStatus === "CONNECTED";
   const showLiveCapital = connectionStatus === "CONNECTED";
   const portfolioKnown = showLiveCapital && knownAmount(portfolioValue);
   const totalKnown = showLiveCapital && knownAmount(totalCapital);
@@ -127,7 +129,6 @@ export default function TodayTrustStrip({
           <span className="text-amber-200/90">Stale · reconnect to refresh</span>
         ) : null}
         {pollError ? <span className="text-amber-200/90">{pollError}</span> : null}
-        {fundsLoading ? <span>Syncing Zerodha funds…</span> : null}
         {fundsSyncError && !fundsLoading ? (
           <span className="text-amber-200/90">
             {fundsSyncError}{" "}
@@ -157,8 +158,8 @@ export default function TodayTrustStrip({
           <span className="text-apex-muted/75">Available to deploy: </span>
           {deployableResolved !== null ? (
             formatInr(deployableResolved)
-          ) : fundsLoading ? (
-            "…"
+          ) : showInitialFundsLoad ? (
+            <span className="text-apex-muted/70">Loading…</span>
           ) : (
             "—"
           )}

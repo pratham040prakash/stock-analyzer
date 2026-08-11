@@ -67,7 +67,7 @@ export default function PortfolioPageClient({
     null,
   );
   const [overviewLoading, setOverviewLoading] = useState(true);
-  const [fundsLoading, setFundsLoading] = useState(true);
+  const [fundsLoading, setFundsLoading] = useState(false);
   const [fundsSynced, setFundsSynced] = useState(false);
   const [fundsSyncError, setFundsSyncError] = useState<string | null>(null);
   const [ledgerCash, setLedgerCash] = useState<number | undefined>();
@@ -79,8 +79,10 @@ export default function PortfolioPageClient({
   const [thesisWarnings, setThesisWarnings] = useState<ThesisInvalidationWarning[]>([]);
   const [portfolioProofHref, setPortfolioProofHref] = useState<string | null>(null);
 
-  const loadFunds = useCallback(async () => {
-    setFundsLoading(true);
+  const loadFunds = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) {
+      setFundsLoading(true);
+    }
     setFundsSyncError(null);
 
     try {
@@ -161,12 +163,19 @@ export default function PortfolioPageClient({
   const refreshAll = useCallback(async () => {
     await Promise.all([
       loadOverview(),
-      loadFunds(),
+      loadFunds({ silent: fundsSynced }),
       loadNewCapital(),
       loadThesisWatch(),
       loadPortfolioProof(),
     ]);
-  }, [loadFunds, loadNewCapital, loadOverview, loadPortfolioProof, loadThesisWatch]);
+  }, [
+    fundsSynced,
+    loadFunds,
+    loadNewCapital,
+    loadOverview,
+    loadPortfolioProof,
+    loadThesisWatch,
+  ]);
 
   useEffect(() => {
     void refreshAll();

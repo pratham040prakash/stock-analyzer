@@ -478,11 +478,13 @@ export default function HomeClient({
     }
   }, [configured, user]);
 
-  const loadFunds = useCallback(async () => {
+  const loadFunds = useCallback(async (options?: { silent?: boolean }) => {
     if (!configured || !user) return;
 
     const requestId = ++fundsRequestRef.current;
-    setFundsLoading(true);
+    if (!options?.silent) {
+      setFundsLoading(true);
+    }
 
     const applyFunds = (patch: {
       availableCash: number;
@@ -600,13 +602,14 @@ export default function HomeClient({
       return;
     }
 
-    void loadFunds();
+    void loadFunds({ silent: fundsSynced });
   }, [
     connectionStatus,
     configured,
     user,
     authLoading,
     isCompletingOAuth,
+    fundsSynced,
     loadFunds,
   ]);
 
@@ -672,7 +675,7 @@ export default function HomeClient({
       await loadPortfolio({ silent: true });
       refreshDecision();
       await loadDailyInsight();
-      await loadFunds();
+      await loadFunds({ silent: true });
       await loadDecisionHistory();
 
       const res = await apiFetch("/api/zerodha/session", { method: "GET" });
@@ -711,7 +714,7 @@ export default function HomeClient({
       setCompletedFetchKey(user.id);
       void refreshDecision();
       void loadDailyInsight();
-      void loadFunds();
+      void loadFunds({ silent: true });
       void loadDecisionHistory();
     });
   }, [
@@ -745,7 +748,7 @@ export default function HomeClient({
       if (!cancelled) {
         setCompletedFetchKey(portfolioFetchKey);
         void loadDailyInsight();
-        void loadFunds();
+        void loadFunds({ silent: true });
         void loadDecisionHistory();
       }
     });
@@ -834,7 +837,7 @@ export default function HomeClient({
 
   const refreshPortfolioSilent = useCallback(() => {
     void loadPortfolio({ silent: true });
-    void loadFunds();
+    void loadFunds({ silent: true });
     refreshDecision();
   }, [loadPortfolio, loadFunds, refreshDecision]);
 
@@ -846,7 +849,7 @@ export default function HomeClient({
   const refreshAfterExecution = useCallback(() => {
     void loadPortfolio({ silent: true });
     refreshDecision();
-    void loadFunds();
+    void loadFunds({ silent: true });
     void loadDecisionHistory();
   }, [loadPortfolio, refreshDecision, loadFunds, loadDecisionHistory]);
 
