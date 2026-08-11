@@ -3,10 +3,18 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 type Client = SupabaseClient<Database>;
 
+function isAutoTradeEnvEnabled(): boolean {
+  return process.env.APEX_AUTO_TRADE_ENABLED?.trim() === "true";
+}
+
 export async function isAutoTradingEnabled(
   supabase: Client,
   userId: string,
 ): Promise<boolean> {
+  if (!isAutoTradeEnvEnabled()) {
+    return false;
+  }
+
   const { data, error } = await supabase
     .from("financial_profiles")
     .select("auto_trading_enabled")

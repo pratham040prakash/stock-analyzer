@@ -9,8 +9,26 @@ type Props = {
 };
 
 export default function TrustCanvas({ snapshot, brokerConnected = false }: Props) {
+  const cdqsDisplay =
+    snapshot.cdqs_score_percent !== null
+      ? `${snapshot.cdqs_score_percent}%`
+      : "—";
+
   return (
     <div className="space-y-6">
+      <section className="rounded-xl border border-blue-500/20 bg-blue-500/[0.06] px-4 py-4 space-y-2">
+        <p className="text-xs font-medium uppercase tracking-wide text-blue-100/80">
+          Calibrated Decision Quality (CDQS)
+        </p>
+        <p className="text-5xl font-semibold text-apex-text">{cdqsDisplay}</p>
+        <p className="text-lg text-apex-text/90">{snapshot.cdqs_headline}</p>
+        <p className="text-sm text-apex-muted/85">{snapshot.cdqs_detail}</p>
+        <p className="text-xs text-apex-muted/70">
+          North star from APEX constitution — broker-verified outcomes vs stated confidence,
+          not marketing hit rate.
+        </p>
+      </section>
+
       <section className="space-y-3">
         <p className="text-xs font-medium uppercase tracking-wide text-apex-muted">
           I&apos;ve been reviewing every decision.

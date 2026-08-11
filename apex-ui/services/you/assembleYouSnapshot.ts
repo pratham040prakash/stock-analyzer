@@ -2,6 +2,7 @@ import { assembleInvestorDna } from "@/services/you/assembleInvestorDna";
 import { getDisciplineHistory } from "@/services/decision/disciplineHistory";
 import { getDisciplineStreak } from "@/services/discipline/streak";
 import { getUserTrustSnapshot } from "@/services/decision/trustOutcome";
+import { computeCdqsSnapshot } from "@/services/trust/cdqs";
 import { buildDisciplineProcessScore } from "@/services/review/disciplineScore";
 import type { Database } from "@/types/database";
 import type {
@@ -52,11 +53,12 @@ export async function assembleYouSnapshot(
   supabase: Client,
   userId: string,
 ): Promise<YouSnapshotViewModel> {
-  const [history, streak, trust, investorDna] = await Promise.all([
+  const [history, streak, trust, investorDna, cdqs] = await Promise.all([
     getDisciplineHistory(supabase, userId, 14),
     getDisciplineStreak(supabase, userId),
     getUserTrustSnapshot(supabase, userId),
     assembleInvestorDna(supabase, userId),
+    computeCdqsSnapshot(supabase, userId),
   ]);
 
   const process = buildDisciplineProcessScore(
@@ -108,6 +110,11 @@ export async function assembleYouSnapshot(
     trust_score: trust.trustScore,
     trust_state: trustState,
     trust_narrative: trustNarratives[trustState],
+    cdqs_score_percent: cdqs.scorePercent,
+    cdqs_interpretation: cdqs.interpretation,
+    cdqs_headline: cdqs.headline,
+    cdqs_detail: cdqs.detail,
+    cdqs_sample_size: cdqs.total,
     last_week_summary: `Followed ${history.summary.followedDays} · Wait ${history.summary.waitDays} · Wins ${history.summary.wins}`,
     this_week_summary: process.message,
     visible_miss:

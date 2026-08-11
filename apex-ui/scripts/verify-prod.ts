@@ -517,8 +517,20 @@ async function runChecks(baseUrl: string): Promise<VerifyReport> {
       {
         id: "authed-you",
         path: "/api/you/snapshot",
-        validate: (body: Record<string, unknown> | null) =>
-          body?.status === "ok" && isRecord(body.snapshot),
+        validate: (body: Record<string, unknown> | null) => {
+          if (body?.status !== "ok" || !isRecord(body.snapshot)) {
+            return false;
+          }
+
+          const snapshot = body.snapshot as Record<string, unknown>;
+          return (
+            typeof snapshot.cdqs_headline === "string" &&
+            typeof snapshot.cdqs_detail === "string" &&
+            typeof snapshot.cdqs_interpretation === "string" &&
+            (snapshot.cdqs_score_percent === null ||
+              typeof snapshot.cdqs_score_percent === "number")
+          );
+        },
       },
       {
         id: "authed-planned",
