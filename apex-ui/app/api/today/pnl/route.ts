@@ -34,7 +34,8 @@ export async function GET() {
 
   const positionsPnl =
     live.status === "OK"
-      ? computeZerodhaPositionsPnl(live.holdings, live.netPnlPositions)
+      ? (computeZerodhaPositionsPnl(live.holdings, live.netPnlPositions) ??
+        live.kiteNativePositionsPnl)
       : null;
 
   const positionsBreakdown =
@@ -61,6 +62,9 @@ export async function GET() {
     positions_breakdown: positionsBreakdown,
     positions_net_legs:
       live.status === "OK" ? live.netPnlPositions.length : 0,
+    live_kite_status: live.status,
+    live_kite_message:
+      live.status === "ERROR" ? live.message : undefined,
     quotes_applied: quotesApplied,
     quotes_requested: quotesRequested,
     quotes_received:

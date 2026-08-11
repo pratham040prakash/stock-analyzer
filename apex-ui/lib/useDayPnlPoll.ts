@@ -10,6 +10,10 @@ type LivePnlResponse = {
   portfolio_day_pnl: number | null;
   positions_pnl?: number | null;
   positions_breakdown?: ZerodhaPositionPnlRow[];
+  positions_net_legs?: number;
+  kite_native_pnl?: number | null;
+  live_kite_status?: string;
+  live_kite_message?: string;
   monitor_open_pnl?: number | null;
   monitor_day_pnl: number | null;
   position_ticks?: MonitorLiveTick[];
@@ -53,6 +57,8 @@ export function useDayPnlPoll({ enabled }: Options) {
   const [positionsBreakdown, setPositionsBreakdown] = useState<
     ZerodhaPositionPnlRow[]
   >([]);
+  const [positionsNetLegs, setPositionsNetLegs] = useState(0);
+  const [liveKiteStatus, setLiveKiteStatus] = useState<string | null>(null);
   const [portfolioDayPnl, setPortfolioDayPnl] = useState<number | null>(null);
   const [monitorOpenPnl, setMonitorOpenPnl] = useState<number | null>(null);
   const [positionTicks, setPositionTicks] = useState<MonitorLiveTick[]>([]);
@@ -62,6 +68,8 @@ export function useDayPnlPoll({ enabled }: Options) {
     if (!enabled) {
       setPositionsPnl(null);
       setPositionsBreakdown([]);
+      setPositionsNetLegs(0);
+      setLiveKiteStatus(null);
       setPortfolioDayPnl(null);
       setMonitorOpenPnl(null);
       setPositionTicks([]);
@@ -86,10 +94,20 @@ export function useDayPnlPoll({ enabled }: Options) {
       }
 
       const positionsPnlValue =
-        typeof data.positions_pnl === "number" ? data.positions_pnl : null;
+        typeof data.positions_pnl === "number"
+          ? data.positions_pnl
+          : typeof data.kite_native_pnl === "number"
+            ? data.kite_native_pnl
+            : null;
 
       setPositionsPnl(positionsPnlValue);
       setPositionsBreakdown(parsePositionsBreakdown(data.positions_breakdown));
+      setPositionsNetLegs(
+        typeof data.positions_net_legs === "number" ? data.positions_net_legs : 0,
+      );
+      setLiveKiteStatus(
+        typeof data.live_kite_status === "string" ? data.live_kite_status : null,
+      );
       setPortfolioDayPnl(data.portfolio_day_pnl ?? null);
       setMonitorOpenPnl(data.monitor_open_pnl ?? null);
       setPositionTicks(data.position_ticks ?? []);
@@ -116,6 +134,8 @@ export function useDayPnlPoll({ enabled }: Options) {
   return {
     positionsPnl,
     positionsBreakdown,
+    positionsNetLegs,
+    liveKiteStatus,
     portfolioDayPnl,
     monitorOpenPnl,
     positionTicks,

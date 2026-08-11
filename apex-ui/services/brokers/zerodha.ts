@@ -101,6 +101,11 @@ export function resolveKiteLastPrice(row: KitePriceRow): number {
     }
   }
 
+  // Pre-open / illiquid — Kite may return last_price 0; use prior close for valuation.
+  if (typeof row.close_price === "number" && row.close_price > 0) {
+    return row.close_price;
+  }
+
   return row.last_price;
 }
 
