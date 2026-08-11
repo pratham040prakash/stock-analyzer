@@ -5,6 +5,7 @@ import {
   type PremiumFeatureKey,
 } from "@/lib/subscription/premiumCopy";
 import PremiumActivationPanel from "@/components/dailyLoop/PremiumActivationPanel";
+import PremiumCheckoutPanel from "@/components/subscription/PremiumCheckoutPanel";
 
 export type PremiumFeature = PremiumFeatureKey;
 
@@ -12,6 +13,7 @@ type Props = {
   feature: PremiumFeature;
   compact?: boolean;
   activationEnabled?: boolean;
+  billingEnabled?: boolean;
   onActivated?: () => void;
 };
 
@@ -19,6 +21,7 @@ export default function PremiumFeatureGate({
   feature,
   compact = false,
   activationEnabled = false,
+  billingEnabled = false,
   onActivated,
 }: Props) {
   const copy = PREMIUM_FEATURE_COPY[feature];
@@ -49,7 +52,9 @@ export default function PremiumFeatureGate({
         Free tier keeps today&apos;s broker truth and one clear action.
       </p>
 
-      {activationEnabled ? (
+      {billingEnabled ? (
+        <PremiumCheckoutPanel compact={compact} onSubscribed={onActivated} />
+      ) : activationEnabled ? (
         <PremiumActivationPanel compact={compact} onActivated={onActivated} />
       ) : (
         <p className="mt-3 text-xs text-apex-muted/60">

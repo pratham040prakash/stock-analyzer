@@ -15,7 +15,7 @@ type SnapshotResponse = {
 };
 
 export default function TrustPageClient() {
-  const { features, activationEnabled, refresh: refreshTier } = usePremiumTier(true);
+  const { features, activationEnabled, billingEnabled, refresh: refreshTier } = usePremiumTier(true);
   const [snapshot, setSnapshot] = useState<YouSnapshotViewModel | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -55,6 +55,7 @@ export default function TrustPageClient() {
               <PremiumFeatureGate
                 feature="trustCdqsHistory"
                 activationEnabled={activationEnabled}
+                billingEnabled={billingEnabled}
                 onActivated={() => void refreshTier()}
               />
             </div>

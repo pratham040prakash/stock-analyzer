@@ -4,6 +4,12 @@ import {
   validatePremiumAccessCode,
 } from "@/services/subscription/activation";
 import {
+  readRazorpayConfig,
+} from "@/services/subscription/razorpayConfig";
+import {
+  hasActivePremiumSubscription,
+} from "@/services/subscription/subscriptionRepository";
+import {
   resolvePremiumTier,
   tierFeatures,
   type ApexTier,
@@ -17,7 +23,15 @@ type Client = SupabaseClient<Database>;
 export type PremiumTierSnapshot = {
   tier: ApexTier;
   activationEnabled: boolean;
+  billingEnabled: boolean;
 };
+
+async function resolvePaidPremium(
+  supabase: Client,
+  userId: string,
+): Promise<boolean> {
+  return hasActivePremiumSubscription(supabase, userId);
+}
 
 export async function hasPremiumActivation(
   supabase: Client,
@@ -41,22 +55,27 @@ export async function resolvePremiumTierWithDb(
   user: User | null,
 ): Promise<PremiumTierSnapshot> {
   const activationEnabled = isPremiumActivationEnabled();
+  const billingEnabled = Boolean(readRazorpayConfig());
 
   if (!user) {
-    return { tier: "free", activationEnabled };
+    return { tier: "free", activationEnabled, billingEnabled };
   }
 
   const baseTier = resolvePremiumTier(user);
 
   if (baseTier === "premium") {
-    return { tier: "premium", activationEnabled };
+    return { tier: "premium", activationEnabled, billingEnabled };
   }
 
-  const activated = await hasPremiumActivation(supabase, user.id);
+  const [activated, subscribed] = await Promise.all([
+    hasPremiumActivation(supabase, user.id),
+    resolvePaidPremium(supabase, user.id),
+  ]);
 
   return {
-    tier: activated ? "premium" : "free",
+    tier: activated || subscribed ? "premium" : "free",
     activationEnabled,
+    billingEnabled,
   };
 }
 
@@ -71,6 +90,12 @@ export async function resolvePremiumTierForUserId(
   const activated = await hasPremiumActivation(admin, userId);
 
   if (activated) {
+    return "premium";
+  }
+
+  const subscribed = await resolvePaidPremium(admin, userId);
+
+  if (subscribed) {
     return "premium";
   }
 
@@ -143,5 +168,6 @@ export function buildTierResponse(snapshot: PremiumTierSnapshot) {
     tier: snapshot.tier,
     features: tierFeatures(snapshot.tier),
     activationEnabled: snapshot.activationEnabled,
+    billingEnabled: snapshot.billingEnabled,
   };
 }

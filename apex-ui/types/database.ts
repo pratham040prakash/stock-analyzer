@@ -448,6 +448,37 @@ export type Database = {
         };
         Relationships: [];
       };
+      premium_subscriptions: {
+        Row: {
+          user_id: string;
+          razorpay_subscription_id: string;
+          razorpay_plan_id: string;
+          billing_interval: "monthly" | "yearly";
+          status: string;
+          current_period_end: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          razorpay_subscription_id: string;
+          razorpay_plan_id: string;
+          billing_interval: "monthly" | "yearly";
+          status: string;
+          current_period_end?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          razorpay_subscription_id?: string;
+          razorpay_plan_id?: string;
+          billing_interval?: "monthly" | "yearly";
+          status?: string;
+          current_period_end?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;

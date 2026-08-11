@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import PremiumCheckoutPanel from "@/components/subscription/PremiumCheckoutPanel";
 import {
   PREMIUM_FEATURE_COPY,
   PREMIUM_VALUE_DETAIL,
@@ -21,12 +22,16 @@ const FEATURE_ORDER: PremiumFeatureKey[] = [
 type Props = {
   tier: ApexTier;
   activationEnabled?: boolean;
+  billingEnabled?: boolean;
+  onSubscribed?: () => void;
   compact?: boolean;
 };
 
 export default function PremiumValueCard({
   tier,
   activationEnabled = false,
+  billingEnabled = false,
+  onSubscribed,
   compact = false,
 }: Props) {
   if (tier === "premium") {
@@ -65,12 +70,14 @@ export default function PremiumValueCard({
         })}
       </ul>
 
-      {activationEnabled ? (
+      {billingEnabled ? (
+        <PremiumCheckoutPanel compact={compact} onSubscribed={onSubscribed} />
+      ) : activationEnabled ? (
         <Link
-          href="/app/you"
+          href="/app/you/settings"
           className="inline-flex rounded-lg border border-blue-500/25 bg-blue-500/10 px-4 py-2 text-sm font-medium text-blue-100"
         >
-          Activate premium on You →
+          Unlock with invite code →
         </Link>
       ) : (
         <p className="text-xs text-apex-muted/70">

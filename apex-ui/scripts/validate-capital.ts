@@ -68,6 +68,10 @@ import { runPortfolioHealthSummarySelfCheck } from "../services/portfolio/buildP
 import { runSectorCapPolicySelfCheck } from "../services/portfolio/sectorCapPolicy";
 import { runSellTrimSelfCheck } from "../lib/sellTrim";
 import { runPremiumCopySelfCheck } from "../lib/subscription/premiumCopy";
+import { runRazorpayConfigSelfCheck } from "../services/subscription/razorpayConfig";
+import { runRazorpayClientSelfCheck } from "../services/subscription/razorpayClient";
+import { runSubscriptionRepositorySelfCheck } from "../services/subscription/subscriptionRepository";
+import { runBillingSyncSelfCheck } from "../services/subscription/billingSync";
 
 runCapitalProjectionSelfCheck();
 runCapitalFinalStateSelfCheck();
@@ -136,3 +140,7 @@ runPortfolioHealthSummarySelfCheck();
 runSectorCapPolicySelfCheck();
 runSellTrimSelfCheck();
 runPremiumCopySelfCheck();
+runRazorpayConfigSelfCheck();
+runRazorpayClientSelfCheck();
+runSubscriptionRepositorySelfCheck();
+runBillingSyncSelfCheck();

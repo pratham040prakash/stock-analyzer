@@ -51,6 +51,16 @@ Validate Phase T2 (Trust + discipline loop) and Sprint T3-1 (premium packaging) 
 - [ ] Premium user (activation or allow-list) can export investment book
 - [ ] Cron digest skips free-tier users (`runReviewDigestCron` premium filter)
 
+### Razorpay billing — T3-2
+
+- [ ] `premium_subscriptions.sql` applied in prod Supabase
+- [ ] Vercel env: `APEX_RAZORPAY_ENABLED=true`, keys, plan IDs, webhook secret
+- [ ] Webhook registered at `/api/subscription/webhook/razorpay`
+- [ ] `POST /api/subscription/checkout` returns subscription id when billing enabled
+- [ ] Webhook `subscription.activated` upserts row + unlocks premium features
+- [ ] Cancelled/halted subscription revokes paid premium (invite codes still work)
+- [ ] Settings shows **Subscribe with Razorpay** when billing enabled
+
 ### Auto-trade gate — T2a
 
 - [ ] `APEX_AUTO_TRADE_ENABLED` unset/false → no auto execution paths fire

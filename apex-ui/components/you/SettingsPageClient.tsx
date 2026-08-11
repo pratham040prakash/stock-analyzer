@@ -23,7 +23,7 @@ type DigestResponse = {
 const DIGEST_PREF_KEY = "apex.digest.channel";
 
 export default function SettingsPageClient({ userName }: { userName: string }) {
-  const { tier, features, activationEnabled, refresh: refreshTier } = usePremiumTier(true);
+  const { tier, features, activationEnabled, billingEnabled, refresh: refreshTier } = usePremiumTier(true);
   const [theses, setTheses] = useState<InvestmentThesisRow[]>([]);
   const [digestChannel, setDigestChannel] = useState<"telegram" | "email">("telegram");
   const [digestMessage, setDigestMessage] = useState<string | null>(null);
@@ -138,7 +138,13 @@ export default function SettingsPageClient({ userName }: { userName: string }) {
         </section>
 
         {tier === "free" ? (
-          <PremiumValueCard tier={tier} activationEnabled={activationEnabled} compact />
+          <PremiumValueCard
+            tier={tier}
+            activationEnabled={activationEnabled}
+            billingEnabled={billingEnabled}
+            onSubscribed={() => void refreshTier()}
+            compact
+          />
         ) : null}
 
         <section className="rounded-xl border border-apex-border/15 bg-white/[0.02] px-4 py-4 space-y-3" aria-labelledby="settings-exports">
@@ -172,6 +178,7 @@ export default function SettingsPageClient({ userName }: { userName: string }) {
               feature="thesisExport"
               compact
               activationEnabled={activationEnabled}
+              billingEnabled={billingEnabled}
               onActivated={() => void refreshTier()}
             />
           )}
@@ -257,6 +264,7 @@ export default function SettingsPageClient({ userName }: { userName: string }) {
               feature="reviewDigest"
               compact
               activationEnabled={activationEnabled}
+              billingEnabled={billingEnabled}
               onActivated={() => void refreshTier()}
             />
           )}

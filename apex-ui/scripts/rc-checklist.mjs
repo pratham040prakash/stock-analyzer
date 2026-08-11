@@ -15,6 +15,7 @@ const requiredMigrationFiles = [
   "discipline_commits.sql",
   "investment_thesis.sql",
   "operating_profile.sql",
+  "premium_subscriptions.sql",
   "user_trust_state.sql",
 ];
 
@@ -49,6 +50,8 @@ const keyModules = [
   "lib/sellTrim.ts",
   "services/review/runReviewDigestCron.ts",
   "app/api/cron/review-digest/route.ts",
+  "app/api/subscription/webhook/razorpay/route.ts",
+  "services/subscription/razorpayConfig.ts",
 ];
 
 for (const relative of keyModules) {
@@ -72,6 +75,9 @@ console.log("See docs/product/APEX_V3_1_SOAK.md before tagging v3.1.0");
 console.log("Premium modules:");
 console.log("  lib/subscription/premiumCopy.ts");
 console.log("  components/subscription/PremiumValueCard.tsx");
-console.log("  services/subscription/requirePremiumFeature.ts\n");
+console.log("  components/subscription/PremiumCheckoutPanel.tsx");
+console.log("  services/subscription/requirePremiumFeature.ts");
+console.log("  services/subscription/razorpayConfig.ts");
+console.log("  app/api/subscription/webhook/razorpay/route.ts\n");
 
 process.exit(0);

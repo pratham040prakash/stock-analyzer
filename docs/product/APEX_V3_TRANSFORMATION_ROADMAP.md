@@ -190,7 +190,7 @@ This roadmap is the **only active execution track** until:
 | ID | Deliverable |
 |----|-------------|
 | **T3-1** | Premium packaging + paywall copy tied to ROI | ✅ Shipped (T3a) |
-| **T3-2** | Razorpay / subscription flow hardening |
+| **T3-2** | Razorpay / subscription flow hardening | ✅ Shipped (T3b) |
 | **T3-3** | Conversion funnel: free → first WAIT receipt → premium trial |
 | **T3-4** | Tag **`v3.2.0`** |
 

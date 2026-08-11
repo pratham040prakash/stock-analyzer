@@ -2,8 +2,9 @@ import { apiError, apiOk } from "@/lib/api/response";
 import {
   activatePremiumAccess,
   buildTierResponse,
-  resolvePremiumTierWithDb,
 } from "@/services/subscription/premiumAccess";
+import { isPremiumActivationEnabled } from "@/services/subscription/activation";
+import { readRazorpayConfig } from "@/services/subscription/razorpayConfig";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -49,7 +50,8 @@ export async function POST(request: Request) {
     return apiOk({
       ...buildTierResponse({
         tier: result.tier,
-        activationEnabled: true,
+        activationEnabled: isPremiumActivationEnabled(),
+        billingEnabled: Boolean(readRazorpayConfig()),
       }),
       alreadyPremium: result.alreadyPremium,
       message: result.alreadyPremium
