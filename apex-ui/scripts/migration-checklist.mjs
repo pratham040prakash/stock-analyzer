@@ -49,6 +49,24 @@ function listMigrations() {
 function main() {
   const { schema, ordered, extras } = listMigrations();
   const apply = process.argv.includes("--apply");
+  const verify = process.argv.includes("--verify");
+
+  if (verify) {
+    const missing = ORDERED_MIGRATIONS.filter(
+      (name) => !ordered.some((file) => file.endsWith(name)),
+    );
+
+    if (missing.length > 0) {
+      console.error("Missing required migrations on disk:");
+      for (const name of missing) {
+        console.error(`  - supabase/migrations/${name}`);
+      }
+      process.exit(1);
+    }
+
+    console.log(`Migration verify OK (${ORDERED_MIGRATIONS.length} required files present)`);
+    process.exit(0);
+  }
 
   console.log("APEX Supabase migration checklist\n");
   console.log("1. Base schema (greenfield only — skip if tables exist):");

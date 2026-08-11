@@ -3,6 +3,8 @@ import type { AskAnswerViewModel, AskAnswerWord } from "@/types/askAnswer";
 
 const SYMBOL_PATTERN = /\b([A-Z]{2,15})\b/;
 
+const SELL_PATTERN = /\b(sell|exit|trim|reduce|cut)\b/i;
+
 function extractSymbol(question: string): string | null {
   const upper = question.toUpperCase();
   const match = upper.match(SYMBOL_PATTERN);
@@ -20,7 +22,11 @@ function extractSymbol(question: string): string | null {
   return match[1];
 }
 
-function mapVerdict(verdict: string): AskAnswerWord {
+function mapVerdict(verdict: string, question: string): AskAnswerWord {
+  if (SELL_PATTERN.test(question)) {
+    return verdict === "YES" ? "Reduce" : verdict === "NO" ? "Wait" : "Wait";
+  }
+
   switch (verdict) {
     case "YES":
       return "Buy";
@@ -61,7 +67,7 @@ export async function assembleAskAnswer(question: string): Promise<AskAnswerView
   }
 
   const research = await assembleResearchSummary(symbol);
-  const answerWord = mapVerdict(research.verdict);
+  const answerWord = mapVerdict(research.verdict, trimmed);
 
   return {
     question: trimmed,
@@ -80,9 +86,10 @@ export async function assembleAskAnswer(question: string): Promise<AskAnswerView
 }
 
 export function runAskAnswerSelfCheck(): void {
-  const word = mapVerdict("YES");
+  const buy = mapVerdict("YES", "Should I buy INFY?");
+  const reduce = mapVerdict("YES", "Should I sell INFY?");
 
-  if (word !== "Buy") {
-    throw new Error("Ask answer self-check failed: YES should map to Buy");
+  if (buy !== "Buy" || reduce !== "Reduce") {
+    throw new Error("Ask answer self-check failed: verdict mapping");
   }
 }

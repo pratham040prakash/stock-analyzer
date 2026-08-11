@@ -500,6 +500,40 @@ async function runChecks(baseUrl: string): Promise<VerifyReport> {
         validate: (body: Record<string, unknown> | null) =>
           body?.status === "ok" && Array.isArray(body.theses),
       },
+      {
+        id: "authed-thesis-watch",
+        path: "/api/thesis/watch",
+        validate: (body: Record<string, unknown> | null) =>
+          body?.status === "ok" && Array.isArray(body.warnings),
+      },
+      {
+        id: "authed-thesis-export",
+        path: "/api/thesis/export",
+        validate: (body: Record<string, unknown> | null) => {
+          const text = body as unknown;
+          return typeof text === "string" && text.includes("Investment Book");
+        },
+      },
+      {
+        id: "authed-learning",
+        path: "/api/learning/contextual",
+        validate: (body: Record<string, unknown> | null) =>
+          body?.status === "ok",
+      },
+      {
+        id: "authed-digest",
+        path: "/api/review/digest",
+        validate: (body: Record<string, unknown> | null) =>
+          body?.status === "ok" && isRecord(body.digest),
+      },
+      {
+        id: "authed-macro-ask",
+        path: "/api/ask/answer",
+        method: "POST" as const,
+        body: JSON.stringify({ question: "What if Nifty falls 2%?" }),
+        validate: (body: Record<string, unknown> | null) =>
+          body?.status === "ok" && isRecord(body.answer),
+      },
     ] as const;
 
     for (const route of authedRoutes) {

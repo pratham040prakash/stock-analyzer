@@ -10,6 +10,7 @@ type Props = {
   summary: DisciplineHistorySummary;
   processScore: ScoreModel;
   reconcileMessage?: string | null;
+  proofHref?: string | null;
 };
 
 export default function WeeklyReviewHero({
@@ -17,6 +18,7 @@ export default function WeeklyReviewHero({
   summary,
   processScore,
   reconcileMessage,
+  proofHref = null,
 }: Props) {
   const headline = buildWeeklyReviewHeadline(summary);
 
@@ -40,6 +42,14 @@ export default function WeeklyReviewHero({
         </p>
         {reconcileMessage ? (
           <p className="text-xs text-emerald-200/80">{reconcileMessage}</p>
+        ) : null}
+        {proofHref ? (
+          <a
+            href={proofHref}
+            className="inline-flex text-sm text-blue-200/90 hover:text-blue-100"
+          >
+            Latest decision proof →
+          </a>
         ) : null}
       </section>
 

@@ -32,6 +32,12 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Run deploy service smoke (optional env)
+        env:
+          ALPHA_AI_SERVICE_URL: ${{ secrets.ALPHA_AI_SERVICE_URL }}
+          KITE_ORDER_PROXY_URL: ${{ secrets.KITE_ORDER_PROXY_URL }}
+        run: npm run verify:deploy
+
       - name: Run production smoke checks
         env:
           APEX_VERIFY_BASE_URL: https://apex-ten-kappa.vercel.app

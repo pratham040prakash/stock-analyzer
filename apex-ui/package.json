@@ -4,14 +4,16 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "prebuild": "npx --yes tsx scripts/validate-capital.ts",
+    "prebuild": "node scripts/migration-checklist.mjs --verify && npx --yes tsx scripts/validate-capital.ts",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
     "db:migrate": "node scripts/apply-supabase-sql.mjs",
     "db:migrate:checklist": "node scripts/migration-checklist.mjs",
+    "db:migrate:verify": "node scripts/migration-checklist.mjs --verify",
     "db:migrate:all": "node scripts/migration-checklist.mjs --apply",
     "verify:prod": "npx --yes tsx scripts/verify-prod.ts",
+    "verify:deploy": "npx --yes tsx scripts/verify-deploy-services.ts",
     "test:e2e": "playwright test",
     "test:e2e:install": "playwright install chromium"
   },

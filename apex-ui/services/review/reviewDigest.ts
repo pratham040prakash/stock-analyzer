@@ -83,6 +83,8 @@ export function runReviewDigestSelfCheck(): void {
         concentration_warning: null,
         sacred_core_ok: true,
         action_items: [],
+        thesis_progress: [],
+        goal_framing: "Test",
       },
     },
     "email",

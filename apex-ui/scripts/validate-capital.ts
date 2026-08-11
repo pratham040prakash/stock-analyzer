@@ -46,6 +46,11 @@ import { runPortfolioAskSelfCheck } from "../services/ask/assemblePortfolioAskAn
 import { runInvestorDnaSelfCheck } from "../services/you/assembleInvestorDna";
 import { runNewCapitalSelfCheck } from "../services/capital/newCapitalWorkflow";
 import { runThesisRepositorySelfCheck } from "../services/thesis/thesisRepository";
+import { runInvestmentBookExportSelfCheck } from "../services/thesis/exportInvestmentBook";
+import { runSendReviewDigestSelfCheck } from "../services/review/sendReviewDigest";
+import { runMacroAskSelfCheck } from "../services/ask/assembleMacroAskAnswer";
+import { runContextualLessonSelfCheck } from "../services/learning/assembleContextualLesson";
+import { runThesisInvalidationSelfCheck } from "../services/thesis/evaluateThesisInvalidation";
 
 runCapitalProjectionSelfCheck();
 runCapitalFinalStateSelfCheck();
@@ -92,3 +97,8 @@ runPortfolioAskSelfCheck();
 runInvestorDnaSelfCheck();
 runNewCapitalSelfCheck();
 runThesisRepositorySelfCheck();
+runInvestmentBookExportSelfCheck();
+runSendReviewDigestSelfCheck();
+runMacroAskSelfCheck();
+runContextualLessonSelfCheck();
+runThesisInvalidationSelfCheck();

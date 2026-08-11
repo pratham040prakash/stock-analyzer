@@ -32,20 +32,33 @@ export async function assembleInvestorDna(
   supabase: Client,
   userId: string,
 ): Promise<InvestorDnaViewModel> {
-  const [receipts, streak] = await Promise.all([
+  const [receipts30, receipts14, streak] = await Promise.all([
+    listDecisionReceipts(supabase, userId, 30),
     listDecisionReceipts(supabase, userId, 14),
     getDisciplineStreak(supabase, userId),
   ]);
 
-  const waitReceipts = receipts.filter(
-    (row) => row.execution_kind === "WAIT" || row.execution_kind === "OBSERVE",
-  ).length;
-  const actReceipts = receipts.filter(
-    (row) => row.execution_kind === "BUY" || row.execution_kind === "SELL",
-  ).length;
+  const countKinds = (rows: typeof receipts14) => {
+    const wait = rows.filter(
+      (row) => row.execution_kind === "WAIT" || row.execution_kind === "OBSERVE",
+    ).length;
+    const act = rows.filter(
+      (row) => row.execution_kind === "BUY" || row.execution_kind === "SELL",
+    ).length;
+
+    return { wait, act };
+  };
+
+  const recent = countKinds(receipts14);
+  const month = countKinds(receipts30);
   const behaviorTag = resolveBehaviorTag(
-    waitReceipts,
-    actReceipts,
+    recent.wait,
+    recent.act,
+    streak.streakCount,
+  );
+  const dominantPattern = resolveBehaviorTag(
+    month.wait,
+    month.act,
     streak.streakCount,
   );
 
@@ -61,19 +74,25 @@ export async function assembleInvestorDna(
   };
 
   const insight =
-    waitReceipts > actReceipts
+    recent.wait > recent.act
       ? "Best next step: honor WAIT receipts before chasing new ideas."
-      : actReceipts > 0
+      : recent.act > 0
         ? "Best next step: confirm each act matched the morning verdict."
         : "Best next step: commit to today's plan before market open.";
 
   return {
     behavior_tag: behaviorTag,
     summary: summaries[behaviorTag],
-    wait_receipts: waitReceipts,
-    act_receipts: actReceipts,
+    wait_receipts: recent.wait,
+    act_receipts: recent.act,
     discipline_streak: streak.streakCount,
     insight,
+    window_days: 30,
+    trend_30d: {
+      wait_receipts: month.wait,
+      act_receipts: month.act,
+      dominant_pattern: dominantPattern,
+    },
   };
 }
 

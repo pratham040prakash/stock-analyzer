@@ -28,7 +28,23 @@ export default function QuarterlyReviewPanel({ quarterly, loading }: Props) {
         {quarterly.concentration_warning ? (
           <p className="text-sm text-amber-100/85">{quarterly.concentration_warning}</p>
         ) : null}
+        <p className="text-sm text-apex-muted/80">{quarterly.goal_framing}</p>
       </section>
+
+      {quarterly.thesis_progress.length > 0 ? (
+        <section className="rounded-xl border border-apex-border/15 bg-white/[0.02] px-4 py-4 space-y-2">
+          <p className="text-xs font-medium uppercase tracking-wide text-apex-muted">
+            Thesis progress
+          </p>
+          <ul className="space-y-1 text-sm text-apex-text/85">
+            {quarterly.thesis_progress.map((row) => (
+              <li key={row.symbol}>
+                {row.symbol} · {row.note}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {quarterly.action_items.length > 0 ? (
         <section className="rounded-xl border border-apex-border/15 bg-white/[0.02] px-4 py-4 space-y-2">

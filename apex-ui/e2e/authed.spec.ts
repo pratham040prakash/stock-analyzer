@@ -104,6 +104,57 @@ test.describe("APEX authenticated smoke", () => {
     await expect(page.locator("body")).toContainText(/Weekly review|review/i);
   });
 
+  test("macro ask handles index question", async ({ request }) => {
+    const response = await request.post("/api/ask/answer", {
+      data: { question: "What if Nifty falls 2%?" },
+    });
+    expect(response.ok()).toBeTruthy();
+
+    const body = await response.json();
+    expect(body.status).toBe("ok");
+    expect(body.answer?.answer_word).toMatch(/Buy|Wait|Pass|Reduce/);
+  });
+
+  test("contextual lesson returns envelope", async ({ request }) => {
+    const response = await request.get("/api/learning/contextual");
+    expect(response.ok()).toBeTruthy();
+
+    const body = await response.json();
+    expect(body.status).toBe("ok");
+  });
+
+  test("thesis export returns markdown", async ({ request }) => {
+    const response = await request.get("/api/thesis/export");
+    expect(response.ok()).toBeTruthy();
+
+    const text = await response.text();
+    expect(text).toContain("Investment Book");
+  });
+
+  test("thesis watch returns warnings array", async ({ request }) => {
+    const response = await request.get("/api/thesis/watch");
+    expect(response.ok()).toBeTruthy();
+
+    const body = await response.json();
+    expect(body.status).toBe("ok");
+    expect(Array.isArray(body.warnings)).toBeTruthy();
+  });
+
+  test("review digest GET returns envelope", async ({ request }) => {
+    const response = await request.get("/api/review/digest");
+    expect(response.ok()).toBeTruthy();
+
+    const body = await response.json();
+    expect(body.status).toBe("ok");
+    expect(body.digest).toBeTruthy();
+  });
+
+  test("settings page loads for signed-in user", async ({ page }) => {
+    await page.goto("/app/you/settings");
+    await expect(page).toHaveURL(/\/app\/you\/settings/);
+    await expect(page.locator("body")).toContainText(/Settings/i);
+  });
+
   test("journal redirects into review receipts tab", async ({ page }) => {
     await page.goto("/app/journal");
     await expect(page).toHaveURL(/\/app\/review\?tab=receipts/);

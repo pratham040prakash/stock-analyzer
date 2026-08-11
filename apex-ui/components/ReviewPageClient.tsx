@@ -12,6 +12,8 @@ import QuarterlyReviewPanel from "@/components/review/QuarterlyReviewPanel";
 import WeeklyReviewHero from "@/components/review/WeeklyReviewHero";
 import WeeklyReviewStrip from "@/components/dailyLoop/WeeklyReviewStrip";
 import DisciplineHistoryStrip from "@/components/dailyLoop/DisciplineHistoryStrip";
+import ContextualLessonPanel from "@/components/learning/ContextualLessonPanel";
+import ApexErrorBoundary from "@/components/ui/ApexErrorBoundary";
 import { ApexShell } from "@/components/ui/apex";
 import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
 import { buildLastNIstDays } from "@/lib/dailyLoop/disciplineHistoryMerge";
@@ -28,6 +30,7 @@ import type {
   PlannedVsActualRow,
   PlannedVsActualSummary,
 } from "@/types/plannedVsActual";
+import type { ContextualLessonViewModel } from "@/types/contextualLesson";
 
 const EMPTY_SUMMARY: DisciplineHistorySummary = {
   wins: 0,
@@ -76,6 +79,11 @@ type QuarterlyResponse = {
   quarterly: QuarterlyReviewViewModel;
 };
 
+type LessonResponse = {
+  status: string;
+  lesson: ContextualLessonViewModel | null;
+};
+
 export default function ReviewPageClient({ userName }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -106,6 +114,10 @@ export default function ReviewPageClient({ userName }: Props) {
   const [reconcileSynced, setReconcileSynced] = useState<boolean | null>(null);
   const [reconcileMessage, setReconcileMessage] = useState<string | null>(null);
   const [streakCount, setStreakCount] = useState(0);
+  const [contextualLesson, setContextualLesson] = useState<ContextualLessonViewModel | null>(
+    null,
+  );
+  const [lessonLoading, setLessonLoading] = useState(true);
 
   const loadHistory = useCallback(async () => {
     const response = await apiFetch("/api/decision/history?days=14", {
@@ -167,6 +179,23 @@ export default function ReviewPageClient({ userName }: Props) {
     }
   }, []);
 
+  const loadLesson = useCallback(async () => {
+    setLessonLoading(true);
+
+    try {
+      const response = await apiFetch("/api/learning/contextual", {
+        cache: "no-store",
+      });
+      const data = await parseApiJson<LessonResponse>(response, "Contextual lesson");
+
+      if (response.ok) {
+        setContextualLesson(data?.lesson ?? null);
+      }
+    } finally {
+      setLessonLoading(false);
+    }
+  }, []);
+
   const loadStreak = useCallback(async () => {
     const response = await apiFetch("/api/discipline/streak", {
       cache: "no-store",
@@ -205,8 +234,9 @@ export default function ReviewPageClient({ userName }: Props) {
       loadReceipts(),
       loadStreak(),
       loadPlanned(),
+      loadLesson(),
     ]);
-  }, [loadHistory, loadPlanned, loadReceipts, loadStreak]);
+  }, [loadHistory, loadLesson, loadPlanned, loadReceipts, loadStreak]);
 
   useEffect(() => {
     void (async () => {
@@ -247,6 +277,16 @@ export default function ReviewPageClient({ userName }: Props) {
     [highlightReceiptId, receipts],
   );
 
+  const latestProofHref = useMemo(() => {
+    const latest = receipts[0];
+
+    if (!latest) {
+      return null;
+    }
+
+    return `/app/review?tab=receipts&receipt=${encodeURIComponent(latest.id)}`;
+  }, [receipts]);
+
   const selectTab = useCallback(
     (nextTab: ReviewTab) => {
       setTab(nextTab);
@@ -276,7 +316,12 @@ export default function ReviewPageClient({ userName }: Props) {
         summary={summary}
         processScore={processScore}
         reconcileMessage={reconcileMessage}
+        proofHref={latestProofHref}
       />
+
+      <ContextualLessonPanel lesson={contextualLesson} loading={lessonLoading} />
+
+      <ApexErrorBoundary fallbackTitle="Review data could not render.">
 
       <BrokerReconcilePanel
         synced={reconcileSynced}
@@ -342,6 +387,8 @@ export default function ReviewPageClient({ userName }: Props) {
               concentration_warning: null,
               sacred_core_ok: true,
               action_items: [],
+              thesis_progress: [],
+              goal_framing: "Connect broker for goal framing.",
             }
           }
           loading={quarterlyLoading}
@@ -364,6 +411,7 @@ export default function ReviewPageClient({ userName }: Props) {
           )}
         </div>
       )}
+      </ApexErrorBoundary>
     </ApexShell>
   );
 }

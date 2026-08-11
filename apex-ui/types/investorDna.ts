@@ -11,4 +11,10 @@ export type InvestorDnaViewModel = {
   act_receipts: number;
   discipline_streak: number;
   insight: string;
+  window_days: number;
+  trend_30d: {
+    wait_receipts: number;
+    act_receipts: number;
+    dominant_pattern: InvestorBehaviorTag;
+  };
 };

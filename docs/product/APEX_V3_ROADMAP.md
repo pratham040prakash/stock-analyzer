@@ -1,9 +1,9 @@
 # APEX V3 — Roadmap
 
 **Document ID:** APEX-V3-ROADMAP  
-**Version:** 0.6  
-**Status:** ACTIVE — V3-202 shipped  
-**Date:** 2026-08-06  
+**Version:** 0.7  
+**Status:** ACTIVE — Sprints Q–S shipped (v3.0.0-beta1 prep)  
+**Date:** 2026-08-11  
 **Owner:** Product  
 **Parent:** [APEX_V3_PRODUCT_STRATEGY.md](./APEX_V3_PRODUCT_STRATEGY.md)  
 **Baseline:** v2.0.0 GA
@@ -75,9 +75,9 @@ APEX V3 extends the **Daily Decision Experience** (V2 GA) into a full **Investme
 |----|-----------|---------|--------|
 | **V3-201** | **Research Workbench** | 7-question workflow, Investment Decision, Understand, Proof | **✅ Shipped** |
 | **V3-202** | **Research Journal Integration** | Draft → confirm → immutable entry; Timeline · Drafts · Entry Detail | **✅ Shipped** |
-| V3-203 | Decision Receipt | Immutable receipt on ACT/WAIT with proof link | Planned |
-| V3-204 | Weekly Review | Sunday ritual; broker reconcile | Planned |
-| V3-205 | Journal page shell | Trade log integration; Receipts sub-tab | Planned |
+| V3-203 | Decision Receipt | Immutable receipt on ACT/WAIT with proof link | **✅ Shipped** |
+| V3-204 | Weekly Review | Sunday ritual; broker reconcile | **✅ Shipped** |
+| V3-205 | Journal page shell | Trade log integration; Receipts sub-tab | **✅ Shipped (merged into Review)** |
 | V3-206 | Discipline metrics | Process score (not P&L leaderboard) | Planned |
 
 **Target tag:** `v3.0.0-alpha2`
@@ -88,14 +88,14 @@ APEX V3 extends the **Daily Decision Experience** (V2 GA) into a full **Investme
 
 **Theme:** *"Am I on track this month/quarter?"*
 
-| ID | Milestone | Outcome |
-|----|-----------|---------|
-| V3-301 | Monthly Portfolio Doctor | Drift, concentration, sacred core check |
-| V3-302 | Quarterly review | Thesis + goal progress |
-| V3-303 | Review contracts | Shared compositor for cadence surfaces |
-| V3-304 | Notification hooks | Optional Telegram/email digest (existing infra) |
+| ID | Milestone | Outcome | Status |
+|----|-----------|---------|--------|
+| V3-301 | Monthly Portfolio Doctor | Drift, concentration, sacred core check | **✅ Shipped** |
+| V3-302 | Quarterly review | Thesis + goal progress | **✅ Shipped** |
+| V3-303 | Review contracts | Shared compositor for cadence surfaces | **✅ Shipped** |
+| V3-304 | Notification hooks | Optional Telegram/email digest (existing infra) | **✅ Shipped (v1)** |
 
-**Target tag:** `v3.0.0-beta1`
+**Target tag:** `v3.0.0-beta1` — criteria met; GA hardening in Sprint S
 
 ---
 
@@ -103,12 +103,12 @@ APEX V3 extends the **Daily Decision Experience** (V2 GA) into a full **Investme
 
 **Theme:** *"Where does new money go?"*
 
-| ID | Milestone | Outcome |
-|----|-----------|---------|
-| V3-401 | New Capital workflow | UX-004 implemented |
-| V3-402 | Thesis Tracker | Per-symbol thesis + invalidation |
-| V3-403 | Investment Book | Long-form thesis storage (read-only export) |
-| V3-404 | Explore integration | Screener → Research → Today handoff |
+| ID | Milestone | Outcome | Status |
+|----|-----------|---------|--------|
+| V3-401 | New Capital workflow | UX-004 implemented | **✅ Shipped (v2 tranches)** |
+| V3-402 | Thesis Tracker | Per-symbol thesis + invalidation | **✅ Shipped** |
+| V3-403 | Investment Book | Long-form thesis storage (read-only export) | **✅ Shipped** |
+| V3-404 | Explore integration | Screener → Research → Today handoff | **✅ Shipped** |
 
 **Target tag:** `v3.0.0-beta2`
 

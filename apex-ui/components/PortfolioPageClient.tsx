@@ -10,6 +10,8 @@ import { HoldingHealthList } from "@/components/portfolio/HoldingHealthChip";
 import PositionsView from "@/components/portfolio/PositionsView";
 import ResearchHandoffLink from "@/components/portfolio/ResearchHandoffLink";
 import NewCapitalPanel from "@/components/capital/NewCapitalPanel";
+import ThesisInvalidationBanner from "@/components/thesis/ThesisInvalidationBanner";
+import ApexErrorBoundary from "@/components/ui/ApexErrorBoundary";
 import { ApexCard, ApexShell, ApexTitle } from "@/components/ui/apex";
 import { useDayPnlPoll } from "@/lib/useDayPnlPoll";
 import { usePortfolioPoll } from "@/lib/usePortfolioPoll";
@@ -17,6 +19,7 @@ import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
 import type { ConnectionStatus } from "@/lib/broker/zerodha";
 import type { PortfolioOverviewViewModel } from "@/types/portfolioOverview";
 import type { NewCapitalViewModel } from "@/types/newCapital";
+import type { ThesisInvalidationWarning } from "@/types/thesisInvalidation";
 
 type FundsResponse = {
   ledger_cash: number;
@@ -37,6 +40,16 @@ type OverviewResponse = {
 type NewCapitalResponse = {
   status: string;
   workflow: NewCapitalViewModel;
+};
+
+type ThesisWatchResponse = {
+  status: string;
+  warnings: ThesisInvalidationWarning[];
+};
+
+type ReceiptsResponse = {
+  status: string;
+  receipts: Array<{ id: string }>;
 };
 
 type Props = {
@@ -61,6 +74,8 @@ export default function PortfolioPageClient({
   const [totalCapital, setTotalCapital] = useState<number | undefined>();
   const [newCapital, setNewCapital] = useState<NewCapitalViewModel | null>(null);
   const [newCapitalLoading, setNewCapitalLoading] = useState(true);
+  const [thesisWarnings, setThesisWarnings] = useState<ThesisInvalidationWarning[]>([]);
+  const [portfolioProofHref, setPortfolioProofHref] = useState<string | null>(null);
 
   const loadFunds = useCallback(async () => {
     setFundsLoading(true);
@@ -119,9 +134,37 @@ export default function PortfolioPageClient({
     }
   }, []);
 
+  const loadThesisWatch = useCallback(async () => {
+    const response = await apiFetch("/api/thesis/watch", { cache: "no-store" });
+    const data = await parseApiJson<ThesisWatchResponse>(response, "Thesis watch");
+
+    if (response.ok && data?.warnings) {
+      setThesisWarnings(data.warnings);
+    }
+  }, []);
+
+  const loadPortfolioProof = useCallback(async () => {
+    const response = await apiFetch("/api/receipts?days=7", { cache: "no-store" });
+    const data = await parseApiJson<ReceiptsResponse>(response, "Receipts");
+
+    if (response.ok && data?.receipts?.[0]?.id) {
+      setPortfolioProofHref(
+        `/app/review?tab=receipts&receipt=${encodeURIComponent(data.receipts[0].id)}`,
+      );
+    } else {
+      setPortfolioProofHref(null);
+    }
+  }, []);
+
   const refreshAll = useCallback(async () => {
-    await Promise.all([loadOverview(), loadFunds(), loadNewCapital()]);
-  }, [loadFunds, loadNewCapital, loadOverview]);
+    await Promise.all([
+      loadOverview(),
+      loadFunds(),
+      loadNewCapital(),
+      loadThesisWatch(),
+      loadPortfolioProof(),
+    ]);
+  }, [loadFunds, loadNewCapital, loadOverview, loadPortfolioProof, loadThesisWatch]);
 
   useEffect(() => {
     void refreshAll();
@@ -165,6 +208,7 @@ export default function PortfolioPageClient({
       </header>
 
       <ApexCard hover={false} padding="none" className="overflow-hidden">
+        <ApexErrorBoundary fallbackTitle="Portfolio data could not render.">
         <div className="p-6 space-y-4">
           <TodayTrustStrip
             connectionStatus={connectionStatus}
@@ -184,7 +228,10 @@ export default function PortfolioPageClient({
             fundsLoading={fundsLoading}
             fundsSynced={fundsSynced}
             fundsSyncError={fundsSyncError}
+            proofHref={portfolioProofHref}
           />
+
+          <ThesisInvalidationBanner warnings={thesisWarnings} />
 
           {overviewLoading ? (
             <p className="text-sm text-apex-muted/70">Loading overview…</p>
@@ -241,6 +288,7 @@ export default function PortfolioPageClient({
             loading={overviewLoading}
           />
         </div>
+        </ApexErrorBoundary>
       </ApexCard>
     </ApexShell>
   );

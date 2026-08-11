@@ -42,6 +42,11 @@ export default function ReflectionCanvas({ snapshot }: Props) {
         </p>
         <p className="text-sm text-apex-muted/85">{snapshot.investor_dna.summary}</p>
         <p className="text-xs text-apex-muted/70">{snapshot.investor_dna.insight}</p>
+        <p className="text-xs text-apex-muted/60">
+          30-day · {snapshot.investor_dna.trend_30d.wait_receipts} wait ·{" "}
+          {snapshot.investor_dna.trend_30d.act_receipts} act · pattern{" "}
+          {snapshot.investor_dna.trend_30d.dominant_pattern}
+        </p>
       </section>
 
       <div className="flex flex-wrap gap-4 text-sm">

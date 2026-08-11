@@ -1,6 +1,7 @@
 import { istDateKey, shiftIstDateKey } from "@/lib/dailyLoop/disciplineDates";
 import { assemblePortfolioOverview } from "@/services/portfolio/assembleOverview";
 import { buildPlannedVsActualRows } from "@/services/review/plannedVsActual";
+import { listInvestmentTheses } from "@/services/thesis/thesisRepository";
 import type { QuarterlyReviewViewModel } from "@/types/quarterlyReview";
 import type { Database } from "@/types/database";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -25,9 +26,10 @@ export async function assembleQuarterlyReview(
   userId: string,
 ): Promise<QuarterlyReviewViewModel> {
   const sinceKey = shiftIstDateKey(istDateKey(), -90);
-  const [planned, overview] = await Promise.all([
+  const [planned, overview, theses] = await Promise.all([
     buildPlannedVsActualRows(supabase, userId, 90),
     assemblePortfolioOverview(supabase, userId),
+    listInvestmentTheses(supabase, userId),
   ]);
 
   const aligned = planned.summary.aligned;
@@ -64,6 +66,36 @@ export async function assembleQuarterlyReview(
     actionItems.push("Connect broker for a complete quarterly review.");
   }
 
+  const thesisProgress =
+    overview.allocation?.holdings
+      .slice()
+      .sort((a, b) => b.allocation_pct - a.allocation_pct)
+      .slice(0, 5)
+      .map((row) => {
+        const documented = theses.some(
+          (thesis) => thesis.symbol.toUpperCase() === row.tradingsymbol.toUpperCase(),
+        );
+
+        return {
+          symbol: row.tradingsymbol,
+          status: documented ? ("documented" as const) : ("missing" as const),
+          note: documented
+            ? `${row.allocation_pct.toFixed(0)}% · thesis on file`
+            : `${row.allocation_pct.toFixed(0)}% · add thesis in Research`,
+        };
+      }) ?? [];
+
+  const missingTheses = thesisProgress.filter((row) => row.status === "missing").length;
+
+  if (missingTheses > 0) {
+    actionItems.push(`Document thesis for ${missingTheses} top holding(s) this quarter.`);
+  }
+
+  const goalFraming =
+    sacredCoreOk && deviated <= aligned
+      ? "On track for long-term compounding — protect process over prediction."
+      : "Quarterly reset: align buckets and thesis before adding risk.";
+
   const headline =
     deviated === 0 && aligned > 0
       ? "Quarterly process looks steady."
@@ -84,6 +116,8 @@ export async function assembleQuarterlyReview(
     concentration_warning: concentrationWarning,
     sacred_core_ok: sacredCoreOk,
     action_items: actionItems.slice(0, 5),
+    thesis_progress: thesisProgress,
+    goal_framing: goalFraming,
   };
 }
 

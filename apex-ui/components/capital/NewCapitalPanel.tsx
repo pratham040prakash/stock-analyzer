@@ -49,6 +49,24 @@ export default function NewCapitalPanel({ workflow, loading }: Props) {
           ))}
         </div>
       ) : null}
+      {plan.tranches?.length ? (
+        <div className="space-y-2 pt-2">
+          <p className="text-xs font-medium uppercase tracking-wide text-apex-muted">
+            Tranche plan
+          </p>
+          {plan.tranches.map((tranche) => (
+            <div
+              key={tranche.label}
+              className="rounded-lg border border-apex-border/15 bg-white/[0.02] px-3 py-2"
+            >
+              <p className="text-sm font-medium text-apex-text/90">{tranche.label}</p>
+              <p className="text-xs text-apex-muted/80">
+                ₹{tranche.amount_inr.toLocaleString("en-IN")} · {tranche.note}
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : null}
     </section>
   );
 }

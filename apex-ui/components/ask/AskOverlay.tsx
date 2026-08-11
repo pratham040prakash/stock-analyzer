@@ -80,7 +80,7 @@ export default function AskOverlay({ open, onClose }: Props) {
               value={question}
               onChange={(event) => setQuestion(event.target.value)}
               rows={3}
-              placeholder="Should I buy RELIANCE?"
+              placeholder="Should I buy RELIANCE? · Am I too concentrated? · What if Nifty falls 2%?"
               className="w-full rounded-xl border border-apex-border/20 bg-white/[0.03] px-3 py-2 text-sm text-apex-text outline-none focus:border-blue-400/40"
             />
             {error ? <p className="text-xs text-amber-200/85">{error}</p> : null}

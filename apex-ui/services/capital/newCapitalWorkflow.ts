@@ -41,14 +41,40 @@ export async function assembleNewCapitalWorkflow(
       ? `Deploy in tranches toward policy targets — research before adding to ${topHoldings[0]}.`
       : "Build core positions gradually — one high-conviction name at a time.";
 
+  const roundedCash = Math.round(cash);
+  const trancheAmounts = [0.4, 0.35, 0.25].map((ratio) =>
+    Math.round(roundedCash * ratio),
+  );
+
+  const tranches = [
+    {
+      label: "Tranche 1 · core alignment",
+      amount_inr: trancheAmounts[0],
+      note: "Close largest policy drift bucket first.",
+    },
+    {
+      label: "Tranche 2 · conviction add",
+      amount_inr: trancheAmounts[1],
+      note: topHoldings[0]
+        ? `Only after Research confirms ${topHoldings[0]} thesis.`
+        : "Only after thesis is documented.",
+    },
+    {
+      label: "Tranche 3 · reserve",
+      amount_inr: trancheAmounts[2],
+      note: "Hold for volatility or next monthly doctor review.",
+    },
+  ];
+
   return {
     built_at: new Date().toISOString(),
     available: {
-      deployable_inr: Math.round(cash),
-      headline: `${Math.round(cash).toLocaleString("en-IN")} available to deploy`,
+      deployable_inr: roundedCash,
+      headline: `${roundedCash.toLocaleString("en-IN")} available to deploy`,
       guidance,
       suggested_symbols: topHoldings,
       sacred_core_note: sacredCoreNote,
+      tranches,
     },
     message: "New capital follows policy — not impulse.",
   };

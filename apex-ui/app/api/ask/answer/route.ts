@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { apiError } from "@/lib/api/response";
 import { assembleAskAnswer } from "@/services/ask/assembleAskAnswer";
 import {
+  assembleMacroAskAnswer,
+  isMacroQuestion,
+} from "@/services/ask/assembleMacroAskAnswer";
+import {
   assemblePortfolioAskAnswer,
   isPortfolioQuestion,
 } from "@/services/ask/assemblePortfolioAskAnswer";
@@ -35,7 +39,9 @@ export async function POST(request: Request) {
 
   const answer = isPortfolioQuestion(question)
     ? await assemblePortfolioAskAnswer(supabase, user.id, question)
-    : await assembleAskAnswer(question);
+    : isMacroQuestion(question)
+      ? assembleMacroAskAnswer(question)
+      : await assembleAskAnswer(question);
 
   return NextResponse.json({ status: "ok", answer });
 }

@@ -1,3 +1,9 @@
+export type QuarterlyThesisProgress = {
+  symbol: string;
+  status: "documented" | "missing";
+  note: string;
+};
+
 export type QuarterlyReviewViewModel = {
   built_at: string;
   quarter_label: string;
@@ -9,4 +15,6 @@ export type QuarterlyReviewViewModel = {
   concentration_warning: string | null;
   sacred_core_ok: boolean;
   action_items: string[];
+  thesis_progress: QuarterlyThesisProgress[];
+  goal_framing: string;
 };
