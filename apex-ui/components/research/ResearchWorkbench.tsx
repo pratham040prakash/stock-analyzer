@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { ResearchSummaryViewModel } from "@/types/researchSummary";
 
 type Props = {
@@ -50,6 +51,12 @@ export default function ResearchWorkbench({ summary, loading, error }: Props) {
             Alpha AI deep report runs when Python analyzer is available locally.
           </p>
         ) : null}
+        <Link
+          href={`/app?research_symbol=${encodeURIComponent(summary.symbol)}&research_verdict=${encodeURIComponent(summary.verdict)}`}
+          className="inline-flex rounded-lg border border-blue-500/25 bg-blue-500/10 px-4 py-2 text-sm font-medium text-blue-100 transition-colors hover:bg-blue-500/15"
+        >
+          Apply to today →
+        </Link>
       </section>
 
       <section className="space-y-3">

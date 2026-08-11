@@ -41,6 +41,30 @@ function resolveAnalyzerRoot(): string | null {
 export async function fetchAlphaAiSummary(
   symbol: string,
 ): Promise<AlphaAiBridgePayload | null> {
+  const remoteUrl = process.env.ALPHA_AI_SERVICE_URL?.trim();
+
+  if (remoteUrl) {
+    try {
+      const response = await fetch(
+        `${remoteUrl.replace(/\/$/, "")}/summary?symbol=${encodeURIComponent(symbol.trim().toUpperCase())}`,
+        {
+          headers: { Accept: "application/json" },
+          signal: AbortSignal.timeout(120_000),
+        },
+      );
+
+      if (response.ok) {
+        const parsed = (await response.json()) as AlphaAiBridgePayload;
+
+        if (parsed?.symbol) {
+          return parsed;
+        }
+      }
+    } catch {
+      // Fall through to local Python bridge.
+    }
+  }
+
   const root = resolveAnalyzerRoot();
 
   if (!root) {

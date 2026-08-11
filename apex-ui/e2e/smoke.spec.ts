@@ -32,6 +32,28 @@ test.describe("APEX smoke", () => {
     await expect(page).toHaveURL(/\/login/);
   });
 
+  test("review route guards anonymous users", async ({ page }) => {
+    await page.goto("/app/review");
+    await expect(page).toHaveURL(/\/login/);
+  });
+
+  test("planned review rejects anonymous users", async ({ request }) => {
+    const response = await request.get("/api/review/planned?days=7");
+    expect(response.status()).toBe(401);
+  });
+
+  test("monthly doctor rejects anonymous users", async ({ request }) => {
+    const response = await request.get("/api/review/monthly");
+    expect(response.status()).toBe(401);
+  });
+
+  test("ask answer rejects anonymous users", async ({ request }) => {
+    const response = await request.post("/api/ask/answer", {
+      data: { question: "Should I buy RELIANCE?" },
+    });
+    expect(response.status()).toBe(401);
+  });
+
   test("today brief rejects anonymous users", async ({ request }) => {
     const response = await request.get("/api/today/brief");
     expect(response.status()).toBe(401);

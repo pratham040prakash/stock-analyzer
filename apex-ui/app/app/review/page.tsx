@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import ReviewPageClient from "@/components/ReviewPageClient";
 import { isSystemConfigured } from "@/lib/env/config";
@@ -22,5 +23,9 @@ export default async function ReviewPage() {
     user.email?.split("@")[0] ??
     "there";
 
-  return <ReviewPageClient userName={userName} />;
+  return (
+    <Suspense fallback={<p className="p-6 text-sm text-apex-muted">Loading review…</p>}>
+      <ReviewPageClient userName={userName} />
+    </Suspense>
+  );
 }

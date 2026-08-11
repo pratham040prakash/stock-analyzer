@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import ConnectZerodhaCard from "./ConnectZerodhaCard";
 import DecisionHistoryPanel from "./DecisionHistoryPanel";
 import HomeDecisionScreen from "./HomeDecisionScreen";
+import ReceiptProofPanel from "@/components/receipts/ReceiptProofPanel";
 import FinancialProfileSetup from "./FinancialProfileSetup";
 import IntentSelector from "./IntentSelector";
 import ApexSurfaceNav from "@/components/nav/ApexSurfaceNav";
@@ -25,6 +26,9 @@ import type {
   DecisionHistoryResponse,
   DisciplineHistorySummary,
 } from "@/types/decisionHistory";
+import type { DecisionReceiptRow } from "@/services/receipts/persistReceipt";
+import type { ResearchVerdict } from "@/types/researchSummary";
+import { istDateKey } from "@/lib/dailyLoop/disciplineDates";
 import {
   readStoredCapitalMode,
   writeStoredCapitalMode,
@@ -190,6 +194,8 @@ export default function HomeClient({
   const [capitalMode, setCapitalMode] = useState<CapitalFundingMode>("CASH");
   const [fundsLoading, setFundsLoading] = useState(false);
   const [fundsSynced, setFundsSynced] = useState(false);
+  const [proofReceipt, setProofReceipt] = useState<DecisionReceiptRow | null>(null);
+  const [todayProofHref, setTodayProofHref] = useState<string | null>(null);
   const [fundsSyncError, setFundsSyncError] = useState<string | null>(null);
   const fundsRequestRef = useRef(0);
   const [brokerMessage, setBrokerMessage] = useState<string | null>(
@@ -216,6 +222,77 @@ export default function HomeClient({
       router.replace("/app", { scroll: false });
     }
   }, [router, searchParams]);
+
+  const receiptQueryId = searchParams.get("receipt");
+  const researchSymbolParam = searchParams.get("research_symbol");
+  const researchVerdictParam = searchParams.get("research_verdict");
+
+  const researchHandoff = useMemo(() => {
+    if (!researchSymbolParam?.trim()) {
+      return null;
+    }
+
+    const symbol = researchSymbolParam.trim().toUpperCase();
+    const verdictRaw = (researchVerdictParam ?? "WAIT").toUpperCase();
+    const verdict: ResearchVerdict =
+      verdictRaw === "YES" || verdictRaw === "NO" || verdictRaw === "WAIT"
+        ? verdictRaw
+        : "WAIT";
+
+    return { symbol, verdict };
+  }, [researchSymbolParam, researchVerdictParam]);
+
+  const clearResearchHandoff = useCallback(() => {
+    router.replace("/app", { scroll: false });
+  }, [router]);
+
+  const loadReceiptContext = useCallback(async () => {
+    try {
+      const response = await apiFetch("/api/receipts?days=30", {
+        cache: "no-store",
+      });
+      const data = await parseApiJson<{
+        status: string;
+        receipts: DecisionReceiptRow[];
+      }>(response, "Receipts");
+
+      if (!response.ok || !data?.receipts) {
+        return;
+      }
+
+      const todayKey = istDateKey();
+      const todayReceipt =
+        data.receipts.find(
+          (row) => row.receipt_date === todayKey && row.brief_snapshot,
+        ) ?? data.receipts.find((row) => row.receipt_date === todayKey);
+
+      if (todayReceipt?.brief_snapshot) {
+        setTodayProofHref(`/app?receipt=${encodeURIComponent(todayReceipt.id)}`);
+      } else {
+        setTodayProofHref(null);
+      }
+
+      if (receiptQueryId) {
+        setProofReceipt(
+          data.receipts.find((row) => row.id === receiptQueryId) ?? null,
+        );
+      } else {
+        setProofReceipt(null);
+      }
+    } catch {
+      if (receiptQueryId) {
+        setProofReceipt(null);
+      }
+    }
+  }, [receiptQueryId]);
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+
+    void loadReceiptContext();
+  }, [loadReceiptContext, user]);
 
   useEffect(() => {
     const stored = readStoredCapitalMode();
@@ -952,6 +1029,8 @@ export default function HomeClient({
         </ApexCard>
       ) : null}
 
+      {proofReceipt ? <ReceiptProofPanel receipt={proofReceipt} /> : null}
+
       {isCompletingOAuth ? (
         <ApexCard hover={false} padding="compact">
           <ApexBody className="text-center italic">
@@ -1018,6 +1097,7 @@ export default function HomeClient({
               onCapitalRefresh={refreshAfterExecution}
               onDisciplineCommitted={() => {
                 void loadDecisionHistory();
+                void loadReceiptContext();
               }}
               disciplineHistory={decisionHistory}
               disciplineSummary={disciplineSummary}
@@ -1031,6 +1111,16 @@ export default function HomeClient({
               onPremiumActivated={() => {
                 void handlePremiumActivated();
               }}
+              proofHref={todayProofHref}
+              researchHandoff={
+                researchHandoff
+                  ? {
+                      symbol: researchHandoff.symbol,
+                      verdict: researchHandoff.verdict,
+                      onDismiss: clearResearchHandoff,
+                    }
+                  : undefined
+              }
             />
           ) : null}
 

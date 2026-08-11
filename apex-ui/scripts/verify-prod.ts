@@ -185,6 +185,8 @@ async function runChecks(baseUrl: string): Promise<VerifyReport> {
     { path: "/api/today/brief", id: "auth-brief" },
     { path: "/api/portfolio/overview", id: "auth-portfolio-overview" },
     { path: "/api/receipts", id: "auth-receipts" },
+    { path: "/api/review/planned?days=7", id: "auth-planned" },
+    { path: "/api/review/monthly", id: "auth-monthly" },
     { path: "/api/discipline/streak", id: "auth-discipline" },
     { path: "/api/trust/outcome", id: "auth-trust" },
     { path: "/api/subscription/tier", id: "auth-tier" },
@@ -220,6 +222,21 @@ async function runChecks(baseUrl: string): Promise<VerifyReport> {
     label: "POST /api/trade/execute rejects unauthenticated requests",
     ok: tradeExecute.status === 401 && tradeExecuteBody?.status === "error",
     detail: `status=${tradeExecute.status}`,
+    critical: true,
+  });
+
+  const askAnswer = await fetchCheck(`${baseUrl}/api/ask/answer`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ question: "Should I buy RELIANCE?" }),
+  });
+  const askAnswerBody = isRecord(askAnswer.body) ? askAnswer.body : null;
+
+  record(checks, {
+    id: "auth-ask-answer",
+    label: "POST /api/ask/answer rejects unauthenticated requests",
+    ok: askAnswer.status === 401 && askAnswerBody?.status === "error",
+    detail: `status=${askAnswer.status}`,
     critical: true,
   });
 
@@ -439,12 +456,40 @@ async function runChecks(baseUrl: string): Promise<VerifyReport> {
         validate: (body: Record<string, unknown> | null) =>
           body?.status === "ok" && isRecord(body.snapshot),
       },
+      {
+        id: "authed-planned",
+        path: "/api/review/planned?days=14",
+        validate: (body: Record<string, unknown> | null) =>
+          body?.status === "ok" &&
+          Array.isArray(body.rows) &&
+          isRecord(body.summary),
+      },
+      {
+        id: "authed-monthly",
+        path: "/api/review/monthly",
+        validate: (body: Record<string, unknown> | null) =>
+          body?.status === "ok" && isRecord(body.doctor),
+      },
+      {
+        id: "authed-ask",
+        path: "/api/ask/answer",
+        method: "POST" as const,
+        body: JSON.stringify({ question: "Should I buy RELIANCE?" }),
+        validate: (body: Record<string, unknown> | null) =>
+          body?.status === "ok" && isRecord(body.answer),
+      },
     ] as const;
 
     for (const route of authedRoutes) {
       const result = await fetchCheck(`${baseUrl}${route.path}`, {
         method: "method" in route ? route.method : "GET",
-        headers: authHeaders,
+        headers: {
+          ...authHeaders,
+          ...("body" in route
+            ? { "Content-Type": "application/json" }
+            : {}),
+        },
+        body: "body" in route ? route.body : undefined,
       });
       const body = isRecord(result.body) ? result.body : null;
 

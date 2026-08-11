@@ -1,4 +1,5 @@
 import { syncBrokerActivityFromKite } from "@/services/trade/syncBrokerActivity";
+import type { BrokerActivitySyncResult } from "@/services/trade/syncBrokerActivity";
 import type { Database } from "@/types/database";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -7,6 +8,7 @@ type Client = SupabaseClient<Database>;
 export type BrokerReconcileResult = {
   synced: boolean;
   message: string;
+  sync?: BrokerActivitySyncResult;
 };
 
 export async function reconcileBrokerForReview(
@@ -14,10 +16,36 @@ export async function reconcileBrokerForReview(
   userId: string,
 ): Promise<BrokerReconcileResult> {
   try {
-    await syncBrokerActivityFromKite(supabase, userId);
+    const sync = await syncBrokerActivityFromKite(supabase, userId);
+
+    if (sync.status === "OK") {
+      return {
+        synced: true,
+        message: `Reconciled ${sync.imported} fill(s) from broker.`,
+        sync,
+      };
+    }
+
+    if (sync.status === "NOT_CONNECTED") {
+      return {
+        synced: false,
+        message: "Connect Zerodha to reconcile broker fills.",
+        sync,
+      };
+    }
+
+    if (sync.status === "TOKEN_EXPIRED") {
+      return {
+        synced: false,
+        message: "Zerodha session expired — reconnect to reconcile.",
+        sync,
+      };
+    }
+
     return {
-      synced: true,
-      message: "Broker activity reconciled with today's plan.",
+      synced: false,
+      message: sync.message,
+      sync,
     };
   } catch (error) {
     return {

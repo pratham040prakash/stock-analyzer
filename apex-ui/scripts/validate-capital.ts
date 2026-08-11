@@ -33,6 +33,10 @@ import { runReceiptSelfCheck } from "../services/receipts/persistReceipt";
 import { runResearchSummarySelfCheck } from "../services/research/assembleResearchSummary";
 import { runAlphaAiBridgeSelfCheck } from "../services/research/alphaAiBridge";
 import { runYouSnapshotSelfCheck } from "../services/you/assembleYouSnapshot";
+import { runPlannedVsActualSelfCheck } from "../services/review/plannedVsActual";
+import { runMonthlyDoctorSelfCheck } from "../services/review/assembleMonthlyDoctor";
+import { runAskAnswerSelfCheck } from "../services/ask/assembleAskAnswer";
+import { runReceiptExportSelfCheck } from "../services/receipts/exportReceiptMarkdown";
 
 runCapitalProjectionSelfCheck();
 runCapitalFinalStateSelfCheck();
@@ -66,3 +70,7 @@ runReceiptSelfCheck();
 runResearchSummarySelfCheck();
 runAlphaAiBridgeSelfCheck();
 runYouSnapshotSelfCheck();
+runPlannedVsActualSelfCheck();
+runMonthlyDoctorSelfCheck();
+runAskAnswerSelfCheck();
+runReceiptExportSelfCheck();

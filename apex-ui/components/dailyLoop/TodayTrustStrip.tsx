@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { ConnectionStatus } from "@/lib/broker/zerodha";
 import { formatInr } from "@/lib/funds";
 import type { ZerodhaPositionPnlRow } from "@/services/brokers/zerodha";
@@ -22,6 +23,7 @@ export type TodayTrustStripProps = {
   fundsLoading?: boolean;
   fundsSynced?: boolean;
   fundsSyncError?: string | null;
+  proofHref?: string | null;
 };
 
 function formatUpdatedAt(updatedAt?: string | null): string | null {
@@ -75,6 +77,7 @@ export default function TodayTrustStrip({
   fundsLoading = false,
   fundsSynced = false,
   fundsSyncError = null,
+  proofHref = null,
 }: TodayTrustStripProps) {
   const syncedAt = formatUpdatedAt(lastSyncedAt);
   const deployableResolved = knownAmount(marginAvailable)
@@ -244,6 +247,23 @@ export default function TodayTrustStrip({
               LTP − avg × qty · live quote when available
             </p>
           </details>
+        ) : null}
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+        <Link
+          href="/app/portfolio"
+          className="text-blue-200/90 transition-colors hover:text-blue-100"
+        >
+          Portfolio details →
+        </Link>
+        {proofHref ? (
+          <Link
+            href={proofHref}
+            className="text-blue-200/90 transition-colors hover:text-blue-100"
+          >
+            Decision proof →
+          </Link>
         ) : null}
       </div>
     </div>

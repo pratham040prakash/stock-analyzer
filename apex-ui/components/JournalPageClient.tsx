@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import ApexSurfaceNav from "@/components/nav/ApexSurfaceNav";
 import DecisionReceiptCard from "@/components/receipts/DecisionReceiptCard";
+import ReceiptProofPanel from "@/components/receipts/ReceiptProofPanel";
 import { ApexShell, ApexTitle } from "@/components/ui/apex";
 import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
 import type { DecisionReceiptRow } from "@/services/receipts/persistReceipt";
@@ -75,6 +76,11 @@ export default function JournalPageClient({ userName }: { userName: string }) {
     [loadReceipts],
   );
 
+  const highlightedReceipt = useMemo(
+    () => receipts.find((row) => row.id === highlightId) ?? null,
+    [highlightId, receipts],
+  );
+
   return (
     <ApexShell>
       <header className="mb-6 space-y-4">
@@ -110,6 +116,12 @@ export default function JournalPageClient({ userName }: { userName: string }) {
           </button>
         ))}
       </div>
+
+      {highlightedReceipt ? (
+        <div className="mb-4">
+          <ReceiptProofPanel receipt={highlightedReceipt} />
+        </div>
+      ) : null}
 
       {loading ? (
         <p className="text-sm text-apex-muted/70">Loading journal…</p>

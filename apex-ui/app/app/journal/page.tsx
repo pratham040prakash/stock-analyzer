@@ -1,10 +1,12 @@
-import { Suspense } from "react";
 import { redirect } from "next/navigation";
-import JournalPageClient from "@/components/JournalPageClient";
 import { isSystemConfigured } from "@/lib/env/config";
 import { createClient } from "@/lib/supabase/server";
 
-export default async function JournalPage() {
+export default async function JournalPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   if (!isSystemConfigured()) {
     redirect("/login?next=/app/journal");
   }
@@ -18,14 +20,14 @@ export default async function JournalPage() {
     redirect("/login?next=/app/journal");
   }
 
-  const userName =
-    (user.user_metadata?.full_name as string | undefined)?.split(" ")[0] ??
-    user.email?.split("@")[0] ??
-    "there";
+  const params = await searchParams;
+  const query = new URLSearchParams({ tab: "receipts" });
 
-  return (
-    <Suspense fallback={<p className="p-6 text-sm text-apex-muted">Loading journal…</p>}>
-      <JournalPageClient userName={userName} />
-    </Suspense>
-  );
+  const receipt = params.receipt;
+
+  if (typeof receipt === "string" && receipt.trim()) {
+    query.set("receipt", receipt.trim());
+  }
+
+  redirect(`/app/review?${query.toString()}`);
 }

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import DecisionReceipt from "@/components/dailyLoop/DecisionReceipt";
+import { downloadReceiptMarkdown } from "@/services/receipts/exportReceiptMarkdown";
 import type { DecisionReceiptRow } from "@/services/receipts/persistReceipt";
 import type { BrokerFillSummary } from "@/services/trade/logTradeFill";
 
@@ -22,12 +23,32 @@ function hasFill(receipt: DecisionReceiptRow): receipt is DecisionReceiptRow & {
   );
 }
 
-function proofHref(receipt: DecisionReceiptRow): string | null {
+function proofHref(receipt: DecisionReceiptRow): string {
   if (receipt.brief_snapshot) {
     return `/app?receipt=${encodeURIComponent(receipt.id)}`;
   }
 
-  return `/app/journal?receipt=${encodeURIComponent(receipt.id)}`;
+  return `/app/review?tab=receipts&receipt=${encodeURIComponent(receipt.id)}`;
+}
+
+function ProofActions({ receipt }: { receipt: DecisionReceiptRow }) {
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <Link
+        href={proofHref(receipt)}
+        className="inline-flex text-xs text-blue-200/90 transition-colors hover:text-blue-100"
+      >
+        View proof snapshot →
+      </Link>
+      <button
+        type="button"
+        onClick={() => downloadReceiptMarkdown(receipt)}
+        className="text-xs text-apex-muted/80 transition-colors hover:text-apex-text"
+      >
+        Export markdown
+      </button>
+    </div>
+  );
 }
 
 export default function DecisionReceiptCard({ receipt, onDismiss }: Props) {
@@ -51,7 +72,7 @@ export default function DecisionReceiptCard({ receipt, onDismiss }: Props) {
           trustDelta={receipt.trust_delta ?? undefined}
           onDismiss={onDismiss ? () => onDismiss(receipt.id) : undefined}
         />
-        <ProofLink receipt={receipt} />
+        <ProofActions receipt={receipt} />
       </div>
     );
   }
@@ -100,24 +121,7 @@ export default function DecisionReceiptCard({ receipt, onDismiss }: Props) {
           {Math.abs(receipt.trust_delta)}
         </p>
       ) : null}
-      <ProofLink receipt={receipt} />
+      <ProofActions receipt={receipt} />
     </section>
-  );
-}
-
-function ProofLink({ receipt }: { receipt: DecisionReceiptRow }) {
-  const href = proofHref(receipt);
-
-  if (!href) {
-    return null;
-  }
-
-  return (
-    <Link
-      href={href}
-      className="inline-flex text-xs text-blue-200/90 transition-colors hover:text-blue-100"
-    >
-      View proof snapshot →
-    </Link>
   );
 }

@@ -4,26 +4,46 @@ import type { DisciplineHistorySummary } from "@/types/decisionHistory";
 export function buildWeeklyReviewHeadline(
   summary: DisciplineHistorySummary,
 ): string {
+  const ritual = buildWeeklyRitualLabel(new Date());
+
   const activeDays =
     summary.executedDays + summary.followedDays + summary.waitDays;
 
   if (activeDays === 0) {
-    return "Log discipline daily to build your weekly record.";
+    return `${ritual} Log discipline daily to build your weekly record.`;
   }
 
   if (summary.losses > 0) {
-    return "Review losses — tighten size and honor stops.";
+    return `${ritual} Review losses — tighten size and honor stops.`;
   }
 
   if (summary.wins > 0 && summary.losses === 0) {
-    return "Process is working — protect gains and stay disciplined.";
+    return `${ritual} Process is working — protect gains and stay disciplined.`;
   }
 
   if (summary.followedDays >= 3) {
-    return "Strong discipline week — keep following the plan.";
+    return `${ritual} Strong discipline week — keep following the plan.`;
   }
 
-  return "Stay consistent — small daily decisions compound.";
+  return `${ritual} Stay consistent — small daily decisions compound.`;
+}
+
+/** Sunday/Monday ritual prefix for weekly review hero. */
+export function buildWeeklyRitualLabel(today = new Date()): string {
+  const weekday = today.toLocaleDateString("en-IN", {
+    weekday: "long",
+    timeZone: "Asia/Kolkata",
+  });
+
+  if (weekday === "Sunday" || weekday === "Monday") {
+    return "Your week in review —";
+  }
+
+  if (weekday === "Saturday") {
+    return "Weekend check-in —";
+  }
+
+  return "This week —";
 }
 
 export function runWeeklyReviewSelfCheck(): void {

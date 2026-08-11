@@ -1,0 +1,82 @@
+import { test, expect } from "@playwright/test";
+
+const sessionCookie = process.env.APEX_E2E_COOKIE?.trim();
+
+test.describe("APEX authenticated smoke", () => {
+  test.skip(!sessionCookie, "Set APEX_E2E_COOKIE for authenticated smoke tests");
+
+  test.use({
+    extraHTTPHeaders: {
+      Cookie: sessionCookie ?? "",
+    },
+  });
+
+  test("today brief returns decision envelope", async ({ request }) => {
+    const response = await request.get("/api/today/brief");
+    expect(response.ok()).toBeTruthy();
+
+    const body = await response.json();
+    expect(body.status).toBe("ok");
+    expect(body.decision).toBeTruthy();
+    expect(body.trust).toBeTruthy();
+  });
+
+  test("review reconcile accepts session", async ({ request }) => {
+    const response = await request.post("/api/review/reconcile");
+    expect(response.ok()).toBeTruthy();
+
+    const body = await response.json();
+    expect(typeof body.synced).toBe("boolean");
+    expect(typeof body.status).toBe("string");
+  });
+
+  test("planned vs actual returns rows", async ({ request }) => {
+    const response = await request.get("/api/review/planned?days=14");
+    expect(response.ok()).toBeTruthy();
+
+    const body = await response.json();
+    expect(body.status).toBe("ok");
+    expect(Array.isArray(body.rows)).toBeTruthy();
+    expect(body.summary).toBeTruthy();
+  });
+
+  test("monthly doctor returns view model", async ({ request }) => {
+    const response = await request.get("/api/review/monthly");
+    expect(response.ok()).toBeTruthy();
+
+    const body = await response.json();
+    expect(body.status).toBe("ok");
+    expect(body.doctor).toBeTruthy();
+  });
+
+  test("receipts list returns array", async ({ request }) => {
+    const response = await request.get("/api/receipts?days=7");
+    expect(response.ok()).toBeTruthy();
+
+    const body = await response.json();
+    expect(body.status).toBe("ok");
+    expect(Array.isArray(body.receipts)).toBeTruthy();
+  });
+
+  test("ask answer returns one-shot response", async ({ request }) => {
+    const response = await request.post("/api/ask/answer", {
+      data: { question: "Should I buy RELIANCE?" },
+    });
+    expect(response.ok()).toBeTruthy();
+
+    const body = await response.json();
+    expect(body.status).toBe("ok");
+    expect(body.answer?.answer_word).toMatch(/Buy|Wait|Pass/);
+  });
+
+  test("review page loads for signed-in user", async ({ page }) => {
+    await page.goto("/app/review");
+    await expect(page).toHaveURL(/\/app\/review/);
+    await expect(page.locator("body")).toContainText(/Weekly review|review/i);
+  });
+
+  test("journal redirects into review receipts tab", async ({ page }) => {
+    await page.goto("/app/journal");
+    await expect(page).toHaveURL(/\/app\/review\?tab=receipts/);
+  });
+});

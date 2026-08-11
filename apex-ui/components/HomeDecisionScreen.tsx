@@ -24,6 +24,7 @@ import {
 import TodayExecutionPanel from "@/components/dailyLoop/TodayExecutionPanel";
 import TodayMonitorStrip from "@/components/dailyLoop/TodayMonitorStrip";
 import TodayTrustStrip from "@/components/dailyLoop/TodayTrustStrip";
+import ResearchTodayHandoff from "@/components/research/ResearchTodayHandoff";
 import VerdictCanvas from "@/components/dailyLoop/VerdictCanvas";
 import TodayBelowFold from "@/components/dailyLoop/belowFold/TodayBelowFold";
 import TodayDisciplineChip from "@/components/dailyLoop/TodayDisciplineChip";
@@ -48,6 +49,7 @@ import type {
   DisciplineHistorySummary,
 } from "@/types/decisionHistory";
 import type { PortfolioHoldingRow } from "@/types/portfolioApi";
+import type { ResearchVerdict } from "@/types/researchSummary";
 import PremiumFeatureGate from "@/components/dailyLoop/PremiumFeatureGate";
 import { useExploreTriggers } from "@/lib/useExploreTriggers";
 import { useDayPnlPoll } from "@/lib/useDayPnlPoll";
@@ -115,6 +117,13 @@ export type HomeDecisionScreenProps = {
   premiumFeatures?: TierFeatures;
   premiumActivationEnabled?: boolean;
   onPremiumActivated?: () => void;
+  proofHref?: string | null;
+  researchHandoff?: {
+    symbol: string;
+    verdict: ResearchVerdict;
+    headline?: string;
+    onDismiss: () => void;
+  };
   className?: string;
 };
 
@@ -163,6 +172,8 @@ export default function HomeDecisionScreen({
   premiumFeatures,
   premiumActivationEnabled = false,
   onPremiumActivated,
+  proofHref = null,
+  researchHandoff,
   className = "",
 }: HomeDecisionScreenProps) {
   const features = premiumFeatures ?? {
@@ -597,6 +608,15 @@ export default function HomeDecisionScreen({
 
         <div className={`relative p-6 ${contentClassName}`}>
           <div className="mb-6 space-y-4">
+            {researchHandoff ? (
+              <ResearchTodayHandoff
+                symbol={researchHandoff.symbol}
+                verdict={researchHandoff.verdict}
+                headline={researchHandoff.headline}
+                onDismiss={researchHandoff.onDismiss}
+              />
+            ) : null}
+
             <TodayTrustStrip
               connectionStatus={connectionStatus}
               marginAvailable={availableCash}
@@ -621,6 +641,7 @@ export default function HomeDecisionScreen({
               fundsLoading={fundsLoading}
               fundsSynced={fundsSynced}
               fundsSyncError={fundsSyncError}
+              proofHref={proofHref}
             />
 
             <TodayPortfolioHoldings

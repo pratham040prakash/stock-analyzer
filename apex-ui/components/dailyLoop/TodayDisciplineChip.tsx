@@ -25,7 +25,7 @@ export default function TodayDisciplineChip({ discipline }: Props) {
         href="/app/review"
         className="text-xs text-blue-200/90 transition-colors hover:text-blue-100"
       >
-        Weekly review →
+        Review & receipts →
       </Link>
     </section>
   );

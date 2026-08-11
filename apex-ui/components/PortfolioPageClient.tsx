@@ -5,6 +5,7 @@ import ApexSurfaceNav from "@/components/nav/ApexSurfaceNav";
 import TodayPortfolioHoldings from "@/components/dailyLoop/TodayPortfolioHoldings";
 import TodayTrustStrip from "@/components/dailyLoop/TodayTrustStrip";
 import AllocationVsPolicy from "@/components/portfolio/AllocationVsPolicy";
+import AllocationHoldingsDrift from "@/components/portfolio/AllocationHoldingsDrift";
 import { HoldingHealthList } from "@/components/portfolio/HoldingHealthChip";
 import PositionsView from "@/components/portfolio/PositionsView";
 import ResearchHandoffLink from "@/components/portfolio/ResearchHandoffLink";
@@ -163,6 +164,13 @@ export default function PortfolioPageClient({
 
           {overviewLoading ? (
             <p className="text-sm text-apex-muted/70">Loading overview…</p>
+          ) : connectionStatus === "TOKEN_EXPIRED" ? (
+            <section className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-4">
+              <p className="text-sm text-amber-100/90">
+                Zerodha session expired. Reconnect to refresh holdings, allocation,
+                and health data.
+              </p>
+            </section>
           ) : connectionStatus === "NOT_CONNECTED" ? (
             <section className="rounded-xl border border-apex-border/15 bg-white/[0.02] px-4 py-4">
               <p className="text-sm text-apex-text/90">
@@ -173,11 +181,14 @@ export default function PortfolioPageClient({
           ) : null}
 
           {overview?.allocation ? (
-            <AllocationVsPolicy allocation={overview.allocation} />
+            <>
+              <AllocationVsPolicy allocation={overview.allocation} />
+              <AllocationHoldingsDrift allocation={overview.allocation} />
+            </>
           ) : null}
 
           {overview?.health?.length ? (
-            <HoldingHealthList chips={overview.health} />
+            <HoldingHealthList chips={overview.health} linkResearch />
           ) : null}
 
           <ResearchHandoffLink symbol={overview?.research_symbol ?? null} />
