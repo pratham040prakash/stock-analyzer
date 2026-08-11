@@ -143,6 +143,30 @@ async function runChecks(baseUrl: string): Promise<VerifyReport> {
     critical: false,
   });
 
+  const migrationBody = isRecord(healthBody?.migrations)
+    ? healthBody.migrations
+    : null;
+  const operatingProfileMigration = migrationBody?.operating_profile;
+
+  record(checks, {
+    id: "health-migration-operating-profile",
+    label: "operating_profile migration status exposed in health report",
+    ok:
+      operatingProfileMigration === "ready" ||
+      operatingProfileMigration === "pending" ||
+      operatingProfileMigration === "unknown",
+    detail: String(operatingProfileMigration ?? "missing"),
+    critical: false,
+  });
+
+  record(checks, {
+    id: "health-migration-operating-profile-ready",
+    label: "operating_profile migration applied on prod",
+    ok: operatingProfileMigration === "ready",
+    detail: String(operatingProfileMigration ?? "missing"),
+    critical: false,
+  });
+
   const proxyUrl = process.env.KITE_ORDER_PROXY_URL?.trim();
   if (proxyUrl) {
     try {
@@ -194,6 +218,7 @@ async function runChecks(baseUrl: string): Promise<VerifyReport> {
     { path: "/api/discipline/streak", id: "auth-discipline" },
     { path: "/api/trust/outcome", id: "auth-trust" },
     { path: "/api/subscription/tier", id: "auth-tier" },
+    { path: "/api/operating-profile", id: "auth-operating-profile" },
     { path: "/api/decision/history?days=7", id: "auth-history" },
     { path: "/api/trade/status?stock=RELIANCE", id: "auth-trade-status" },
   ] as const;
@@ -435,8 +460,25 @@ async function runChecks(baseUrl: string): Promise<VerifyReport> {
       {
         id: "authed-brief",
         path: "/api/today/brief",
+        validate: (body: Record<string, unknown> | null) => {
+          if (body?.status !== "ok" || !isRecord(body.decision) || !isRecord(body.trust)) {
+            return false;
+          }
+
+          const decision = body.decision as Record<string, unknown>;
+          return (
+            decision.daily_verdict === "wait" ||
+            decision.daily_verdict === "trade" ||
+            decision.daily_verdict === "pause"
+          );
+        },
+      },
+      {
+        id: "authed-operating-profile",
+        path: "/api/operating-profile",
         validate: (body: Record<string, unknown> | null) =>
-          body?.status === "ok" && isRecord(body.decision) && isRecord(body.trust),
+          typeof body?.complete === "boolean" &&
+          (body.profile === null || isRecord(body.profile)),
       },
       {
         id: "authed-portfolio-overview",

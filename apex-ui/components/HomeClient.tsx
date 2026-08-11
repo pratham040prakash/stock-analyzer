@@ -26,6 +26,7 @@ import {
   type OperatingProfile,
 } from "@/types/operatingProfile";
 import { readLocalOperatingProfile } from "@/lib/operatingProfile/clientStore";
+import { syncLocalOperatingProfileToServer } from "@/lib/operatingProfile/syncToServer";
 import type { DailyInsight } from "@/types/dailyInsight";
 import type {
   DecisionHistoryEntry,
@@ -346,6 +347,23 @@ export default function HomeClient({
       });
     });
   }, [supabase]);
+
+  useEffect(() => {
+    if (!user || initialOperatingProfile) {
+      return;
+    }
+
+    const local = readLocalOperatingProfile();
+    if (!local) {
+      return;
+    }
+
+    void syncLocalOperatingProfileToServer().then((synced) => {
+      if (synced) {
+        setOperatingProfile(synced);
+      }
+    });
+  }, [user, initialOperatingProfile]);
 
   useEffect(() => {
     if (!configured || !user || authLoading || isCompletingOAuth) return;

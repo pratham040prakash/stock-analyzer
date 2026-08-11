@@ -33,6 +33,7 @@ import { runAllocationPolicySelfCheck } from "../services/portfolio/allocationPo
 import { runOperatingProfileRepositorySelfCheck } from "../services/operatingProfile/repository";
 import { runOperatingProfileErrorsSelfCheck } from "../services/operatingProfile/errors";
 import { runOperatingProfileClientStoreSelfCheck } from "../lib/operatingProfile/clientStore";
+import { runOperatingProfileSyncSelfCheck } from "../lib/operatingProfile/syncToServer";
 import { runHoldingHealthSelfCheck } from "../services/portfolio/holdingHealth";
 import { runDisciplineScoreSelfCheck } from "../services/review/disciplineScore";
 import { runReceiptSelfCheck } from "../services/receipts/persistReceipt";
@@ -96,6 +97,7 @@ runAllocationPolicySelfCheck();
 runOperatingProfileRepositorySelfCheck();
 runOperatingProfileErrorsSelfCheck();
 runOperatingProfileClientStoreSelfCheck();
+runOperatingProfileSyncSelfCheck();
 runHoldingHealthSelfCheck();
 runDisciplineScoreSelfCheck();
 runReceiptSelfCheck();

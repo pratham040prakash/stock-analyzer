@@ -119,6 +119,24 @@ test.describe("APEX authenticated smoke", () => {
     expect(body.streak).toBeTruthy();
   });
 
+  test("operating profile returns envelope", async ({ request }) => {
+    const response = await request.get("/api/operating-profile");
+    expect(response.ok()).toBeTruthy();
+
+    const body = await response.json();
+    expect(typeof body.complete).toBe("boolean");
+    expect(body.profile === null || typeof body.profile?.investmentStyle === "string").toBeTruthy();
+  });
+
+  test("today brief includes daily verdict", async ({ request }) => {
+    const response = await request.get("/api/today/brief");
+    expect(response.ok()).toBeTruthy();
+
+    const body = await response.json();
+    expect(body.status).toBe("ok");
+    expect(["wait", "trade", "pause"]).toContain(body.decision?.daily_verdict);
+  });
+
   test("review page loads for signed-in user", async ({ page }) => {
     await page.goto("/app/review");
     await expect(page).toHaveURL(/\/app\/review/);

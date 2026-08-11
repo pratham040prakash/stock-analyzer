@@ -1,16 +1,16 @@
 # APEX V3 — v3.0.0-rc1 Soak Checklist
 
 **Document ID:** APEX-V3-RC1-SOAK  
-**Version:** 1.0  
+**Version:** 1.1  
 **Status:** ACTIVE  
 **Date:** 2026-08-11  
-**Parent:** [APEX_V3_ROADMAP.md](./APEX_V3_ROADMAP.md)
+**Parent:** [APEX_V3_ROADMAP.md](./APEX_V3_ROADMAP.md) · [APEX_V3_TRANSFORMATION_ROADMAP.md](./APEX_V3_TRANSFORMATION_ROADMAP.md)
 
 ---
 
 ## Purpose
 
-Validate Sprints W–Y on production before tagging `v3.0.0-rc1`. Soak focuses on broker UX, silent data refresh, auth gates, and review digest cron — not new feature work.
+Validate Phase T0 (surface architecture) and Phase T1 (rc1 readiness) on production before tagging `v3.0.0-rc1`. Soak focuses on **Wait · Trade · Pause**, capital dams, onboarding, broker UX, and ops gates — not new feature work.
 
 ---
 
@@ -29,18 +29,42 @@ Validate Sprints W–Y on production before tagging `v3.0.0-rc1`. Soak focuses o
 
 ## Prod manual soak (48h recommended)
 
-### Today / broker (Sprint W)
+### Today — Phase T0 (Sprints Z1–Z3)
+
+- [ ] Hero shows only **Wait**, **Trade**, or **Pause** — not ACT/TRIM/EXPLORE
+- [ ] **Pause** day has no buy button; copy explains why (loss streak / daily dam)
+- [ ] **Operating manual strip** visible: Core / Tactical / Not intraday
+- [ ] **Capital dams strip** shows daily max loss before any trade CTA
+- [ ] Sacred core holdings → no Today buy suggestion
+- [ ] **Details** accordion collapses portfolio / monitor / depth below fold
+- [ ] Wait or Pause → primary CTA feels like “You’re done for today”
+- [ ] New user **cannot reach Today** without investment style + intraday ack
+- [ ] **How APEX works** linked from strip (`/app/you/how-it-works`)
+
+### Portfolio / Review — Phase T1a
+
+- [ ] **Sector cap strip** warns when top sector exceeds ~30%
+- [ ] **Review weekly** shows planned vs actual summary at top
+
+### Broker (Sprint W)
 
 - [ ] Single-share trim shows **full exit or hold** — not misleading partial %
-- [ ] **Hold position — skip trim** records WAIT streak and shows “holding position today”
+- [ ] **Hold position — skip trim** records WAIT streak
 - [ ] Zerodha funds / P&L refresh without “Syncing Zerodha funds…” flash
 - [ ] Breakout setups show **wait-for-breakout** copy until entry confirmed
+- [ ] No conflicting “Session expired” + “Zerodha connected” banners
 
 ### Auth & cron (Sprint X)
 
 - [ ] `/api/cron/review-digest` returns **401** without `Authorization: Bearer $CRON_SECRET`
 - [ ] Protected API routes return JSON error envelope when unauthenticated
 - [ ] GitHub `apex-prod-verify` workflow green with `APEX_VERIFY_COOKIE`
+
+### Operating profile (T1 ops)
+
+- [ ] `GET /api/health` → `migrations.operating_profile` is **`ready`** (not `pending`)
+- [ ] Onboarding Step 3 saves to server (not only localStorage)
+- [ ] Users who saved locally during 503 auto-sync profile on next visit
 
 ### Review digest (optional)
 
@@ -50,17 +74,25 @@ Validate Sprints W–Y on production before tagging `v3.0.0-rc1`. Soak focuses o
 
 ### Database
 
-- [ ] All migrations applied via `npm run db:migrate:checklist`
+- [ ] All migrations applied via `npm run db:migrate:checklist` (includes `operating_profile.sql`)
 - [ ] RLS policies idempotent (re-run safe)
+
+---
+
+## Founder T0 gate (required before rc1 tag)
+
+- [ ] *“I knew what to do without stock knowledge”*
+- [ ] Most sessions end in Wait or Pause without guilt
+- [ ] `npm run build` + `validate:capital` green
 
 ---
 
 ## Tag procedure
 
-Only after all gates and soak items pass:
+Only after all gates, soak items, and founder T0 gate pass:
 
 ```bash
-git tag -a v3.0.0-rc1 -m "APEX V3 release candidate 1 — Sprints W–Y"
+git tag -a v3.0.0-rc1 -m "APEX V3 release candidate 1 — Phase T0 surface + T1 rc1"
 git push origin v3.0.0-rc1
 ```
 
@@ -79,5 +111,5 @@ git push origin v3.0.0-rc1
 | Role | Name | Date | Notes |
 |------|------|------|-------|
 | Engineering | | | verify:prod + build |
-| Product | | | soak checklist |
+| Product | | | soak checklist + T0 gate |
 | Ops | | | migrations + env |
