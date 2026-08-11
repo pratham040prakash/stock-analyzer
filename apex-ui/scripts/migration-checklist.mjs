@@ -28,6 +28,7 @@ const ORDERED_MIGRATIONS = [
   "auto_trade_lock.sql",
   "premium_activations.sql",
   "decision_receipts.sql",
+  "investment_thesis.sql",
 ];
 
 function listMigrations() {

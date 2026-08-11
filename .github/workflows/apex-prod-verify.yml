@@ -63,3 +63,31 @@ jobs:
           PLAYWRIGHT_BASE_URL: https://apex-ten-kappa.vercel.app
           PLAYWRIGHT_SKIP_WEBSERVER: "1"
         run: npm run test:e2e
+
+  e2e-authed:
+    runs-on: ubuntu-latest
+    if: ${{ secrets.APEX_E2E_COOKIE != '' }}
+    defaults:
+      run:
+        working-directory: apex-ui
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apex-ui/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Run authenticated E2E against production
+        env:
+          PLAYWRIGHT_BASE_URL: https://apex-ten-kappa.vercel.app
+          PLAYWRIGHT_SKIP_WEBSERVER: "1"
+          APEX_E2E_COOKIE: ${{ secrets.APEX_E2E_COOKIE }}
+        run: npx playwright test e2e/authed.spec.ts

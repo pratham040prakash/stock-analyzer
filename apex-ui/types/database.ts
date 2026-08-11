@@ -222,6 +222,30 @@ export type Database = {
         };
         Relationships: [];
       };
+      investment_thesis: {
+        Row: {
+          id: string;
+          user_id: string;
+          symbol: string;
+          thesis: string;
+          invalidation: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          symbol: string;
+          thesis: string;
+          invalidation?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          thesis?: string;
+          invalidation?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       decision_memory: {
         Row: {
           id: string;

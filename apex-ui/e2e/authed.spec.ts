@@ -69,6 +69,35 @@ test.describe("APEX authenticated smoke", () => {
     expect(body.answer?.answer_word).toMatch(/Buy|Wait|Pass/);
   });
 
+  test("portfolio ask handles concentration question", async ({ request }) => {
+    const response = await request.post("/api/ask/answer", {
+      data: { question: "Am I too concentrated?" },
+    });
+    expect(response.ok()).toBeTruthy();
+
+    const body = await response.json();
+    expect(body.status).toBe("ok");
+    expect(body.answer?.answer_word).toMatch(/Buy|Wait|Pass/);
+  });
+
+  test("quarterly review returns view model", async ({ request }) => {
+    const response = await request.get("/api/review/quarterly");
+    expect(response.ok()).toBeTruthy();
+
+    const body = await response.json();
+    expect(body.status).toBe("ok");
+    expect(body.quarterly).toBeTruthy();
+  });
+
+  test("new capital workflow returns envelope", async ({ request }) => {
+    const response = await request.get("/api/capital/new");
+    expect(response.ok()).toBeTruthy();
+
+    const body = await response.json();
+    expect(body.status).toBe("ok");
+    expect(body.workflow).toBeTruthy();
+  });
+
   test("review page loads for signed-in user", async ({ page }) => {
     await page.goto("/app/review");
     await expect(page).toHaveURL(/\/app\/review/);

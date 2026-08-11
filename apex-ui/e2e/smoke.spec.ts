@@ -54,6 +54,16 @@ test.describe("APEX smoke", () => {
     expect(response.status()).toBe(401);
   });
 
+  test("quarterly review rejects anonymous users", async ({ request }) => {
+    const response = await request.get("/api/review/quarterly");
+    expect(response.status()).toBe(401);
+  });
+
+  test("new capital rejects anonymous users", async ({ request }) => {
+    const response = await request.get("/api/capital/new");
+    expect(response.status()).toBe(401);
+  });
+
   test("today brief rejects anonymous users", async ({ request }) => {
     const response = await request.get("/api/today/brief");
     expect(response.status()).toBe(401);

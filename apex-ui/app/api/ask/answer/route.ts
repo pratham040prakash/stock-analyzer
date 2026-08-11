@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { apiError } from "@/lib/api/response";
 import { assembleAskAnswer } from "@/services/ask/assembleAskAnswer";
+import {
+  assemblePortfolioAskAnswer,
+  isPortfolioQuestion,
+} from "@/services/ask/assemblePortfolioAskAnswer";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -29,7 +33,9 @@ export async function POST(request: Request) {
     return apiError("Question required (max 500 chars)", 400);
   }
 
-  const answer = await assembleAskAnswer(question);
+  const answer = isPortfolioQuestion(question)
+    ? await assemblePortfolioAskAnswer(supabase, user.id, question)
+    : await assembleAskAnswer(question);
 
   return NextResponse.json({ status: "ok", answer });
 }

@@ -9,12 +9,14 @@ import AllocationHoldingsDrift from "@/components/portfolio/AllocationHoldingsDr
 import { HoldingHealthList } from "@/components/portfolio/HoldingHealthChip";
 import PositionsView from "@/components/portfolio/PositionsView";
 import ResearchHandoffLink from "@/components/portfolio/ResearchHandoffLink";
+import NewCapitalPanel from "@/components/capital/NewCapitalPanel";
 import { ApexCard, ApexShell, ApexTitle } from "@/components/ui/apex";
 import { useDayPnlPoll } from "@/lib/useDayPnlPoll";
 import { usePortfolioPoll } from "@/lib/usePortfolioPoll";
 import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
 import type { ConnectionStatus } from "@/lib/broker/zerodha";
 import type { PortfolioOverviewViewModel } from "@/types/portfolioOverview";
+import type { NewCapitalViewModel } from "@/types/newCapital";
 
 type FundsResponse = {
   ledger_cash: number;
@@ -30,6 +32,11 @@ type FundsResponse = {
 type OverviewResponse = {
   status: string;
   overview: PortfolioOverviewViewModel;
+};
+
+type NewCapitalResponse = {
+  status: string;
+  workflow: NewCapitalViewModel;
 };
 
 type Props = {
@@ -52,6 +59,8 @@ export default function PortfolioPageClient({
   const [collateral, setCollateral] = useState<number | undefined>();
   const [availableCash, setAvailableCash] = useState<number | undefined>();
   const [totalCapital, setTotalCapital] = useState<number | undefined>();
+  const [newCapital, setNewCapital] = useState<NewCapitalViewModel | null>(null);
+  const [newCapitalLoading, setNewCapitalLoading] = useState(true);
 
   const loadFunds = useCallback(async () => {
     setFundsLoading(true);
@@ -95,9 +104,24 @@ export default function PortfolioPageClient({
     }
   }, []);
 
+  const loadNewCapital = useCallback(async () => {
+    setNewCapitalLoading(true);
+
+    try {
+      const response = await apiFetch("/api/capital/new", { cache: "no-store" });
+      const data = await parseApiJson<NewCapitalResponse>(response, "New capital");
+
+      if (response.ok && data?.workflow) {
+        setNewCapital(data.workflow);
+      }
+    } finally {
+      setNewCapitalLoading(false);
+    }
+  }, []);
+
   const refreshAll = useCallback(async () => {
-    await Promise.all([loadOverview(), loadFunds()]);
-  }, [loadFunds, loadOverview]);
+    await Promise.all([loadOverview(), loadFunds(), loadNewCapital()]);
+  }, [loadFunds, loadNewCapital, loadOverview]);
 
   useEffect(() => {
     void refreshAll();
@@ -192,6 +216,8 @@ export default function PortfolioPageClient({
           ) : null}
 
           <ResearchHandoffLink symbol={overview?.research_symbol ?? null} />
+
+          <NewCapitalPanel workflow={newCapital} loading={newCapitalLoading} />
 
           <TodayPortfolioHoldings
             holdings={displayHoldings}

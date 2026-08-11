@@ -33,6 +33,17 @@ export default function ReflectionCanvas({ snapshot }: Props) {
         <p className="text-xs text-apex-muted/75">{snapshot.this_week_summary}</p>
       </section>
 
+      <section className="rounded-xl border border-apex-border/15 bg-white/[0.02] px-4 py-4 space-y-2">
+        <p className="text-xs font-medium uppercase tracking-wide text-apex-muted">
+          Investor DNA
+        </p>
+        <p className="text-sm font-medium text-apex-text/90">
+          {snapshot.investor_dna.behavior_tag}
+        </p>
+        <p className="text-sm text-apex-muted/85">{snapshot.investor_dna.summary}</p>
+        <p className="text-xs text-apex-muted/70">{snapshot.investor_dna.insight}</p>
+      </section>
+
       <div className="flex flex-wrap gap-4 text-sm">
         <Link
           href="/app/trust"
@@ -44,7 +55,13 @@ export default function ReflectionCanvas({ snapshot }: Props) {
           href="/app/review"
           className="text-apex-muted/80 transition-colors hover:text-apex-text"
         >
-          Weekly review →
+          Review & receipts →
+        </Link>
+        <Link
+          href="/app/you/settings"
+          className="text-apex-muted/80 transition-colors hover:text-apex-text"
+        >
+          Settings →
         </Link>
       </div>
     </div>

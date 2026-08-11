@@ -8,6 +8,7 @@ import ReceiptProofPanel from "@/components/receipts/ReceiptProofPanel";
 import BrokerReconcilePanel from "@/components/review/BrokerReconcilePanel";
 import MonthlyDoctorPanel from "@/components/review/MonthlyDoctorPanel";
 import PlannedVsActualTable from "@/components/review/PlannedVsActualTable";
+import QuarterlyReviewPanel from "@/components/review/QuarterlyReviewPanel";
 import WeeklyReviewHero from "@/components/review/WeeklyReviewHero";
 import WeeklyReviewStrip from "@/components/dailyLoop/WeeklyReviewStrip";
 import DisciplineHistoryStrip from "@/components/dailyLoop/DisciplineHistoryStrip";
@@ -22,6 +23,7 @@ import type {
 } from "@/types/decisionHistory";
 import type { DecisionReceiptRow } from "@/services/receipts/persistReceipt";
 import type { MonthlyDoctorViewModel } from "@/types/monthlyDoctor";
+import type { QuarterlyReviewViewModel } from "@/types/quarterlyReview";
 import type {
   PlannedVsActualRow,
   PlannedVsActualSummary,
@@ -40,7 +42,7 @@ type Props = {
   userName: string;
 };
 
-type ReviewTab = "weekly" | "monthly" | "receipts";
+type ReviewTab = "weekly" | "monthly" | "quarterly" | "receipts";
 
 type ReceiptsResponse = {
   status: string;
@@ -69,13 +71,18 @@ type MonthlyResponse = {
   doctor: MonthlyDoctorViewModel;
 };
 
+type QuarterlyResponse = {
+  status: string;
+  quarterly: QuarterlyReviewViewModel;
+};
+
 export default function ReviewPageClient({ userName }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const highlightReceiptId = searchParams.get("receipt");
   const initialTab = searchParams.get("tab");
   const [tab, setTab] = useState<ReviewTab>(() => {
-    if (initialTab === "monthly" || initialTab === "receipts") {
+    if (initialTab === "monthly" || initialTab === "receipts" || initialTab === "quarterly") {
       return initialTab;
     }
 
@@ -90,8 +97,12 @@ export default function ReviewPageClient({ userName }: Props) {
   const [monthlyDoctor, setMonthlyDoctor] = useState<MonthlyDoctorViewModel | null>(
     null,
   );
+  const [quarterlyReview, setQuarterlyReview] = useState<QuarterlyReviewViewModel | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [monthlyLoading, setMonthlyLoading] = useState(false);
+  const [quarterlyLoading, setQuarterlyLoading] = useState(false);
   const [reconcileSynced, setReconcileSynced] = useState<boolean | null>(null);
   const [reconcileMessage, setReconcileMessage] = useState<string | null>(null);
   const [streakCount, setStreakCount] = useState(0);
@@ -136,6 +147,23 @@ export default function ReviewPageClient({ userName }: Props) {
       }
     } finally {
       setMonthlyLoading(false);
+    }
+  }, []);
+
+  const loadQuarterly = useCallback(async () => {
+    setQuarterlyLoading(true);
+
+    try {
+      const response = await apiFetch("/api/review/quarterly", {
+        cache: "no-store",
+      });
+      const data = await parseApiJson<QuarterlyResponse>(response, "Quarterly review");
+
+      if (response.ok && data?.quarterly) {
+        setQuarterlyReview(data.quarterly);
+      }
+    } finally {
+      setQuarterlyLoading(false);
     }
   }, []);
 
@@ -185,9 +213,10 @@ export default function ReviewPageClient({ userName }: Props) {
       setLoading(true);
       await reconcileBroker();
       await loadMonthly();
+      await loadQuarterly();
       setLoading(false);
     })();
-  }, [loadMonthly, reconcileBroker]);
+  }, [loadMonthly, loadQuarterly, reconcileBroker]);
 
   const processScore = useMemo(
     () => buildDisciplineProcessScore(summary, streakCount),
@@ -208,7 +237,7 @@ export default function ReviewPageClient({ userName }: Props) {
   useEffect(() => {
     const tabParam = searchParams.get("tab");
 
-    if (tabParam === "monthly" || tabParam === "receipts" || tabParam === "weekly") {
+    if (tabParam === "monthly" || tabParam === "receipts" || tabParam === "weekly" || tabParam === "quarterly") {
       setTab(tabParam);
     }
   }, [searchParams]);
@@ -235,6 +264,7 @@ export default function ReviewPageClient({ userName }: Props) {
   const tabs: Array<{ key: ReviewTab; label: string }> = [
     { key: "weekly", label: "Weekly" },
     { key: "monthly", label: "Monthly" },
+    { key: "quarterly", label: "Quarterly" },
     { key: "receipts", label: "Receipts" },
   ];
 
@@ -293,9 +323,28 @@ export default function ReviewPageClient({ userName }: Props) {
               allocation: null,
               health: [],
               action_items: [],
+              trends: [],
             }
           }
           loading={monthlyLoading}
+        />
+      ) : tab === "quarterly" ? (
+        <QuarterlyReviewPanel
+          quarterly={
+            quarterlyReview ?? {
+              built_at: new Date().toISOString(),
+              quarter_label: "This quarter",
+              headline: "Quarterly review unavailable",
+              summary: "Connect broker for a complete quarterly review.",
+              discipline_score: 0,
+              aligned_days: 0,
+              deviated_days: 0,
+              concentration_warning: null,
+              sacred_core_ok: true,
+              action_items: [],
+            }
+          }
+          loading={quarterlyLoading}
         />
       ) : (
         <div className="space-y-3">

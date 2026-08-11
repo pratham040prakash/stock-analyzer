@@ -187,6 +187,10 @@ async function runChecks(baseUrl: string): Promise<VerifyReport> {
     { path: "/api/receipts", id: "auth-receipts" },
     { path: "/api/review/planned?days=7", id: "auth-planned" },
     { path: "/api/review/monthly", id: "auth-monthly" },
+    { path: "/api/review/quarterly", id: "auth-quarterly" },
+    { path: "/api/review/digest", id: "auth-digest" },
+    { path: "/api/capital/new", id: "auth-capital-new" },
+    { path: "/api/thesis", id: "auth-thesis" },
     { path: "/api/discipline/streak", id: "auth-discipline" },
     { path: "/api/trust/outcome", id: "auth-trust" },
     { path: "/api/subscription/tier", id: "auth-tier" },
@@ -477,6 +481,24 @@ async function runChecks(baseUrl: string): Promise<VerifyReport> {
         body: JSON.stringify({ question: "Should I buy RELIANCE?" }),
         validate: (body: Record<string, unknown> | null) =>
           body?.status === "ok" && isRecord(body.answer),
+      },
+      {
+        id: "authed-quarterly",
+        path: "/api/review/quarterly",
+        validate: (body: Record<string, unknown> | null) =>
+          body?.status === "ok" && isRecord(body.quarterly),
+      },
+      {
+        id: "authed-capital-new",
+        path: "/api/capital/new",
+        validate: (body: Record<string, unknown> | null) =>
+          body?.status === "ok" && isRecord(body.workflow),
+      },
+      {
+        id: "authed-thesis",
+        path: "/api/thesis",
+        validate: (body: Record<string, unknown> | null) =>
+          body?.status === "ok" && Array.isArray(body.theses),
       },
     ] as const;
 

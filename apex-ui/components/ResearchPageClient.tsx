@@ -2,9 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import ApexSurfaceNav from "@/components/nav/ApexSurfaceNav";
+import ExploreResearchHandoff from "@/components/research/ExploreResearchHandoff";
+import InvestmentThesisPanel from "@/components/research/InvestmentThesisPanel";
 import ResearchWorkbench from "@/components/research/ResearchWorkbench";
 import { ApexShell, ApexTitle } from "@/components/ui/apex";
 import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
+import { useExploreTriggers } from "@/lib/useExploreTriggers";
+import type { StockPick } from "@/types/decision";
 import type { ResearchSummaryViewModel } from "@/types/researchSummary";
 
 type Props = {
@@ -16,6 +20,10 @@ type SummaryResponse = {
   summary: ResearchSummaryViewModel;
 };
 
+type TodayDecisionResponse = {
+  decision?: { picks?: StockPick[] };
+};
+
 export default function ResearchPageClient({ initialSymbol }: Props) {
   const [symbol, setSymbol] = useState(initialSymbol ?? "RELIANCE");
   const [query, setQuery] = useState(symbol);
@@ -23,6 +31,21 @@ export default function ResearchPageClient({ initialSymbol }: Props) {
   const [hasSearched, setHasSearched] = useState(Boolean(initialSymbol));
   const [loading, setLoading] = useState(Boolean(initialSymbol));
   const [error, setError] = useState<string | null>(null);
+  const [explorePicks, setExplorePicks] = useState<StockPick[]>([]);
+
+  const { triggers: exploreTriggers, loading: exploreLoading } = useExploreTriggers({
+    enabled: explorePicks.length > 0,
+    picks: explorePicks,
+  });
+
+  const loadExplorePicks = useCallback(async () => {
+    const response = await apiFetch("/api/decision/today", { cache: "no-store" });
+    const data = await parseApiJson<TodayDecisionResponse>(response, "Today decision");
+
+    if (response.ok && data?.decision?.picks) {
+      setExplorePicks(data.decision.picks);
+    }
+  }, []);
 
   const loadSummary = useCallback(async (nextSymbol: string) => {
     const normalized = nextSymbol.trim().toUpperCase();
@@ -62,7 +85,8 @@ export default function ResearchPageClient({ initialSymbol }: Props) {
     if (initialSymbol) {
       void loadSummary(initialSymbol);
     }
-  }, [initialSymbol, loadSummary]);
+    void loadExplorePicks();
+  }, [initialSymbol, loadExplorePicks, loadSummary]);
 
   const helper = useMemo(() => {
     if (!symbol) {
@@ -104,8 +128,13 @@ export default function ResearchPageClient({ initialSymbol }: Props) {
         </div>
       </section>
 
+      <ExploreResearchHandoff triggers={exploreTriggers} loading={exploreLoading} />
+
       {hasSearched && summary ? (
-        <ResearchWorkbench summary={summary} loading={loading} error={error} />
+        <>
+          <ResearchWorkbench summary={summary} loading={loading} error={error} />
+          <InvestmentThesisPanel symbol={symbol} />
+        </>
       ) : (
         <p className="text-sm text-apex-muted/70">
           Run research on a symbol to see the seven-question decision workflow.

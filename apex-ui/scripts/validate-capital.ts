@@ -37,6 +37,15 @@ import { runPlannedVsActualSelfCheck } from "../services/review/plannedVsActual"
 import { runMonthlyDoctorSelfCheck } from "../services/review/assembleMonthlyDoctor";
 import { runAskAnswerSelfCheck } from "../services/ask/assembleAskAnswer";
 import { runReceiptExportSelfCheck } from "../services/receipts/exportReceiptMarkdown";
+import { runMonthlyDoctorExportSelfCheck } from "../services/review/exportMonthlyDoctorMarkdown";
+import { runMonthlyTrendsSelfCheck } from "../services/review/buildMonthlyTrends";
+import { runQuarterlyReviewSelfCheck } from "../services/review/assembleQuarterlyReview";
+import { runReviewCadenceSelfCheck } from "../services/review/assembleReviewCadence";
+import { runReviewDigestSelfCheck } from "../services/review/reviewDigest";
+import { runPortfolioAskSelfCheck } from "../services/ask/assemblePortfolioAskAnswer";
+import { runInvestorDnaSelfCheck } from "../services/you/assembleInvestorDna";
+import { runNewCapitalSelfCheck } from "../services/capital/newCapitalWorkflow";
+import { runThesisRepositorySelfCheck } from "../services/thesis/thesisRepository";
 
 runCapitalProjectionSelfCheck();
 runCapitalFinalStateSelfCheck();
@@ -74,3 +83,12 @@ runPlannedVsActualSelfCheck();
 runMonthlyDoctorSelfCheck();
 runAskAnswerSelfCheck();
 runReceiptExportSelfCheck();
+runMonthlyDoctorExportSelfCheck();
+runMonthlyTrendsSelfCheck();
+runQuarterlyReviewSelfCheck();
+runReviewCadenceSelfCheck();
+runReviewDigestSelfCheck();
+runPortfolioAskSelfCheck();
+runInvestorDnaSelfCheck();
+runNewCapitalSelfCheck();
+runThesisRepositorySelfCheck();

@@ -1,9 +1,23 @@
 import { assemblePortfolioOverview } from "@/services/portfolio/assembleOverview";
+import { buildMonthlyTrendLines } from "@/services/review/buildMonthlyTrends";
+import { buildPlannedVsActualRows } from "@/services/review/plannedVsActual";
+import type { PlannedVsActualSummary } from "@/types/plannedVsActual";
 import type { MonthlyDoctorViewModel } from "@/types/monthlyDoctor";
+import type { PlannedVsActualRow } from "@/types/plannedVsActual";
 import type { Database } from "@/types/database";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 type Client = SupabaseClient<Database>;
+
+function summarizeRows(rows: PlannedVsActualRow[]): PlannedVsActualSummary {
+  return {
+    aligned: rows.filter((row) => row.status === "aligned" || row.status === "wait_ok")
+      .length,
+    deviated: rows.filter((row) => row.status === "deviated").length,
+    planned_only: rows.filter((row) => row.status === "planned_only").length,
+    actual_only: rows.filter((row) => row.status === "actual_only").length,
+  };
+}
 
 function monthLabel(date = new Date()): string {
   return date.toLocaleDateString("en-IN", {
@@ -17,7 +31,10 @@ export async function assembleMonthlyDoctor(
   supabase: Client,
   userId: string,
 ): Promise<MonthlyDoctorViewModel> {
-  const overview = await assemblePortfolioOverview(supabase, userId);
+  const [overview, plannedWindow] = await Promise.all([
+    assemblePortfolioOverview(supabase, userId),
+    buildPlannedVsActualRows(supabase, userId, 60),
+  ]);
   const allocation = overview.allocation;
   const health = overview.health ?? [];
   const builtAt = new Date().toISOString();
@@ -69,6 +86,29 @@ export async function assembleMonthlyDoctor(
     allocation?.policy_note ??
     "Sync your broker to run allocation and health checks.";
 
+  const currentRows = plannedWindow.rows.slice(0, 30);
+  const priorRows = plannedWindow.rows.slice(30, 60);
+  const currentSummary = summarizeRows(currentRows);
+  const priorSummary = summarizeRows(priorRows);
+  const trends = buildMonthlyTrendLines(
+    {
+      built_at: builtAt,
+      month_label: monthLabel(),
+      headline,
+      summary,
+      concentration_warning: concentrationWarning,
+      sacred_core_ok: sacredCoreOk,
+      allocation,
+      health,
+      action_items: actionItems.slice(0, 5),
+      trends: [],
+    },
+    priorSummary.aligned,
+    currentSummary.aligned,
+    priorSummary.deviated,
+    currentSummary.deviated,
+  );
+
   return {
     built_at: builtAt,
     month_label: monthLabel(),
@@ -79,6 +119,7 @@ export async function assembleMonthlyDoctor(
     allocation,
     health,
     action_items: actionItems.slice(0, 5),
+    trends,
   };
 }
 

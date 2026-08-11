@@ -1,9 +1,10 @@
 "use client";
 
-import type { MonthlyDoctorViewModel } from "@/types/monthlyDoctor";
 import Link from "next/link";
+import type { MonthlyDoctorViewModel } from "@/types/monthlyDoctor";
 import AllocationVsPolicy from "@/components/portfolio/AllocationVsPolicy";
 import { HoldingHealthList } from "@/components/portfolio/HoldingHealthChip";
+import { downloadMonthlyDoctorMarkdown } from "@/services/review/exportMonthlyDoctorMarkdown";
 
 type Props = {
   doctor: MonthlyDoctorViewModel;
@@ -29,7 +30,29 @@ export default function MonthlyDoctorPanel({ doctor, loading }: Props) {
         <p className="text-xs text-apex-muted/70">
           Sacred core check · {doctor.sacred_core_ok ? "Within bounds" : "Review concentration"}
         </p>
+        <button
+          type="button"
+          onClick={() => downloadMonthlyDoctorMarkdown(doctor, doctor.trends)}
+          className="text-xs text-apex-muted/80 transition-colors hover:text-apex-text"
+        >
+          Export markdown
+        </button>
       </section>
+
+      {doctor.trends.length > 0 ? (
+        <section className="rounded-xl border border-apex-border/15 bg-white/[0.02] px-4 py-4 space-y-2">
+          <p className="text-xs font-medium uppercase tracking-wide text-apex-muted">
+            Month-over-month
+          </p>
+          <ul className="space-y-1 text-sm text-apex-text/85">
+            {doctor.trends.map((trend) => (
+              <li key={trend.label}>
+                {trend.label} · {trend.value}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {doctor.allocation ? (
         <AllocationVsPolicy allocation={doctor.allocation} />

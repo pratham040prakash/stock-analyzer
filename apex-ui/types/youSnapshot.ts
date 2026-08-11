@@ -1,3 +1,5 @@
+import type { InvestorDnaViewModel } from "@/types/investorDna";
+
 export type TraderStateWord = "Growing" | "Steady" | "Rebuilding" | "Focused";
 
 export type TrustStateWord = "Honest" | "Learning" | "Earned";
@@ -16,4 +18,5 @@ export type YouSnapshotViewModel = {
   last_week_summary: string;
   this_week_summary: string;
   visible_miss: string | null;
+  investor_dna: InvestorDnaViewModel;
 };

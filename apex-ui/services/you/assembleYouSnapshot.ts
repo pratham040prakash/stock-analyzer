@@ -1,3 +1,4 @@
+import { assembleInvestorDna } from "@/services/you/assembleInvestorDna";
 import { getDisciplineHistory } from "@/services/decision/disciplineHistory";
 import { getDisciplineStreak } from "@/services/discipline/streak";
 import { getUserTrustSnapshot } from "@/services/decision/trustOutcome";
@@ -51,10 +52,11 @@ export async function assembleYouSnapshot(
   supabase: Client,
   userId: string,
 ): Promise<YouSnapshotViewModel> {
-  const [history, streak, trust] = await Promise.all([
+  const [history, streak, trust, investorDna] = await Promise.all([
     getDisciplineHistory(supabase, userId, 14),
     getDisciplineStreak(supabase, userId),
     getUserTrustSnapshot(supabase, userId),
+    assembleInvestorDna(supabase, userId),
   ]);
 
   const process = buildDisciplineProcessScore(
@@ -112,6 +114,7 @@ export async function assembleYouSnapshot(
       history.summary.losses > 0
         ? "A recent loss surfaced — review size and stop discipline before the next act."
         : null,
+    investor_dna: investorDna,
   };
 }
 
