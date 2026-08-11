@@ -1,6 +1,7 @@
 import type { DailyDecisionOutput } from "@/types/decision";
 import type { DailyInsight } from "@/types/dailyInsight";
 import type { TodayExecutionKind } from "@/lib/dailyLoop/todaySurface";
+import type { DailyVerdict } from "@/lib/dailyLoop/dailyVerdict";
 import type { TrustOutcomeSnapshot } from "@/services/decision/trustOutcome";
 
 export type EvidenceLabel = "FACT" | "ASSUMPTION" | "ESTIMATE" | "OPINION";
@@ -23,6 +24,7 @@ export type MorningBriefMeta = {
 export type MorningBriefDecision = {
   verdict: string | null;
   verdict_display: string;
+  daily_verdict: DailyVerdict;
   verdict_key: TodayExecutionKind;
   reason: string;
   confidence_level: number;

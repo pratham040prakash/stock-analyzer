@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import type { DailyVerdict } from "@/lib/dailyLoop/dailyVerdict";
 import type { EntryTimingState } from "@/components/decision/ExecutionPlanCard";
 import { apiFetch, parseApiJson, readTradeExecutionError } from "@/lib/api/clientFetch";
 import { formatInr } from "@/lib/funds";
@@ -55,6 +56,9 @@ type Props = {
   brokerFillStatusLoading?: boolean;
   onHoldTrim?: () => void;
   holdTrimProcessing?: boolean;
+  tradingLocked?: boolean;
+  dailyVerdict?: DailyVerdict;
+  pauseReason?: string;
   onExecuted?: (fill?: BrokerFillSummary) => void;
 };
 
@@ -157,6 +161,9 @@ export default function TodayExecutionPanel({
   brokerFillStatusLoading = false,
   onHoldTrim,
   holdTrimProcessing = false,
+  tradingLocked = false,
+  dailyVerdict = "wait",
+  pauseReason,
   onExecuted,
 }: Props) {
   const [pendingSellPercent, setPendingSellPercent] = useState<number | null>(
@@ -355,6 +362,24 @@ export default function TodayExecutionPanel({
 
   if (hero.executionKind === "OBSERVE") {
     return null;
+  }
+
+  if (tradingLocked && !brokerStepCompleted && !brokerStepSkipped) {
+    return (
+      <div className="rounded-xl border border-apex-border/15 bg-white/[0.02] px-4 py-4 space-y-2">
+        <p className="text-sm font-medium text-apex-text/90">
+          {dailyVerdict === "pause"
+            ? "Tactical trades locked for today"
+            : "No broker action needed today"}
+        </p>
+        <p className="text-sm text-apex-text/70">
+          {pauseReason ??
+            (dailyVerdict === "pause"
+              ? "Protect capital before adding new risk."
+              : "Follow the Wait verdict above — staying in cash is success.")}
+        </p>
+      </div>
+    );
   }
 
   if (hero.executionKind === "WAIT") {

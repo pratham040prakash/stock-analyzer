@@ -1,11 +1,13 @@
 "use client";
 
+import type { DailyVerdict } from "@/lib/dailyLoop/dailyVerdict";
 import type { TodayExecutionKind } from "@/lib/dailyLoop/todaySurface";
-import { resolveVerdictWord } from "@/lib/dailyLoop/todaySurface";
 import type { ConnectionStatus } from "@/lib/broker/zerodha";
+import { ApexButton } from "@/components/ui/apex";
 
 export type VerdictCanvasProps = {
   verdictWord: string;
+  dailyVerdict: DailyVerdict;
   headline: string;
   subline: string;
   executionKind: TodayExecutionKind;
@@ -18,10 +20,25 @@ export type VerdictCanvasProps = {
   pollError?: string | null;
   connectionStatus?: ConnectionStatus;
   brokerStepCompleted?: boolean;
+  brokerStepSkipped?: boolean;
+  doneForToday?: boolean;
+  ctaLabel?: string;
+  tradingLocked?: boolean;
 };
 
-function resolveVerdictTone(kind: TodayExecutionKind): string {
-  switch (kind) {
+function resolveVerdictTone(
+  dailyVerdict: DailyVerdict,
+  executionKind: TodayExecutionKind,
+): string {
+  if (dailyVerdict === "pause") {
+    return "text-amber-200";
+  }
+
+  if (dailyVerdict === "wait") {
+    return "text-apex-text";
+  }
+
+  switch (executionKind) {
     case "BUY":
       return "text-emerald-200";
     case "SELL":
@@ -47,6 +64,7 @@ function TrustDelta({ delta }: { delta: number }) {
 
 export default function VerdictCanvas({
   verdictWord,
+  dailyVerdict,
   headline,
   subline,
   executionKind,
@@ -59,6 +77,10 @@ export default function VerdictCanvas({
   pollError = null,
   connectionStatus = "NOT_CONNECTED",
   brokerStepCompleted = false,
+  brokerStepSkipped = false,
+  doneForToday = false,
+  ctaLabel = "You're done for today",
+  tradingLocked = false,
 }: VerdictCanvasProps) {
   const showStaleRibbon =
     portfolioStale ||
@@ -83,11 +105,11 @@ export default function VerdictCanvas({
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-2">
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-apex-muted/70">
-            Morning brief
+          <p className="text-xs font-medium tracking-[0.04em] text-apex-muted/70">
+            Today&apos;s decision
           </p>
           <p
-            className={`text-4xl font-bold tracking-tight ${resolveVerdictTone(executionKind)}`}
+            className={`text-4xl font-semibold tracking-tight ${resolveVerdictTone(dailyVerdict, executionKind)}`}
           >
             {verdictWord}
           </p>
@@ -118,7 +140,7 @@ export default function VerdictCanvas({
         <p className="text-sm text-apex-muted/85">{subline}</p>
         {evidenceTeaser ? (
           <p className="text-xs text-apex-muted/70">
-            <span className="font-medium text-apex-muted/85">Evidence · </span>
+            <span className="font-medium text-apex-muted/85">Why · </span>
             {evidenceTeaser}
           </p>
         ) : null}
@@ -132,9 +154,33 @@ export default function VerdictCanvas({
             Broker step logged for today.
           </p>
         ) : null}
+        {brokerStepSkipped ? (
+          <p className="text-xs font-medium text-apex-text/75">
+            Trim skipped — holding position today.
+          </p>
+        ) : null}
+        {dailyVerdict === "pause" ? (
+          <p className="text-xs text-amber-100/80">
+            Capital protection mode — tactical trades are locked.
+          </p>
+        ) : null}
+        {tradingLocked && dailyVerdict === "wait" ? (
+          <p className="text-xs text-apex-muted/70">
+            Long-term holdings do not need action today.
+          </p>
+        ) : null}
       </div>
+
+      {doneForToday ? (
+        <div className="mt-5">
+          <ApexButton variant="secondary" className="w-full" disabled>
+            {ctaLabel}
+          </ApexButton>
+          <p className="mt-2 text-center text-[11px] text-apex-muted/60">
+            Following Wait or Pause is a successful day.
+          </p>
+        </div>
+      ) : null}
     </section>
   );
 }
-
-export { resolveVerdictWord };

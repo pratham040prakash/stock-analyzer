@@ -1,8 +1,8 @@
 # APEX V3 — Roadmap
 
 **Document ID:** APEX-V3-ROADMAP  
-**Version:** 0.9  
-**Status:** ACTIVE — Sprints W–Y shipped (v3.0.0-rc1 soak)  
+**Version:** 1.0  
+**Status:** ACTIVE — V3 pillars shipped; **execution track → [Transformation Roadmap](./APEX_V3_TRANSFORMATION_ROADMAP.md)**  
 **Date:** 2026-08-11  
 **Owner:** Product  
 **Parent:** [APEX_V3_PRODUCT_STRATEGY.md](./APEX_V3_PRODUCT_STRATEGY.md)  
@@ -139,6 +139,24 @@ APEX V3 extends the **Daily Decision Experience** (V2 GA) into a full **Investme
 | **Y** | RC1 prep | Roadmap v0.9, soak doc, open decisions refresh | **✅ Shipped** |
 
 **Tag after soak:** `v3.0.0-rc1` (manual — prod verify must pass first)
+
+---
+
+## Transformation track (2026-08-11) — **ACTIVE EXECUTION**
+
+V3 feature phases (1–5) are **code-complete**. User #1 (founder, zero stock knowledge) cannot follow Today — **architecture exists in engine, not on surface**.
+
+**Canonical plan:** [APEX_V3_TRANSFORMATION_ROADMAP.md](./APEX_V3_TRANSFORMATION_ROADMAP.md)
+
+| Phase | Weeks | Outcome | Tag |
+|-------|-------|---------|-----|
+| **T0** | 1–6 | Wait · Trade · Pause + dams + minimal Today + onboarding | — |
+| **T1** | 7–10 | Soak, rc1, GA | `v3.0.0-rc1` → `v3.0.0` |
+| **T2** | 3–6 mo | CDQS, trust loop, retention | `v3.1.0` |
+| **T3** | 6–12 mo | Premium, monetization | `v3.2.0` |
+| **T4** | Year 2+ | 15k+ paying → ₹100 Cr path | — |
+
+**T0 gate:** Founder sign-off — *“I knew what to do without stock knowledge.”*
 
 ---
 

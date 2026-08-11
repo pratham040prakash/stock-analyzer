@@ -1,9 +1,12 @@
+import {
+  buildDailyVerdictPresentation,
+  countConsecutiveLossDays,
+} from "@/lib/dailyLoop/dailyVerdict";
 import { buildCapitalDecision } from "@/lib/dailyLoop/capitalDecision";
 import { buildDailyInsight } from "@/lib/dailyInsight";
 import { tradingDateKey } from "@/lib/dailyLoop/disciplineDates";
 import {
   resolveTodayHero,
-  resolveVerdictWord,
   type TodayExecutionKind,
 } from "@/lib/dailyLoop/todaySurface";
 import { getDisciplineHistory } from "@/services/decision/disciplineHistory";
@@ -256,7 +259,8 @@ export async function assembleMorningBrief(
       },
       decision: {
         verdict: "WAIT",
-        verdict_display: "WAIT",
+        verdict_display: "Wait",
+        daily_verdict: "wait",
         verdict_key: "WAIT",
         reason: "Connect your broker and complete your profile to unlock today's brief.",
         confidence_level: 0,
@@ -332,7 +336,7 @@ export async function assembleMorningBrief(
     topAllocationPct: decisionBundle.topAllocationPct,
     availableCash: undefined,
     portfolioValue: decisionBundle.portfolioValue,
-    entryTiming: { enter: decision.action === "buy" },
+    entryTiming: { enter: false },
     confidence: decision.confidence,
   });
 
@@ -340,7 +344,22 @@ export async function assembleMorningBrief(
     suggestedSellPercent: decision.suggested_sell_percent,
   });
   const executionKind = mapExecutionKind(decision.action, hero.executionKind);
-  const verdictDisplay = resolveVerdictWord(executionKind);
+  const consecutiveLossDays = countConsecutiveLossDays(
+    historyBundle.history,
+    historyBundle.days,
+  );
+  const verdictPresentation = buildDailyVerdictPresentation({
+    verdictInput: {
+      executionKind,
+      entryConfirmed: false,
+      consecutiveLossDays,
+      portfolioDayPnl: dayPnl,
+      portfolioValue: decisionBundle.portfolioValue,
+      riskBlocked: decision.validation?.risk_ok === false,
+    },
+    heroHeadline: hero.headline,
+    heroSubline: hero.subline,
+  });
   const risk = portfolioRiskFromAllocation(decisionBundle.topAllocationPct);
 
   const stale =
@@ -371,24 +390,20 @@ export async function assembleMorningBrief(
     },
     decision: {
       verdict: decision.action,
-      verdict_display: verdictDisplay,
+      verdict_display: verdictPresentation.displayWord,
+      daily_verdict: verdictPresentation.verdict,
       verdict_key: executionKind,
       reason: decision.reason ?? decision.message ?? capitalDecision.primaryActionDetail,
       confidence_level: Math.round(decision.confidence ?? 50),
       confidence_band: confidenceBand(decision.confidence ?? 50),
       last_updated: builtAt,
       valid_until: builtAt,
-      cta_label:
-        executionKind === "BUY"
-          ? "Review entry plan"
-          : executionKind === "SELL"
-            ? "Review trim plan"
-            : "Stay patient",
-      cta_action: executionKind.toLowerCase(),
+      cta_label: verdictPresentation.ctaLabel,
+      cta_action: verdictPresentation.verdict,
       decision_id: `brief-${tradingDateKey()}-${decision.stock ?? "none"}`,
       decision_source: "decision_engine",
-      headline: hero.headline,
-      subline: hero.subline,
+      headline: verdictPresentation.headline,
+      subline: verdictPresentation.subline,
     },
     evidence: buildEvidence(decision),
     trust: {

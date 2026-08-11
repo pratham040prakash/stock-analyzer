@@ -31,7 +31,11 @@ import VerdictCanvas from "@/components/dailyLoop/VerdictCanvas";
 import TodayBelowFold from "@/components/dailyLoop/belowFold/TodayBelowFold";
 import TodayDisciplineChip from "@/components/dailyLoop/TodayDisciplineChip";
 import DecisionReceipt from "@/components/dailyLoop/DecisionReceipt";
-import { projectVerdictCanvasProps } from "@/lib/dailyLoop/projectVerdict";
+import {
+  buildDailyVerdictPresentation,
+  countConsecutiveLossDays,
+} from "@/lib/dailyLoop/dailyVerdict";
+import OperatingManualStrip from "@/components/dailyLoop/OperatingManualStrip";
 import { useMorningBrief } from "@/lib/useMorningBrief";
 import TodayPortfolioHoldings from "@/components/dailyLoop/TodayPortfolioHoldings";
 import TodayProgressStrip from "@/components/dailyLoop/TodayProgressStrip";
@@ -630,39 +634,86 @@ export default function HomeDecisionScreen({
         brokerStepCompleted,
       )
     : null;
-  const evidenceTeaser =
-    morningBrief?.evidence.key_reasons[0] ??
-    decision.reason ??
-    decision.confidence_factors?.[0] ??
-    decision.message ??
-    undefined;
-  const verdictCanvasProps = morningBrief
-    ? projectVerdictCanvasProps(morningBrief, {
-        connectionStatus,
-        brokerStepCompleted,
-        pollError: morningBriefError ?? livePollError,
-      })
-    : {
-        verdictWord: displayHero.executionKind === "BUY"
-          ? "ACT"
-          : displayHero.executionKind === "SELL"
-            ? "TRIM"
-            : displayHero.executionKind === "OBSERVE"
-              ? "EXPLORE"
-              : "WAIT",
-        headline: displayHero.headline,
-        subline: displayHero.subline,
-        executionKind: displayHero.executionKind,
-        trustScore,
-        trustDelta,
-        trustMessage,
-        evidenceTeaser,
-        confidence: decision.confidence,
-        portfolioStale,
-        pollError: livePollError,
-        connectionStatus,
-        brokerStepCompleted,
-      };
+  const consecutiveLossDays = useMemo(
+    () => countConsecutiveLossDays(disciplineHistory, disciplineDays),
+    [disciplineDays, disciplineHistory],
+  );
+
+  const verdictPresentation = useMemo(
+    () =>
+      buildDailyVerdictPresentation({
+        verdictInput: {
+          executionKind: displayHero.executionKind,
+          entryConfirmed: entryTiming.enter,
+          consecutiveLossDays,
+          portfolioDayPnl: liveDayPnl,
+          portfolioValue: displayPortfolioValue,
+          riskBlocked: decision.validation?.risk_ok === false,
+          brokerStepCompleted,
+          brokerStepSkipped,
+        },
+        heroHeadline: displayHero.headline,
+        heroSubline: displayHero.subline,
+      }),
+    [
+      brokerStepCompleted,
+      brokerStepSkipped,
+      consecutiveLossDays,
+      decision.validation?.risk_ok,
+      displayHero.executionKind,
+      displayHero.headline,
+      displayHero.subline,
+      displayPortfolioValue,
+      entryTiming.enter,
+      liveDayPnl,
+    ],
+  );
+
+  const verdictCanvasProps = useMemo(
+    () => ({
+      verdictWord: verdictPresentation.displayWord,
+      dailyVerdict: verdictPresentation.verdict,
+      headline: verdictPresentation.headline,
+      subline: verdictPresentation.subline,
+      executionKind: displayHero.executionKind,
+      trustScore: morningBrief?.trust.trust_score ?? trustScore,
+      trustDelta: morningBrief?.trust.trust_delta ?? trustDelta,
+      trustMessage: morningBrief?.trust.trust_message ?? trustMessage,
+      evidenceTeaser:
+        morningBrief?.evidence.key_reasons[0] ??
+        decision.reason ??
+        decision.confidence_factors?.[0] ??
+        decision.message ??
+        undefined,
+      confidence: decision.confidence,
+      portfolioStale,
+      pollError: morningBriefError ?? livePollError,
+      connectionStatus,
+      brokerStepCompleted,
+      brokerStepSkipped,
+      doneForToday: verdictPresentation.doneForToday,
+      ctaLabel: verdictPresentation.ctaLabel,
+      tradingLocked: verdictPresentation.tradingLocked,
+    }),
+    [
+      brokerStepCompleted,
+      brokerStepSkipped,
+      connectionStatus,
+      decision.confidence,
+      decision.confidence_factors,
+      decision.message,
+      decision.reason,
+      displayHero.executionKind,
+      livePollError,
+      morningBrief,
+      morningBriefError,
+      portfolioStale,
+      trustDelta,
+      trustMessage,
+      trustScore,
+      verdictPresentation,
+    ],
+  );
 
   return (
     <div className={`mx-auto w-full max-w-[600px] ${className}`.trim()}>
@@ -687,6 +738,22 @@ export default function HomeDecisionScreen({
                 headline={researchHandoff.headline}
                 onDismiss={researchHandoff.onDismiss}
               />
+            ) : null}
+
+            {isCapitalDeployment ? (
+              <>
+                {morningBriefLoading ? (
+                  <p className="text-xs text-apex-muted/60">Loading today&apos;s decision…</p>
+                ) : null}
+                {morningBriefError && !morningBrief ? (
+                  <p className="text-xs text-amber-200/80">{morningBriefError}</p>
+                ) : null}
+                <OperatingManualStrip
+                  dailyVerdict={verdictPresentation.verdict}
+                  tacticalPoolInr={decision.amount ?? morningBrief?.portfolio.tactical_pool_inr}
+                />
+                <VerdictCanvas {...verdictCanvasProps} />
+              </>
             ) : null}
 
             <TodayTrustStrip
@@ -793,17 +860,7 @@ export default function HomeDecisionScreen({
                 {retention.sessionTimeContext}
               </p>
             ) : null}
-            {isCapitalDeployment ? (
-              <>
-                {morningBriefLoading ? (
-                  <p className="text-xs text-apex-muted/60">Loading morning brief…</p>
-                ) : null}
-                {morningBriefError && !morningBrief ? (
-                  <p className="text-xs text-amber-200/80">{morningBriefError}</p>
-                ) : null}
-                <VerdictCanvas {...verdictCanvasProps} />
-              </>
-            ) : (
+            {!isCapitalDeployment ? (
               <>
                 <p className="text-xs font-medium uppercase tracking-[0.14em] text-apex-muted">
                   {experience.tagline}
@@ -821,7 +878,7 @@ export default function HomeDecisionScreen({
                   <p className="text-xs text-apex-muted/80">{heroSignature}</p>
                 ) : null}
               </>
-            )}
+            ) : null}
           </header>
 
           {isCapitalDeployment ? (
@@ -852,6 +909,9 @@ export default function HomeDecisionScreen({
                 brokerFillSummary={brokerFillSummary}
                 postTrimPortfolioWeight={actualSymbolWeight}
                 brokerFillStatusLoading={brokerFillStatusLoading}
+                tradingLocked={verdictPresentation.tradingLocked}
+                dailyVerdict={verdictPresentation.verdict}
+                pauseReason={verdictPresentation.pauseReason}
                 onHoldTrim={() => void handleHoldTrim()}
                 holdTrimProcessing={processingHoldTrim}
                 onExecuted={handleExecuted}

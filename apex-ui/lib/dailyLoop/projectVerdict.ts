@@ -1,17 +1,23 @@
 import type { MorningBriefViewModel } from "@/types/morningBrief";
 import type { VerdictCanvasProps } from "@/components/dailyLoop/VerdictCanvas";
 import type { ConnectionStatus } from "@/lib/broker/zerodha";
+import type { DailyVerdict } from "@/lib/dailyLoop/dailyVerdict";
 
 export function projectVerdictCanvasProps(
   brief: MorningBriefViewModel,
   options?: {
     connectionStatus?: ConnectionStatus;
     brokerStepCompleted?: boolean;
+    brokerStepSkipped?: boolean;
     pollError?: string | null;
+    entryConfirmed?: boolean;
+    portfolioDayPnl?: number | null;
+    portfolioValue?: number | null;
   },
 ): VerdictCanvasProps {
   return {
     verdictWord: brief.decision.verdict_display,
+    dailyVerdict: brief.decision.daily_verdict,
     headline: brief.decision.headline,
     subline: brief.decision.subline,
     executionKind: brief.decision.verdict_key,
@@ -31,6 +37,12 @@ export function projectVerdictCanvasProps(
           ? "TOKEN_EXPIRED"
           : "NOT_CONNECTED"),
     brokerStepCompleted: options?.brokerStepCompleted ?? false,
+    brokerStepSkipped: options?.brokerStepSkipped ?? false,
+    doneForToday:
+      brief.decision.daily_verdict === "wait" ||
+      brief.decision.daily_verdict === "pause",
+    ctaLabel: brief.decision.cta_label,
+    tradingLocked: brief.decision.daily_verdict !== "trade",
   };
 }
 
@@ -51,7 +63,8 @@ export function runProjectVerdictSelfCheck(): void {
     },
     decision: {
       verdict: "wait",
-      verdict_display: "WAIT",
+      verdict_display: "Wait",
+      daily_verdict: "wait" as DailyVerdict,
       verdict_key: "WAIT",
       reason: "Stay patient.",
       confidence_level: 60,
@@ -118,6 +131,7 @@ export function runProjectVerdictSelfCheck(): void {
   };
 
   const props = projectVerdictCanvasProps(brief);
-  assert(props.verdictWord === "WAIT", "Verdict word must map from brief");
+  assert(props.verdictWord === "Wait", "Verdict word must map from brief");
+  assert(props.dailyVerdict === "wait", "Daily verdict must map from brief");
   assert(props.headline === "Wait today", "Headline must pass through");
 }
