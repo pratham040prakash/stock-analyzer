@@ -13,10 +13,11 @@ export type PortfolioApiResponse = {
   holdings: PortfolioHoldingRow[];
   total_value?: number;
   total_pnl?: number;
+  /** Day move vs prior close (Zerodha holdings day P&L footer). Not Open P&L. */
   day_pnl?: number | null;
   /** Zerodha Positions tab total — (LTP − avg) × qty incl. sold legs. */
   positions_pnl?: number | null;
-  /** Dashboard day move vs prior close — not Open P&L. */
+  /** Same as day_pnl when live — kept for backward-compatible clients. */
   portfolio_day_pnl?: number | null;
   concentrated?: boolean;
   top_symbol?: string;

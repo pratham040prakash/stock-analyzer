@@ -950,7 +950,6 @@ export default function HomeClient({
               collateral={collateral}
               capitalMode={capitalMode}
               onCapitalModeChange={handleCapitalModeChange}
-              dayPnl={portfolioData?.day_pnl ?? dailyInsight?.day_pnl ?? null}
               openPnlFromPortfolio={portfolioData?.positions_pnl ?? null}
               holdings={visiblePortfolioHoldings.map((holding) => ({
                 symbol: holding.tradingsymbol,

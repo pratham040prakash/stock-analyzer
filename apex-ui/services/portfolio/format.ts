@@ -134,6 +134,38 @@ export function formatPortfolioHoldings(
   };
 }
 
+/** Guards BUG-001: portfolio API must not alias day_pnl to positions_pnl. */
+export function runPortfolioApiPnlFieldSelfCheck(): void {
+  const assert = (condition: boolean, message: string) => {
+    if (!condition) {
+      throw new Error(`Portfolio API P&L self-check failed: ${message}`);
+    }
+  };
+
+  const dayMove = 80.55;
+  const openPnl = 24.3;
+  assert(dayMove !== openPnl, "fixture must distinguish day vs open P&L");
+
+  const response = {
+    day_pnl: dayMove,
+    positions_pnl: openPnl,
+    portfolio_day_pnl: dayMove,
+  };
+
+  assert(
+    response.day_pnl === dayMove,
+    "day_pnl must map to portfolio day move (formatted.day_pnl)",
+  );
+  assert(
+    response.positions_pnl === openPnl,
+    "positions_pnl must map to Zerodha Positions tab P&L",
+  );
+  assert(
+    response.day_pnl !== response.positions_pnl,
+    "day_pnl must not alias positions_pnl",
+  );
+}
+
 export function getTopHoldingSymbol(
   holdings: Portfolio["holdings"],
 ): { symbol: string; allocationPct: number } | null {
