@@ -3,11 +3,16 @@
 import { useEffect } from "react";
 import type { SellImpact } from "@/lib/sellImpact";
 import { formatInr } from "@/lib/sellImpact";
+import {
+  buildSellConfirmPrompt,
+  type SellTrimResolution,
+} from "@/lib/sellTrim";
 
 type Props = {
   open: boolean;
   stock: string;
   impact: SellImpact;
+  sellTrim?: SellTrimResolution;
   processing: boolean;
   onConfirm: () => void;
   onCancel: () => void;
@@ -17,6 +22,7 @@ export default function SellConfirmModal({
   open,
   stock,
   impact,
+  sellTrim,
   processing,
   onConfirm,
   onCancel,
@@ -37,6 +43,10 @@ export default function SellConfirmModal({
   if (!open) {
     return null;
   }
+
+  const confirmPrompt = sellTrim
+    ? buildSellConfirmPrompt(stock, sellTrim)
+    : `Sell ${impact.sellPercent}% of ${stock}?`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -61,9 +71,16 @@ export default function SellConfirmModal({
           >
             Confirm Action
           </h2>
-          <p className="text-sm text-gray-300 mt-2">
-            Sell {impact.sellPercent}% of {stock}?
-          </p>
+          <p className="text-sm text-gray-300 mt-2">{confirmPrompt}</p>
+          {sellTrim?.mode === "full_exit" ? (
+            <p className="text-sm text-amber-200/90 mt-2">
+              A {sellTrim.requestedPercent}% trim is not possible with{" "}
+              {sellTrim.holdingQty === 1
+                ? "1 share"
+                : `${sellTrim.holdingQty} shares`}
+              . This sells your entire position.
+            </p>
+          ) : null}
         </div>
 
         <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 space-y-3">

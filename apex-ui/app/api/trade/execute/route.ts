@@ -73,6 +73,10 @@ export async function POST(request: Request) {
       return apiError(result.message, 400);
     }
 
+    if (result.status === "PARTIAL_NOT_POSSIBLE") {
+      return apiError(result.message, 409);
+    }
+
     if (result.status === "ERROR") {
       return apiError(result.message, 400);
     }

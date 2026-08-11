@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { buildCapitalDecision } from "@/lib/dailyLoop/capitalDecision";
-import { resolveTodayHero, resolveTodayHeroDisplay } from "@/lib/dailyLoop/todaySurface";
+import { resolveTodayHero, resolveTodayHeroDisplay, enrichTodayHeroWithSellTrim } from "@/lib/dailyLoop/todaySurface";
 import { getDisciplineInterpretation } from "@/lib/dailyLoop/disciplineCopy";
 import {
   getBrokerStepLine,
@@ -283,15 +283,6 @@ export default function HomeDecisionScreen({
     return match?.weight;
   }, [brokerStepCompleted, holdings, todayHero.symbol]);
 
-  const displayHero = useMemo(
-    () =>
-      resolveTodayHeroDisplay(todayHero, brokerStepCompleted, {
-        actualPortfolioWeight: actualSymbolWeight,
-        brokerFillSummary,
-      }),
-    [actualSymbolWeight, brokerFillSummary, brokerStepCompleted, todayHero],
-  );
-
   useEffect(() => {
     if (!todayHero.symbol) {
       setBrokerStepCompleted(false);
@@ -424,6 +415,33 @@ export default function HomeDecisionScreen({
     Boolean(liveLastSyncedAt);
   const displayPortfolioHoldings =
     liveHoldings.length > 0 ? liveHoldings : portfolioHoldings;
+  const heroHoldingQty = useMemo(() => {
+    if (!todayHero.symbol || displayPortfolioHoldings.length === 0) {
+      return undefined;
+    }
+
+    const symbol = todayHero.symbol.trim().toUpperCase();
+    return displayPortfolioHoldings.find(
+      (holding) => holding.tradingsymbol.trim().toUpperCase() === symbol,
+    )?.quantity;
+  }, [displayPortfolioHoldings, todayHero.symbol]);
+  const todayHeroResolved = useMemo(
+    () => enrichTodayHeroWithSellTrim(todayHero, heroHoldingQty),
+    [heroHoldingQty, todayHero],
+  );
+  const displayHero = useMemo(
+    () =>
+      resolveTodayHeroDisplay(todayHeroResolved, brokerStepCompleted, {
+        actualPortfolioWeight: actualSymbolWeight,
+        brokerFillSummary,
+      }),
+    [
+      actualSymbolWeight,
+      brokerFillSummary,
+      brokerStepCompleted,
+      todayHeroResolved,
+    ],
+  );
   const displayPortfolioValue =
     liveHoldingsTotalValue ?? portfolioValue ?? null;
   const displayPortfolioTotalPnl =
@@ -769,7 +787,7 @@ export default function HomeDecisionScreen({
                 </div>
               ) : null}
               <TodayExecutionPanel
-                hero={todayHero}
+                hero={todayHeroResolved}
                 portfolioValue={portfolioValue ?? 0}
                 holdingAllocationPct={holdingAllocationPct}
                 entryTiming={entryTiming}

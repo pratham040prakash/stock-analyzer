@@ -7,6 +7,7 @@ import { formatInr } from "@/lib/funds";
 import { useMarketSession } from "@/lib/broker/useMarketSession";
 import type { TodayHero } from "@/lib/dailyLoop/todaySurface";
 import { computeSellImpact } from "@/lib/sellImpact";
+import { shareCountLabel } from "@/lib/sellTrim";
 import type { ExecutionPlanSafeOutput } from "@/services/execution/executionPlanEngine";
 import { formatPostTrimWeightNote } from "@/lib/dailyLoop/todaySurface";
 import {
@@ -192,16 +193,40 @@ export default function TodayExecutionPanel({
 
     return computeSellImpact(
       allocationPct,
-      pendingSellPercent,
+      hero.sellPercent ?? pendingSellPercent,
       portfolioValue,
     );
   }, [
     hero.currentWeight,
+    hero.sellPercent,
     hero.symbol,
     holdingAllocationPct,
     pendingSellPercent,
     portfolioValue,
   ]);
+
+  const sellPercentForApi = useCallback(
+    (requestedPercent: number) => {
+      if (hero.sellTrim?.mode === "full_exit") {
+        return 100;
+      }
+
+      return hero.sellPercent ?? requestedPercent;
+    },
+    [hero.sellPercent, hero.sellTrim?.mode],
+  );
+
+  const sellButtonLabel = useMemo(() => {
+    if (processing) {
+      return "Placing order…";
+    }
+
+    if (hero.sellTrim) {
+      return `Sell ${shareCountLabel(hero.sellTrim.quantity)} on Zerodha`;
+    }
+
+    return `Confirm sell ${hero.sellPercent}% on Zerodha`;
+  }, [hero.sellPercent, hero.sellTrim, processing]);
 
   const runSell = useCallback(
     async (sellPercent: number) => {
@@ -221,7 +246,7 @@ export default function TodayExecutionPanel({
           body: JSON.stringify({
             side: "sell",
             stock: hero.symbol,
-            sellPercent,
+            sellPercent: sellPercentForApi(sellPercent),
           }),
         });
         const data = await parseApiJson<ExecuteSellResponse & ApiErrorBody>(
@@ -261,7 +286,7 @@ export default function TodayExecutionPanel({
         setProcessing(false);
       }
     },
-    [hero.symbol, onExecuted, processing],
+    [hero.symbol, onExecuted, processing, sellPercentForApi],
   );
 
   const runBuy = useCallback(async () => {
@@ -362,12 +387,17 @@ export default function TodayExecutionPanel({
       <>
         <div className="rounded-xl border border-apex-border/20 bg-white/[0.03] px-4 py-4 space-y-3">
           <p className="text-base font-semibold text-apex-text">
-            Trim {hero.sellPercent}% of {hero.symbol}
+            {hero.headline}
           </p>
           <p className="text-sm text-apex-text/75">{hero.subline}</p>
           {hero.currentWeight !== undefined && hero.targetWeightAfter !== undefined ? (
             <p className="text-sm text-apex-text/70">
               Position {hero.currentWeight}% → {hero.targetWeightAfter}% after trim
+            </p>
+          ) : null}
+          {hero.sellTrim?.mode === "full_exit" ? (
+            <p className="text-sm text-amber-200/90">
+              Partial trim is not available at your share count. Confirm only if you want to exit the full position.
             </p>
           ) : null}
           {marketBlockReason ? (
@@ -396,7 +426,7 @@ export default function TodayExecutionPanel({
             }}
             className="w-full sm:w-auto"
           >
-            {processing ? "Placing order…" : `Confirm sell ${hero.sellPercent}% on Zerodha`}
+            {sellButtonLabel}
           </ApexButton>
           {feedback ? (
             <p className="text-sm text-emerald-200/90">{feedback}</p>
@@ -414,6 +444,7 @@ export default function TodayExecutionPanel({
             open={pendingSellPercent !== null}
             stock={hero.symbol}
             impact={sellImpact}
+            sellTrim={hero.sellTrim}
             processing={processing}
             onConfirm={() => {
               if (pendingSellPercent !== null) {

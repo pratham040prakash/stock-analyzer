@@ -1,6 +1,12 @@
 import type { CapitalAction, CapitalDecision } from "@/lib/dailyLoop/capitalDecision";
 import { buildCapitalDecision } from "@/lib/dailyLoop/capitalDecision";
 import {
+  buildSellTrimHeadline,
+  buildSellTrimSubline,
+  resolveSellTrim,
+  type SellTrimResolution,
+} from "@/lib/sellTrim";
+import {
   describeBrokerFill,
   type BrokerFillSummary,
 } from "@/services/trade/logTradeFill";
@@ -14,10 +20,49 @@ export type TodayHero = {
   symbol?: string;
   /** Percent of holding quantity to sell (1–100). */
   sellPercent?: number;
+  /** Whole shares held — used to resolve partial vs full-exit trim. */
+  holdingQuantity?: number;
+  /** Resolved Zerodha sell plan when holding quantity is known. */
+  sellTrim?: SellTrimResolution;
   deployAmount?: number;
   targetWeightAfter?: number;
   currentWeight?: number;
 };
+
+export function enrichTodayHeroWithSellTrim(
+  hero: TodayHero,
+  holdingQty: number | undefined,
+): TodayHero {
+  if (
+    hero.executionKind !== "SELL" ||
+    !hero.symbol ||
+    hero.sellPercent === undefined ||
+    holdingQty === undefined ||
+    holdingQty < 1
+  ) {
+    return hero;
+  }
+
+  const sellTrim = resolveSellTrim(holdingQty, hero.sellPercent);
+  if (!sellTrim) {
+    return hero;
+  }
+
+  return {
+    ...hero,
+    holdingQuantity: holdingQty,
+    sellTrim,
+    headline: buildSellTrimHeadline(hero.symbol, sellTrim),
+    subline: buildSellTrimSubline(sellTrim, {
+      currentWeight: hero.currentWeight,
+      targetWeightAfter: hero.targetWeightAfter,
+    }),
+    sellPercent:
+      sellTrim.mode === "full_exit" ? 100 : sellTrim.effectivePercent,
+    targetWeightAfter:
+      sellTrim.mode === "full_exit" ? 0 : hero.targetWeightAfter,
+  };
+}
 
 export function sellPercentToReachTargetWeight(
   currentWeight: number,
@@ -293,6 +338,25 @@ export function runTodaySurfaceSelfCheck(): void {
   assert(
     !trimHero.headline.includes("Remain fully in cash"),
     "Today hero must not show cash-only copy during required trim",
+  );
+
+  const singleShareHero = enrichTodayHeroWithSellTrim(
+    {
+      ...trimHero,
+      symbol: "HEROMOTOCO",
+      sellPercent: 4,
+      currentWeight: 26,
+      targetWeightAfter: 25,
+    },
+    1,
+  );
+  assert(
+    singleShareHero.headline.includes("only share"),
+    "Single-share trim must explain full exit requirement",
+  );
+  assert(
+    singleShareHero.sellPercent === 100,
+    "Single-share trim must resolve to 100% sell for broker",
   );
 
   const completedTrim = resolveTodayHeroDisplay(trimHero, true);

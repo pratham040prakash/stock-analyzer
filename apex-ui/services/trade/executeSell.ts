@@ -1,4 +1,5 @@
 import { getMarketOrderBlockReason } from "@/lib/broker/marketSession";
+import { resolveSellTrim } from "@/lib/sellTrim";
 import {
   fetchZerodhaHoldings,
   placeZerodhaOrder,
@@ -27,17 +28,9 @@ export type ExecuteSellResult =
   | { status: "NOT_CONNECTED" }
   | { status: "TOKEN_EXPIRED" }
   | { status: "NO_HOLDING"; stock: string }
+  | { status: "PARTIAL_NOT_POSSIBLE"; stock: string; message: string }
   | { status: "INVALID_QUANTITY"; message: string }
   | { status: "ERROR"; message: string };
-
-function resolveSellQuantity(holdingQty: number, sellPercent: number): number {
-  if (holdingQty < 1) {
-    return 0;
-  }
-
-  const pct = Math.min(100, Math.max(1, Math.round(sellPercent)));
-  return Math.max(1, Math.floor((holdingQty * pct) / 100));
-}
 
 export async function executeSellTrim(
   supabase: Client,
@@ -89,12 +82,31 @@ export async function executeSellTrim(
       return { status: "NO_HOLDING", stock };
     }
 
-    const quantity = resolveSellQuantity(holding.quantity, sellPercent);
+    const resolution = resolveSellTrim(holding.quantity, sellPercent);
 
-    if (quantity < 1) {
+    if (!resolution) {
       return {
         status: "INVALID_QUANTITY",
-        message: `Cannot sell ${sellPercent}% — holding quantity too small`,
+        message: "Could not resolve sell quantity for this holding",
+      };
+    }
+
+    if (resolution.mode === "full_exit" && sellPercent < 100) {
+      const shareLabel =
+        holding.quantity === 1 ? "1 share" : `${holding.quantity} shares`;
+      return {
+        status: "PARTIAL_NOT_POSSIBLE",
+        stock,
+        message: `Cannot trim ${sellPercent}% with ${shareLabel}. Confirm a full-position sell (100%) or hold.`,
+      };
+    }
+
+    const quantity = resolution.quantity;
+
+    if (quantity < 1 || quantity > holding.quantity) {
+      return {
+        status: "INVALID_QUANTITY",
+        message: "Could not resolve sell quantity for this holding",
       };
     }
 
@@ -119,7 +131,7 @@ export async function executeSellTrim(
     return {
       status: "OK",
       stock,
-      sellPercent,
+      sellPercent: resolution.effectivePercent,
       quantity,
       price: holding.last_price,
       orderId: order.orderId,
