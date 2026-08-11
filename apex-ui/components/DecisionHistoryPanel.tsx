@@ -119,9 +119,9 @@ export default function DecisionHistoryPanel({
 }: Props) {
   return (
     <ApexCard hover={false} padding="compact">
-      <ApexEyebrow className="mb-1">Decision log</ApexEyebrow>
+      <ApexEyebrow className="mb-1">Discipline log</ApexEyebrow>
       <p className="mb-4 text-sm text-apex-muted/75">
-        Day-by-day record. Your weekly summary lives on Today above.
+        Day-by-day outcomes and P&L when available. The compact week view stays on Today.
       </p>
 
       {history.length === 0 ? (

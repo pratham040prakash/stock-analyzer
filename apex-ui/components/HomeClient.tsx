@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ConnectZerodhaCard from "./ConnectZerodhaCard";
-import DecisionHistoryPanel from "./DecisionHistoryPanel";
 import HomeDecisionScreen from "./HomeDecisionScreen";
 import ReceiptProofPanel from "@/components/receipts/ReceiptProofPanel";
 import FinancialProfileSetup from "./FinancialProfileSetup";
@@ -1208,23 +1207,6 @@ export default function HomeClient({
               }
             />
             </>
-          ) : null}
-
-          {showHomeDecision ? (
-            <DecisionHistoryPanel
-              history={decisionHistory}
-              summary={disciplineSummary}
-              days={
-                disciplineDays.length > 0
-                  ? disciplineDays
-                  : decisionHistory.map((entry) => entry.date)
-              }
-              showDetailRows={premiumFeatures.decisionHistory}
-              activationEnabled={activationEnabled}
-              onPremiumActivated={() => {
-                void handlePremiumActivated();
-              }}
-            />
           ) : null}
         </>
       ) : null}

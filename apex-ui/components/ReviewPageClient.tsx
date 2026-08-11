@@ -13,7 +13,7 @@ import DisciplineDigestStrip from "@/components/review/DisciplineDigestStrip";
 import QuarterlyReviewPanel from "@/components/review/QuarterlyReviewPanel";
 import WeeklyReviewHero from "@/components/review/WeeklyReviewHero";
 import WeeklyReviewStrip from "@/components/dailyLoop/WeeklyReviewStrip";
-import DisciplineHistoryStrip from "@/components/dailyLoop/DisciplineHistoryStrip";
+import DecisionHistoryPanel from "@/components/DecisionHistoryPanel";
 import DisciplineTrendPanel from "@/components/review/DisciplineTrendPanel";
 import ContextualLessonPanel from "@/components/learning/ContextualLessonPanel";
 import { buildDisciplineTrends } from "@/services/review/buildDisciplineTrends";
@@ -36,6 +36,7 @@ import type {
   PlannedVsActualSummary,
 } from "@/types/plannedVsActual";
 import type { ContextualLessonViewModel } from "@/types/contextualLesson";
+import { usePremiumTier } from "@/lib/usePremiumTier";
 
 const EMPTY_SUMMARY: DisciplineHistorySummary = {
   wins: 0,
@@ -92,6 +93,8 @@ type LessonResponse = {
 export default function ReviewPageClient({ userName }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { features, activationEnabled, refresh: refreshPremiumTier } =
+    usePremiumTier();
   const highlightReceiptId = searchParams.get("receipt");
   const initialTab = searchParams.get("tab");
   const [tab, setTab] = useState<ReviewTab>(() => {
@@ -395,7 +398,16 @@ export default function ReviewPageClient({ userName }: Props) {
           <PlannedVsActualTable rows={plannedRows} />
           <DisciplineTrendPanel trends={disciplineTrends} />
           <WeeklyReviewStrip history={history} summary={summary} days={days} />
-          <DisciplineHistoryStrip days={days} history={history} />
+          <DecisionHistoryPanel
+            history={history}
+            summary={summary}
+            days={days}
+            showDetailRows={features.decisionHistory}
+            activationEnabled={activationEnabled}
+            onPremiumActivated={() => {
+              void refreshPremiumTier();
+            }}
+          />
         </div>
       ) : tab === "monthly" ? (
         <MonthlyDoctorPanel
