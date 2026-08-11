@@ -310,6 +310,15 @@ async function runChecks(baseUrl: string): Promise<VerifyReport> {
     critical: true,
   });
 
+  const howItWorks = await fetchCheck(`${baseUrl}/app/you/how-it-works`);
+  record(checks, {
+    id: "how-it-works-guard",
+    label: "How APEX works page redirects anonymous users to login",
+    ok: howItWorks.status >= 300 && howItWorks.status < 400,
+    detail: `status=${howItWorks.status}`,
+    critical: false,
+  });
+
   if (authHeaders) {
     const authedRoutes = [
       {
@@ -608,6 +617,23 @@ async function runChecks(baseUrl: string): Promise<VerifyReport> {
         critical: false,
       });
     }
+
+    const howItWorksAuthed = await fetchCheck(`${baseUrl}/app/you/how-it-works`, {
+      headers: authHeaders,
+    });
+    const howItWorksHtml =
+      typeof howItWorksAuthed.body === "string" ? howItWorksAuthed.body : "";
+
+    record(checks, {
+      id: "authed-how-it-works",
+      label: "/app/you/how-it-works loads for signed-in user",
+      ok:
+        howItWorksAuthed.status === 200 &&
+        howItWorksHtml.includes("How APEX works") &&
+        howItWorksHtml.includes("Wait"),
+      detail: `status=${howItWorksAuthed.status}`,
+      critical: false,
+    });
   } else {
     record(checks, {
       id: "authed-skipped",

@@ -137,6 +137,13 @@ test.describe("APEX authenticated smoke", () => {
     expect(["wait", "trade", "pause"]).toContain(body.decision?.daily_verdict);
   });
 
+  test("how it works page loads for signed-in user", async ({ page }) => {
+    await page.goto("/app/you/how-it-works");
+    await expect(page).toHaveURL(/\/app\/you\/how-it-works/);
+    await expect(page.locator("body")).toContainText(/How APEX works/i);
+    await expect(page.locator("body")).toContainText(/Wait · Trade · Pause/i);
+  });
+
   test("review page loads for signed-in user", async ({ page }) => {
     await page.goto("/app/review");
     await expect(page).toHaveURL(/\/app\/review/);

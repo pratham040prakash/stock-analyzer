@@ -39,7 +39,7 @@ Validate Phase T0 (surface architecture) and Phase T1 (rc1 readiness) on product
 - [ ] **Details** accordion collapses portfolio / monitor / depth below fold
 - [ ] Wait or Pause → primary CTA feels like “You’re done for today”
 - [ ] New user **cannot reach Today** without investment style + intraday ack
-- [ ] **How APEX works** linked from strip (`/app/you/how-it-works`)
+- [ ] **How APEX works** linked from strip (`/app/you/how-it-works`) — see [APEX_V3_CANONICAL_IA.md](./APEX_V3_CANONICAL_IA.md)
 
 ### Portfolio / Review — Phase T1a
 

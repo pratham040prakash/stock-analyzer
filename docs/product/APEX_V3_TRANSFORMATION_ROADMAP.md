@@ -139,7 +139,7 @@ This roadmap is the **only active execution track** until:
 | **T1-6** | 48h prod soak | S2 | Manual checklist |
 | **T1-7** | Tag **`v3.0.0-rc1`** | S2 | After T0 gate + soak |
 | **T1-8** | Tag **`v3.0.0`** GA | S2 | Roadmap v1.0 freeze; engineering review archive |
-| **T1-9** | Amend APEX-000 vs V3 IA | S2 | Single canonical nav + verdict doc |
+| **T1-9** | Amend APEX-000 vs V3 IA | S2 | Single canonical nav + verdict doc | **✅ Shipped** — [APEX_V3_CANONICAL_IA.md](./APEX_V3_CANONICAL_IA.md) + APEX-000 v0.2 |
 
 **Non-goals:** New pages, Alpha portfolio drill-down, auto-trade expansion.
 

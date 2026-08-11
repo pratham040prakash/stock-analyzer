@@ -1,14 +1,14 @@
 # APEX-000 — Company Constitution
 
 **Document ID:** APEX-000  
-**Version:** 0.1  
+**Version:** 0.2  
 **Status:** DRAFT — pending Founder + CTO approval  
-**Date:** 2026-08-05  
+**Date:** 2026-08-11  
 **Owner:** Pratham Prakash (Founder & CEO)  
 **Author:** Cursor AI (Engineering Team)  
 **Reviewers:** ChatGPT (CTO) — pending  
 **Supersedes:** None (consolidates `docs/design/Product_Constitution_LOCKED.md`, `docs/architecture/08_Final_Investment_OS_Architecture.md` principles)  
-**References:** None — this is the root document
+**References:** [APEX V3 Canonical IA](../product/APEX_V3_CANONICAL_IA.md) (navigation + Today hero, effective V3 rc1)
 
 ---
 
@@ -102,7 +102,11 @@ Every feature, surface, and engineering decision must support answering this que
 | Legacy product | Stock Analyzer V2 |
 | Current product | **APEX** — AI Investment Operating System |
 
-### 4.3 Six partner surfaces (non-negotiable)
+### 4.3 Partner surfaces
+
+**V3 GA (2026-08-11):** Five primary surfaces — see [APEX V3 Canonical IA](../product/APEX_V3_CANONICAL_IA.md). Today · Portfolio · Research · Review · You. Legacy six-surface names map into this shell (Trades → Today execution; Ask/Proof/Trust → overlays and You/Review).
+
+**Original six-partner model (Phase 1 target — partially superseded by V3 nav):**
 
 No seventh surface. No alternate navigation shell. No additional product modes.
 
@@ -116,6 +120,10 @@ No seventh surface. No alternate navigation shell. No additional product modes.
 | **Proof** | Evidence | AI-annotated evidence · not a charting workspace |
 
 **Today is the product.** All other surfaces support Today.
+
+### 4.3.1 Today hero (V3)
+
+User-facing daily verdict on Today is **Wait · Trade · Pause** — plain language for investors without market jargon. Internal Decision Engine outputs (ACT · WAIT · PASS · REDUCE · DEFENSIVE) remain authoritative for receipts and learning; projection rules live in `dailyVerdict.ts`. See Canonical IA § “Today hero”.
 
 ### 4.4 Depth philosophy
 
@@ -190,13 +198,15 @@ Context Engine → Evidence Engine → Decision Engine
 
 Only the **Decision Engine** issues verdicts: ACT · WAIT · PASS · REDUCE · DEFENSIVE.
 
+**Surface projection (V3):** Today hero displays **Wait · Trade · Pause** derived from engine state, capital dams, and entry confirmation — not a second verdict authority. See [APEX V3 Canonical IA](../product/APEX_V3_CANONICAL_IA.md).
+
 ---
 
 ## 7. Design Philosophy
 
 | Principle | Rule |
 |-----------|------|
-| **Verdict is hero** | Today leads with the decision, not data |
+| **Verdict is hero** | Today leads with **Wait · Trade · Pause** (V3), not data grids |
 | **Prose over dashboards** | Supporting intelligence is narrative, not metric grids |
 | **Progressive disclosure** | Proof and Ask provide depth on demand |
 | **Calm over excitement** | No FOMO patterns, no urgency manipulation |
@@ -289,7 +299,7 @@ These rules cannot be waived without Founder + CTO written amendment to this doc
 | N2 | **Broker truth beats model truth** in all learning loops |
 | N3 | **No invented certainty** — no guaranteed returns, no prediction claims |
 | N4 | **Decision Engine is sole verdict authority** — no parallel recommendation paths |
-| N5 | **Six surfaces only** — no seventh navigation paradigm |
+| N5 | **Primary surfaces only** — V3: five tabs (Today · Portfolio · Research · Review · You); legacy six-surface names via overlays/redirects per [Canonical IA](../product/APEX_V3_CANONICAL_IA.md) |
 | N6 | **Evolutionary migration** — no greenfield rewrite of working domain logic |
 | N7 | **No hosted multi-user deploy** until C1–C3 security debt resolved |
 | N8 | **Every feature passes the product gate** (§4.5) |
