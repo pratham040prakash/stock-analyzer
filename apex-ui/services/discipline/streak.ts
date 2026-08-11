@@ -6,6 +6,7 @@ import {
   type DisciplineStreakSnapshot,
   type DisciplineStreakState,
 } from "@/lib/dailyLoop/disciplineStreakLogic";
+import { persistDisciplineWaitReceipt } from "@/services/receipts/persistReceipt";
 import type { Database } from "@/types/database";
 import type { UserIntent } from "@/types/intent";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -126,6 +127,14 @@ export async function commitDisciplineStreak(
   if (commitError) {
     throw new Error(commitError.message);
   }
+
+  await persistDisciplineWaitReceipt(supabase, userId, {
+    symbol: input.stock,
+    action: input.action,
+    intent: input.intent,
+    commitDate: next.lastCommitDate,
+    streakCount: next.streakCount,
+  });
 
   return snapshot;
 }

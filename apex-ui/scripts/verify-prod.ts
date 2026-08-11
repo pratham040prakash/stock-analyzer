@@ -402,10 +402,48 @@ async function runChecks(baseUrl: string): Promise<VerifyReport> {
           return Math.abs(breakdownSum - body.positions_pnl) < 0.2;
         },
       },
+      {
+        id: "authed-brief",
+        path: "/api/today/brief",
+        validate: (body: Record<string, unknown> | null) =>
+          body?.status === "ok" && isRecord(body.decision) && isRecord(body.trust),
+      },
+      {
+        id: "authed-portfolio-overview",
+        path: "/api/portfolio/overview",
+        validate: (body: Record<string, unknown> | null) =>
+          body?.status === "ok" && isRecord(body.overview),
+      },
+      {
+        id: "authed-receipts",
+        path: "/api/receipts?days=7",
+        validate: (body: Record<string, unknown> | null) =>
+          body?.status === "ok" && Array.isArray(body.receipts),
+      },
+      {
+        id: "authed-reconcile",
+        path: "/api/review/reconcile",
+        method: "POST" as const,
+        validate: (body: Record<string, unknown> | null) =>
+          typeof body?.status === "string" && typeof body.synced === "boolean",
+      },
+      {
+        id: "authed-research",
+        path: "/api/research/summary?symbol=RELIANCE",
+        validate: (body: Record<string, unknown> | null) =>
+          body?.status === "ok" && isRecord(body.summary),
+      },
+      {
+        id: "authed-you",
+        path: "/api/you/snapshot",
+        validate: (body: Record<string, unknown> | null) =>
+          body?.status === "ok" && isRecord(body.snapshot),
+      },
     ] as const;
 
     for (const route of authedRoutes) {
       const result = await fetchCheck(`${baseUrl}${route.path}`, {
+        method: "method" in route ? route.method : "GET",
         headers: authHeaders,
       });
       const body = isRecord(result.body) ? result.body : null;

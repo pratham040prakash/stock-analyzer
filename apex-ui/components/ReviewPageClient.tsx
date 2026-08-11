@@ -1,13 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import ApexSurfaceNav from "@/components/nav/ApexSurfaceNav";
+import DecisionReceiptCard from "@/components/receipts/DecisionReceiptCard";
+import BrokerReconcilePanel from "@/components/review/BrokerReconcilePanel";
+import WeeklyReviewHero from "@/components/review/WeeklyReviewHero";
 import WeeklyReviewStrip from "@/components/dailyLoop/WeeklyReviewStrip";
 import DisciplineHistoryStrip from "@/components/dailyLoop/DisciplineHistoryStrip";
-import DecisionReceipt from "@/components/dailyLoop/DecisionReceipt";
-import { ApexShell, ApexTitle } from "@/components/ui/apex";
+import { ApexShell } from "@/components/ui/apex";
 import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
 import { buildLastNIstDays } from "@/lib/dailyLoop/disciplineHistoryMerge";
+import { buildDisciplineProcessScore } from "@/services/review/disciplineScore";
 import type {
   DecisionHistoryResponse,
   DisciplineHistoryEntry,
@@ -39,6 +42,11 @@ type ReconcileResponse = {
   message: string;
 };
 
+type StreakResponse = {
+  status: string;
+  streak?: { streakCount?: number };
+};
+
 export default function ReviewPageClient({ userName }: Props) {
   const [tab, setTab] = useState<"weekly" | "receipts">("weekly");
   const [history, setHistory] = useState<DisciplineHistoryEntry[]>([]);
@@ -47,8 +55,9 @@ export default function ReviewPageClient({ userName }: Props) {
   );
   const [receipts, setReceipts] = useState<DecisionReceiptRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [reconcileSynced, setReconcileSynced] = useState<boolean | null>(null);
   const [reconcileMessage, setReconcileMessage] = useState<string | null>(null);
-  const [processScore, setProcessScore] = useState<number | null>(null);
+  const [streakCount, setStreakCount] = useState(0);
 
   const loadHistory = useCallback(async () => {
     const response = await apiFetch("/api/decision/history?days=14", {
@@ -62,10 +71,17 @@ export default function ReviewPageClient({ userName }: Props) {
     if (response.ok && data) {
       setHistory(data.history ?? []);
       setSummary(data.summary ?? EMPTY_SUMMARY);
-      const followed = data.summary?.followedDays ?? 0;
-      const waitDays = data.summary?.waitDays ?? 0;
-      const total = Math.max(1, followed + waitDays + (data.summary?.executedDays ?? 0));
-      setProcessScore(Math.round(((followed / total) * 55 + (waitDays / total) * 25)));
+    }
+  }, []);
+
+  const loadStreak = useCallback(async () => {
+    const response = await apiFetch("/api/discipline/streak", {
+      cache: "no-store",
+    });
+    const data = await parseApiJson<StreakResponse>(response, "Discipline streak");
+
+    if (response.ok && data?.streak) {
+      setStreakCount(data.streak.streakCount ?? 0);
     }
   }, []);
 
@@ -86,12 +102,13 @@ export default function ReviewPageClient({ userName }: Props) {
     });
     const data = await parseApiJson<ReconcileResponse>(response, "Reconcile");
 
+    setReconcileSynced(data?.synced ?? false);
     if (data?.message) {
       setReconcileMessage(data.message);
     }
 
-    await Promise.all([loadHistory(), loadReceipts()]);
-  }, [loadHistory, loadReceipts]);
+    await Promise.all([loadHistory(), loadReceipts(), loadStreak()]);
+  }, [loadHistory, loadReceipts, loadStreak]);
 
   useEffect(() => {
     void (async () => {
@@ -101,29 +118,40 @@ export default function ReviewPageClient({ userName }: Props) {
     })();
   }, [reconcileBroker]);
 
+  const processScore = useMemo(
+    () => buildDisciplineProcessScore(summary, streakCount),
+    [summary, streakCount],
+  );
+
   const days = buildLastNIstDays(14);
+
+  const dismissReceipt = useCallback(async (id: string) => {
+    await apiFetch("/api/receipts", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    setReceipts((current) => current.filter((row) => row.id !== id));
+  }, []);
 
   return (
     <ApexShell>
-      <header className="mb-6 space-y-4">
-        <ApexSurfaceNav />
-        <div className="space-y-2">
-          <ApexTitle>Weekly review</ApexTitle>
-          <p className="text-sm text-apex-muted">
-            Discipline, receipts, and broker reconcile for {userName}.
-          </p>
-          {processScore !== null ? (
-            <p className="text-xs text-apex-muted/75">
-              Process discipline score · {processScore}/100
-            </p>
-          ) : null}
-          {reconcileMessage ? (
-            <p className="text-xs text-emerald-200/80">{reconcileMessage}</p>
-          ) : null}
-        </div>
-      </header>
+      <ApexSurfaceNav />
+      <WeeklyReviewHero
+        userName={userName}
+        summary={summary}
+        processScore={processScore}
+        reconcileMessage={reconcileMessage}
+      />
 
-      <div className="mb-4 flex gap-2">
+      <BrokerReconcilePanel
+        synced={reconcileSynced}
+        message={reconcileMessage}
+        loading={loading}
+        onRetry={() => void reconcileBroker()}
+      />
+
+      <div className="my-4 flex gap-2">
         <button
           type="button"
           onClick={() => setTab("weekly")}
@@ -159,41 +187,13 @@ export default function ReviewPageClient({ userName }: Props) {
         <p className="text-sm text-apex-muted/70">No receipts yet.</p>
       ) : (
         <div className="space-y-3">
-          {receipts.map((receipt) =>
-            receipt.order_id &&
-            receipt.fill_side &&
-            typeof receipt.fill_quantity === "number" ? (
-              <DecisionReceipt
-                key={receipt.id}
-                symbol={receipt.symbol}
-                executionKind={
-                  receipt.execution_kind as "BUY" | "SELL" | "WAIT" | "OBSERVE"
-                }
-                fill={{
-                  orderId: receipt.order_id,
-                  quantity: Number(receipt.fill_quantity),
-                  side: receipt.fill_side as "buy" | "sell",
-                  price:
-                    receipt.fill_price !== null
-                      ? Number(receipt.fill_price)
-                      : undefined,
-                }}
-                trustDelta={receipt.trust_delta ?? undefined}
-              />
-            ) : (
-              <section
-                key={receipt.id}
-                className="rounded-xl border border-apex-border/15 bg-white/[0.02] px-4 py-3"
-              >
-                <p className="text-sm font-medium text-apex-text/90">
-                  {receipt.verdict_word ?? receipt.execution_kind} · {receipt.symbol}
-                </p>
-                <p className="text-xs text-apex-muted/75">
-                  {receipt.headline ?? receipt.subline ?? receipt.receipt_date}
-                </p>
-              </section>
-            ),
-          )}
+          {receipts.map((receipt) => (
+            <DecisionReceiptCard
+              key={receipt.id}
+              receipt={receipt}
+              onDismiss={dismissReceipt}
+            />
+          ))}
         </div>
       )}
     </ApexShell>

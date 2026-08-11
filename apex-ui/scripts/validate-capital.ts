@@ -30,6 +30,9 @@ import { runAllocationPolicySelfCheck } from "../services/portfolio/allocationPo
 import { runHoldingHealthSelfCheck } from "../services/portfolio/holdingHealth";
 import { runDisciplineScoreSelfCheck } from "../services/review/disciplineScore";
 import { runReceiptSelfCheck } from "../services/receipts/persistReceipt";
+import { runResearchSummarySelfCheck } from "../services/research/assembleResearchSummary";
+import { runAlphaAiBridgeSelfCheck } from "../services/research/alphaAiBridge";
+import { runYouSnapshotSelfCheck } from "../services/you/assembleYouSnapshot";
 
 runCapitalProjectionSelfCheck();
 runCapitalFinalStateSelfCheck();
@@ -60,3 +63,6 @@ runAllocationPolicySelfCheck();
 runHoldingHealthSelfCheck();
 runDisciplineScoreSelfCheck();
 runReceiptSelfCheck();
+runResearchSummarySelfCheck();
+runAlphaAiBridgeSelfCheck();
+runYouSnapshotSelfCheck();

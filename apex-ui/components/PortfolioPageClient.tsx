@@ -163,6 +163,13 @@ export default function PortfolioPageClient({
 
           {overviewLoading ? (
             <p className="text-sm text-apex-muted/70">Loading overview…</p>
+          ) : connectionStatus === "NOT_CONNECTED" ? (
+            <section className="rounded-xl border border-apex-border/15 bg-white/[0.02] px-4 py-4">
+              <p className="text-sm text-apex-text/90">
+                Connect Zerodha to see allocation policy, health chips, and live
+                positions.
+              </p>
+            </section>
           ) : null}
 
           {overview?.allocation ? (

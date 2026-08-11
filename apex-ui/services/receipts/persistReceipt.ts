@@ -134,6 +134,35 @@ export async function dismissDecisionReceipt(
   return !error;
 }
 
+export async function persistDisciplineWaitReceipt(
+  supabase: Client,
+  userId: string,
+  input: {
+    symbol?: string;
+    action: string;
+    intent: string;
+    commitDate: string;
+    streakCount?: number;
+  },
+): Promise<DecisionReceiptRow | null> {
+  const symbol = (input.symbol?.trim() || "SESSION").toUpperCase();
+  const executionKind =
+    input.action.toLowerCase().includes("wait") ||
+    input.action.toLowerCase().includes("hold") ||
+    input.intent === "protect"
+      ? "WAIT"
+      : "OBSERVE";
+
+  return persistDecisionReceipt(supabase, userId, {
+    symbol,
+    executionKind,
+    verdictWord: executionKind,
+    headline: `Followed today's ${executionKind.toLowerCase()} plan`,
+    subline: `Discipline commit · ${input.action}`,
+    orderId: `discipline:${input.commitDate}:${symbol}`,
+  });
+}
+
 export function runReceiptSelfCheck(): void {
   const assert = (condition: boolean, message: string) => {
     if (!condition) {

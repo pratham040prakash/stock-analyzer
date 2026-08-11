@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import JournalPageClient from "@/components/JournalPageClient";
 import { isSystemConfigured } from "@/lib/env/config";
@@ -22,5 +23,9 @@ export default async function JournalPage() {
     user.email?.split("@")[0] ??
     "there";
 
-  return <JournalPageClient userName={userName} />;
+  return (
+    <Suspense fallback={<p className="p-6 text-sm text-apex-muted">Loading journal…</p>}>
+      <JournalPageClient userName={userName} />
+    </Suspense>
+  );
 }

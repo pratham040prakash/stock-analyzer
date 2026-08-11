@@ -9,6 +9,8 @@
     "start": "next start",
     "lint": "eslint",
     "db:migrate": "node scripts/apply-supabase-sql.mjs",
+    "db:migrate:checklist": "node scripts/migration-checklist.mjs",
+    "db:migrate:all": "node scripts/migration-checklist.mjs --apply",
     "verify:prod": "npx --yes tsx scripts/verify-prod.ts",
     "test:e2e": "playwright test",
     "test:e2e:install": "playwright install chromium"

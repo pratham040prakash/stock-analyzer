@@ -26,6 +26,7 @@ import TodayMonitorStrip from "@/components/dailyLoop/TodayMonitorStrip";
 import TodayTrustStrip from "@/components/dailyLoop/TodayTrustStrip";
 import VerdictCanvas from "@/components/dailyLoop/VerdictCanvas";
 import TodayBelowFold from "@/components/dailyLoop/belowFold/TodayBelowFold";
+import TodayDisciplineChip from "@/components/dailyLoop/TodayDisciplineChip";
 import DecisionReceipt from "@/components/dailyLoop/DecisionReceipt";
 import { projectVerdictCanvasProps } from "@/lib/dailyLoop/projectVerdict";
 import { useMorningBrief } from "@/lib/useMorningBrief";
@@ -769,7 +770,8 @@ export default function HomeDecisionScreen({
                 />
               </div>
               {morningBrief ? (
-                <div className="mt-4">
+                <div className="mt-4 space-y-3">
+                  <TodayDisciplineChip discipline={morningBrief.discipline} />
                   <TodayBelowFold brief={morningBrief} />
                 </div>
               ) : null}
