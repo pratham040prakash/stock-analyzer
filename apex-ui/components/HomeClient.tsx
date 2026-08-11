@@ -37,7 +37,11 @@ import { buildFirstRunProgress } from "@/lib/onboarding/firstRun";
 import type { PortfolioApiResponse } from "@/types/portfolioApi";
 import { recordVisit, saveCachedPortfolio } from "@/lib/portfolioCache";
 import { portfolioRiskFromAllocation } from "@/lib/portfolioRisk";
-import { resolvePortfolioDisplayValue } from "@/lib/portfolio/displayValue";
+import {
+  filterRealPortfolioHoldings,
+  isDemoPortfolioHoldings,
+  resolvePortfolioDisplayValue,
+} from "@/lib/portfolio/displayValue";
 import { useIntentDecision } from "@/lib/useIntentDecision";
 import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
 import { useGreeting } from "@/lib/useGreeting";
@@ -253,18 +257,29 @@ export default function HomeClient({
 
   const applyPortfolioResponse = useCallback(
     (data: PortfolioApiResponse) => {
+      const incomingHoldings = filterRealPortfolioHoldings(data.holdings);
+      const normalized: PortfolioApiResponse =
+        incomingHoldings.length === data.holdings.length
+          ? data
+          : { ...data, holdings: incomingHoldings };
+
       setPortfolioData((previous) => {
         if (
-          data.holdings.length === 0 &&
+          normalized.holdings.length === 0 &&
           previous &&
           previous.holdings.length > 0
         ) {
+          const previousHoldings = filterRealPortfolioHoldings(previous.holdings);
+          if (previousHoldings.length === 0) {
+            return normalized;
+          }
+
           return {
-            ...data,
-            holdings: previous.holdings,
+            ...normalized,
+            holdings: previousHoldings,
             total_value: resolvePortfolioDisplayValue(
-              data.total_value,
-              previous.holdings,
+              normalized.total_value,
+              previousHoldings,
             ),
             total_pnl: previous.total_pnl,
             top_symbol: previous.top_symbol,
@@ -273,13 +288,13 @@ export default function HomeClient({
           };
         }
 
-        return data;
+        return normalized;
       });
 
-      if (data.holdings.length > 0) {
+      if (incomingHoldings.length > 0) {
         setPortfolioError(null);
         updatePortfolio({
-          holdings: data.holdings.map((h) => ({
+          holdings: incomingHoldings.map((h) => ({
             symbol: h.tradingsymbol,
             quantity: h.quantity,
             avgPrice: h.average_price,
@@ -646,6 +661,7 @@ export default function HomeClient({
 
   useEffect(() => {
     if (initialPortfolio.holdings.length === 0) return;
+    if (isDemoPortfolioHoldings(initialPortfolio.holdings)) return;
 
     setPortfolioData((current) => {
       if (current && current.holdings.length > 0) return current;
@@ -733,6 +749,20 @@ export default function HomeClient({
 
   const showHomeDecision = Boolean(dailyDecision) && brokerSessionActive;
 
+  const visiblePortfolioHoldings = useMemo(
+    () => filterRealPortfolioHoldings(portfolioData?.holdings ?? []),
+    [portfolioData?.holdings],
+  );
+
+  const resolvedPortfolioValue = useMemo(
+    () =>
+      resolvePortfolioDisplayValue(
+        brokerPortfolioValue ?? portfolioData?.total_value,
+        visiblePortfolioHoldings,
+      ),
+    [brokerPortfolioValue, portfolioData?.total_value, visiblePortfolioHoldings],
+  );
+
   const firstRunProgress = useMemo(
     () =>
       buildFirstRunProgress({
@@ -779,9 +809,7 @@ export default function HomeClient({
 
   const isOnboarding = connectionStatus === "NOT_CONNECTED";
   const showGuidance = !isOnboarding && !isCompletingOAuth;
-  const hasPortfolioData = Boolean(
-    portfolioData && portfolioData.holdings.length > 0,
-  );
+  const hasPortfolioData = visiblePortfolioHoldings.length > 0;
   const showPortfolioError = Boolean(portfolioError) && !hasPortfolioData;
   const showBrokerError =
     Boolean(brokerMessage) &&
@@ -904,21 +932,18 @@ export default function HomeClient({
               ledgerCash={ledgerCash ?? (fundsSynced ? 0 : undefined)}
               topSymbol={portfolioData?.top_symbol}
               topAllocationPct={portfolioData?.top_allocation_pct}
-              portfolioValue={resolvePortfolioDisplayValue(
-                brokerPortfolioValue ?? portfolioData?.total_value,
-                portfolioData?.holdings ?? [],
-              )}
+              portfolioValue={resolvedPortfolioValue}
               totalCapital={totalCapital ?? undefined}
               collateral={collateral}
               capitalMode={capitalMode}
               onCapitalModeChange={handleCapitalModeChange}
               dayPnl={portfolioData?.day_pnl ?? dailyInsight?.day_pnl ?? null}
               openPnlFromPortfolio={portfolioData?.positions_pnl ?? null}
-              holdings={portfolioData?.holdings?.map((holding) => ({
+              holdings={visiblePortfolioHoldings.map((holding) => ({
                 symbol: holding.tradingsymbol,
                 weight: holding.allocation_pct,
               }))}
-              portfolioHoldings={portfolioData?.holdings ?? []}
+              portfolioHoldings={visiblePortfolioHoldings}
               portfolioTotalPnl={portfolioData?.total_pnl ?? null}
               portfolioLoading={portfolioLoading}
               connectionStatus={connectionStatus}

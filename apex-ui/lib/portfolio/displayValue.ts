@@ -1,4 +1,42 @@
 import type { PortfolioHoldingRow } from "@/types/portfolioApi";
+import type { Portfolio } from "@/types/portfolio";
+
+const DEMO_PORTFOLIO_SYMBOLS = ["TCS", "INFY", "HDFC"] as const;
+
+function holdingSymbol(holding: {
+  symbol?: string;
+  tradingsymbol?: string;
+}): string {
+  return (holding.tradingsymbol ?? holding.symbol ?? "").trim().toUpperCase();
+}
+
+/** Placeholder portfolio used only for unconfigured demo mode — never real Zerodha data. */
+export function isDemoPortfolioHoldings(
+  holdings: { symbol?: string; tradingsymbol?: string }[],
+): boolean {
+  if (holdings.length !== DEMO_PORTFOLIO_SYMBOLS.length) {
+    return false;
+  }
+
+  const symbols = new Set(holdings.map((holding) => holdingSymbol(holding)));
+  return DEMO_PORTFOLIO_SYMBOLS.every((symbol) => symbols.has(symbol));
+}
+
+export function filterRealPortfolioHoldings<
+  T extends { symbol?: string; tradingsymbol?: string },
+>(holdings: T[]): T[] {
+  if (isDemoPortfolioHoldings(holdings)) {
+    return [];
+  }
+
+  return holdings;
+}
+
+export function filterRealPortfolio(portfolio: Portfolio): Portfolio {
+  return {
+    holdings: filterRealPortfolioHoldings(portfolio.holdings),
+  };
+}
 
 export function sumPortfolioRowValues(
   holdings: Pick<PortfolioHoldingRow, "value" | "quantity" | "last_price">[],

@@ -548,6 +548,12 @@ export default function HomeDecisionScreen({
                 portfolioHoldings.length === 0 &&
                 connectionStatus === "CONNECTED"
               }
+              showEmptyWhenSynced={
+                !portfolioLoading &&
+                portfolioHoldings.length === 0 &&
+                (connectionStatus === "CONNECTED" ||
+                  connectionStatus === "TOKEN_EXPIRED")
+              }
             />
 
             {isCapitalDeployment ? (

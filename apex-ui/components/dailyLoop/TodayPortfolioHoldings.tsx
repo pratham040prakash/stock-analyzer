@@ -9,6 +9,7 @@ export type TodayPortfolioHoldingsProps = {
   totalValue?: number | null;
   totalPnl?: number | null;
   loading?: boolean;
+  showEmptyWhenSynced?: boolean;
 };
 
 function formatPrice(value: number): string {
@@ -30,6 +31,7 @@ export default function TodayPortfolioHoldings({
   totalValue,
   totalPnl,
   loading = false,
+  showEmptyWhenSynced = false,
 }: TodayPortfolioHoldingsProps) {
   if (loading) {
     return (
@@ -43,7 +45,27 @@ export default function TodayPortfolioHoldings({
   }
 
   if (holdings.length === 0) {
-    return null;
+    if (!showEmptyWhenSynced) {
+      return null;
+    }
+
+    return (
+      <div
+        className="rounded-xl border border-apex-border/20 bg-white/[0.02] px-4 py-3"
+        aria-label="Portfolio holdings empty"
+      >
+        <p className="text-xs text-apex-muted/75">
+          Holdings not synced yet.{" "}
+          <a
+            href="/api/zerodha/login"
+            className="underline underline-offset-2 hover:text-apex-text/90"
+          >
+            Reconnect Zerodha
+          </a>{" "}
+          or wait until the market opens for a fresh sync.
+        </p>
+      </div>
+    );
   }
 
   const resolvedTotal = resolvePortfolioDisplayValue(totalValue, holdings);
