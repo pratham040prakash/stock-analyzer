@@ -230,6 +230,37 @@ test.describe("APEX authenticated smoke", () => {
     expect(body.digest).toBeTruthy();
   });
 
+  test("subscription tier exposes trial and billing fields", async ({ request }) => {
+    const response = await request.get("/api/subscription/tier");
+    expect(response.ok()).toBeTruthy();
+
+    const body = await response.json();
+    expect(body.status).toBe("ok");
+    expect(["free", "premium"]).toContain(body.tier);
+    expect(typeof body.billingEnabled).toBe("boolean");
+    expect(body.trial).toBeTruthy();
+    expect(typeof body.trial.enabled).toBe("boolean");
+  });
+
+  test("subscription trial endpoint returns offer view", async ({ request }) => {
+    const response = await request.get("/api/subscription/trial");
+    expect(response.ok()).toBeTruthy();
+
+    const body = await response.json();
+    expect(body.status).toBe("ok");
+    expect(body.trial).toBeTruthy();
+    expect(typeof body.trial.days).toBe("number");
+  });
+
+  test("subscription billing endpoint returns billingEnabled", async ({ request }) => {
+    const response = await request.get("/api/subscription/billing");
+    expect(response.ok()).toBeTruthy();
+
+    const body = await response.json();
+    expect(body.status).toBe("ok");
+    expect(typeof body.billingEnabled).toBe("boolean");
+  });
+
   test("you page surfaces settings entry", async ({ page }) => {
     await page.goto("/app/you");
     await expect(page).toHaveURL(/\/app\/you/);

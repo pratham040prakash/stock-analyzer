@@ -74,6 +74,7 @@ import { runSubscriptionRepositorySelfCheck } from "../services/subscription/sub
 import { runBillingSyncSelfCheck } from "../services/subscription/billingSync";
 import { runConversionFunnelSelfCheck } from "../services/subscription/conversionFunnel";
 import { runTrialOfferRepositorySelfCheck } from "../services/subscription/trialOfferRepository";
+import { runMigrationHealthSelfCheck } from "../lib/supabase/migrationHealth";
 
 runCapitalProjectionSelfCheck();
 runCapitalFinalStateSelfCheck();
@@ -148,3 +149,4 @@ runSubscriptionRepositorySelfCheck();
 runBillingSyncSelfCheck();
 runConversionFunnelSelfCheck();
 runTrialOfferRepositorySelfCheck();
+runMigrationHealthSelfCheck();

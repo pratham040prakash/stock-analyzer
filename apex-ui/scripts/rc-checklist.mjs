@@ -52,7 +52,10 @@ const keyModules = [
   "services/review/runReviewDigestCron.ts",
   "app/api/cron/review-digest/route.ts",
   "app/api/subscription/webhook/razorpay/route.ts",
+  "app/api/subscription/trial/route.ts",
   "services/subscription/razorpayConfig.ts",
+  "services/subscription/conversionFunnel.ts",
+  "lib/supabase/migrationHealth.ts",
 ];
 
 for (const relative of keyModules) {
@@ -80,5 +83,15 @@ console.log("  components/subscription/PremiumCheckoutPanel.tsx");
 console.log("  services/subscription/requirePremiumFeature.ts");
 console.log("  services/subscription/razorpayConfig.ts");
 console.log("  app/api/subscription/webhook/razorpay/route.ts\n");
+
+console.log("--- v3.2.0 (T3 monetization) ---");
+console.log("See docs/product/APEX_V3_2_SOAK.md before tagging v3.2.0");
+console.log("Apply migrations: premium_subscriptions.sql, premium_trial_offers.sql");
+console.log("Trial funnel:");
+console.log("  services/subscription/conversionFunnel.ts");
+console.log("  app/api/subscription/trial/route.ts");
+console.log("  components/subscription/PremiumTrialOfferCard.tsx");
+console.log("Health probes: lib/supabase/migrationHealth.ts");
+console.log("Tag: git tag v3.2.0 && git push origin v3.2.0\n");
 
 process.exit(0);

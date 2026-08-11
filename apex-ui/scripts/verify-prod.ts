@@ -167,6 +167,47 @@ async function runChecks(baseUrl: string): Promise<VerifyReport> {
     critical: false,
   });
 
+  const premiumSubscriptionsMigration = migrationBody?.premium_subscriptions;
+  const premiumTrialOffersMigration = migrationBody?.premium_trial_offers;
+
+  record(checks, {
+    id: "health-migration-premium-subscriptions",
+    label: "premium_subscriptions migration status exposed in health report",
+    ok:
+      premiumSubscriptionsMigration === "ready" ||
+      premiumSubscriptionsMigration === "pending" ||
+      premiumSubscriptionsMigration === "unknown",
+    detail: String(premiumSubscriptionsMigration ?? "missing"),
+    critical: false,
+  });
+
+  record(checks, {
+    id: "health-migration-premium-subscriptions-ready",
+    label: "premium_subscriptions migration applied on prod",
+    ok: premiumSubscriptionsMigration === "ready",
+    detail: String(premiumSubscriptionsMigration ?? "missing"),
+    critical: false,
+  });
+
+  record(checks, {
+    id: "health-migration-premium-trial-offers",
+    label: "premium_trial_offers migration status exposed in health report",
+    ok:
+      premiumTrialOffersMigration === "ready" ||
+      premiumTrialOffersMigration === "pending" ||
+      premiumTrialOffersMigration === "unknown",
+    detail: String(premiumTrialOffersMigration ?? "missing"),
+    critical: false,
+  });
+
+  record(checks, {
+    id: "health-migration-premium-trial-offers-ready",
+    label: "premium_trial_offers migration applied on prod",
+    ok: premiumTrialOffersMigration === "ready",
+    detail: String(premiumTrialOffersMigration ?? "missing"),
+    critical: false,
+  });
+
   const proxyUrl = process.env.KITE_ORDER_PROXY_URL?.trim();
   if (proxyUrl) {
     try {
@@ -218,6 +259,8 @@ async function runChecks(baseUrl: string): Promise<VerifyReport> {
     { path: "/api/discipline/streak", id: "auth-discipline" },
     { path: "/api/trust/outcome", id: "auth-trust" },
     { path: "/api/subscription/tier", id: "auth-tier" },
+    { path: "/api/subscription/trial", id: "auth-trial" },
+    { path: "/api/subscription/billing", id: "auth-billing" },
     { path: "/api/operating-profile", id: "auth-operating-profile" },
     { path: "/api/decision/history?days=7", id: "auth-history" },
     { path: "/api/trade/status?stock=RELIANCE", id: "auth-trade-status" },
@@ -348,9 +391,50 @@ async function runChecks(baseUrl: string): Promise<VerifyReport> {
       {
         id: "authed-tier",
         path: "/api/subscription/tier",
+        validate: (body: Record<string, unknown> | null) => {
+          if (
+            body?.status !== "ok" ||
+            (body.tier !== "free" && body.tier !== "premium")
+          ) {
+            return false;
+          }
+
+          if (typeof body.billingEnabled !== "boolean") {
+            return false;
+          }
+
+          const trial = body.trial;
+          if (!isRecord(trial) || typeof trial.enabled !== "boolean") {
+            return false;
+          }
+
+          return (
+            trial.status === "none" ||
+            trial.status === "offered" ||
+            trial.status === "active" ||
+            trial.status === "expired" ||
+            trial.status === "dismissed"
+          );
+        },
+      },
+      {
+        id: "authed-trial",
+        path: "/api/subscription/trial",
+        validate: (body: Record<string, unknown> | null) => {
+          const trial = body?.trial;
+          return (
+            body?.status === "ok" &&
+            isRecord(trial) &&
+            typeof trial.enabled === "boolean" &&
+            typeof trial.days === "number"
+          );
+        },
+      },
+      {
+        id: "authed-billing",
+        path: "/api/subscription/billing",
         validate: (body: Record<string, unknown> | null) =>
-          body?.status === "ok" &&
-          (body.tier === "free" || body.tier === "premium"),
+          body?.status === "ok" && typeof body.billingEnabled === "boolean",
       },
       {
         id: "authed-trade-status",
