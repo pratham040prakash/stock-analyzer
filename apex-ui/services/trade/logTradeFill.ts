@@ -14,12 +14,14 @@ export type TradeFillInput = {
   amount: number;
   orderId: string;
   fillSource?: "execute" | "sync";
+  autoExecuted?: boolean;
 };
 
 function fillSignals(
   orderId: string,
   price: number,
   fillSource: "execute" | "sync" = "execute",
+  autoExecuted = false,
 ): Signals {
   return {
     trend: 0,
@@ -31,6 +33,7 @@ function fillSignals(
     monitored: fillSource === "execute",
     fill_source: fillSource,
     apex_executed: fillSource === "execute" ? true : undefined,
+    auto_executed: autoExecuted ? true : undefined,
   };
 }
 
@@ -252,7 +255,12 @@ export async function logTradeFill(
           quantity: fill.quantity,
           amount: fill.amount,
           stop_loss: stopLoss,
-          signals: fillSignals(fill.orderId, fill.price, fill.fillSource ?? "execute"),
+          signals: fillSignals(
+            fill.orderId,
+            fill.price,
+            fill.fillSource ?? "execute",
+            fill.autoExecuted ?? false,
+          ),
           decision_date: today,
           updated_at: new Date().toISOString(),
         })
@@ -274,7 +282,12 @@ export async function logTradeFill(
         entry_price: fill.price,
         stop_loss: stopLoss,
         quantity: fill.quantity,
-        signals: fillSignals(fill.orderId, fill.price, fill.fillSource ?? "execute"),
+        signals: fillSignals(
+          fill.orderId,
+          fill.price,
+          fill.fillSource ?? "execute",
+          fill.autoExecuted ?? false,
+        ),
       })
       .select("id")
       .single();

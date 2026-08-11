@@ -40,6 +40,10 @@ export type Signals = {
   fill_source?: "execute" | "sync";
   /** Set on APEX broker-step fills — distinguishes from sync-attached ghosts. */
   apex_executed?: boolean;
+  /** Auto-trade idempotency — set before broker order attempt for the trading day. */
+  auto_trade_attempted?: boolean;
+  /** Set when auto-trade successfully placed a broker buy today. */
+  auto_executed?: boolean;
 };
 
 export type MarketTrend = "bullish" | "bearish" | "sideways";

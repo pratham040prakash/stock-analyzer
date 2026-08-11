@@ -257,10 +257,13 @@ export async function GET(request: Request) {
     },
   });
 
-  await executeTradeIfAutoEnabled(supabase, user.id, decision, {
-    portfolioValue: snapshot.total_value || metrics.totalValue,
-    marketTrend,
-  });
+  // BUG-003: auto-trade at most once per trading day — not on every refresh/intent poll.
+  if (!stored) {
+    await executeTradeIfAutoEnabled(supabase, user.id, decision, {
+      portfolioValue: snapshot.total_value || metrics.totalValue,
+      marketTrend,
+    });
+  }
 
   try {
     await saveDailyDecision(supabase, user.id, decision);

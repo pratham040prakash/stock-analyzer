@@ -22,6 +22,7 @@ import { runWeeklyReviewSelfCheck } from "../lib/dailyLoop/weeklyReview";
 import { runTradeFillSelfCheck } from "../services/trade/logTradeFill";
 import { runSyncKiteBrokerFillSelfCheck } from "../services/trade/syncKiteBrokerFill";
 import { runSyncBrokerActivitySelfCheck } from "../services/trade/syncBrokerActivity";
+import { runAutoTradeSelfCheck } from "../services/trade/autoExecute";
 
 runCapitalProjectionSelfCheck();
 runCapitalFinalStateSelfCheck();
@@ -44,3 +45,4 @@ runWeeklyReviewSelfCheck();
 runTradeFillSelfCheck();
 runSyncKiteBrokerFillSelfCheck();
 runSyncBrokerActivitySelfCheck();
+runAutoTradeSelfCheck();
