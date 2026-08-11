@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "prebuild": "node scripts/migration-checklist.mjs --verify && npx --yes tsx scripts/validate-capital.ts",
+    "prebuild": "node scripts/migration-checklist.mjs --verify && npx --yes tsx scripts/validate-capital.ts && node scripts/rc-checklist.mjs --verify",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

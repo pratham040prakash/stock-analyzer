@@ -99,6 +99,11 @@ test.describe("APEX smoke", () => {
     await expect(page).toHaveURL(/\/login/);
   });
 
+  test("review digest cron rejects anonymous callers", async ({ request }) => {
+    const response = await request.get("/api/cron/review-digest");
+    expect(response.status()).toBe(401);
+  });
+
   test("trust route guards anonymous users", async ({ page }) => {
     await page.goto("/app/trust");
     await expect(page).toHaveURL(/\/login/);

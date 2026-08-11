@@ -106,8 +106,10 @@ export default function PortfolioPageClient({
     }
   }, []);
 
-  const loadOverview = useCallback(async () => {
-    setOverviewLoading(true);
+  const loadOverview = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) {
+      setOverviewLoading(true);
+    }
 
     try {
       const response = await apiFetch("/api/portfolio/overview", {
@@ -119,7 +121,9 @@ export default function PortfolioPageClient({
         setOverview(data.overview);
       }
     } finally {
-      setOverviewLoading(false);
+      if (!options?.silent) {
+        setOverviewLoading(false);
+      }
     }
   }, []);
 
@@ -160,10 +164,11 @@ export default function PortfolioPageClient({
     }
   }, []);
 
-  const refreshAll = useCallback(async () => {
+  const refreshAll = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent ?? false;
     await Promise.all([
-      loadOverview(),
-      loadFunds({ silent: fundsSynced }),
+      loadOverview({ silent }),
+      loadFunds({ silent: silent || fundsSynced }),
       loadNewCapital(),
       loadThesisWatch(),
       loadPortfolioProof(),
@@ -182,7 +187,12 @@ export default function PortfolioPageClient({
   }, [refreshAll]);
 
   const pollEnabled = connectionStatus === "CONNECTED";
-  usePortfolioPoll({ enabled: pollEnabled, onRefresh: refreshAll });
+  usePortfolioPoll({
+    enabled: pollEnabled,
+    onRefresh: () => {
+      void refreshAll({ silent: true });
+    },
+  });
 
   const {
     positionsPnl: livePositionsPnl,

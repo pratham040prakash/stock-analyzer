@@ -100,7 +100,14 @@ export default function TodayTrustStrip({
       ? Math.round(breakdownSum * 10) / 10
       : null;
   const openPnlKnown = knownAmount(displayOpenPnl);
-  const showOpenPnl = openPnlKnown && !breakdownLoading;
+  const showOpenPnlSync =
+    isPolling && !openPnlKnown && connectionStatus === "CONNECTED";
+  const showBreakdownFetch =
+    breakdownLoading &&
+    positionsBreakdown.length === 0 &&
+    !openPnlKnown &&
+    connectionStatus === "CONNECTED";
+  const showOpenPnl = openPnlKnown;
   const dayPnlKnown = knownAmount(portfolioDayPnl);
   const resolvedTotal =
     totalKnown
@@ -205,16 +212,14 @@ export default function TodayTrustStrip({
               Open P&amp;L {(displayOpenPnl ?? 0) >= 0 ? "+" : ""}
               {formatInr(Math.round(displayOpenPnl ?? 0))}
             </span>
-          ) : connectionStatus === "CONNECTED" && !pollError && breakdownLoading ? (
-            <span className="text-apex-muted/70">Open P&amp;L syncing…</span>
-          ) : connectionStatus === "CONNECTED" && !pollError && isPolling ? (
-            <span className="text-apex-muted/70">Open P&amp;L syncing…</span>
+          ) : connectionStatus === "CONNECTED" && !pollError && showOpenPnlSync ? (
+            <span className="text-apex-muted/70">Open P&amp;L updating…</span>
           ) : null}
         </div>
 
-        {breakdownLoading && !pollError ? (
+        {showBreakdownFetch && !pollError ? (
           <p className="mt-2 text-xs text-apex-muted/70">
-            Fetching position breakdown…
+            Loading position breakdown…
           </p>
         ) : null}
 

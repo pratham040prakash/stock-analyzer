@@ -9,7 +9,9 @@ import {
 } from "@/lib/dailyLoop/disciplineStreak";
 import {
   markBrokerStepCompleted,
+  markBrokerStepSkipped,
   readBrokerStepCompleted,
+  readBrokerStepSkipped,
 } from "@/lib/dailyLoop/brokerStepState";
 import { getApexHeroSignature } from "@/lib/dailyLoop/apexVoice";
 import { getIntentExperience } from "@/lib/dailyLoop/intentExperience";
@@ -257,9 +259,18 @@ export default function HomeDecisionScreen({
 
     return readBrokerStepCompleted(symbol);
   });
+  const [brokerStepSkipped, setBrokerStepSkipped] = useState(() => {
+    const symbol = todayHero.symbol?.trim().toUpperCase();
+    if (!symbol || typeof window === "undefined") {
+      return false;
+    }
+
+    return readBrokerStepSkipped(symbol);
+  });
   const [brokerFillSummary, setBrokerFillSummary] =
     useState<BrokerFillSummary | null>(null);
   const [receiptDismissed, setReceiptDismissed] = useState(false);
+  const [processingHoldTrim, setProcessingHoldTrim] = useState(false);
   const [brokerFillStatusLoading, setBrokerFillStatusLoading] = useState(() => {
     const symbol = todayHero.symbol?.trim().toUpperCase();
     if (!symbol || typeof window === "undefined") {
@@ -286,14 +297,17 @@ export default function HomeDecisionScreen({
   useEffect(() => {
     if (!todayHero.symbol) {
       setBrokerStepCompleted(false);
+      setBrokerStepSkipped(false);
       setBrokerFillSummary(null);
       setBrokerFillStatusLoading(false);
       return;
     }
 
     const sessionComplete = readBrokerStepCompleted(todayHero.symbol);
-    if (sessionComplete) {
-      setBrokerStepCompleted(true);
+    const sessionSkipped = readBrokerStepSkipped(todayHero.symbol);
+    if (sessionComplete || sessionSkipped) {
+      setBrokerStepCompleted(sessionComplete);
+      setBrokerStepSkipped(sessionSkipped);
       setBrokerFillStatusLoading(false);
     } else {
       setBrokerFillStatusLoading(true);
@@ -324,7 +338,7 @@ export default function HomeDecisionScreen({
         }
 
         if (!payload?.filledToday) {
-          if (!sessionComplete) {
+          if (!sessionComplete && !sessionSkipped) {
             setBrokerStepCompleted(false);
             setBrokerFillSummary(null);
           }
@@ -408,11 +422,6 @@ export default function HomeDecisionScreen({
   } = useDayPnlPoll({
     enabled: dayPnlPollEnabled,
   });
-  const breakdownLoading =
-    connectionStatus === "CONNECTED" &&
-    !livePollError &&
-    livePositionsBreakdown.length === 0 &&
-    Boolean(liveLastSyncedAt);
   const displayPortfolioHoldings =
     liveHoldings.length > 0 ? liveHoldings : portfolioHoldings;
   const heroHoldingQty = useMemo(() => {
@@ -434,14 +443,18 @@ export default function HomeDecisionScreen({
       resolveTodayHeroDisplay(todayHeroResolved, brokerStepCompleted, {
         actualPortfolioWeight: actualSymbolWeight,
         brokerFillSummary,
+        brokerStepSkipped,
       }),
     [
       actualSymbolWeight,
       brokerFillSummary,
       brokerStepCompleted,
+      brokerStepSkipped,
       todayHeroResolved,
     ],
   );
+
+  const brokerStepResolved = brokerStepCompleted || brokerStepSkipped;
   const displayPortfolioValue =
     liveHoldingsTotalValue ?? portfolioValue ?? null;
   const displayPortfolioTotalPnl =
@@ -457,6 +470,12 @@ export default function HomeDecisionScreen({
     breakdownOpenPnl ??
     openPnlFromPortfolio ??
     null;
+  const breakdownLoading =
+    connectionStatus === "CONNECTED" &&
+    !livePollError &&
+    livePositionsBreakdown.length === 0 &&
+    resolvedOpenPnl === null &&
+    !liveLastSyncedAt;
   const monitorStripOpenPnl = resolvedOpenPnl;
   const monitorLiveTicksById = useMemo(() => {
     const map: Record<string, (typeof positionTicks)[number]> = {};
@@ -512,8 +531,43 @@ export default function HomeDecisionScreen({
       void refreshLiveDayPnl();
       void refreshTrust();
     },
-    [displayHero.headline, displayHero.subline, morningBrief, onCapitalRefresh, refreshLiveDayPnl, refreshMonitor, refreshMorningBrief, refreshTrust, todayHero.executionKind, todayHero.symbol, trustDelta, trustScore],
+    [displayHero.headline, displayHero.subline, morningBrief, onCapitalRefresh, refreshLiveDayPnl, refreshMonitor, refreshMorningBrief, refreshTrust, renderIntent, todayHero.executionKind, todayHero.symbol, trustDelta, trustScore],
   );
+
+  const handleHoldTrim = useCallback(async () => {
+    if (!todayHero.symbol || processingHoldTrim) {
+      return;
+    }
+
+    setProcessingHoldTrim(true);
+
+    try {
+      markBrokerStepSkipped(todayHero.symbol);
+      setBrokerStepSkipped(true);
+      setBrokerStepCompleted(false);
+
+      await apiFetch("/api/discipline/streak", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          intent: renderIntent,
+          action: "WAIT",
+          stock: todayHero.symbol,
+        }),
+      });
+
+      onDisciplineCommitted?.();
+    } catch {
+      // Holding the position is still recorded locally for today's broker step.
+    } finally {
+      setProcessingHoldTrim(false);
+    }
+  }, [
+    onDisciplineCommitted,
+    processingHoldTrim,
+    renderIntent,
+    todayHero.symbol,
+  ]);
 
   useEffect(() => {
     if (!brokerStepCompleted) {
@@ -793,10 +847,13 @@ export default function HomeDecisionScreen({
                 entryTiming={entryTiming}
                 plan={plan}
                 planLoading={planLoading}
-                brokerStepCompleted={brokerStepCompleted}
+                brokerStepCompleted={brokerStepResolved}
+                brokerStepSkipped={brokerStepSkipped}
                 brokerFillSummary={brokerFillSummary}
                 postTrimPortfolioWeight={actualSymbolWeight}
                 brokerFillStatusLoading={brokerFillStatusLoading}
+                onHoldTrim={() => void handleHoldTrim()}
+                holdTrimProcessing={processingHoldTrim}
                 onExecuted={handleExecuted}
               />
               <div className="mt-4">

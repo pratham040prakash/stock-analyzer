@@ -258,6 +258,15 @@ async function runChecks(baseUrl: string): Promise<VerifyReport> {
     critical: true,
   });
 
+  const cronDigest = await fetchCheck(`${baseUrl}/api/cron/review-digest`);
+  record(checks, {
+    id: "auth-cron-digest",
+    label: "/api/cron/review-digest rejects requests without CRON_SECRET",
+    ok: cronDigest.status === 401,
+    detail: `status=${cronDigest.status}`,
+    critical: false,
+  });
+
   const login = await fetchCheck(`${baseUrl}/login`);
   record(checks, {
     id: "login-page",

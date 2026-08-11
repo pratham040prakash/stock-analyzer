@@ -1,8 +1,8 @@
 # APEX V3 — Roadmap
 
 **Document ID:** APEX-V3-ROADMAP  
-**Version:** 0.8  
-**Status:** ACTIVE — Sprints T–V shipped (v3.0.0-rc1 prep)  
+**Version:** 0.9  
+**Status:** ACTIVE — Sprints W–Y shipped (v3.0.0-rc1 soak)  
 **Date:** 2026-08-11  
 **Owner:** Product  
 **Parent:** [APEX_V3_PRODUCT_STRATEGY.md](./APEX_V3_PRODUCT_STRATEGY.md)  
@@ -126,7 +126,19 @@ APEX V3 extends the **Daily Decision Experience** (V2 GA) into a full **Investme
 | V3-504 | Contextual Learning | Lessons tied to user verdicts | **✅ Shipped** |
 | V3-505 | V3 GA hardening | RC pattern; docs freeze | **✅ RC prep** |
 
-**Target tag:** `v3.0.0-rc1` — run `npm run rc:checklist` before tag
+**Target tag:** `v3.0.0-rc1` — run `npm run rc:checklist` before tag; see [APEX_V3_RC1_SOAK.md](./APEX_V3_RC1_SOAK.md)
+
+---
+
+## Sprint W–Y — RC hardening (2026-08-11) ✅
+
+| Sprint | Theme | Outcome | Status |
+|--------|-------|---------|--------|
+| **W** | Broker & Today polish | Hold/skip trim, silent P&L poll, portfolio poll, breakout guard on ExecutionPlan | **✅ Shipped** |
+| **X** | RC verification | `verify:prod` cron auth, e2e smoke/authed, `rc-checklist` prebuild gate | **✅ Shipped** |
+| **Y** | RC1 prep | Roadmap v0.9, soak doc, open decisions refresh | **✅ Shipped** |
+
+**Tag after soak:** `v3.0.0-rc1` (manual — prod verify must pass first)
 
 ---
 
@@ -187,7 +199,8 @@ flowchart TD
 
 ## Open decisions (Product Review)
 
-1. Trades dock → Journal vs Home sub-route?
-2. Session ribbon — wire or remove in V3.1 maintenance?
-3. Alpha AI — Research-only or also Portfolio drill-down?
-4. Investor DNA — Phase 5 or separate V3.1 program?
+1. Trades dock → Journal vs Home sub-route? **Deferred to v3.1**
+2. Session ribbon — wire or remove in V3.1 maintenance? **Remove unless wired in soak**
+3. Alpha AI — Research-only or also Portfolio drill-down? **Research-only for rc1**
+4. Investor DNA — Phase 5 or separate V3.1 program? **Shipped in Phase 5; iterate in v3.1**
+5. Review digest cadence — daily cron vs weekly-only? **Daily cron optional via `APEX_REVIEW_DIGEST_ENABLED`**

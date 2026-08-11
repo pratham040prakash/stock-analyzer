@@ -98,6 +98,27 @@ test.describe("APEX authenticated smoke", () => {
     expect(body.workflow).toBeTruthy();
   });
 
+  test("funds endpoint returns envelope for signed-in user", async ({ request }) => {
+    const response = await request.get("/api/funds");
+    expect(response.ok()).toBeTruthy();
+
+    const body = await response.json();
+    expect(["OK", "NOT_CONNECTED", "TOKEN_EXPIRED", "ERROR", "PARTIAL"]).toContain(
+      body.status,
+    );
+  });
+
+  test("discipline streak accepts WAIT commit", async ({ request }) => {
+    const response = await request.post("/api/discipline/streak", {
+      data: { intent: "protect", action: "WAIT", stock: "RELIANCE" },
+    });
+    expect(response.ok()).toBeTruthy();
+
+    const body = await response.json();
+    expect(body.status).toBe("ok");
+    expect(body.streak).toBeTruthy();
+  });
+
   test("review page loads for signed-in user", async ({ page }) => {
     await page.goto("/app/review");
     await expect(page).toHaveURL(/\/app\/review/);

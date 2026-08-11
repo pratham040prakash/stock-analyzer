@@ -49,9 +49,12 @@ type Props = {
   plan?: ExecutionPlanSafeOutput | null;
   planLoading?: boolean;
   brokerStepCompleted?: boolean;
+  brokerStepSkipped?: boolean;
   brokerFillSummary?: BrokerFillSummary | null;
   postTrimPortfolioWeight?: number;
   brokerFillStatusLoading?: boolean;
+  onHoldTrim?: () => void;
+  holdTrimProcessing?: boolean;
   onExecuted?: (fill?: BrokerFillSummary) => void;
 };
 
@@ -148,9 +151,12 @@ export default function TodayExecutionPanel({
   plan,
   planLoading = false,
   brokerStepCompleted = false,
+  brokerStepSkipped = false,
   brokerFillSummary = null,
   postTrimPortfolioWeight,
   brokerFillStatusLoading = false,
+  onHoldTrim,
+  holdTrimProcessing = false,
   onExecuted,
 }: Props) {
   const [pendingSellPercent, setPendingSellPercent] = useState<number | null>(
@@ -364,6 +370,15 @@ export default function TodayExecutionPanel({
 
   if (hero.executionKind === "SELL" && hero.symbol && hero.sellPercent) {
     if (brokerStepCompleted) {
+      if (brokerStepSkipped) {
+        return (
+          <BrokerStepCompleteNotice
+            actionLabel="Trim skipped for today."
+            detail={`${hero.symbol} position unchanged. Revisit if concentration rises.`}
+          />
+        );
+      }
+
       return (
         <BrokerStepCompleteNotice
           actionLabel="Broker step completed for today."
@@ -407,27 +422,40 @@ export default function TodayExecutionPanel({
               Market is open — orders execute on Zerodha now.
             </p>
           )}
-          <ApexButton
-            type="button"
-            disabled={processing || !canPlaceMarketOrder}
-            onClick={() => {
-              const pct = hero.sellPercent ?? null;
-              if (pct === null) {
-                return;
-              }
-              if (
-                holdingAllocationPct !== undefined ||
-                hero.currentWeight !== undefined
-              ) {
-                setPendingSellPercent(pct);
-                return;
-              }
-              void runSell(pct);
-            }}
-            className="w-full sm:w-auto"
-          >
-            {sellButtonLabel}
-          </ApexButton>
+          <div className="flex flex-wrap gap-3">
+            <ApexButton
+              type="button"
+              disabled={processing || !canPlaceMarketOrder}
+              onClick={() => {
+                const pct = hero.sellPercent ?? null;
+                if (pct === null) {
+                  return;
+                }
+                if (
+                  holdingAllocationPct !== undefined ||
+                  hero.currentWeight !== undefined
+                ) {
+                  setPendingSellPercent(pct);
+                  return;
+                }
+                void runSell(pct);
+              }}
+              className="w-full sm:w-auto"
+            >
+              {sellButtonLabel}
+            </ApexButton>
+            {hero.sellTrim?.mode === "full_exit" && onHoldTrim ? (
+              <ApexButton
+                type="button"
+                variant="ghost"
+                disabled={holdTrimProcessing || processing}
+                onClick={onHoldTrim}
+                className="w-full sm:w-auto"
+              >
+                {holdTrimProcessing ? "Saving…" : "Hold position — skip trim"}
+              </ApexButton>
+            ) : null}
+          </div>
           {feedback ? (
             <p className="text-sm text-emerald-200/90">{feedback}</p>
           ) : null}

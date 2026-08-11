@@ -182,10 +182,20 @@ export function resolveTodayHeroDisplay(
   options?: {
     actualPortfolioWeight?: number;
     brokerFillSummary?: BrokerFillSummary | null;
+    brokerStepSkipped?: boolean;
   },
 ): TodayHero {
-  if (!brokerStepCompleted) {
+  if (!brokerStepCompleted && !options?.brokerStepSkipped) {
     return hero;
+  }
+
+  if (options?.brokerStepSkipped && hero.executionKind === "SELL" && hero.symbol) {
+    return {
+      ...hero,
+      headline: `${hero.symbol} — holding position today`,
+      subline:
+        "Partial trim skipped. Your share count stays unchanged; revisit if concentration rises.",
+    };
   }
 
   const fillDetail =
@@ -427,5 +437,17 @@ export function runTodaySurfaceSelfCheck(): void {
   assert(
     completedWithFill.primaryActionDetail.includes("72%"),
     "Completed primary detail must still include live weight",
+  );
+
+  const skippedTrim = resolveTodayHeroDisplay(trimHero, false, {
+    brokerStepSkipped: true,
+  });
+  assert(
+    skippedTrim.headline.includes("holding position today"),
+    "Skipped trim hero must explain hold decision",
+  );
+  assert(
+    skippedTrim.subline.includes("Partial trim skipped"),
+    "Skipped trim hero must explain unchanged share count",
   );
 }

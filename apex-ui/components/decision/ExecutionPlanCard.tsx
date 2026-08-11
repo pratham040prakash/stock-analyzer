@@ -53,20 +53,33 @@ function formatAllocationPercent(value?: number): string {
   return `${Math.round(pct)}%`;
 }
 
-function buildEdgeInsights(decision: ExecutionPlanDecision): string[] {
+function buildEdgeInsights(
+  decision: ExecutionPlanDecision,
+  entryTiming: EntryTimingState,
+): string[] {
   const insights: string[] = [];
   const metrics = decision.confidenceMetrics;
+  const entryConfirmed = entryTiming.enter;
 
-  if ((decision.confidence ?? 0) >= 70 || (metrics?.probability ?? 0) >= 0.65) {
+  if (
+    entryConfirmed &&
+    ((decision.confidence ?? 0) >= 70 || (metrics?.probability ?? 0) >= 0.65)
+  ) {
     insights.push("Strong trend alignment");
   }
 
-  if ((metrics?.expectedReturn ?? 0) > 0) {
+  if (entryConfirmed && (metrics?.expectedReturn ?? 0) > 0) {
     insights.push("Positive expected return");
   }
 
-  if ((decision.structureScore ?? 0) >= 55) {
+  if (entryConfirmed && (decision.structureScore ?? 0) >= 55) {
     insights.push("Favorable market structure");
+  }
+
+  if (!entryConfirmed) {
+    return [
+      "Breakout not confirmed yet — wait for price, volume, and momentum to align.",
+    ];
   }
 
   if (insights.length === 0) {
@@ -106,7 +119,7 @@ export default function ExecutionPlanCard({
   const amountLabel = amount > 0 ? formatInr(amount) : "your planned amount";
   const heroPrefix = entryTiming.enter ? "Invest" : "Prepare to invest";
   const heroText = `${heroPrefix} ${amountLabel} in ${stock}`;
-  const insights = buildEdgeInsights(decision);
+  const insights = buildEdgeInsights(decision, entryTiming);
 
   return (
     <div className={`mx-auto w-full max-w-[520px] ${className}`.trim()}>

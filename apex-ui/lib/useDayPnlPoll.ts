@@ -135,8 +135,9 @@ export function useDayPnlPoll({ enabled }: Options) {
   const [isPolling, setIsPolling] = useState(false);
   const requestRef = useRef(0);
   const failureCountRef = useRef(0);
+  const hasLiveDataRef = useRef(false);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (options?: { silent?: boolean }) => {
     if (!enabled) {
       clearLivePnlState({
         setPositionsPnl,
@@ -158,7 +159,9 @@ export function useDayPnlPoll({ enabled }: Options) {
     }
 
     const requestId = ++requestRef.current;
-    setIsPolling(true);
+    if (!options?.silent || !hasLiveDataRef.current) {
+      setIsPolling(true);
+    }
 
     try {
       const res = await apiFetch("/api/today/pnl", {
@@ -203,6 +206,7 @@ export function useDayPnlPoll({ enabled }: Options) {
 
       failureCountRef.current = 0;
       setPollError(null);
+      hasLiveDataRef.current = true;
 
       const positionsPnlValue =
         typeof data.positions_pnl === "number"
@@ -261,7 +265,7 @@ export function useDayPnlPoll({ enabled }: Options) {
     }
 
     const intervalId = window.setInterval(() => {
-      void refreshRef.current();
+      void refreshRef.current({ silent: true });
     }, LIVE_KITE_REFRESH_MS);
     return () => window.clearInterval(intervalId);
   }, [enabled]);
