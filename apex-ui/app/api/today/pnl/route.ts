@@ -5,8 +5,10 @@ import {
   computePortfolioDayPnl,
   computeZerodhaPositionsBreakdown,
   computeZerodhaPositionsPnl,
+  enrichPortfolioQuantitiesFromNetPositions,
   mapKiteHoldingsToPortfolio,
 } from "@/services/brokers/zerodha";
+import { formatPortfolioHoldings } from "@/services/portfolio/format";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -43,6 +45,17 @@ export async function GET() {
       ? computeZerodhaPositionsBreakdown(live.holdings, live.netPnlPositions)
       : [];
 
+  const holdingsLive =
+    live.status === "OK"
+      ? formatPortfolioHoldings(
+          enrichPortfolioQuantitiesFromNetPositions(
+            mapKiteHoldingsToPortfolio(live.holdings),
+            live.netPnlPositions,
+          ),
+          live.dayPositions,
+        )
+      : null;
+
   const quotesApplied =
     live.status === "OK"
       ? live.netPnlPositions.filter((row) => row.ltpFromQuote === true).length
@@ -60,6 +73,9 @@ export async function GET() {
     portfolio_day_pnl: portfolioDayPnl,
     positions_pnl: positionsPnl,
     positions_breakdown: positionsBreakdown,
+    holdings_live: holdingsLive?.holdings ?? [],
+    holdings_total_value: holdingsLive?.total_value ?? null,
+    holdings_total_pnl: holdingsLive?.total_pnl ?? null,
     positions_net_legs:
       live.status === "OK" ? live.netPnlPositions.length : 0,
     live_kite_status: live.status,

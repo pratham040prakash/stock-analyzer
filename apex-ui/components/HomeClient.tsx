@@ -729,9 +729,13 @@ export default function HomeClient({
   const livePortfolioPollEnabled =
     shouldFetchPortfolio && connectionStatus === "CONNECTED";
 
+  const refreshPortfolioSilent = useCallback(() => {
+    void loadPortfolio({ silent: true });
+  }, [loadPortfolio]);
+
   usePortfolioPoll({
     enabled: livePortfolioPollEnabled,
-    onRefresh: () => loadPortfolio({ silent: true }),
+    onRefresh: refreshPortfolioSilent,
   });
 
   const refreshAfterExecution = useCallback(() => {

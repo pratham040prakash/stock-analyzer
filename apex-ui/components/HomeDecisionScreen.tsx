@@ -382,10 +382,19 @@ export default function HomeDecisionScreen({
     portfolioDayPnl: liveDayPnl,
     monitorOpenPnl: monitorLiveOpenPnl,
     positionTicks,
+    liveHoldings,
+    liveHoldingsTotalValue,
+    liveHoldingsTotalPnl,
     refresh: refreshLiveDayPnl,
   } = useDayPnlPoll({
     enabled: dayPnlPollEnabled,
   });
+  const displayPortfolioHoldings =
+    liveHoldings.length > 0 ? liveHoldings : portfolioHoldings;
+  const displayPortfolioValue =
+    liveHoldingsTotalValue ?? portfolioValue ?? null;
+  const displayPortfolioTotalPnl =
+    liveHoldingsTotalPnl ?? portfolioTotalPnl ?? null;
   const breakdownOpenPnl =
     livePositionsBreakdown.length > 0
       ? Math.round(
@@ -524,11 +533,12 @@ export default function HomeDecisionScreen({
               marginAvailable={availableCash}
               ledgerCash={ledgerCash}
               collateral={collateral}
-              portfolioValue={portfolioValue}
+              portfolioValue={displayPortfolioValue ?? portfolioValue}
               totalCapital={
                 totalCapital ??
-                (portfolioValue !== undefined && ledgerCash !== undefined
-                  ? portfolioValue + ledgerCash
+                ((displayPortfolioValue ?? portfolioValue) !== undefined &&
+                ledgerCash !== undefined
+                  ? (displayPortfolioValue ?? portfolioValue)! + ledgerCash
                   : undefined)
               }
               dayPnl={resolvedOpenPnl}
@@ -540,17 +550,17 @@ export default function HomeDecisionScreen({
             />
 
             <TodayPortfolioHoldings
-              holdings={portfolioHoldings}
-              totalValue={portfolioValue}
-              totalPnl={portfolioTotalPnl}
+              holdings={displayPortfolioHoldings}
+              totalValue={displayPortfolioValue}
+              totalPnl={displayPortfolioTotalPnl}
               loading={
                 portfolioLoading &&
-                portfolioHoldings.length === 0 &&
+                displayPortfolioHoldings.length === 0 &&
                 connectionStatus === "CONNECTED"
               }
               showEmptyWhenSynced={
                 !portfolioLoading &&
-                portfolioHoldings.length === 0 &&
+                displayPortfolioHoldings.length === 0 &&
                 (connectionStatus === "CONNECTED" ||
                   connectionStatus === "TOKEN_EXPIRED")
               }

@@ -177,7 +177,7 @@ export async function fetchLiveKitePortfolio(
   return { status: "ERROR", message: lastMessage };
 }
 
-const PORTFOLIO_CACHE_MS = 5_000;
+const PORTFOLIO_CACHE_MS = 4_000;
 const portfolioCache = new Map<
   string,
   { expiresAt: number; value: LiveKitePortfolioResult }

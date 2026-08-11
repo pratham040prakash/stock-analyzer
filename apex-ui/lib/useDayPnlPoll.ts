@@ -5,12 +5,16 @@ import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
 import { LIVE_KITE_REFRESH_MS } from "@/lib/liveKiteRefresh";
 import type { MonitorLiveTick } from "@/services/monitor/openPositions";
 import type { ZerodhaPositionPnlRow } from "@/services/brokers/zerodha";
+import type { PortfolioHoldingRow } from "@/types/portfolioApi";
 
 type LivePnlResponse = {
   status?: string;
   portfolio_day_pnl: number | null;
   positions_pnl?: number | null;
   positions_breakdown?: ZerodhaPositionPnlRow[];
+  holdings_live?: PortfolioHoldingRow[];
+  holdings_total_value?: number | null;
+  holdings_total_pnl?: number | null;
   positions_net_legs?: number;
   kite_native_pnl?: number | null;
   live_kite_status?: string;
@@ -50,6 +54,34 @@ function parsePositionsBreakdown(value: unknown): ZerodhaPositionPnlRow[] {
   return rows;
 }
 
+function parseLiveHoldings(value: unknown): PortfolioHoldingRow[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const rows: PortfolioHoldingRow[] = [];
+
+  for (const item of value) {
+    if (
+      !item ||
+      typeof item !== "object" ||
+      typeof (item as PortfolioHoldingRow).tradingsymbol !== "string" ||
+      typeof (item as PortfolioHoldingRow).quantity !== "number" ||
+      typeof (item as PortfolioHoldingRow).average_price !== "number" ||
+      typeof (item as PortfolioHoldingRow).last_price !== "number" ||
+      typeof (item as PortfolioHoldingRow).pnl !== "number" ||
+      typeof (item as PortfolioHoldingRow).value !== "number" ||
+      typeof (item as PortfolioHoldingRow).allocation_pct !== "number"
+    ) {
+      continue;
+    }
+
+    rows.push(item as PortfolioHoldingRow);
+  }
+
+  return rows;
+}
+
 /** @deprecated Use LIVE_KITE_REFRESH_MS */
 export const DAY_PNL_REFRESH_MS = LIVE_KITE_REFRESH_MS;
 
@@ -63,6 +95,13 @@ export function useDayPnlPoll({ enabled }: Options) {
   const [portfolioDayPnl, setPortfolioDayPnl] = useState<number | null>(null);
   const [monitorOpenPnl, setMonitorOpenPnl] = useState<number | null>(null);
   const [positionTicks, setPositionTicks] = useState<MonitorLiveTick[]>([]);
+  const [liveHoldings, setLiveHoldings] = useState<PortfolioHoldingRow[]>([]);
+  const [liveHoldingsTotalValue, setLiveHoldingsTotalValue] = useState<
+    number | null
+  >(null);
+  const [liveHoldingsTotalPnl, setLiveHoldingsTotalPnl] = useState<
+    number | null
+  >(null);
   const requestRef = useRef(0);
 
   const refresh = useCallback(async () => {
@@ -74,6 +113,9 @@ export function useDayPnlPoll({ enabled }: Options) {
       setPortfolioDayPnl(null);
       setMonitorOpenPnl(null);
       setPositionTicks([]);
+      setLiveHoldings([]);
+      setLiveHoldingsTotalValue(null);
+      setLiveHoldingsTotalPnl(null);
       return;
     }
 
@@ -112,13 +154,27 @@ export function useDayPnlPoll({ enabled }: Options) {
       setPortfolioDayPnl(data.portfolio_day_pnl ?? null);
       setMonitorOpenPnl(data.monitor_open_pnl ?? null);
       setPositionTicks(data.position_ticks ?? []);
+      setLiveHoldings(parseLiveHoldings(data.holdings_live));
+      setLiveHoldingsTotalValue(
+        typeof data.holdings_total_value === "number"
+          ? data.holdings_total_value
+          : null,
+      );
+      setLiveHoldingsTotalPnl(
+        typeof data.holdings_total_pnl === "number"
+          ? data.holdings_total_pnl
+          : null,
+      );
     } catch {
       // Keep the last known values on transient failures.
     }
   }, [enabled]);
 
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
+
   useEffect(() => {
-    void refresh();
+    void refreshRef.current();
   }, [refresh]);
 
   useEffect(() => {
@@ -127,10 +183,10 @@ export function useDayPnlPoll({ enabled }: Options) {
     }
 
     const intervalId = window.setInterval(() => {
-      void refresh();
+      void refreshRef.current();
     }, LIVE_KITE_REFRESH_MS);
     return () => window.clearInterval(intervalId);
-  }, [enabled, refresh]);
+  }, [enabled]);
 
   return {
     positionsPnl,
@@ -140,6 +196,9 @@ export function useDayPnlPoll({ enabled }: Options) {
     portfolioDayPnl,
     monitorOpenPnl,
     positionTicks,
+    liveHoldings,
+    liveHoldingsTotalValue,
+    liveHoldingsTotalPnl,
     refresh,
   };
 }
