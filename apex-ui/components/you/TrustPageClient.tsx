@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import ApexSurfaceNav from "@/components/nav/ApexSurfaceNav";
+import PremiumFeatureGate from "@/components/dailyLoop/PremiumFeatureGate";
 import TrustCanvas from "@/components/you/TrustCanvas";
 import { ApexShell, ApexTitle } from "@/components/ui/apex";
 import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
+import { usePremiumTier } from "@/lib/usePremiumTier";
 import type { YouSnapshotViewModel } from "@/types/youSnapshot";
 
 type SnapshotResponse = {
@@ -13,6 +15,7 @@ type SnapshotResponse = {
 };
 
 export default function TrustPageClient() {
+  const { features, activationEnabled, refresh: refreshTier } = usePremiumTier(true);
   const [snapshot, setSnapshot] = useState<YouSnapshotViewModel | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -45,7 +48,18 @@ export default function TrustPageClient() {
       {loading ? (
         <p className="text-sm text-apex-muted/70">Loading trust canvas…</p>
       ) : snapshot ? (
-        <TrustCanvas snapshot={snapshot} />
+        <>
+          <TrustCanvas snapshot={snapshot} />
+          {!features.trustCdqsHistory ? (
+            <div className="mt-4">
+              <PremiumFeatureGate
+                feature="trustCdqsHistory"
+                activationEnabled={activationEnabled}
+                onActivated={() => void refreshTier()}
+              />
+            </div>
+          ) : null}
+        </>
       ) : (
         <p className="text-sm text-apex-muted/70">Trust snapshot unavailable.</p>
       )}

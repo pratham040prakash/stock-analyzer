@@ -197,10 +197,17 @@ test.describe("APEX authenticated smoke", () => {
     expect(body.status).toBe("ok");
   });
 
-  test("thesis export returns markdown", async ({ request }) => {
+  test("thesis export returns markdown or premium gate", async ({ request }) => {
     const response = await request.get("/api/thesis/export");
-    expect(response.ok()).toBeTruthy();
 
+    if (response.status() === 403) {
+      const body = await response.json();
+      expect(body.status).toBe("error");
+      expect(String(body.message)).toMatch(/Premium/i);
+      return;
+    }
+
+    expect(response.ok()).toBeTruthy();
     const text = await response.text();
     expect(text).toContain("Investment Book");
   });

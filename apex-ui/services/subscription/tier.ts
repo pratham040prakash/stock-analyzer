@@ -6,6 +6,9 @@ export type TierFeatures = {
   marginMode: boolean;
   decisionDepth: boolean;
   decisionHistory: boolean;
+  reviewDigest: boolean;
+  thesisExport: boolean;
+  trustCdqsHistory: boolean;
 };
 
 export function tierFeatures(tier: ApexTier): TierFeatures {
@@ -14,6 +17,9 @@ export function tierFeatures(tier: ApexTier): TierFeatures {
       marginMode: true,
       decisionDepth: true,
       decisionHistory: true,
+      reviewDigest: true,
+      thesisExport: true,
+      trustCdqsHistory: true,
     };
   }
 
@@ -21,6 +27,9 @@ export function tierFeatures(tier: ApexTier): TierFeatures {
     marginMode: false,
     decisionDepth: false,
     decisionHistory: false,
+    reviewDigest: false,
+    thesisExport: false,
+    trustCdqsHistory: false,
   };
 }
 

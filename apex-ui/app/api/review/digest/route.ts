@@ -3,6 +3,10 @@ import { apiError } from "@/lib/api/response";
 import { assembleReviewCadencePackage } from "@/services/review/assembleReviewCadence";
 import { buildReviewDigest } from "@/services/review/reviewDigest";
 import { sendReviewDigest } from "@/services/review/sendReviewDigest";
+import {
+  premiumDeniedResponse,
+  requirePremiumFeature,
+} from "@/services/subscription/requirePremiumFeature";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -38,6 +42,12 @@ export async function POST(request: Request) {
 
   if (!user) {
     return apiError("Unauthorized", 401);
+  }
+
+  const access = await requirePremiumFeature(supabase, user, "reviewDigest");
+
+  if (!access.ok) {
+    return premiumDeniedResponse(access);
   }
 
   let channel: "email" | "telegram" | "none" = "telegram";

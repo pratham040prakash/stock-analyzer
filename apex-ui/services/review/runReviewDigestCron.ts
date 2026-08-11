@@ -1,6 +1,7 @@
 import { assembleReviewCadencePackage } from "@/services/review/assembleReviewCadence";
 import { buildReviewDigest } from "@/services/review/reviewDigest";
 import { sendReviewDigest } from "@/services/review/sendReviewDigest";
+import { resolvePremiumTierForUserId } from "@/services/subscription/premiumAccess";
 import type { Database } from "@/types/database";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -46,6 +47,12 @@ export async function runReviewDigestCron(
 
   for (const userId of userIds) {
     try {
+      const tier = await resolvePremiumTierForUserId(adminClient, userId);
+
+      if (tier !== "premium") {
+        continue;
+      }
+
       const review = await assembleReviewCadencePackage(adminClient, userId);
       const digest = buildReviewDigest(review, channel);
       const delivery = await sendReviewDigest(digest);

@@ -1,27 +1,12 @@
 "use client";
 
-import type { TierFeatures } from "@/services/subscription/tier";
+import {
+  PREMIUM_FEATURE_COPY,
+  type PremiumFeatureKey,
+} from "@/lib/subscription/premiumCopy";
 import PremiumActivationPanel from "@/components/dailyLoop/PremiumActivationPanel";
 
-export type PremiumFeature = keyof TierFeatures;
-
-const COPY: Record<
-  PremiumFeature,
-  { title: string; body: string }
-> = {
-  marginMode: {
-    title: "Margin mode",
-    body: "Deploy with cash plus collateral under strict APEX limits. Available on APEX Premium.",
-  },
-  decisionDepth: {
-    title: "Decision depth",
-    body: "Full reasoning, watch items, and setup context. Available on APEX Premium.",
-  },
-  decisionHistory: {
-    title: "Decision history",
-    body: "Review your last seven days of decisions and discipline. Available on APEX Premium.",
-  },
-};
+export type PremiumFeature = PremiumFeatureKey;
 
 type Props = {
   feature: PremiumFeature;
@@ -36,7 +21,7 @@ export default function PremiumFeatureGate({
   activationEnabled = false,
   onActivated,
 }: Props) {
-  const copy = COPY[feature];
+  const copy = PREMIUM_FEATURE_COPY[feature];
 
   return (
     <div
@@ -59,6 +44,7 @@ export default function PremiumFeatureGate({
         {copy.title}
       </p>
       <p className="mt-2 text-sm leading-snug text-apex-muted/80">{copy.body}</p>
+      <p className="mt-2 text-xs font-medium text-blue-100/80">{copy.roi}</p>
       <p className="mt-2 text-xs text-apex-muted/60">
         Free tier keeps today&apos;s broker truth and one clear action.
       </p>

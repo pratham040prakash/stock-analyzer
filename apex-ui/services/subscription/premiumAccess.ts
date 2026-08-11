@@ -60,6 +60,32 @@ export async function resolvePremiumTierWithDb(
   };
 }
 
+export async function resolvePremiumTierForUserId(
+  admin: Client,
+  userId: string,
+): Promise<ApexTier> {
+  if (process.env.APEX_PREMIUM_ALLOW_ALL === "true") {
+    return "premium";
+  }
+
+  const activated = await hasPremiumActivation(admin, userId);
+
+  if (activated) {
+    return "premium";
+  }
+
+  const {
+    data: { user },
+    error,
+  } = await admin.auth.admin.getUserById(userId);
+
+  if (error || !user) {
+    return "free";
+  }
+
+  return resolvePremiumTier(user);
+}
+
 export async function activatePremiumAccess(
   supabase: Client,
   user: User,

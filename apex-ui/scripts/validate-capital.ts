@@ -67,6 +67,7 @@ import { runDisciplineTrendsSelfCheck } from "../services/review/buildDiscipline
 import { runPortfolioHealthSummarySelfCheck } from "../services/portfolio/buildPortfolioHealthSummary";
 import { runSectorCapPolicySelfCheck } from "../services/portfolio/sectorCapPolicy";
 import { runSellTrimSelfCheck } from "../lib/sellTrim";
+import { runPremiumCopySelfCheck } from "../lib/subscription/premiumCopy";
 
 runCapitalProjectionSelfCheck();
 runCapitalFinalStateSelfCheck();
@@ -134,3 +135,4 @@ runDisciplineTrendsSelfCheck();
 runPortfolioHealthSummarySelfCheck();
 runSectorCapPolicySelfCheck();
 runSellTrimSelfCheck();
+runPremiumCopySelfCheck();

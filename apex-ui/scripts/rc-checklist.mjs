@@ -66,4 +66,12 @@ if (failures.length > 0) {
 }
 
 console.log("RC verify OK — required modules and migrations present.\n");
+
+console.log("--- v3.1.0 (T2 + T3-1) ---");
+console.log("See docs/product/APEX_V3_1_SOAK.md before tagging v3.1.0");
+console.log("Premium modules:");
+console.log("  lib/subscription/premiumCopy.ts");
+console.log("  components/subscription/PremiumValueCard.tsx");
+console.log("  services/subscription/requirePremiumFeature.ts\n");
+
 process.exit(0);

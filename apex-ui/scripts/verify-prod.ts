@@ -585,9 +585,19 @@ async function runChecks(baseUrl: string): Promise<VerifyReport> {
       {
         id: "authed-thesis-export",
         path: "/api/thesis/export",
-        validate: (body: Record<string, unknown> | null) => {
-          const text = body as unknown;
-          return typeof text === "string" && text.includes("Investment Book");
+        validateStatus: (status: number, body: unknown) => {
+          if (status === 403 && isRecord(body)) {
+            return (
+              body.status === "error" &&
+              String(body.message ?? "").includes("Premium")
+            );
+          }
+
+          return (
+            status === 200 &&
+            typeof body === "string" &&
+            body.includes("Investment Book")
+          );
         },
       },
       {
@@ -630,11 +640,16 @@ async function runChecks(baseUrl: string): Promise<VerifyReport> {
         body: "body" in route ? route.body : undefined,
       });
       const body = isRecord(result.body) ? result.body : null;
+      const ok =
+        "validateStatus" in route
+          ? route.validateStatus(result.status, result.body)
+          : result.status === 200 &&
+            route.validate(body);
 
       record(checks, {
         id: route.id,
         label: `${route.path} works with session cookie`,
-        ok: result.status === 200 && route.validate(body),
+        ok,
         detail: `status=${result.status}`,
         critical: false,
       });

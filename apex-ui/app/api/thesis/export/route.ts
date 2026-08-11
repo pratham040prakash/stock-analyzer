@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { apiError } from "@/lib/api/response";
 import { exportInvestmentBookMarkdown } from "@/services/thesis/exportInvestmentBook";
 import { listInvestmentTheses } from "@/services/thesis/thesisRepository";
+import {
+  premiumDeniedResponse,
+  requirePremiumFeature,
+} from "@/services/subscription/requirePremiumFeature";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +18,12 @@ export async function GET() {
 
   if (!user) {
     return apiError("Unauthorized", 401);
+  }
+
+  const access = await requirePremiumFeature(supabase, user, "thesisExport");
+
+  if (!access.ok) {
+    return premiumDeniedResponse(access);
   }
 
   const theses = await listInvestmentTheses(supabase, user.id);
