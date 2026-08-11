@@ -22,13 +22,23 @@ export async function GET() {
   const live = await fetchLiveKitePortfolioCached(supabase, user.id);
 
   if (live.status !== "OK") {
-    return apiOk({ day_pnl: null });
+    return apiOk({
+      day_pnl: null,
+      positions_pnl: null,
+      portfolio_day_pnl: null,
+    });
   }
 
   const portfolio = mapKiteHoldingsToPortfolio(live.holdings);
+  const day_pnl = computePortfolioDayPnl(portfolio, live.dayPositions);
+  const positions_pnl = computeZerodhaPositionsPnl(
+    live.holdings,
+    live.netPnlPositions,
+  );
 
   return apiOk({
-    day_pnl: computeZerodhaPositionsPnl(live.holdings, live.netPnlPositions),
-    portfolio_day_pnl: computePortfolioDayPnl(portfolio, live.dayPositions),
+    day_pnl,
+    positions_pnl,
+    portfolio_day_pnl: day_pnl,
   });
 }

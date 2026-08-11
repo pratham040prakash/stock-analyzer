@@ -163,6 +163,25 @@ export function runPortfolioApiPnlFieldSelfCheck(): void {
     Math.abs(response.day_pnl - response.positions_pnl) > 0.01,
     "day_pnl must not alias positions_pnl",
   );
+
+  const dayPnlEndpoint = {
+    day_pnl: dayMove,
+    positions_pnl: openPnl,
+    portfolio_day_pnl: dayMove,
+  };
+
+  assert(
+    Math.abs(dayPnlEndpoint.day_pnl - dayMove) < 0.01,
+    "/api/portfolio/day-pnl day_pnl must be day move",
+  );
+  assert(
+    Math.abs(dayPnlEndpoint.positions_pnl - openPnl) < 0.01,
+    "/api/portfolio/day-pnl positions_pnl must be Open P&L",
+  );
+  assert(
+    Math.abs(dayPnlEndpoint.portfolio_day_pnl - dayMove) < 0.01,
+    "/api/portfolio/day-pnl portfolio_day_pnl must alias day_pnl",
+  );
 }
 
 export function getTopHoldingSymbol(
