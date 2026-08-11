@@ -64,10 +64,10 @@ export function mapKiteHoldingsToPortfolio(holdings: KiteHolding[]): Portfolio {
   return {
     holdings: holdings.map((h) => ({
       symbol: h.tradingsymbol,
-      quantity: effectiveKiteHoldingQuantity(h),
+      quantity: Math.max(0, Math.round(h.quantity)),
       t1Quantity:
         typeof h.t1_quantity === "number" && Number.isFinite(h.t1_quantity)
-          ? h.t1_quantity
+          ? Math.max(0, Math.round(h.t1_quantity))
           : undefined,
       avgPrice: h.average_price,
       currentPrice: resolveKiteLastPrice(h),
