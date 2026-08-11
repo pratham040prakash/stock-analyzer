@@ -6,7 +6,6 @@ import { resolveTodayHero, resolveTodayHeroDisplay } from "@/lib/dailyLoop/today
 import { getDisciplineInterpretation } from "@/lib/dailyLoop/disciplineCopy";
 import {
   getBrokerStepLine,
-  shouldAutoCommitDisciplineAfterBrokerFill,
 } from "@/lib/dailyLoop/disciplineStreak";
 import {
   markBrokerStepCompleted,
@@ -95,6 +94,7 @@ export type HomeDecisionScreenProps = {
   portfolioHoldings?: PortfolioHoldingRow[];
   portfolioTotalPnl?: number | null;
   portfolioLoading?: boolean;
+  portfolioStale?: boolean;
   connectionStatus?: ConnectionStatus;
   decisionUpdatedAt?: string | null;
   fundsLoading?: boolean;
@@ -142,6 +142,7 @@ export default function HomeDecisionScreen({
   portfolioHoldings = [],
   portfolioTotalPnl,
   portfolioLoading = false,
+  portfolioStale = false,
   connectionStatus = "NOT_CONNECTED",
   decisionUpdatedAt,
   fundsLoading = false,
@@ -365,10 +366,8 @@ export default function HomeDecisionScreen({
   const isProtect = renderIntent === "protect";
   const isCapitalDeployment = isGrow || isProtect;
   const monitorEnabled =
-    (connectionStatus === "CONNECTED" || connectionStatus === "TOKEN_EXPIRED") &&
-    isCapitalDeployment;
-  const dayPnlPollEnabled =
-    connectionStatus === "CONNECTED" || connectionStatus === "TOKEN_EXPIRED";
+    connectionStatus === "CONNECTED" && isCapitalDeployment;
+  const dayPnlPollEnabled = connectionStatus === "CONNECTED";
   const {
     positions: monitorPositions,
     loading: monitorLoading,
@@ -383,6 +382,8 @@ export default function HomeDecisionScreen({
     liveHoldings,
     liveHoldingsTotalValue,
     liveHoldingsTotalPnl,
+    lastSyncedAt: liveLastSyncedAt,
+    pollError: livePollError,
     refresh: refreshLiveDayPnl,
   } = useDayPnlPoll({
     enabled: dayPnlPollEnabled,
@@ -438,23 +439,7 @@ export default function HomeDecisionScreen({
     }
 
     onDisciplineCommitted?.();
-
-    if (
-      !shouldAutoCommitDisciplineAfterBrokerFill(
-        brokerStepCompleted,
-        retention.committedToday,
-      )
-    ) {
-      return;
-    }
-
-    retention.commitFollowed();
-  }, [
-    brokerStepCompleted,
-    onDisciplineCommitted,
-    retention.commitFollowed,
-    retention.committedToday,
-  ]);
+  }, [brokerStepCompleted, onDisciplineCommitted]);
 
   const explorePicks = useMemo(() => {
     if (!isExplore || !decision.picks?.length) {
@@ -539,9 +524,12 @@ export default function HomeDecisionScreen({
                   ? (displayPortfolioValue ?? portfolioValue)! + ledgerCash
                   : undefined)
               }
-              dayPnl={resolvedOpenPnl}
+              openPnl={resolvedOpenPnl}
+              portfolioDayPnl={liveDayPnl}
               positionsBreakdown={livePositionsBreakdown}
-              updatedAt={decisionUpdatedAt}
+              lastSyncedAt={liveLastSyncedAt}
+              portfolioStale={portfolioStale}
+              pollError={livePollError}
               fundsLoading={fundsLoading}
               fundsSynced={fundsSynced}
               fundsSyncError={fundsSyncError}
@@ -551,6 +539,7 @@ export default function HomeDecisionScreen({
               holdings={displayPortfolioHoldings}
               totalValue={displayPortfolioValue}
               totalPnl={displayPortfolioTotalPnl}
+              stale={portfolioStale}
               loading={
                 portfolioLoading &&
                 displayPortfolioHoldings.length === 0 &&
@@ -566,7 +555,7 @@ export default function HomeDecisionScreen({
 
             {isCapitalDeployment ? (
               <TodayProgressStrip
-                dayPnl={resolvedOpenPnl}
+                portfolioDayPnl={liveDayPnl}
                 trustScore={trustScore}
                 trustDelta={trustDelta}
                 streakCount={retention.streakCount}

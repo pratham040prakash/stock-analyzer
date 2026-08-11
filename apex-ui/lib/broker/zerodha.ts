@@ -34,5 +34,5 @@ export async function getHoldings(): Promise<HoldingsResult> {
     return { status: "TOKEN_EXPIRED" };
   }
 
-  return { status: "TOKEN_EXPIRED" };
+  return { status: "NOT_CONNECTED" };
 }

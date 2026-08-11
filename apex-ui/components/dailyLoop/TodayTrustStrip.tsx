@@ -11,9 +11,12 @@ export type TodayTrustStripProps = {
   collateral?: number | null;
   portfolioValue?: number | null;
   totalCapital?: number | null;
-  dayPnl?: number | null;
+  openPnl?: number | null;
+  portfolioDayPnl?: number | null;
   positionsBreakdown?: ZerodhaPositionPnlRow[];
-  updatedAt?: string | null;
+  lastSyncedAt?: string | null;
+  portfolioStale?: boolean;
+  pollError?: string | null;
   fundsLoading?: boolean;
   fundsSynced?: boolean;
   fundsSyncError?: string | null;
@@ -59,31 +62,36 @@ export default function TodayTrustStrip({
   collateral,
   portfolioValue,
   totalCapital,
-  dayPnl,
+  openPnl,
+  portfolioDayPnl,
   positionsBreakdown = [],
-  updatedAt,
+  lastSyncedAt,
+  portfolioStale = false,
+  pollError = null,
   fundsLoading = false,
   fundsSynced = false,
   fundsSyncError = null,
 }: TodayTrustStripProps) {
-  const syncedAt = formatUpdatedAt(updatedAt);
+  const syncedAt = formatUpdatedAt(lastSyncedAt);
   const deployableResolved = knownAmount(marginAvailable)
     ? Math.max(0, marginAvailable)
     : fundsSynced && !fundsSyncError
       ? 0
       : null;
-  const portfolioKnown = knownAmount(portfolioValue);
-  const totalKnown = knownAmount(totalCapital);
+  const showLiveCapital = connectionStatus === "CONNECTED";
+  const portfolioKnown = showLiveCapital && knownAmount(portfolioValue);
+  const totalKnown = showLiveCapital && knownAmount(totalCapital);
   const breakdownSum =
     positionsBreakdown.length > 0
       ? positionsBreakdown.reduce((sum, row) => sum + row.pnl, 0)
       : null;
-  const displayPnl = knownAmount(dayPnl)
-    ? dayPnl
+  const displayOpenPnl = knownAmount(openPnl)
+    ? openPnl
     : breakdownSum !== null && Number.isFinite(breakdownSum)
       ? Math.round(breakdownSum * 10) / 10
       : null;
-  const dayKnown = knownAmount(displayPnl);
+  const openPnlKnown = knownAmount(displayOpenPnl);
+  const dayPnlKnown = knownAmount(portfolioDayPnl);
   const resolvedTotal =
     totalKnown
       ? totalCapital
@@ -106,7 +114,11 @@ export default function TodayTrustStrip({
         >
           {connectionLabel(connectionStatus)}
         </span>
-        {syncedAt ? <span>Updated {syncedAt} IST</span> : null}
+        {syncedAt ? <span>Synced {syncedAt} IST</span> : null}
+        {portfolioStale ? (
+          <span className="text-amber-200/90">Stale · reconnect to refresh</span>
+        ) : null}
+        {pollError ? <span className="text-amber-200/90">{pollError}</span> : null}
         {fundsLoading ? <span>Syncing Zerodha funds…</span> : null}
         {fundsSyncError && !fundsLoading ? (
           <span className="text-amber-200/90">
@@ -161,23 +173,40 @@ export default function TodayTrustStrip({
           {resolvedTotal !== null ? (
             <span>Total capital {formatInr(Math.max(0, resolvedTotal))}</span>
           ) : null}
-          {dayKnown ? (
+          {dayPnlKnown ? (
             <span
               className={
-                (displayPnl ?? 0) >= 0 ? "text-emerald-300/90" : "text-amber-200/90"
+                (portfolioDayPnl ?? 0) >= 0
+                  ? "text-emerald-300/90"
+                  : "text-amber-200/90"
               }
             >
-              Open P&amp;L {(displayPnl ?? 0) >= 0 ? "+" : ""}
-              {formatInr(Math.round(displayPnl ?? 0))}
+              Day P&amp;L {(portfolioDayPnl ?? 0) >= 0 ? "+" : ""}
+              {formatInr(Math.round(portfolioDayPnl ?? 0))}
             </span>
-          ) : connectionStatus === "CONNECTED" ? (
-            <span className="text-apex-muted/70">Open P&amp;L …</span>
+          ) : connectionStatus === "CONNECTED" && !pollError ? (
+            <span className="text-apex-muted/70">Day P&amp;L …</span>
+          ) : null}
+          {openPnlKnown ? (
+            <span
+              className={
+                (displayOpenPnl ?? 0) >= 0 ? "text-emerald-300/90" : "text-amber-200/90"
+              }
+            >
+              Open P&amp;L {(displayOpenPnl ?? 0) >= 0 ? "+" : ""}
+              {formatInr(Math.round(displayOpenPnl ?? 0))}
+            </span>
+          ) : connectionStatus === "CONNECTED" && !pollError ? (
+            <span className="text-apex-muted/70">Open P&amp;L syncing…</span>
           ) : null}
         </div>
 
-        {dayKnown && positionsBreakdown.length === 0 ? (
-          <p className="mt-2 text-xs text-amber-200/80">
-            Loading position rows…
+        {openPnlKnown &&
+        positionsBreakdown.length === 0 &&
+        connectionStatus === "CONNECTED" &&
+        !pollError ? (
+          <p className="mt-2 text-xs text-apex-muted/70">
+            Fetching position breakdown…
           </p>
         ) : null}
 

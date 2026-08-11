@@ -12,6 +12,7 @@ import {
   type KiteNetPosition,
 } from "@/services/brokers/zerodha";
 import { normalizeSymbol } from "@/lib/stockPool";
+import { LIVE_KITE_REFRESH_MS } from "@/lib/liveKiteRefresh";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
 
@@ -177,7 +178,7 @@ export async function fetchLiveKitePortfolio(
   return { status: "ERROR", message: lastMessage };
 }
 
-const PORTFOLIO_CACHE_MS = 4_000;
+const PORTFOLIO_CACHE_MS = LIVE_KITE_REFRESH_MS - 500;
 const portfolioCache = new Map<
   string,
   { expiresAt: number; value: LiveKitePortfolioResult }

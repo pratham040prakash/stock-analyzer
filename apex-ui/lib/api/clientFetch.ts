@@ -16,14 +16,19 @@ export function apiFetch(
   });
 }
 
+const isDevLogging =
+  typeof process !== "undefined" && process.env.NODE_ENV === "development";
+
 /** Safely parse JSON API bodies — never throws on empty or invalid responses. */
 export async function parseApiJson<T>(
   res: Response,
   label = "API",
 ): Promise<T | null> {
-  console.log(`${label} response status:`, res.status);
+  if (isDevLogging) {
+    console.log(`${label} response status:`, res.status);
+  }
 
-  if (!res.ok) {
+  if (!res.ok && isDevLogging) {
     console.error(`${label} failed`, res.status);
   }
 
@@ -31,19 +36,25 @@ export async function parseApiJson<T>(
   try {
     text = await res.text();
   } catch (err) {
-    console.error(`${label} failed to read response body`, err);
+    if (isDevLogging) {
+      console.error(`${label} failed to read response body`, err);
+    }
     return null;
   }
 
   if (!text.trim()) {
-    console.error(`${label} returned empty body`);
+    if (isDevLogging) {
+      console.error(`${label} returned empty body`);
+    }
     return null;
   }
 
   try {
     return JSON.parse(text) as T;
   } catch (err) {
-    console.error(`${label} invalid JSON response`, err);
+    if (isDevLogging) {
+      console.error(`${label} invalid JSON response`, err);
+    }
     return null;
   }
 }

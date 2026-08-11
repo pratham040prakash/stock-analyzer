@@ -71,22 +71,17 @@ export async function GET() {
     const cookieStore = await cookies();
     cookieStore.delete(KITE_ACCESS_TOKEN_COOKIE);
 
-    const portfolioValue = await resolvePortfolioValue(
-      supabase,
-      user.id,
-      result.holdings,
-    );
-
     return NextResponse.json({
       ledger_cash: 0,
       collateral: 0,
       margin_available: 0,
       live_balance: 0,
-      portfolio_value: portfolioValue,
-      total_capital: computeTotalCapital(portfolioValue, 0),
+      portfolio_value: null,
+      total_capital: null,
       available_cash: 0,
       status: "TOKEN_EXPIRED",
       message: result.message,
+      stale: true,
     });
   }
 

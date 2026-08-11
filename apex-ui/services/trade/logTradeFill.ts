@@ -73,6 +73,12 @@ export function signalsIndicateBrokerFill(signals: Signals | null | undefined): 
   return Boolean(signals?.order_id && signals?.filled_at);
 }
 
+export function signalsIndicateApexExecution(
+  signals: Signals | null | undefined,
+): boolean {
+  return Boolean(signals?.apex_executed || signals?.auto_executed);
+}
+
 export type BrokerFillSummary = {
   orderId: string;
   quantity: number;
@@ -164,6 +170,57 @@ export async function getBrokerFillToday(
     const signals = row.signals as Signals | null;
 
     if (!signalsIndicateBrokerFill(signals)) {
+      continue;
+    }
+
+    const side: "buy" | "sell" = row.action === "sell" ? "sell" : "buy";
+    const price =
+      side === "sell"
+        ? (row.exit_price ?? signals?.fill_price ?? row.entry_price ?? undefined)
+        : (signals?.fill_price ?? row.entry_price ?? undefined);
+
+    return {
+      filled: true,
+      orderId: signals?.order_id,
+      quantity: row.quantity ?? undefined,
+      side,
+      price: price ?? undefined,
+    };
+  }
+
+  return { filled: false };
+}
+
+/** Broker fills initiated by APEX (execute button or auto-trade). */
+export async function getApexBrokerFillToday(
+  supabase: Client,
+  userId: string,
+  stock: string,
+  dateKey = tradingDateKey(),
+): Promise<BrokerFillToday> {
+  const normalized = stock.trim().toUpperCase();
+
+  if (!normalized) {
+    return { filled: false };
+  }
+
+  const { data, error } = await supabase
+    .from("decision_memory")
+    .select("action, quantity, entry_price, exit_price, signals")
+    .eq("user_id", userId)
+    .eq("stock", normalized)
+    .eq("decision_date", dateKey)
+    .order("updated_at", { ascending: false })
+    .limit(10);
+
+  if (error || !data?.length) {
+    return { filled: false };
+  }
+
+  for (const row of data) {
+    const signals = row.signals as Signals | null;
+
+    if (!signalsIndicateBrokerFill(signals) || !signalsIndicateApexExecution(signals)) {
       continue;
     }
 
@@ -404,5 +461,28 @@ export function runTradeFillSelfCheck(): void {
   assert(
     detail.includes("240810000123456") && detail.includes("JIOFIN"),
     "Broker fill detail must include order id and symbol",
+  );
+
+  assert(
+    signalsIndicateApexExecution({
+      trend: 0,
+      momentum: 0,
+      volume: 0,
+      apex_executed: true,
+      order_id: "1",
+      filled_at: "2026-08-10T09:00:00.000Z",
+    }),
+    "Apex execution signals must be detected",
+  );
+  assert(
+    !signalsIndicateApexExecution({
+      trend: 0,
+      momentum: 0,
+      volume: 0,
+      fill_source: "sync",
+      order_id: "2",
+      filled_at: "2026-08-10T09:00:00.000Z",
+    }),
+    "Sync-only fills must not count as apex execution",
   );
 }

@@ -12,9 +12,12 @@ import {
   portfolioContextFromHoldings,
 } from "@/lib/recommendations";
 import { getActiveBrokerConnection } from "@/services/broker/connections";
+import { fetchLiveKitePortfolioCached } from "@/services/broker/kitePortfolio";
 import {
   computePortfolioMetrics,
+  enrichPortfolioQuantitiesFromNetPositions,
   fetchZerodhaMargins,
+  mapKiteHoldingsToPortfolio,
 } from "@/services/brokers/zerodha";
 import { getDecision } from "@/services/decision/engine";
 import { logDecisionSafe } from "@/services/decision/decisionMemory";
@@ -186,10 +189,24 @@ export async function GET(request: Request) {
 
   const stored = await getTodayDailyDecision(supabase, user.id);
 
-  const snapshot = await getLatestPortfolioSnapshotWithMetrics(
+  let snapshot = await getLatestPortfolioSnapshotWithMetrics(
     supabase,
     user.id,
   );
+
+  const livePortfolio = await fetchLiveKitePortfolioCached(supabase, user.id);
+  if (livePortfolio.status === "OK" && livePortfolio.holdings.length > 0) {
+    const portfolio = enrichPortfolioQuantitiesFromNetPositions(
+      mapKiteHoldingsToPortfolio(livePortfolio.holdings),
+      livePortfolio.netPnlPositions,
+    );
+    const metrics = computePortfolioMetrics(portfolio);
+    snapshot = {
+      portfolio,
+      total_value: metrics.totalValue,
+      pnl: metrics.pnl,
+    };
+  }
 
   if (!snapshot) {
     if (stored) {

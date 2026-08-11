@@ -4,7 +4,7 @@ import { getDisciplineInterpretation } from "@/lib/dailyLoop/disciplineCopy";
 import { formatInr } from "@/lib/funds";
 
 export type TodayProgressStripProps = {
-  dayPnl?: number | null;
+  portfolioDayPnl?: number | null;
   trustScore: number;
   trustDelta: number;
   streakCount: number;
@@ -30,13 +30,16 @@ function TrustDelta({ delta }: { delta: number }) {
 }
 
 export default function TodayProgressStrip({
-  dayPnl,
+  portfolioDayPnl,
   trustScore,
   trustDelta,
   streakCount,
   streakMessage,
 }: TodayProgressStripProps) {
-  const dayKnown = dayPnl !== null && dayPnl !== undefined && Number.isFinite(dayPnl);
+  const dayKnown =
+    portfolioDayPnl !== null &&
+    portfolioDayPnl !== undefined &&
+    Number.isFinite(portfolioDayPnl);
   const disciplineLine = getDisciplineInterpretation(trustScore);
 
   return (
@@ -47,19 +50,19 @@ export default function TodayProgressStrip({
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-apex-muted">
-            Open P&amp;L
+            Day P&amp;L
           </p>
           {dayKnown ? (
             <p
               className={[
                 "mt-1 text-xl font-semibold tabular-nums tracking-tight",
-                (dayPnl ?? 0) >= 0 ? "text-emerald-300/95" : "text-amber-200/95",
+                (portfolioDayPnl ?? 0) >= 0 ? "text-emerald-300/95" : "text-amber-200/95",
               ].join(" ")}
             >
-              {formatDayPnl(dayPnl ?? 0)}
+              {formatDayPnl(portfolioDayPnl ?? 0)}
             </p>
           ) : (
-            <p className="mt-1 text-sm text-apex-muted/70">Open P&amp;L syncing…</p>
+            <p className="mt-1 text-sm text-apex-muted/70">Day P&amp;L syncing…</p>
           )}
         </div>
 

@@ -127,7 +127,7 @@ export default function TodayMonitorStrip({
                 : "text-xs text-amber-200/90"
             }
           >
-            Open P&amp;L {formatSignedPnl(headerPnl)}
+            Open P&amp;L {formatSignedPnl(headerPnl)} · APEX-tracked
           </p>
         ) : null}
       </div>

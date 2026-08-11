@@ -82,8 +82,36 @@ function parseLiveHoldings(value: unknown): PortfolioHoldingRow[] {
   return rows;
 }
 
+function clearLivePnlState(setters: {
+  setPositionsPnl: (value: number | null) => void;
+  setPositionsBreakdown: (value: ZerodhaPositionPnlRow[]) => void;
+  setPositionsNetLegs: (value: number) => void;
+  setLiveKiteStatus: (value: string | null) => void;
+  setPortfolioDayPnl: (value: number | null) => void;
+  setMonitorOpenPnl: (value: number | null) => void;
+  setPositionTicks: (value: MonitorLiveTick[]) => void;
+  setLiveHoldings: (value: PortfolioHoldingRow[]) => void;
+  setLiveHoldingsTotalValue: (value: number | null) => void;
+  setLiveHoldingsTotalPnl: (value: number | null) => void;
+  setLastSyncedAt: (value: string | null) => void;
+}) {
+  setters.setPositionsPnl(null);
+  setters.setPositionsBreakdown([]);
+  setters.setPositionsNetLegs(0);
+  setters.setLiveKiteStatus(null);
+  setters.setPortfolioDayPnl(null);
+  setters.setMonitorOpenPnl(null);
+  setters.setPositionTicks([]);
+  setters.setLiveHoldings([]);
+  setters.setLiveHoldingsTotalValue(null);
+  setters.setLiveHoldingsTotalPnl(null);
+  setters.setLastSyncedAt(null);
+}
+
 /** @deprecated Use LIVE_KITE_REFRESH_MS */
 export const DAY_PNL_REFRESH_MS = LIVE_KITE_REFRESH_MS;
+
+const POLL_FAILURE_THRESHOLD = 3;
 
 export function useDayPnlPoll({ enabled }: Options) {
   const [positionsPnl, setPositionsPnl] = useState<number | null>(null);
@@ -102,20 +130,28 @@ export function useDayPnlPoll({ enabled }: Options) {
   const [liveHoldingsTotalPnl, setLiveHoldingsTotalPnl] = useState<
     number | null
   >(null);
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
+  const [pollError, setPollError] = useState<string | null>(null);
   const requestRef = useRef(0);
+  const failureCountRef = useRef(0);
 
   const refresh = useCallback(async () => {
     if (!enabled) {
-      setPositionsPnl(null);
-      setPositionsBreakdown([]);
-      setPositionsNetLegs(0);
-      setLiveKiteStatus(null);
-      setPortfolioDayPnl(null);
-      setMonitorOpenPnl(null);
-      setPositionTicks([]);
-      setLiveHoldings([]);
-      setLiveHoldingsTotalValue(null);
-      setLiveHoldingsTotalPnl(null);
+      clearLivePnlState({
+        setPositionsPnl,
+        setPositionsBreakdown,
+        setPositionsNetLegs,
+        setLiveKiteStatus,
+        setPortfolioDayPnl,
+        setMonitorOpenPnl,
+        setPositionTicks,
+        setLiveHoldings,
+        setLiveHoldingsTotalValue,
+        setLiveHoldingsTotalPnl,
+        setLastSyncedAt,
+      });
+      setPollError(null);
+      failureCountRef.current = 0;
       return;
     }
 
@@ -132,9 +168,36 @@ export function useDayPnlPoll({ enabled }: Options) {
         return;
       }
 
-      if (!res.ok || !data || data.status !== "ok") {
+      if (data?.live_kite_status === "TOKEN_EXPIRED") {
+        clearLivePnlState({
+          setPositionsPnl,
+          setPositionsBreakdown,
+          setPositionsNetLegs,
+          setLiveKiteStatus,
+          setPortfolioDayPnl,
+          setMonitorOpenPnl,
+          setPositionTicks,
+          setLiveHoldings,
+          setLiveHoldingsTotalValue,
+          setLiveHoldingsTotalPnl,
+          setLastSyncedAt,
+        });
+        setLiveKiteStatus("TOKEN_EXPIRED");
+        setPollError("Zerodha session expired — reconnect to refresh live P&L.");
+        failureCountRef.current = 0;
         return;
       }
+
+      if (!res.ok || !data || data.status !== "ok") {
+        failureCountRef.current += 1;
+        if (failureCountRef.current >= POLL_FAILURE_THRESHOLD) {
+          setPollError("Live P&L sync failed — showing last known values.");
+        }
+        return;
+      }
+
+      failureCountRef.current = 0;
+      setPollError(null);
 
       const positionsPnlValue =
         typeof data.positions_pnl === "number"
@@ -165,8 +228,16 @@ export function useDayPnlPoll({ enabled }: Options) {
           ? data.holdings_total_pnl
           : null,
       );
+      setLastSyncedAt(new Date().toISOString());
     } catch {
-      // Keep the last known values on transient failures.
+      if (requestId !== requestRef.current) {
+        return;
+      }
+
+      failureCountRef.current += 1;
+      if (failureCountRef.current >= POLL_FAILURE_THRESHOLD) {
+        setPollError("Live P&L sync failed — showing last known values.");
+      }
     }
   }, [enabled]);
 
@@ -199,6 +270,8 @@ export function useDayPnlPoll({ enabled }: Options) {
     liveHoldings,
     liveHoldingsTotalValue,
     liveHoldingsTotalPnl,
+    lastSyncedAt,
+    pollError,
     refresh,
   };
 }

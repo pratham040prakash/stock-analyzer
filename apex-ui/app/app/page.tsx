@@ -3,6 +3,7 @@ import HomeClient from "@/components/HomeClient";
 import { samplePortfolio } from "@/data/samplePortfolio";
 import { EMPTY_PORTFOLIO } from "@/types/portfolioDefaults";
 import { hasActiveBrokerConnection } from "@/services/broker/connections";
+import { fetchLiveKitePortfolioCached } from "@/services/broker/kitePortfolio";
 import { getLatestPortfolioSnapshot } from "@/services/portfolio/repository";
 import { isSystemConfigured } from "@/lib/env/config";
 import { createClient } from "@/lib/supabase/server";
@@ -54,7 +55,12 @@ export default async function AppHome({
 
   const isConnected = await hasActiveBrokerConnection(supabase, user.id);
   if (isConnected) {
-    connectionStatus = "CONNECTED";
+    const live = await fetchLiveKitePortfolioCached(supabase, user.id);
+    if (live.status === "TOKEN_EXPIRED") {
+      connectionStatus = "TOKEN_EXPIRED";
+    } else if (live.status === "OK" || live.status === "ERROR") {
+      connectionStatus = "CONNECTED";
+    }
   }
 
   const snapshot = await getLatestPortfolioSnapshot(supabase, user.id);

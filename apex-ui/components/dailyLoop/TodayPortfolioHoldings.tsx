@@ -10,6 +10,7 @@ export type TodayPortfolioHoldingsProps = {
   totalPnl?: number | null;
   loading?: boolean;
   showEmptyWhenSynced?: boolean;
+  stale?: boolean;
 };
 
 function formatPrice(value: number): string {
@@ -32,6 +33,7 @@ export default function TodayPortfolioHoldings({
   totalPnl,
   loading = false,
   showEmptyWhenSynced = false,
+  stale = false,
 }: TodayPortfolioHoldingsProps) {
   if (loading) {
     return (
@@ -82,6 +84,9 @@ export default function TodayPortfolioHoldings({
       <details open className="text-xs text-apex-muted/75">
         <summary className="cursor-pointer select-none text-sm text-apex-text/80 hover:text-apex-text">
           Your holdings · {formatInr(Math.round(resolvedTotal))}
+          {stale ? (
+            <span className="ml-2 text-amber-200/90">· stale</span>
+          ) : null}
           <span className={`ml-2 tabular-nums ${pnlClass(resolvedPnl)}`}>
             {resolvedPnl >= 0 ? "+" : ""}
             {formatInr(Math.round(resolvedPnl))} total P&amp;L
@@ -112,7 +117,7 @@ export default function TodayPortfolioHoldings({
                   {formatInr(Math.round(row.pnl))}
                   <span className="text-apex-muted/55">
                     {" "}
-                    · {Math.round(row.allocation_pct)}%
+                    · {Math.round(row.allocation_pct)}% alloc
                   </span>
                 </p>
               </div>

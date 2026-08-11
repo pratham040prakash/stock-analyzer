@@ -160,7 +160,7 @@ export default function TodayExecutionPanel({
   const [error, setError] = useState<string | null>(null);
   const [needsZerodhaReconnect, setNeedsZerodhaReconnect] = useState(false);
 
-  const canEnter = entryTiming?.enter ?? true;
+  const canEnter = entryTiming?.enter ?? false;
   const { blockReason: marketBlockReason, canPlaceMarketOrder } = useMarketSession();
 
   const targetFromPlan = useMemo(() => {

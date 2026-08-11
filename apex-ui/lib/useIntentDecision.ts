@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createOptimisticDecision } from "@/lib/decisionOptimistic";
+import { createLoadingDecision } from "@/lib/decisionOptimistic";
 import { readStoredUserIntent, storeUserIntent } from "@/lib/userIntent";
 import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
 import type { DailyDecisionOutput } from "@/types/decision";
@@ -46,7 +46,7 @@ export function useIntentDecision({
 
   const [intent, setIntentState] = useState<Intent>(initialIntent);
   const [decision, setDecision] = useState<DailyDecisionOutput>(() =>
-    createOptimisticDecision(initialIntent, portfolioContext ?? {}),
+    createLoadingDecision(),
   );
   const [isRefreshing, setIsRefreshing] = useState(enabled);
   const [entryTiming, setEntryTiming] = useState<EntryTimingState>(
@@ -76,9 +76,7 @@ export function useIntentDecision({
       return;
     }
 
-    setDecision(
-      createOptimisticDecision(next, portfolioContextRef.current ?? {}),
-    );
+    setDecision(createLoadingDecision());
     setIsRefreshing(true);
   }, []);
 
@@ -120,7 +118,9 @@ export function useIntentDecision({
           onFetchedRef.current?.();
         }
       } catch {
-        // Keep optimistic decision visible on failure.
+        if (intentRef.current === targetIntent) {
+          setDecision(createLoadingDecision());
+        }
       } finally {
         if (intentRef.current === targetIntent) {
           setIsRefreshing(false);

@@ -2,9 +2,13 @@ import { apiError, apiOk } from "@/lib/api/response";
 import { createClient } from "@/lib/supabase/server";
 import { executeTrade } from "@/services/trade/execute";
 import { executeSellTrim } from "@/services/trade/executeSell";
+import { fetchLiveKitePortfolioCached } from "@/services/broker/kitePortfolio";
 import { getMarketRegime } from "@/services/decision/stockScoring";
 import { getLatestPortfolioSnapshotWithMetrics } from "@/services/portfolio/repository";
-import { computePortfolioMetrics } from "@/services/brokers/zerodha";
+import {
+  computePortfolioMetrics,
+  mapKiteHoldingsToPortfolio,
+} from "@/services/brokers/zerodha";
 import { normalizeSymbol } from "@/lib/stockPool";
 import { logTradeFillSafe } from "@/services/trade/logTradeFill";
 import { processPendingOutcomes } from "@/services/decision/trustOutcome";
@@ -103,10 +107,16 @@ export async function POST(request: Request) {
     supabase,
     user.id,
   );
-  const portfolioValue = snapshot
-    ? snapshot.total_value ||
-      computePortfolioMetrics(snapshot.portfolio).totalValue
-    : 0;
+  const livePortfolio = await fetchLiveKitePortfolioCached(supabase, user.id);
+  const portfolioValue =
+    livePortfolio.status === "OK"
+      ? computePortfolioMetrics(
+          mapKiteHoldingsToPortfolio(livePortfolio.holdings),
+        ).totalValue
+      : snapshot
+        ? snapshot.total_value ||
+          computePortfolioMetrics(snapshot.portfolio).totalValue
+        : 0;
   const marketTrend = await getMarketRegime();
 
   const result = await executeTrade(supabase, user.id, {

@@ -285,10 +285,54 @@ async function runChecks(baseUrl: string): Promise<VerifyReport> {
       {
         id: "authed-funds",
         path: "/api/funds",
-        validate: (body: Record<string, unknown> | null) =>
-          typeof body?.status === "string" &&
-          typeof body?.portfolio_value === "number" &&
-          typeof body?.margin_available === "number",
+        validate: (body: Record<string, unknown> | null) => {
+          if (typeof body?.status !== "string") {
+            return false;
+          }
+
+          if (body.status === "TOKEN_EXPIRED") {
+            return body.portfolio_value === null || body.portfolio_value === undefined;
+          }
+
+          return (
+            typeof body.portfolio_value === "number" &&
+            typeof body.margin_available === "number"
+          );
+        },
+      },
+      {
+        id: "authed-portfolio",
+        path: "/api/portfolio",
+        validate: (body: Record<string, unknown> | null) => {
+          if (typeof body?.status !== "string" || !Array.isArray(body.holdings)) {
+            return false;
+          }
+
+          if (body.status === "TOKEN_EXPIRED") {
+            return body.stale === true || body.holdings.length === 0;
+          }
+
+          if (body.status !== "OK") {
+            return true;
+          }
+
+          const dayPnl = body.day_pnl;
+          const positionsPnl = body.positions_pnl;
+          const portfolioDayPnl = body.portfolio_day_pnl;
+
+          if (
+            typeof dayPnl === "number" &&
+            typeof positionsPnl === "number" &&
+            typeof portfolioDayPnl === "number"
+          ) {
+            return (
+              Math.abs(dayPnl - portfolioDayPnl) < 0.01 &&
+              Math.abs(dayPnl - positionsPnl) > 0.01
+            );
+          }
+
+          return true;
+        },
       },
       {
         id: "authed-today-pnl",

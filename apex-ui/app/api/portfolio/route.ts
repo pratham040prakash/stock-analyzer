@@ -74,7 +74,7 @@ export async function GET() {
   }
 
   const live = await fetchLiveKitePortfolioCached(supabase, user.id);
-  const fromCache = formattedCachedResponse("TOKEN_EXPIRED");
+  const fromCache = formattedCachedResponse("TOKEN_EXPIRED", true);
 
   if (live.status === "NOT_CONNECTED") {
     const cached = await fromCache(supabase, user.id);

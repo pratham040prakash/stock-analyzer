@@ -60,6 +60,19 @@ function optimisticAllocation(
   return getAllocation(deployable, intent, riskLevel, portfolio);
 }
 
+/** Instant neutral placeholder while the API loads — no fake BUY/SELL confidence. */
+export function createLoadingDecision(): DailyDecisionOutput {
+  return {
+    decision: "HOLD",
+    action: "hold",
+    confidence: 0,
+    message: "Loading today's call…",
+    reason: "Fetching your decision",
+    actions: [],
+    confidence_factors: [],
+  };
+}
+
 /** Instant placeholder while the API refines the decision. */
 export function createOptimisticDecision(
   intent: Intent,

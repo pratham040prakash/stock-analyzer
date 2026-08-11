@@ -76,6 +76,7 @@ const EMPTY_DISCIPLINE_SUMMARY: DisciplineHistorySummary = {
 type ZerodhaSessionResponse = {
   status?: string;
   connected?: boolean;
+  authenticated?: boolean;
 };
 
 type FundsResponse = {
@@ -83,8 +84,8 @@ type FundsResponse = {
   collateral: number;
   margin_available: number;
   live_balance?: number;
-  portfolio_value?: number;
-  total_capital?: number;
+  portfolio_value?: number | null;
+  total_capital?: number | null;
   available_cash: number;
   status?: "OK" | "PARTIAL" | "ERROR" | "NOT_CONNECTED" | "TOKEN_EXPIRED";
   message?: string;
@@ -244,8 +245,17 @@ export default function HomeClient({
     apiFetch("/api/zerodha/session", { method: "GET" })
       .then((res) => parseApiJson<ZerodhaSessionResponse>(res, "Zerodha session"))
       .then((data) => {
-        if (!data?.connected) return;
-        setConnectionStatus("CONNECTED");
+        if (data?.connected) {
+          setConnectionStatus("CONNECTED");
+          return;
+        }
+
+        if (
+          data?.authenticated &&
+          (data.status === "expired" || data.status === "inactive")
+        ) {
+          setConnectionStatus("TOKEN_EXPIRED");
+        }
       })
       .catch(() => {
         // Portfolio fetch remains the fallback source of truth.
@@ -433,6 +443,11 @@ export default function HomeClient({
 
       if (data.status === "TOKEN_EXPIRED") {
         setConnectionStatus("TOKEN_EXPIRED");
+        setAvailableCash(null);
+        setLedgerCash(null);
+        setCollateral(0);
+        setBrokerPortfolioValue(null);
+        setTotalCapital(null);
         setFundsSynced(false);
         setFundsSyncError(
           data.message ?? "Zerodha session expired — reconnect to refresh funds.",
@@ -581,6 +596,11 @@ export default function HomeClient({
       const data = await parseApiJson<ZerodhaSessionResponse>(res, "Zerodha session");
       if (data?.connected) {
         setConnectionStatus("CONNECTED");
+      } else if (
+        data?.authenticated &&
+        (data.status === "expired" || data.status === "inactive")
+      ) {
+        setConnectionStatus("TOKEN_EXPIRED");
       }
     } catch (err) {
       console.error("Refresh failed", err);
@@ -731,7 +751,9 @@ export default function HomeClient({
 
   const refreshPortfolioSilent = useCallback(() => {
     void loadPortfolio({ silent: true });
-  }, [loadPortfolio]);
+    void loadFunds();
+    refreshDecision();
+  }, [loadPortfolio, loadFunds, refreshDecision]);
 
   usePortfolioPoll({
     enabled: livePortfolioPollEnabled,
@@ -757,8 +779,7 @@ export default function HomeClient({
     [premiumFeatures.marginMode, refreshDecision],
   );
 
-  const brokerSessionActive =
-    connectionStatus === "CONNECTED" || connectionStatus === "TOKEN_EXPIRED";
+  const brokerSessionActive = connectionStatus === "CONNECTED";
 
   const showHomeDecision = Boolean(dailyDecision) && brokerSessionActive;
 
@@ -958,6 +979,7 @@ export default function HomeClient({
               portfolioHoldings={visiblePortfolioHoldings}
               portfolioTotalPnl={portfolioData?.total_pnl ?? null}
               portfolioLoading={portfolioLoading}
+              portfolioStale={portfolioData?.stale === true}
               connectionStatus={connectionStatus}
               decisionUpdatedAt={decisionUpdatedAt}
               fundsLoading={fundsLoading}

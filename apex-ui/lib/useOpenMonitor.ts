@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
+import { LIVE_KITE_REFRESH_MS } from "@/lib/liveKiteRefresh";
 import type { OpenMonitorPosition } from "@/services/monitor/openPositions";
 
 type MonitorResponse = {
@@ -39,16 +40,12 @@ export function useOpenMonitor({ enabled }: Options) {
       }
 
       if (!res.ok || !data) {
-        setPositions([]);
         return;
       }
 
       setPositions(data.positions ?? []);
     } catch {
-      if (requestId !== requestRef.current) {
-        return;
-      }
-      setPositions([]);
+      // Keep last-known positions on transient failures.
     } finally {
       if (requestId === requestRef.current) {
         setLoading(false);
@@ -56,9 +53,24 @@ export function useOpenMonitor({ enabled }: Options) {
     }
   }, [enabled]);
 
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
+
   useEffect(() => {
-    void refresh();
+    void refreshRef.current();
   }, [refresh]);
+
+  useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      void refreshRef.current();
+    }, LIVE_KITE_REFRESH_MS);
+
+    return () => window.clearInterval(intervalId);
+  }, [enabled]);
 
   return {
     positions,
