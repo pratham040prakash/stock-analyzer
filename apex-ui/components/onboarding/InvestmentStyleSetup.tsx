@@ -3,7 +3,9 @@
 import { useState } from "react";
 import type { InvestmentStyle } from "@/types/operatingProfile";
 import { describeInvestmentStyle, OPERATING_MANUAL } from "@/lib/dailyLoop/operatingManualCopy";
-import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
+import { apiFetch, parseApiJson, readApiErrorMessage } from "@/lib/api/clientFetch";
+import { writeLocalOperatingProfile } from "@/lib/operatingProfile/clientStore";
+import type { OperatingProfile } from "@/types/operatingProfile";
 import {
   ApexBody,
   ApexCard,
@@ -30,7 +32,7 @@ const STYLE_OPTIONS: Array<{
 ];
 
 type Props = {
-  onComplete?: () => void;
+  onComplete?: (profile: OperatingProfile) => void;
   stepHint?: string;
 };
 
@@ -52,6 +54,11 @@ export default function InvestmentStyleSetup({ onComplete, stepHint }: Props) {
     setError(null);
 
     try {
+      const profile: OperatingProfile = {
+        investmentStyle: selectedStyle,
+        intradayAcknowledgedAt: new Date().toISOString(),
+      };
+
       const res = await apiFetch("/api/operating-profile", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -61,16 +68,24 @@ export default function InvestmentStyleSetup({ onComplete, stepHint }: Props) {
         }),
       });
 
-      const data = await parseApiJson<{ error?: string; message?: string }>(
+      const data = await parseApiJson<{ status?: string; message?: string }>(
         res,
         "Operating profile",
       );
 
-      if (!res.ok) {
-        throw new Error(data?.error ?? data?.message ?? "Could not save profile");
+      if (res.ok) {
+        writeLocalOperatingProfile(profile);
+        onComplete?.(profile);
+        return;
       }
 
-      onComplete?.();
+      if (res.status === 503) {
+        writeLocalOperatingProfile(profile);
+        onComplete?.(profile);
+        return;
+      }
+
+      throw new Error(readApiErrorMessage(data, "Could not save profile"));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save profile");
     } finally {

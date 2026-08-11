@@ -31,6 +31,8 @@ import { runMorningBriefSelfCheck } from "../services/brief/assembleMorningBrief
 import { runProjectVerdictSelfCheck } from "../lib/dailyLoop/projectVerdict";
 import { runAllocationPolicySelfCheck } from "../services/portfolio/allocationPolicy";
 import { runOperatingProfileRepositorySelfCheck } from "../services/operatingProfile/repository";
+import { runOperatingProfileErrorsSelfCheck } from "../services/operatingProfile/errors";
+import { runOperatingProfileClientStoreSelfCheck } from "../lib/operatingProfile/clientStore";
 import { runHoldingHealthSelfCheck } from "../services/portfolio/holdingHealth";
 import { runDisciplineScoreSelfCheck } from "../services/review/disciplineScore";
 import { runReceiptSelfCheck } from "../services/receipts/persistReceipt";
@@ -91,6 +93,8 @@ runMorningBriefSelfCheck();
 runProjectVerdictSelfCheck();
 runAllocationPolicySelfCheck();
 runOperatingProfileRepositorySelfCheck();
+runOperatingProfileErrorsSelfCheck();
+runOperatingProfileClientStoreSelfCheck();
 runHoldingHealthSelfCheck();
 runDisciplineScoreSelfCheck();
 runReceiptSelfCheck();

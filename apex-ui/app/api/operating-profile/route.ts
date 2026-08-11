@@ -10,6 +10,7 @@ import {
   type OperatingProfile,
 } from "@/types/operatingProfile";
 import { createClient } from "@/lib/supabase/server";
+import { resolveOperatingProfileDbError } from "@/services/operatingProfile/errors";
 
 export async function GET() {
   const supabase = await createClient();
@@ -67,7 +68,12 @@ export async function PUT(req: Request) {
     intradayAcknowledgedAt: new Date().toISOString(),
   };
 
-  await upsertOperatingProfile(supabase, user.id, profile);
+  try {
+    await upsertOperatingProfile(supabase, user.id, profile);
+  } catch (error) {
+    const resolved = resolveOperatingProfileDbError(error);
+    return apiError(resolved.message, resolved.status);
+  }
 
   return NextResponse.json({
     profile,

@@ -25,6 +25,7 @@ import {
   isOperatingProfileComplete,
   type OperatingProfile,
 } from "@/types/operatingProfile";
+import { readLocalOperatingProfile } from "@/lib/operatingProfile/clientStore";
 import type { DailyInsight } from "@/types/dailyInsight";
 import type {
   DecisionHistoryEntry,
@@ -171,7 +172,7 @@ export default function HomeClient({
   );
   const profileComplete = isProfileComplete(financialProfile);
   const [operatingProfile, setOperatingProfile] = useState<OperatingProfile | null>(
-    initialOperatingProfile,
+    () => initialOperatingProfile ?? readLocalOperatingProfile(),
   );
   const operatingProfileComplete = isOperatingProfileComplete(operatingProfile);
 
@@ -233,6 +234,24 @@ export default function HomeClient({
       router.replace("/app", { scroll: false });
     }
   }, [router, searchParams]);
+
+  useEffect(() => {
+    if (
+      connectionStatus === "TOKEN_EXPIRED" ||
+      portfolioData?.stale === true
+    ) {
+      setBrokerMessage((current) => {
+        if (
+          current?.includes("syncing") ||
+          current?.includes("connected")
+        ) {
+          return null;
+        }
+
+        return current;
+      });
+    }
+  }, [connectionStatus, portfolioData?.stale]);
 
   const receiptQueryId = searchParams.get("receipt");
   const researchSymbolParam = searchParams.get("research_symbol");
@@ -955,6 +974,8 @@ export default function HomeClient({
     !brokerMessage?.includes("syncing");
   const showBrokerSuccess =
     Boolean(brokerMessage) &&
+    connectionStatus === "CONNECTED" &&
+    portfolioData?.stale !== true &&
     (brokerMessage?.includes("synced") ||
       brokerMessage?.includes("syncing") ||
       brokerMessage?.includes("connected"));
@@ -1019,6 +1040,7 @@ export default function HomeClient({
             {hasPortfolioData &&
             portfolioData &&
             portfolioData.total_value !== undefined &&
+            portfolioData.stale !== true &&
             !showHomeDecision &&
             connectionStatus !== "TOKEN_EXPIRED" ? (
               <PortfolioSummary
@@ -1026,7 +1048,6 @@ export default function HomeClient({
                 dayPnl={portfolioData.day_pnl ?? dailyInsight?.day_pnl ?? null}
                 riskScore={portfolioData.risk_score ?? 4}
                 riskLevel={portfolioData.risk_level ?? "Low"}
-                stale={portfolioData.stale === true}
               />
             ) : null}
           </>
@@ -1091,29 +1112,9 @@ export default function HomeClient({
               stepHint={
                 showFirstRunStrip ? "Step 3 of 4 · Choose investment style" : undefined
               }
-              onComplete={() => {
-                void (async () => {
-                  try {
-                    const res = await apiFetch("/api/operating-profile");
-                    const data = await parseApiJson<{
-                      profile: OperatingProfile | null;
-                    }>(res, "Operating profile");
-                    if (res.ok && data?.profile) {
-                      setOperatingProfile(data.profile);
-                    } else {
-                      setOperatingProfile({
-                        investmentStyle: "core_plus_tactical",
-                        intradayAcknowledgedAt: new Date().toISOString(),
-                      });
-                    }
-                  } catch {
-                    setOperatingProfile({
-                      investmentStyle: "core_plus_tactical",
-                      intradayAcknowledgedAt: new Date().toISOString(),
-                    });
-                  }
-                  refreshDecision();
-                })();
+              onComplete={(profile) => {
+                setOperatingProfile(profile);
+                refreshDecision();
               }}
             />
           ) : null}
