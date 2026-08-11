@@ -1,6 +1,7 @@
 import type { PortfolioHoldingRow } from "@/types/portfolioApi";
-import type { Portfolio } from "@/types/portfolio";
+import type { Portfolio, Holding } from "@/types/portfolio";
 import type { KiteNetPosition } from "@/services/brokers/zerodha";
+import { effectivePortfolioQuantity } from "@/services/brokers/zerodha";
 import { resolvePortfolioDisplayValue } from "@/lib/portfolio/displayValue";
 import { portfolioRiskFromAllocation } from "@/lib/portfolioRisk";
 import { computePortfolioDayPnl } from "@/services/brokers/zerodha";
@@ -8,6 +9,59 @@ import { computePortfolioDayPnl } from "@/services/brokers/zerodha";
 const CONCENTRATION_THRESHOLD = 50;
 
 export { resolvePortfolioDisplayValue, sumPortfolioRowValues } from "@/lib/portfolio/displayValue";
+
+function readFiniteNumber(value: unknown): number | undefined {
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+/** Normalize legacy snapshot JSON (symbol or tradingsymbol keys). */
+export function snapshotHoldingsToPortfolio(holdings: unknown): Portfolio {
+  if (!Array.isArray(holdings)) {
+    return { holdings: [] };
+  }
+
+  const rows: Holding[] = [];
+
+  for (const raw of holdings) {
+    if (!raw || typeof raw !== "object") {
+      continue;
+    }
+
+    const row = raw as Record<string, unknown>;
+    const symbol = String(row.symbol ?? row.tradingsymbol ?? "").trim();
+    if (!symbol) {
+      continue;
+    }
+
+    const settled = Math.max(0, Math.round(readFiniteNumber(row.quantity) ?? 0));
+    const t1 = Math.max(
+      0,
+      Math.round(readFiniteNumber(row.t1Quantity ?? row.t1_quantity) ?? 0),
+    );
+    const quantity = Math.max(settled + t1, settled, t1);
+    const avgPrice = readFiniteNumber(row.avgPrice ?? row.average_price) ?? 0;
+    const currentPrice =
+      readFiniteNumber(row.currentPrice ?? row.last_price) ?? 0;
+
+    rows.push({
+      symbol,
+      quantity,
+      t1Quantity: t1 > 0 ? t1 : undefined,
+      avgPrice,
+      currentPrice,
+      closePrice: readFiniteNumber(row.closePrice ?? row.close_price),
+      dayChange: readFiniteNumber(row.dayChange ?? row.day_change),
+      dayM2m: readFiniteNumber(row.dayM2m ?? row.m2m),
+    });
+  }
+
+  return { holdings: rows };
+}
+
+function holdingRowQuantity(holding: Portfolio["holdings"][number]): number {
+  return effectivePortfolioQuantity(holding);
+}
 
 export function formatPortfolioHoldings(
   portfolio: Portfolio,
@@ -24,23 +78,24 @@ export function formatPortfolioHoldings(
   risk_level: import("@/lib/portfolioRisk").PortfolioRiskLevel;
 } {
   const rawTotal = portfolio.holdings.reduce(
-    (sum, h) => sum + h.quantity * h.currentPrice,
+    (sum, h) => sum + holdingRowQuantity(h) * h.currentPrice,
     0,
   );
 
   const total_pnl = portfolio.holdings.reduce(
-    (sum, h) => sum + (h.currentPrice - h.avgPrice) * h.quantity,
+    (sum, h) => sum + (h.currentPrice - h.avgPrice) * holdingRowQuantity(h),
     0,
   );
 
   const holdings: PortfolioHoldingRow[] = portfolio.holdings
     .map((h) => {
-      const value = h.quantity * h.currentPrice;
-      const pnl = (h.currentPrice - h.avgPrice) * h.quantity;
+      const quantity = holdingRowQuantity(h);
+      const value = quantity * h.currentPrice;
+      const pnl = (h.currentPrice - h.avgPrice) * quantity;
 
       return {
         tradingsymbol: h.symbol,
-        quantity: h.quantity,
+        quantity,
         average_price: h.avgPrice,
         last_price: h.currentPrice,
         pnl,
@@ -48,6 +103,7 @@ export function formatPortfolioHoldings(
         allocation_pct: 0,
       };
     })
+    .filter((row) => row.quantity > 0)
     .sort((a, b) => b.value - a.value);
 
   const total_value = resolvePortfolioDisplayValue(rawTotal, holdings);

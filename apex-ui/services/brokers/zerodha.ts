@@ -51,11 +51,20 @@ export function effectiveKiteHoldingQuantity(holding: {
   return settled + t1;
 }
 
+export function effectivePortfolioQuantity(holding: {
+  quantity: number;
+  t1Quantity?: number;
+}): number {
+  const settled = Math.max(0, Math.round(holding.quantity));
+  const t1 = Math.max(0, Math.round(holding.t1Quantity ?? 0));
+  return settled + t1;
+}
+
 export function mapKiteHoldingsToPortfolio(holdings: KiteHolding[]): Portfolio {
   return {
     holdings: holdings.map((h) => ({
       symbol: h.tradingsymbol,
-      quantity: h.quantity,
+      quantity: effectiveKiteHoldingQuantity(h),
       t1Quantity:
         typeof h.t1_quantity === "number" && Number.isFinite(h.t1_quantity)
           ? h.t1_quantity
@@ -387,13 +396,15 @@ export function mergeKiteHoldingsAndPositions(
   const merged = new Map<string, KiteHolding>();
 
   for (const holding of holdings) {
-    if (holding.quantity <= 0) {
+    const effectiveQty = effectiveKiteHoldingQuantity(holding);
+    if (effectiveQty <= 0) {
       continue;
     }
 
     const symbol = normalizeSymbol(holding.tradingsymbol);
     merged.set(symbol, {
       ...holding,
+      quantity: effectiveQty,
       last_price: resolveKiteLastPrice(holding),
     });
   }
@@ -418,6 +429,7 @@ export function mergeKiteHoldingsAndPositions(
       const existing = merged.get(symbol)!;
       merged.set(symbol, {
         ...existing,
+        quantity: Math.max(existing.quantity, position.quantity),
         average_price:
           position.average_price > 0
             ? position.average_price
@@ -458,13 +470,42 @@ export function mergeKiteHoldingsAndPositions(
   return [...merged.values()];
 }
 
-function effectivePortfolioQuantity(holding: {
-  quantity: number;
-  t1Quantity?: number;
-}): number {
-  const settled = Math.max(0, Math.round(holding.quantity));
-  const t1 = Math.max(0, Math.round(holding.t1Quantity ?? 0));
-  return settled + t1;
+/** Repair snapshot rows with prices but missing/zero qty using open CNC legs. */
+export function enrichPortfolioQuantitiesFromNetPositions(
+  portfolio: Portfolio,
+  netPnlPositions: KiteNetPosition[],
+): Portfolio {
+  const longQtyBySymbol = new Map<string, number>();
+
+  for (const position of netPnlPositions) {
+    if (!isCncProduct(position.product) || position.quantity <= 0) {
+      continue;
+    }
+
+    const symbol = normalizeSymbol(position.tradingsymbol);
+    longQtyBySymbol.set(
+      symbol,
+      Math.max(longQtyBySymbol.get(symbol) ?? 0, position.quantity),
+    );
+  }
+
+  const holdings = portfolio.holdings
+    .map((holding) => {
+      const effectiveQty = effectivePortfolioQuantity(holding);
+      if (effectiveQty > 0) {
+        return { ...holding, quantity: effectiveQty };
+      }
+
+      const fromPosition = longQtyBySymbol.get(normalizeSymbol(holding.symbol));
+      if (fromPosition && fromPosition > 0) {
+        return { ...holding, quantity: fromPosition };
+      }
+
+      return holding;
+    })
+    .filter((holding) => holding.quantity > 0 && holding.symbol.trim().length > 0);
+
+  return { holdings };
 }
 
 function contributionFromDayPosition(position: KiteNetPosition): number | null {

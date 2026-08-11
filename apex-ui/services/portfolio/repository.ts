@@ -9,6 +9,7 @@ import {
 import type { Database } from "@/types/database";
 import type { Portfolio } from "@/types/portfolio";
 import { isDemoPortfolioHoldings } from "@/lib/portfolio/displayValue";
+import { snapshotHoldingsToPortfolio } from "@/services/portfolio/format";
 
 type Client = SupabaseClient<Database>;
 
@@ -91,7 +92,7 @@ export async function getLatestPortfolioSnapshot(
     return null;
   }
 
-  return { holdings: row.holdings };
+  return snapshotHoldingsToPortfolio(row.holdings);
 }
 
 export async function getFinancialProfileFromDb(

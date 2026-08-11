@@ -6,6 +6,7 @@ import { markBrokerConnectionExpired } from "@/services/broker/connections";
 import {
   computePortfolioMetrics,
   computeZerodhaPositionsPnl,
+  enrichPortfolioQuantitiesFromNetPositions,
   mapKiteHoldingsToPortfolio,
 } from "@/services/brokers/zerodha";
 import { formatPortfolioHoldings } from "@/services/portfolio/format";
@@ -102,12 +103,19 @@ export async function GET() {
     });
   }
 
-  const portfolio = mapKiteHoldingsToPortfolio(live.holdings);
+  let portfolio = enrichPortfolioQuantitiesFromNetPositions(
+    mapKiteHoldingsToPortfolio(live.holdings),
+    live.netPnlPositions,
+  );
 
   if (portfolio.holdings.length === 0) {
     const existing = await getLatestPortfolioSnapshot(supabase, user.id);
     if (existing && existing.holdings.length > 0) {
-      const formatted = formatPortfolioHoldings(existing, live.dayPositions);
+      portfolio = enrichPortfolioQuantitiesFromNetPositions(
+        existing,
+        live.netPnlPositions,
+      );
+      const formatted = formatPortfolioHoldings(portfolio, live.dayPositions);
       const positions_pnl = computeZerodhaPositionsPnl(
         live.holdings,
         live.netPnlPositions,
