@@ -15,7 +15,10 @@ export default function ApexSurfaceNav() {
   const pathname = usePathname();
 
   return (
-    <nav aria-label="APEX surfaces" className="flex flex-wrap gap-2">
+    <nav
+      aria-label="APEX surfaces"
+      className="-mx-1 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+    >
       {SURFACES.map((surface) => {
         const active =
           surface.href === "/app"
@@ -29,8 +32,8 @@ export default function ApexSurfaceNav() {
             aria-current={active ? "page" : undefined}
             className={
               active
-                ? "inline-flex rounded-lg border border-blue-500/25 bg-blue-500/10 px-3 py-1.5 text-[12px] font-medium text-blue-100"
-                : "inline-flex rounded-lg border border-apex-border/20 px-3 py-1.5 text-[12px] font-medium text-apex-muted transition-colors hover:text-apex-text"
+                ? "inline-flex min-h-[44px] shrink-0 items-center rounded-lg border border-blue-500/25 bg-blue-500/10 px-3 py-2 text-[12px] font-medium text-blue-100"
+                : "inline-flex min-h-[44px] shrink-0 items-center rounded-lg border border-apex-border/20 px-3 py-2 text-[12px] font-medium text-apex-muted transition-colors hover:text-apex-text"
             }
           >
             {surface.label}

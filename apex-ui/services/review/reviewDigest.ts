@@ -1,10 +1,12 @@
 import type { ReviewCadencePackage } from "@/types/reviewCadence";
+import { buildDisciplineDigestLine } from "@/services/review/disciplineDigest";
 
 export type ReviewDigestPayload = {
   built_at: string;
   channel: "none" | "email" | "telegram";
   subject: string;
   body: string;
+  discipline_line: string;
   enabled: boolean;
 };
 
@@ -17,7 +19,11 @@ export function buildReviewDigest(
 
   const subject = `APEX review · ${review.monthly.month_label}`;
 
+  const disciplineLine = buildDisciplineDigestLine(review.weekly);
+
   const body = [
+    disciplineLine,
+    "",
     review.weekly.headline,
     "",
     `Monthly: ${review.monthly.headline}`,
@@ -34,6 +40,7 @@ export function buildReviewDigest(
     channel: resolvedChannel,
     subject,
     body,
+    discipline_line: disciplineLine,
     enabled,
   };
 }
@@ -92,5 +99,9 @@ export function runReviewDigestSelfCheck(): void {
 
   if (!digest.subject.includes("APEX")) {
     throw new Error("Review digest self-check failed");
+  }
+
+  if (!digest.discipline_line.includes("days followed plan")) {
+    throw new Error("Review digest self-check failed: discipline line");
   }
 }

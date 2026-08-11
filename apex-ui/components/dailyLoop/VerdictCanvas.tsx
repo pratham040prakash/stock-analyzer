@@ -95,7 +95,7 @@ export default function VerdictCanvas({
   return (
     <section
       aria-label="Today's verdict"
-      className="relative overflow-hidden rounded-2xl border border-apex-border/20 bg-gradient-to-b from-white/[0.04] to-transparent px-5 py-5"
+      className="relative overflow-hidden rounded-2xl border border-apex-border/20 bg-gradient-to-b from-white/[0.04] to-transparent px-4 py-4 sm:px-5 sm:py-5"
     >
       {showStaleRibbon ? (
         <div className="mb-3 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2">
@@ -110,7 +110,7 @@ export default function VerdictCanvas({
             Today&apos;s decision
           </p>
           <p
-            className={`text-4xl font-semibold tracking-tight ${resolveVerdictTone(dailyVerdict, executionKind)}`}
+            className={`text-3xl font-semibold tracking-tight sm:text-4xl ${resolveVerdictTone(dailyVerdict, executionKind)}`}
           >
             {verdictWord}
           </p>

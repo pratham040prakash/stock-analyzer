@@ -139,6 +139,15 @@ test.describe("APEX authenticated smoke", () => {
     expect(typeof body.snapshot?.outcome_loop_visible).toBe("boolean");
   });
 
+  test("review digest includes discipline line", async ({ request }) => {
+    const response = await request.get("/api/review/digest");
+    expect(response.ok()).toBeTruthy();
+
+    const body = await response.json();
+    expect(body.status).toBe("ok");
+    expect(typeof body.digest?.discipline_line).toBe("string");
+  });
+
   test("trust page surfaces CDQS", async ({ page }) => {
     await page.goto("/app/trust");
     await expect(page).toHaveURL(/\/app\/trust/);

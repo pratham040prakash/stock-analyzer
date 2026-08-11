@@ -16,7 +16,8 @@ export function ApexShell({
   return (
     <main
       className={cn(
-        "relative min-h-screen bg-apex-bg px-5 py-8 text-apex-text sm:px-6 sm:py-10",
+        "relative min-h-screen bg-apex-bg px-4 py-6 text-apex-text sm:px-6 sm:py-10",
+        "pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1.5rem,env(safe-area-inset-top))]",
         className,
       )}
     >
@@ -171,7 +172,7 @@ export function ApexButton({
     <button
       type="button"
       className={cn(
-        "rounded-xl px-4 py-3.5 text-[14px] font-semibold transition-all duration-200 ease-out disabled:cursor-default disabled:opacity-60 disabled:hover:scale-100",
+        "rounded-xl px-4 py-3.5 text-[14px] font-semibold transition-all duration-200 ease-out disabled:cursor-default disabled:opacity-60 disabled:hover:scale-100 min-h-[48px]",
         fullWidth && "w-full",
         variantClass[variant],
         className,

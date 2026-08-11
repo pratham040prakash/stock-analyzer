@@ -757,7 +757,7 @@ export default function HomeDecisionScreen({
           ].join(" ")}
         />
 
-        <div className={`relative p-6 ${contentClassName}`}>
+        <div className={`relative p-4 sm:p-6 ${contentClassName}`}>
           <div className="mb-6 space-y-4">
             {researchHandoff ? (
               <ResearchTodayHandoff

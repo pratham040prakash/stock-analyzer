@@ -51,6 +51,7 @@ import { runMonthlyTrendsSelfCheck } from "../services/review/buildMonthlyTrends
 import { runQuarterlyReviewSelfCheck } from "../services/review/assembleQuarterlyReview";
 import { runReviewCadenceSelfCheck } from "../services/review/assembleReviewCadence";
 import { runReviewDigestSelfCheck } from "../services/review/reviewDigest";
+import { runDisciplineDigestSelfCheck } from "../services/review/disciplineDigest";
 import { runPortfolioAskSelfCheck } from "../services/ask/assemblePortfolioAskAnswer";
 import { runInvestorDnaSelfCheck } from "../services/you/assembleInvestorDna";
 import { runNewCapitalSelfCheck } from "../services/capital/newCapitalWorkflow";
@@ -117,6 +118,7 @@ runMonthlyTrendsSelfCheck();
 runQuarterlyReviewSelfCheck();
 runReviewCadenceSelfCheck();
 runReviewDigestSelfCheck();
+runDisciplineDigestSelfCheck();
 runPortfolioAskSelfCheck();
 runInvestorDnaSelfCheck();
 runNewCapitalSelfCheck();

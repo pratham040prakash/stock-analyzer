@@ -599,8 +599,14 @@ async function runChecks(baseUrl: string): Promise<VerifyReport> {
       {
         id: "authed-digest",
         path: "/api/review/digest",
-        validate: (body: Record<string, unknown> | null) =>
-          body?.status === "ok" && isRecord(body.digest),
+        validate: (body: Record<string, unknown> | null) => {
+          if (body?.status !== "ok" || !isRecord(body.digest)) {
+            return false;
+          }
+
+          const digest = body.digest as Record<string, unknown>;
+          return typeof digest.discipline_line === "string";
+        },
       },
       {
         id: "authed-macro-ask",

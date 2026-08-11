@@ -9,6 +9,7 @@ import BrokerReconcilePanel from "@/components/review/BrokerReconcilePanel";
 import MonthlyDoctorPanel from "@/components/review/MonthlyDoctorPanel";
 import PlannedVsActualTable from "@/components/review/PlannedVsActualTable";
 import PlannedVsActualSummaryStrip from "@/components/review/PlannedVsActualSummaryStrip";
+import DisciplineDigestStrip from "@/components/review/DisciplineDigestStrip";
 import QuarterlyReviewPanel from "@/components/review/QuarterlyReviewPanel";
 import WeeklyReviewHero from "@/components/review/WeeklyReviewHero";
 import WeeklyReviewStrip from "@/components/dailyLoop/WeeklyReviewStrip";
@@ -21,6 +22,7 @@ import { ApexShell } from "@/components/ui/apex";
 import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
 import { buildLastNIstDays } from "@/lib/dailyLoop/disciplineHistoryMerge";
 import { buildDisciplineProcessScore } from "@/services/review/disciplineScore";
+import { buildDisciplineDigestView } from "@/services/review/disciplineDigest";
 import type {
   DecisionHistoryResponse,
   DisciplineHistoryEntry,
@@ -259,6 +261,22 @@ export default function ReviewPageClient({ userName }: Props) {
     [summary, streakCount],
   );
 
+  const disciplineDigest = useMemo(
+    () =>
+      buildDisciplineDigestView({
+        headline: "",
+        summary,
+        process_score: processScore,
+        planned_summary: plannedSummary ?? {
+          aligned: 0,
+          deviated: 0,
+          planned_only: 0,
+          actual_only: 0,
+        },
+      }),
+    [plannedSummary, processScore, summary],
+  );
+
   const disciplineTrends = useMemo(
     () => buildDisciplineTrends(history, streakCount),
     [history, streakCount],
@@ -351,8 +369,8 @@ export default function ReviewPageClient({ userName }: Props) {
             onClick={() => selectTab(item.key)}
             className={
               tab === item.key
-                ? "rounded-lg border border-blue-500/25 bg-blue-500/10 px-3 py-1.5 text-xs font-medium text-blue-100"
-                : "rounded-lg border border-apex-border/20 px-3 py-1.5 text-xs text-apex-muted"
+                ? "min-h-[44px] rounded-lg border border-blue-500/25 bg-blue-500/10 px-3 py-2 text-xs font-medium text-blue-100"
+                : "min-h-[44px] rounded-lg border border-apex-border/20 px-3 py-2 text-xs text-apex-muted"
             }
           >
             {item.label}
@@ -364,6 +382,12 @@ export default function ReviewPageClient({ userName }: Props) {
         <p className="text-sm text-apex-muted/70">Loading review…</p>
       ) : tab === "weekly" ? (
         <div className="space-y-4" role="tabpanel">
+          <DisciplineDigestStrip
+            headline={disciplineDigest.headline}
+            detail={disciplineDigest.detail}
+            followedDays={disciplineDigest.followed_days}
+            trackableDays={disciplineDigest.trackable_days}
+          />
           <PlannedVsActualSummaryStrip
             summary={plannedSummary}
             rowCount={plannedRows.length}
