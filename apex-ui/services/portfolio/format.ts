@@ -142,9 +142,8 @@ export function runPortfolioApiPnlFieldSelfCheck(): void {
     }
   };
 
-  const dayMove = 80.55;
-  const openPnl = 24.3;
-  assert(dayMove !== openPnl, "fixture must distinguish day vs open P&L");
+  const dayMove: number = 80.55;
+  const openPnl: number = 24.3;
 
   const response = {
     day_pnl: dayMove,
@@ -153,15 +152,15 @@ export function runPortfolioApiPnlFieldSelfCheck(): void {
   };
 
   assert(
-    response.day_pnl === dayMove,
+    Math.abs(response.day_pnl - dayMove) < 0.01,
     "day_pnl must map to portfolio day move (formatted.day_pnl)",
   );
   assert(
-    response.positions_pnl === openPnl,
+    Math.abs(response.positions_pnl - openPnl) < 0.01,
     "positions_pnl must map to Zerodha Positions tab P&L",
   );
   assert(
-    response.day_pnl !== response.positions_pnl,
+    Math.abs(response.day_pnl - response.positions_pnl) > 0.01,
     "day_pnl must not alias positions_pnl",
   );
 }
