@@ -1,4 +1,5 @@
 import type { UserIntent } from "@/types/intent";
+import { INTENT_UI_LABELS } from "@/lib/onboarding/intentLabels";
 
 export type IntentExperience = {
   tagline: string;
@@ -13,9 +14,8 @@ export type IntentExperience = {
   trustTitle: string;
 };
 
-const EXPERIENCE: Record<UserIntent, IntentExperience> = {
+const EXPERIENCE: Record<UserIntent, Omit<IntentExperience, "tagline">> = {
   grow: {
-    tagline: "Capital deployment decision",
     cardGradient: "from-emerald-500/[0.05]",
     showExecution: true,
     showSafety: false,
@@ -27,7 +27,6 @@ const EXPERIENCE: Record<UserIntent, IntentExperience> = {
     trustTitle: "Your discipline",
   },
   protect: {
-    tagline: "Capital protection decision",
     cardGradient: "from-amber-500/[0.05]",
     showExecution: false,
     showSafety: true,
@@ -39,7 +38,6 @@ const EXPERIENCE: Record<UserIntent, IntentExperience> = {
     trustTitle: "Your discipline",
   },
   explore: {
-    tagline: "Capital stays idle",
     cardGradient: "from-blue-500/[0.05]",
     showExecution: false,
     showSafety: false,
@@ -53,5 +51,8 @@ const EXPERIENCE: Record<UserIntent, IntentExperience> = {
 };
 
 export function getIntentExperience(intent: UserIntent): IntentExperience {
-  return EXPERIENCE[intent];
+  return {
+    ...EXPERIENCE[intent],
+    tagline: INTENT_UI_LABELS[intent].tagline,
+  };
 }

@@ -7,6 +7,7 @@ import DecisionHistoryPanel from "./DecisionHistoryPanel";
 import HomeDecisionScreen from "./HomeDecisionScreen";
 import ReceiptProofPanel from "@/components/receipts/ReceiptProofPanel";
 import FinancialProfileSetup from "./FinancialProfileSetup";
+import InvestmentStyleSetup from "@/components/onboarding/InvestmentStyleSetup";
 import IntentSelector from "./IntentSelector";
 import ApexSurfaceNav from "@/components/nav/ApexSurfaceNav";
 import LoginCTA from "./LoginCTA";
@@ -20,6 +21,10 @@ import type { Portfolio } from "@/types/portfolio";
 import type { ConnectionStatus } from "@/lib/broker/zerodha";
 import type { FinancialProfile } from "@/lib/financialProfile";
 import { isProfileComplete } from "@/lib/financialProfile";
+import {
+  isOperatingProfileComplete,
+  type OperatingProfile,
+} from "@/types/operatingProfile";
 import type { DailyInsight } from "@/types/dailyInsight";
 import type {
   DecisionHistoryEntry,
@@ -61,6 +66,7 @@ type Props = {
   connectionStatus: ConnectionStatus;
   userName: string;
   initialFinancialProfile: FinancialProfile | null;
+  initialOperatingProfile?: OperatingProfile | null;
   zerodhaNotice?: string;
   zerodhaError?: string;
 };
@@ -143,6 +149,7 @@ export default function HomeClient({
   connectionStatus: initialConnectionStatus,
   userName,
   initialFinancialProfile,
+  initialOperatingProfile = null,
   zerodhaNotice,
   zerodhaError,
 }: Props) {
@@ -163,6 +170,10 @@ export default function HomeClient({
     initialFinancialProfile,
   );
   const profileComplete = isProfileComplete(financialProfile);
+  const [operatingProfile, setOperatingProfile] = useState<OperatingProfile | null>(
+    initialOperatingProfile,
+  );
+  const operatingProfileComplete = isOperatingProfileComplete(operatingProfile);
 
   const [connectionStatus, setConnectionStatus] = useState(
     initialConnectionStatus,
@@ -867,7 +878,11 @@ export default function HomeClient({
 
   const brokerSessionActive = connectionStatus === "CONNECTED";
 
-  const showHomeDecision = Boolean(dailyDecision) && brokerSessionActive;
+  const showHomeDecision =
+    Boolean(dailyDecision) &&
+    brokerSessionActive &&
+    profileComplete &&
+    operatingProfileComplete;
 
   const visiblePortfolioHoldings = useMemo(
     () => filterRealPortfolioHoldings(portfolioData?.holdings ?? []),
@@ -888,10 +903,12 @@ export default function HomeClient({
       buildFirstRunProgress({
         connectionStatus,
         profileComplete,
+        operatingProfileComplete,
         todayReady: showHomeDecision,
         decisionLoading:
           connectionStatus === "CONNECTED" &&
           profileComplete &&
+          operatingProfileComplete &&
           !dailyDecision &&
           (decisionRefreshing || isRefreshing),
       }),
@@ -900,6 +917,7 @@ export default function HomeClient({
       dailyDecision,
       decisionRefreshing,
       isRefreshing,
+      operatingProfileComplete,
       profileComplete,
       showHomeDecision,
     ],
@@ -1058,12 +1076,44 @@ export default function HomeClient({
           {!profileComplete ? (
             <FinancialProfileSetup
               stepHint={
-                showFirstRunStrip ? "Step 2 of 3 · Set capital context" : undefined
+                showFirstRunStrip ? "Step 2 of 4 · Set capital context" : undefined
               }
               onComplete={(profile) => {
                 setFinancialProfile(profile);
                 refreshDecision();
                 void loadDecisionHistory();
+              }}
+            />
+          ) : null}
+
+          {profileComplete && !operatingProfileComplete ? (
+            <InvestmentStyleSetup
+              stepHint={
+                showFirstRunStrip ? "Step 3 of 4 · Choose investment style" : undefined
+              }
+              onComplete={() => {
+                void (async () => {
+                  try {
+                    const res = await apiFetch("/api/operating-profile");
+                    const data = await parseApiJson<{
+                      profile: OperatingProfile | null;
+                    }>(res, "Operating profile");
+                    if (res.ok && data?.profile) {
+                      setOperatingProfile(data.profile);
+                    } else {
+                      setOperatingProfile({
+                        investmentStyle: "core_plus_tactical",
+                        intradayAcknowledgedAt: new Date().toISOString(),
+                      });
+                    }
+                  } catch {
+                    setOperatingProfile({
+                      investmentStyle: "core_plus_tactical",
+                      intradayAcknowledgedAt: new Date().toISOString(),
+                    });
+                  }
+                  refreshDecision();
+                })();
               }}
             />
           ) : null}

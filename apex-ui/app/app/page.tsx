@@ -9,6 +9,7 @@ import { isSystemConfigured } from "@/lib/env/config";
 import { createClient } from "@/lib/supabase/server";
 import type { ConnectionStatus } from "@/lib/broker/zerodha";
 import { getFinancialProfileFromDb } from "@/services/portfolio/repository";
+import { getOperatingProfileFromDb } from "@/services/operatingProfile/repository";
 
 export default async function AppHome({
   searchParams,
@@ -72,6 +73,10 @@ export default async function AppHome({
     supabase,
     user.id,
   );
+  const initialOperatingProfile = await getOperatingProfileFromDb(
+    supabase,
+    user.id,
+  );
 
   const userName =
     (user.user_metadata?.full_name as string | undefined)?.split(" ")[0] ??
@@ -93,6 +98,7 @@ export default async function AppHome({
       connectionStatus={connectionStatus}
       userName={userName}
       initialFinancialProfile={initialFinancialProfile}
+      initialOperatingProfile={initialOperatingProfile}
       zerodhaNotice={zerodhaNotice}
       zerodhaError={zerodhaError}
     />

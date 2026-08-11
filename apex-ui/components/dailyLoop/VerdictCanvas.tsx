@@ -1,6 +1,7 @@
 "use client";
 
 import type { DailyVerdict } from "@/lib/dailyLoop/dailyVerdict";
+import { OPERATING_MANUAL } from "@/lib/dailyLoop/operatingManualCopy";
 import type { TodayExecutionKind } from "@/lib/dailyLoop/todaySurface";
 import type { ConnectionStatus } from "@/lib/broker/zerodha";
 import { ApexButton } from "@/components/ui/apex";
@@ -177,7 +178,7 @@ export default function VerdictCanvas({
             {ctaLabel}
           </ApexButton>
           <p className="mt-2 text-center text-[11px] text-apex-muted/60">
-            Following Wait or Pause is a successful day.
+            {OPERATING_MANUAL.verdictDone}
           </p>
         </div>
       ) : null}

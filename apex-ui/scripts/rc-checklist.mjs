@@ -14,6 +14,7 @@ const requiredMigrationFiles = [
   "decision_receipts.sql",
   "discipline_commits.sql",
   "investment_thesis.sql",
+  "operating_profile.sql",
   "user_trust_state.sql",
 ];
 

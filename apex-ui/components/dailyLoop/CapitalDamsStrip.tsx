@@ -4,6 +4,7 @@ import {
   isDailyLossLimitBreached,
   PAUSE_LOSS_STREAK_THRESHOLD,
 } from "@/lib/dailyLoop/dailyVerdict";
+import { OPERATING_MANUAL } from "@/lib/dailyLoop/operatingManualCopy";
 import { MAX_DAILY_LOSS_PCT } from "@/services/risk/riskControl";
 
 export type CapitalDamsStripProps = {
@@ -53,10 +54,10 @@ export default function CapitalDamsStrip({
       className={`rounded-xl border border-apex-border/15 bg-white/[0.02] px-4 py-3 text-xs text-apex-muted/80 ${className}`.trim()}
       aria-label="Capital protection limits"
     >
-      <p className="font-medium text-apex-text/85">Capital dams</p>
+      <p className="font-medium text-apex-text/85">{OPERATING_MANUAL.damsTitle}</p>
       <ul className="mt-1.5 space-y-1">
         <li>
-          Daily loss limit ·{" "}
+          {OPERATING_MANUAL.damsDailyLoss} ·{" "}
           {limitInr !== null ? `${formatInr(limitInr)} (${lossPctLabel} portfolio)` : "Connect broker for limit"}
           {dailyLossBreached
             ? " · hit — Pause active"
@@ -65,14 +66,14 @@ export default function CapitalDamsStrip({
               : " · within limit"}
         </li>
         <li>
-          Loss-day pause · after {PAUSE_LOSS_STREAK_THRESHOLD} consecutive loss days
+          {OPERATING_MANUAL.damsLossStreak} · after {PAUSE_LOSS_STREAK_THRESHOLD} consecutive loss days
           {lossStreakActive
             ? ` · active (${consecutiveLossDays} days)`
             : consecutiveLossDays > 0
               ? ` · ${consecutiveLossDays} day${consecutiveLossDays === 1 ? "" : "s"}`
               : " · clear"}
         </li>
-        <li>Sacred core · long-term holdings are not bought on Today</li>
+        <li>{OPERATING_MANUAL.damsSacredCore}</li>
       </ul>
     </div>
   );

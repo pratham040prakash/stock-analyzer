@@ -1,16 +1,19 @@
 "use client";
 
 import type { Intent } from "@/types/intent";
+import { INTENT_UI_LABELS } from "@/lib/onboarding/intentLabels";
 import { ApexCard, ApexEyebrow } from "@/components/ui/apex";
 
 export type { Intent } from "@/types/intent";
 export { decisionTodayApiPath } from "@/types/intent";
 
-const OPTIONS: { value: Intent; label: string; hint: string }[] = [
-  { value: "grow", label: "Grow", hint: "Deploy when setups qualify" },
-  { value: "protect", label: "Protect", hint: "Capital safety first" },
-  { value: "explore", label: "Explore", hint: "Observe without acting" },
-];
+const OPTIONS: { value: Intent; label: string; hint: string }[] = (
+  ["grow", "protect", "explore"] as const
+).map((value) => ({
+  value,
+  label: INTENT_UI_LABELS[value].label,
+  hint: INTENT_UI_LABELS[value].hint,
+}));
 
 type Props = {
   intent: Intent;

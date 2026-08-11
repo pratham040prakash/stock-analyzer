@@ -95,6 +95,26 @@ export type Database = {
         };
         Relationships: [];
       };
+      operating_profiles: {
+        Row: {
+          user_id: string;
+          investment_style: "long_term_only" | "core_plus_tactical" | "tactical_only";
+          intraday_acknowledged_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          investment_style: "long_term_only" | "core_plus_tactical" | "tactical_only";
+          intraday_acknowledged_at: string;
+          updated_at?: string;
+        };
+        Update: {
+          investment_style?: "long_term_only" | "core_plus_tactical" | "tactical_only";
+          intraday_acknowledged_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       mentor_outputs: {
         Row: {
           id: string;
