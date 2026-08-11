@@ -133,6 +133,42 @@ async function runChecks(baseUrl: string): Promise<VerifyReport> {
     critical: true,
   });
 
+  record(checks, {
+    id: "health-kite-proxy",
+    label: "Kite order proxy status exposed in health report",
+    ok:
+      healthBody?.kite_proxy === "configured" ||
+      healthBody?.kite_proxy === "missing",
+    detail: String(healthBody?.kite_proxy ?? "missing"),
+    critical: false,
+  });
+
+  const proxyUrl = process.env.KITE_ORDER_PROXY_URL?.trim();
+  if (proxyUrl) {
+    try {
+      const proxyHealth = await fetchCheck(`${proxyUrl.replace(/\/$/, "")}/egress`);
+      const proxyBody = isRecord(proxyHealth.body) ? proxyHealth.body : null;
+      record(checks, {
+        id: "kite-proxy-egress",
+        label: "Kite order proxy egress endpoint reachable",
+        ok:
+          proxyHealth.status === 200 &&
+          typeof proxyBody?.egress_ipv4 === "string" &&
+          proxyBody.egress_ipv4.length > 0,
+        detail: `status=${proxyHealth.status} ip=${String(proxyBody?.egress_ipv4 ?? "missing")}`,
+        critical: false,
+      });
+    } catch (error) {
+      record(checks, {
+        id: "kite-proxy-egress",
+        label: "Kite order proxy egress endpoint reachable",
+        ok: false,
+        detail: error instanceof Error ? error.message : "fetch failed",
+        critical: false,
+      });
+    }
+  }
+
   const cacheControl = health.headers.get("cache-control") ?? "";
   record(checks, {
     id: "health-no-store",

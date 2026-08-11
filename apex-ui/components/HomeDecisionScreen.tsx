@@ -24,6 +24,10 @@ import {
 import TodayExecutionPanel from "@/components/dailyLoop/TodayExecutionPanel";
 import TodayMonitorStrip from "@/components/dailyLoop/TodayMonitorStrip";
 import TodayTrustStrip from "@/components/dailyLoop/TodayTrustStrip";
+import VerdictCanvas, {
+  resolveVerdictWord,
+} from "@/components/dailyLoop/VerdictCanvas";
+import DecisionReceipt from "@/components/dailyLoop/DecisionReceipt";
 import TodayPortfolioHoldings from "@/components/dailyLoop/TodayPortfolioHoldings";
 import TodayProgressStrip from "@/components/dailyLoop/TodayProgressStrip";
 import WeeklyReviewStrip from "@/components/dailyLoop/WeeklyReviewStrip";
@@ -242,6 +246,7 @@ export default function HomeDecisionScreen({
   });
   const [brokerFillSummary, setBrokerFillSummary] =
     useState<BrokerFillSummary | null>(null);
+  const [receiptDismissed, setReceiptDismissed] = useState(false);
   const [brokerFillStatusLoading, setBrokerFillStatusLoading] = useState(() => {
     const symbol = todayHero.symbol?.trim().toUpperCase();
     if (!symbol || typeof window === "undefined") {
@@ -377,7 +382,6 @@ export default function HomeDecisionScreen({
     positionsPnl: livePositionsPnl,
     positionsBreakdown: livePositionsBreakdown,
     portfolioDayPnl: liveDayPnl,
-    monitorOpenPnl: monitorLiveOpenPnl,
     positionTicks,
     liveHoldings,
     liveHoldingsTotalValue,
@@ -411,7 +415,7 @@ export default function HomeDecisionScreen({
     breakdownOpenPnl ??
     openPnlFromPortfolio ??
     null;
-  const monitorStripOpenPnl = monitorLiveOpenPnl;
+  const monitorStripOpenPnl = resolvedOpenPnl;
   const monitorLiveTicksById = useMemo(() => {
     const map: Record<string, (typeof positionTicks)[number]> = {};
     for (const tick of positionTicks) {
@@ -429,6 +433,7 @@ export default function HomeDecisionScreen({
 
       if (fill?.orderId) {
         setBrokerFillSummary(fill);
+        setReceiptDismissed(false);
       }
 
       onCapitalRefresh?.();
@@ -500,6 +505,11 @@ export default function HomeDecisionScreen({
         brokerStepCompleted,
       )
     : null;
+  const evidenceTeaser =
+    decision.reason ??
+    decision.confidence_factors?.[0] ??
+    decision.message ??
+    undefined;
 
   return (
     <div className={`mx-auto w-full max-w-[600px] ${className}`.trim()}>
@@ -620,25 +630,59 @@ export default function HomeDecisionScreen({
                 {retention.sessionTimeContext}
               </p>
             ) : null}
-            <p className="text-xs font-medium uppercase tracking-[0.14em] text-apex-muted">
-              {isCapitalDeployment ? "Today's capital decision" : experience.tagline}
-            </p>
-            <h1 className="text-3xl font-bold leading-tight tracking-tight text-apex-text">
-              {heroTitle}
-            </h1>
-            <p className="mt-2 text-sm text-apex-muted">{heroTone}</p>
-            {capitalDecision.behaviorLock ? (
-              <p className="text-xs font-medium text-apex-text/75">
-                {capitalDecision.behaviorLock}
-              </p>
-            ) : null}
-            {heroSignature ? (
-              <p className="text-xs text-apex-muted/80">{heroSignature}</p>
-            ) : null}
+            {isCapitalDeployment ? (
+              <VerdictCanvas
+                verdictWord={resolveVerdictWord(displayHero.executionKind)}
+                headline={heroTitle}
+                subline={heroTone}
+                executionKind={displayHero.executionKind}
+                trustScore={trustScore}
+                trustDelta={trustDelta}
+                trustMessage={trustMessage}
+                evidenceTeaser={evidenceTeaser}
+                confidence={decision.confidence}
+                portfolioStale={portfolioStale}
+                pollError={livePollError}
+                connectionStatus={connectionStatus}
+                brokerStepCompleted={brokerStepCompleted}
+              />
+            ) : (
+              <>
+                <p className="text-xs font-medium uppercase tracking-[0.14em] text-apex-muted">
+                  {experience.tagline}
+                </p>
+                <h1 className="text-3xl font-bold leading-tight tracking-tight text-apex-text">
+                  {heroTitle}
+                </h1>
+                <p className="mt-2 text-sm text-apex-muted">{heroTone}</p>
+                {capitalDecision.behaviorLock ? (
+                  <p className="text-xs font-medium text-apex-text/75">
+                    {capitalDecision.behaviorLock}
+                  </p>
+                ) : null}
+                {heroSignature ? (
+                  <p className="text-xs text-apex-muted/80">{heroSignature}</p>
+                ) : null}
+              </>
+            )}
           </header>
 
           {isCapitalDeployment ? (
             <div className="mb-6">
+              {brokerFillSummary &&
+              brokerStepCompleted &&
+              !receiptDismissed &&
+              todayHero.symbol ? (
+                <div className="mb-4">
+                  <DecisionReceipt
+                    symbol={todayHero.symbol}
+                    executionKind={todayHero.executionKind}
+                    fill={brokerFillSummary}
+                    trustDelta={trustDelta}
+                    onDismiss={() => setReceiptDismissed(true)}
+                  />
+                </div>
+              ) : null}
               <TodayExecutionPanel
                 hero={todayHero}
                 portfolioValue={portfolioValue ?? 0}

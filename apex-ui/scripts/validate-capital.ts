@@ -23,6 +23,7 @@ import { runTradeFillSelfCheck } from "../services/trade/logTradeFill";
 import { runSyncKiteBrokerFillSelfCheck } from "../services/trade/syncKiteBrokerFill";
 import { runSyncBrokerActivitySelfCheck } from "../services/trade/syncBrokerActivity";
 import { runAutoTradeSelfCheck } from "../services/trade/autoExecute";
+import { runLoggerSelfCheck } from "../lib/logging/logger";
 
 runCapitalProjectionSelfCheck();
 runCapitalFinalStateSelfCheck();
@@ -46,3 +47,4 @@ runTradeFillSelfCheck();
 runSyncKiteBrokerFillSelfCheck();
 runSyncBrokerActivitySelfCheck();
 runAutoTradeSelfCheck();
+runLoggerSelfCheck();

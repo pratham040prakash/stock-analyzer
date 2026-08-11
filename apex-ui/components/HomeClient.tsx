@@ -44,6 +44,7 @@ import {
 } from "@/lib/portfolio/displayValue";
 import { useIntentDecision } from "@/lib/useIntentDecision";
 import { usePortfolioPoll } from "@/lib/usePortfolioPoll";
+import { usePullToRefresh } from "@/lib/usePullToRefresh";
 import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
 import { useGreeting } from "@/lib/useGreeting";
 import { useZerodhaOAuth } from "@/lib/useZerodhaOAuth";
@@ -860,8 +861,29 @@ export default function HomeClient({
       brokerMessage?.includes("syncing") ||
       brokerMessage?.includes("connected"));
 
+  const pullToRefreshEnabled =
+    showGuidance && !isOnboarding && !isCompletingOAuth && Boolean(user);
+  const { pullDistance, isRefreshing: pullRefreshing } = usePullToRefresh({
+    enabled: pullToRefreshEnabled,
+    onRefresh: refreshDashboard,
+  });
+  const showPullIndicator = pullDistance > 0 || pullRefreshing;
+
   return (
     <ApexShell>
+      {showPullIndicator ? (
+        <div
+          aria-hidden
+          className="pointer-events-none fixed inset-x-0 top-0 z-50 flex justify-center"
+          style={{
+            transform: `translateY(${Math.min(pullDistance, 48)}px)`,
+          }}
+        >
+          <span className="rounded-full border border-apex-border/20 bg-apex-surface/95 px-3 py-1 text-xs text-apex-muted">
+            {pullRefreshing ? "Refreshing…" : "Pull to refresh"}
+          </span>
+        </div>
+      ) : null}
       <header className="space-y-4">
         <div className="flex items-center justify-between gap-4">
           <ApexBody>APEX</ApexBody>

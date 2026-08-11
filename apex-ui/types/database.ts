@@ -155,6 +155,25 @@ export type Database = {
         };
         Relationships: [];
       };
+      auto_trade_locks: {
+        Row: {
+          user_id: string;
+          trade_date: string;
+          stock: string;
+          attempted_at: string;
+        };
+        Insert: {
+          user_id: string;
+          trade_date: string;
+          stock: string;
+          attempted_at?: string;
+        };
+        Update: {
+          stock?: string;
+          attempted_at?: string;
+        };
+        Relationships: [];
+      };
       decision_memory: {
         Row: {
           id: string;

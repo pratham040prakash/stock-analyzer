@@ -1,4 +1,5 @@
 import { tradingDateKey } from "@/lib/dailyLoop/disciplineDates";
+import { logger } from "@/lib/logging/logger";
 import { normalizeSymbol } from "@/lib/stockPool";
 import { isAutoTradingEnabled } from "@/lib/tradingPreferences";
 import { executeTradeSafe } from "@/services/trade/execute";
@@ -104,10 +105,21 @@ export async function hasAutoTradeInFlightToday(
   userId: string,
   dateKey = tradingDateKey(),
 ): Promise<boolean> {
-  const signals = await listAutoTradeSignalsToday(supabase, userId, dateKey);
-  return signals.some(
-    (entry) => entry.auto_trade_attempted === true && entry.auto_executed !== true,
-  );
+  const { count, error } = await supabase
+    .from("auto_trade_locks")
+    .select("user_id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("trade_date", dateKey);
+
+  if (error) {
+    const signals = await listAutoTradeSignalsToday(supabase, userId, dateKey);
+    return signals.some(
+      (entry) =>
+        entry.auto_trade_attempted === true && entry.auto_executed !== true,
+    );
+  }
+
+  return (count ?? 0) > 0;
 }
 
 async function recordAutoTradeAttempt(
@@ -122,7 +134,27 @@ async function recordAutoTradeAttempt(
     return false;
   }
 
-  const { error } = await supabase.from("decision_memory").insert({
+  const { error: lockError } = await supabase.from("auto_trade_locks").insert({
+    user_id: userId,
+    trade_date: today,
+    stock: normalized,
+  });
+
+  if (lockError) {
+    if (lockError.code === "23505") {
+      return false;
+    }
+
+    logger.warn("auto_trade_lock_insert_failed", {
+      route: "autoExecute",
+      userId,
+      stock: normalized,
+      code: lockError.code,
+    });
+    return false;
+  }
+
+  const { error: auditError } = await supabase.from("decision_memory").insert({
     user_id: userId,
     timestamp_ms: Date.now(),
     decision_date: today,
@@ -139,7 +171,16 @@ async function recordAutoTradeAttempt(
     } satisfies Signals,
   });
 
-  return !error;
+  if (auditError) {
+    logger.warn("auto_trade_audit_insert_failed", {
+      route: "autoExecute",
+      userId,
+      stock: normalized,
+      code: auditError.code,
+    });
+  }
+
+  return true;
 }
 
 async function clearAutoTradeAttempt(
@@ -153,6 +194,12 @@ async function clearAutoTradeAttempt(
   if (!normalized) {
     return;
   }
+
+  await supabase
+    .from("auto_trade_locks")
+    .delete()
+    .eq("user_id", userId)
+    .eq("trade_date", today);
 
   const { data, error } = await supabase
     .from("decision_memory")
@@ -205,7 +252,12 @@ export async function executeTradeIfAutoEnabled(
 
     if (skipReason) {
       if (skipReason !== "auto_disabled" && skipReason !== "not_buy") {
-        console.log("Auto trade skipped:", skipReason, stock || decision.stock);
+        logger.info("auto_trade_skipped", {
+          route: "autoExecute",
+          userId,
+          reason: skipReason,
+          stock: stock || decision.stock,
+        });
       }
       return;
     }
@@ -216,7 +268,12 @@ export async function executeTradeIfAutoEnabled(
 
     const locked = await recordAutoTradeAttempt(supabase, userId, stock);
     if (!locked) {
-      console.log("Auto trade skipped: in_flight", stock);
+      logger.info("auto_trade_skipped", {
+        route: "autoExecute",
+        userId,
+        reason: "in_flight",
+        stock,
+      });
       return;
     }
 
@@ -237,7 +294,13 @@ export async function executeTradeIfAutoEnabled(
         orderId: result.orderId,
         autoExecuted: true,
       });
-      console.log("Auto trade executed:", result);
+      logger.info("auto_trade_executed", {
+        route: "autoExecute",
+        userId,
+        stock: result.stock,
+        orderId: result.orderId,
+        quantity: result.quantity,
+      });
       return;
     }
 
@@ -246,10 +309,20 @@ export async function executeTradeIfAutoEnabled(
     }
 
     if (result) {
-      console.warn("Auto trade skipped:", result);
+      logger.warn("auto_trade_failed", {
+        route: "autoExecute",
+        userId,
+        stock,
+        status: result.status,
+        reason: "reason" in result ? result.reason : undefined,
+      });
     }
   } catch (error) {
-    console.error("Auto trade hook failed:", error);
+    logger.error("auto_trade_hook_failed", {
+      route: "autoExecute",
+      userId,
+      error: error instanceof Error ? error.message : "unknown",
+    });
   }
 }
 

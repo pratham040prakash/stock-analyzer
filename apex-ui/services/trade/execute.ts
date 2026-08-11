@@ -7,6 +7,7 @@ import {
 } from "@/services/brokers/zerodha";
 import { listTradeAccessTokens } from "@/services/broker/tradeAccess";
 import { normalizeSymbol } from "@/lib/stockPool";
+import { logger } from "@/lib/logging/logger";
 import { evaluateEntryTimingSafe } from "@/services/execution/entryTiming";
 import { computeStopLoss, runRiskChecksSafe } from "@/services/risk/riskControl";
 import type { MarketTrend } from "@/types/decision";
@@ -218,7 +219,11 @@ export async function executeTradeSafe(
   try {
     return await executeTrade(supabase, userId, input);
   } catch (error) {
-    console.error("Trade execution failed:", error);
+    logger.error("trade_execution_failed", {
+      route: "executeTradeSafe",
+      userId,
+      error: error instanceof Error ? error.message : "unknown",
+    });
     return null;
   }
 }
