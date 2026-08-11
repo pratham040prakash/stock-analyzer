@@ -74,7 +74,16 @@ export default function TodayTrustStrip({
       : null;
   const portfolioKnown = knownAmount(portfolioValue);
   const totalKnown = knownAmount(totalCapital);
-  const dayKnown = knownAmount(dayPnl);
+  const breakdownSum =
+    positionsBreakdown.length > 0
+      ? positionsBreakdown.reduce((sum, row) => sum + row.pnl, 0)
+      : null;
+  const displayPnl = knownAmount(dayPnl)
+    ? dayPnl
+    : breakdownSum !== null && Number.isFinite(breakdownSum)
+      ? Math.round(breakdownSum * 10) / 10
+      : null;
+  const dayKnown = knownAmount(displayPnl);
   const resolvedTotal =
     totalKnown
       ? totalCapital
@@ -144,23 +153,24 @@ export default function TodayTrustStrip({
           {dayKnown ? (
             <span
               className={
-                (dayPnl ?? 0) >= 0 ? "text-emerald-300/90" : "text-amber-200/90"
+                (displayPnl ?? 0) >= 0 ? "text-emerald-300/90" : "text-amber-200/90"
               }
             >
-              Open P&amp;L {(dayPnl ?? 0) >= 0 ? "+" : ""}
-              {formatInr(Math.round(dayPnl ?? 0))}
+              Open P&amp;L {(displayPnl ?? 0) >= 0 ? "+" : ""}
+              {formatInr(Math.round(displayPnl ?? 0))}
             </span>
+          ) : connectionStatus === "CONNECTED" ? (
+            <span className="text-apex-muted/70">Open P&amp;L …</span>
           ) : null}
         </div>
 
         {dayKnown && positionsBreakdown.length === 0 ? (
           <p className="mt-2 text-xs text-amber-200/80">
-            Zerodha net positions are syncing — expand after refresh if rows are
-            missing.
+            Loading position rows…
           </p>
         ) : null}
 
-        {dayKnown && positionsBreakdown.length > 0 ? (
+        {positionsBreakdown.length > 0 ? (
           <details className="mt-2 text-xs text-apex-muted/75" open>
             <summary className="cursor-pointer select-none hover:text-apex-muted">
               How Open P&amp;L is calculated (matches Zerodha Positions)
@@ -187,7 +197,7 @@ export default function TodayTrustStrip({
               ))}
             </ul>
             <p className="mt-1.5 text-[11px] text-apex-muted/55">
-              Zerodha Positions P&amp;L · live quote when available
+              LTP − avg × qty · live quote when available
             </p>
           </details>
         ) : null}

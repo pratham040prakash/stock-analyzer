@@ -5,8 +5,6 @@ import { formatInr } from "@/lib/funds";
 
 export type TodayProgressStripProps = {
   dayPnl?: number | null;
-  openPnlPending?: boolean;
-  sessionExpired?: boolean;
   trustScore: number;
   trustDelta: number;
   streakCount: number;
@@ -33,8 +31,6 @@ function TrustDelta({ delta }: { delta: number }) {
 
 export default function TodayProgressStrip({
   dayPnl,
-  openPnlPending = false,
-  sessionExpired = false,
   trustScore,
   trustDelta,
   streakCount,
@@ -62,17 +58,8 @@ export default function TodayProgressStrip({
             >
               {formatDayPnl(dayPnl ?? 0)}
             </p>
-          ) : sessionExpired ? (
-            <p className="mt-1 text-sm text-amber-200/90">
-              Session expired —{" "}
-              <a href="/api/zerodha/login" className="underline underline-offset-2">
-                reconnect Zerodha
-              </a>
-            </p>
-          ) : openPnlPending ? (
-            <p className="mt-1 text-sm text-apex-muted/70">Open P&amp;L syncing…</p>
           ) : (
-            <p className="mt-1 text-sm text-apex-muted/70">No open positions</p>
+            <p className="mt-1 text-sm text-apex-muted/70">Open P&amp;L syncing…</p>
           )}
         </div>
 

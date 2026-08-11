@@ -369,8 +369,6 @@ export default function HomeDecisionScreen({
   const {
     positionsPnl: livePositionsPnl,
     positionsBreakdown: livePositionsBreakdown,
-    positionsNetLegs,
-    liveKiteStatus,
     portfolioDayPnl: liveDayPnl,
     monitorOpenPnl: monitorLiveOpenPnl,
     positionTicks,
@@ -378,19 +376,17 @@ export default function HomeDecisionScreen({
   } = useDayPnlPoll({
     enabled: dayPnlPollEnabled,
   });
+  const breakdownOpenPnl =
+    livePositionsBreakdown.length > 0
+      ? Math.round(
+          livePositionsBreakdown.reduce((sum, row) => sum + row.pnl, 0) * 10,
+        ) / 10
+      : null;
   const resolvedOpenPnl =
     livePositionsPnl ??
+    breakdownOpenPnl ??
     openPnlFromPortfolio ??
-    (positionsNetLegs === 0 && liveKiteStatus === "OK" ? 0 : null) ??
     (connectionStatus === "CONNECTED" ? null : dayPnl);
-  const openPnlPending =
-    connectionStatus === "CONNECTED" &&
-    resolvedOpenPnl === null &&
-    liveKiteStatus === "OK" &&
-    positionsNetLegs > 0;
-  const openPnlSessionExpired =
-    connectionStatus === "CONNECTED" &&
-    (liveKiteStatus === "TOKEN_EXPIRED" || liveKiteStatus === "NOT_CONNECTED");
   const monitorStripOpenPnl = monitorLiveOpenPnl;
   const monitorLiveTicksById = useMemo(() => {
     const map: Record<string, (typeof positionTicks)[number]> = {};
@@ -536,8 +532,6 @@ export default function HomeDecisionScreen({
             {isCapitalDeployment ? (
               <TodayProgressStrip
                 dayPnl={resolvedOpenPnl}
-                openPnlPending={openPnlPending}
-                sessionExpired={openPnlSessionExpired}
                 trustScore={trustScore}
                 trustDelta={trustDelta}
                 streakCount={retention.streakCount}
