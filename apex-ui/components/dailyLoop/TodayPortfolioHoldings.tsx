@@ -1,7 +1,7 @@
 "use client";
 
 import { formatInr } from "@/lib/funds";
-import { resolvePortfolioDisplayValue } from "@/services/portfolio/format";
+import { resolvePortfolioDisplayValue } from "@/lib/portfolio/displayValue";
 import type { PortfolioHoldingRow } from "@/types/portfolioApi";
 
 export type TodayPortfolioHoldingsProps = {

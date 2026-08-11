@@ -37,7 +37,7 @@ import { buildFirstRunProgress } from "@/lib/onboarding/firstRun";
 import type { PortfolioApiResponse } from "@/types/portfolioApi";
 import { recordVisit, saveCachedPortfolio } from "@/lib/portfolioCache";
 import { portfolioRiskFromAllocation } from "@/lib/portfolioRisk";
-import { resolvePortfolioDisplayValue } from "@/services/portfolio/format";
+import { resolvePortfolioDisplayValue } from "@/lib/portfolio/displayValue";
 import { useIntentDecision } from "@/lib/useIntentDecision";
 import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
 import { useGreeting } from "@/lib/useGreeting";
