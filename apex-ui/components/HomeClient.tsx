@@ -706,8 +706,10 @@ export default function HomeClient({
     [premiumFeatures.marginMode, refreshDecision],
   );
 
-  const showHomeDecision =
-    Boolean(dailyDecision) && connectionStatus === "CONNECTED";
+  const brokerSessionActive =
+    connectionStatus === "CONNECTED" || connectionStatus === "TOKEN_EXPIRED";
+
+  const showHomeDecision = Boolean(dailyDecision) && brokerSessionActive;
 
   const firstRunProgress = useMemo(
     () =>
@@ -881,7 +883,11 @@ export default function HomeClient({
               topSymbol={portfolioData?.top_symbol}
               topAllocationPct={portfolioData?.top_allocation_pct}
               portfolioValue={
-                brokerPortfolioValue ?? portfolioData?.total_value ?? undefined
+                brokerPortfolioValue ??
+                portfolioData?.total_value ??
+                (portfolioData?.holdings?.length
+                  ? portfolioData.holdings.reduce((sum, row) => sum + row.value, 0)
+                  : undefined)
               }
               totalCapital={totalCapital ?? undefined}
               collateral={collateral}
@@ -893,6 +899,9 @@ export default function HomeClient({
                 symbol: holding.tradingsymbol,
                 weight: holding.allocation_pct,
               }))}
+              portfolioHoldings={portfolioData?.holdings ?? []}
+              portfolioTotalPnl={portfolioData?.total_pnl ?? null}
+              portfolioLoading={portfolioLoading}
               connectionStatus={connectionStatus}
               decisionUpdatedAt={decisionUpdatedAt}
               fundsLoading={fundsLoading}

@@ -42,7 +42,7 @@ function connectionLabel(status: ConnectionStatus): string {
   }
 
   if (status === "TOKEN_EXPIRED") {
-    return "Session expired — reconnect";
+    return "Session expired — reconnect to refresh live data";
   }
 
   return "Zerodha not connected";
@@ -117,6 +117,17 @@ export default function TodayTrustStrip({
             >
               Reconnect Zerodha
             </a>
+          </span>
+        ) : null}
+        {connectionStatus === "TOKEN_EXPIRED" && !fundsSyncError ? (
+          <span className="text-amber-200/90">
+            <a
+              href="/api/zerodha/login"
+              className="underline underline-offset-2 hover:text-amber-100"
+            >
+              Reconnect Zerodha
+            </a>{" "}
+            to refresh portfolio and live P&amp;L
           </span>
         ) : null}
       </div>

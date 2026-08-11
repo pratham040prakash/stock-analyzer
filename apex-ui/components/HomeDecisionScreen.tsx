@@ -25,6 +25,7 @@ import {
 import TodayExecutionPanel from "@/components/dailyLoop/TodayExecutionPanel";
 import TodayMonitorStrip from "@/components/dailyLoop/TodayMonitorStrip";
 import TodayTrustStrip from "@/components/dailyLoop/TodayTrustStrip";
+import TodayPortfolioHoldings from "@/components/dailyLoop/TodayPortfolioHoldings";
 import TodayProgressStrip from "@/components/dailyLoop/TodayProgressStrip";
 import WeeklyReviewStrip from "@/components/dailyLoop/WeeklyReviewStrip";
 import LastClosedTrustBlock from "@/components/dailyLoop/LastClosedTrustBlock";
@@ -41,6 +42,7 @@ import type {
   DisciplineHistoryEntry,
   DisciplineHistorySummary,
 } from "@/types/decisionHistory";
+import type { PortfolioHoldingRow } from "@/types/portfolioApi";
 import PremiumFeatureGate from "@/components/dailyLoop/PremiumFeatureGate";
 import { useExploreTriggers } from "@/lib/useExploreTriggers";
 import { useDayPnlPoll } from "@/lib/useDayPnlPoll";
@@ -91,6 +93,9 @@ export type HomeDecisionScreenProps = {
   dayPnl?: number | null;
   openPnlFromPortfolio?: number | null;
   holdings?: { symbol: string; weight: number }[];
+  portfolioHoldings?: PortfolioHoldingRow[];
+  portfolioTotalPnl?: number | null;
+  portfolioLoading?: boolean;
   connectionStatus?: ConnectionStatus;
   decisionUpdatedAt?: string | null;
   fundsLoading?: boolean;
@@ -136,6 +141,9 @@ export default function HomeDecisionScreen({
   dayPnl,
   openPnlFromPortfolio,
   holdings,
+  portfolioHoldings = [],
+  portfolioTotalPnl,
+  portfolioLoading = false,
   connectionStatus = "NOT_CONNECTED",
   decisionUpdatedAt,
   fundsLoading = false,
@@ -359,8 +367,10 @@ export default function HomeDecisionScreen({
   const isProtect = renderIntent === "protect";
   const isCapitalDeployment = isGrow || isProtect;
   const monitorEnabled =
-    isCapitalDeployment && connectionStatus === "CONNECTED";
-  const dayPnlPollEnabled = connectionStatus === "CONNECTED";
+    (connectionStatus === "CONNECTED" || connectionStatus === "TOKEN_EXPIRED") &&
+    isCapitalDeployment;
+  const dayPnlPollEnabled =
+    connectionStatus === "CONNECTED" || connectionStatus === "TOKEN_EXPIRED";
   const {
     positions: monitorPositions,
     loading: monitorLoading,
@@ -527,6 +537,17 @@ export default function HomeDecisionScreen({
               fundsLoading={fundsLoading}
               fundsSynced={fundsSynced}
               fundsSyncError={fundsSyncError}
+            />
+
+            <TodayPortfolioHoldings
+              holdings={portfolioHoldings}
+              totalValue={portfolioValue}
+              totalPnl={portfolioTotalPnl}
+              loading={
+                portfolioLoading &&
+                portfolioHoldings.length === 0 &&
+                connectionStatus === "CONNECTED"
+              }
             />
 
             {isCapitalDeployment ? (
