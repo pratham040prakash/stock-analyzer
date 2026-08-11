@@ -125,8 +125,16 @@ export function mergeDisciplineHistory(input: {
     const executed = input.executedByDate.get(date);
 
     if (executed?.length) {
-      history.push(...executed);
-      continue;
+      const trades = executed.filter(
+        (entry) => entry.action === "buy" || entry.action === "sell",
+      );
+
+      if (trades.length > 0) {
+        history.push(...trades);
+        continue;
+      }
+
+      // Hold-only memory rows are broker noise — prefer commit/guidance for the day.
     }
 
     const commit = input.commitsByDate.get(date);
@@ -242,5 +250,54 @@ export function runDisciplineHistoryMergeSelfCheck(): void {
   assert(
     executedWins.length === 1 && executedWins[0]?.source === "executed",
     "Executed trades outrank discipline commits on the same day",
+  );
+
+  const holdNoise = mergeDisciplineHistory({
+    dayKeys: [todayKey],
+    executedByDate: new Map([
+      [
+        todayKey,
+        [
+          {
+            date: todayKey,
+            action: "hold",
+            stock: "RELIANCE",
+            outcome: "hold",
+            outcomeLabel: "Held",
+            pnl: null,
+            source: "executed",
+          },
+          {
+            date: todayKey,
+            action: "hold",
+            stock: "TCS",
+            outcome: "hold",
+            outcomeLabel: "Held",
+            pnl: null,
+            source: "executed",
+          },
+        ],
+      ],
+    ]),
+    commitsByDate: new Map([
+      [
+        todayKey,
+        {
+          commit_date: todayKey,
+          intent: "grow",
+          action: "wait",
+          stock: null,
+          followed: true,
+        },
+      ],
+    ]),
+    guidanceByDate: new Map(),
+  });
+
+  assert(
+    holdNoise.length === 1 &&
+      holdNoise[0]?.source === "commit" &&
+      holdNoise[0]?.outcome === "followed",
+    "Hold-only memory rows fall through to discipline commit",
   );
 }
