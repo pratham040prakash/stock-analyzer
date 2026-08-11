@@ -3,6 +3,7 @@
 import { formatInr } from "@/lib/funds";
 import { resolvePortfolioDisplayValue } from "@/lib/portfolio/displayValue";
 import type { PortfolioHoldingRow } from "@/types/portfolioApi";
+import type { AllocationBucket } from "@/services/portfolio/allocationPolicy";
 
 export type TodayPortfolioHoldingsProps = {
   holdings: PortfolioHoldingRow[];
@@ -11,6 +12,7 @@ export type TodayPortfolioHoldingsProps = {
   loading?: boolean;
   showEmptyWhenSynced?: boolean;
   stale?: boolean;
+  bucketBySymbol?: Record<string, { bucket: AllocationBucket; drift_pct: number }>;
 };
 
 function formatPrice(value: number): string {
@@ -34,6 +36,7 @@ export default function TodayPortfolioHoldings({
   loading = false,
   showEmptyWhenSynced = false,
   stale = false,
+  bucketBySymbol,
 }: TodayPortfolioHoldingsProps) {
   if (loading) {
     return (
@@ -94,7 +97,10 @@ export default function TodayPortfolioHoldings({
         </summary>
 
         <ul className="mt-2 space-y-2 border-t border-apex-border/10 pt-2">
-          {holdings.map((row) => (
+          {holdings.map((row) => {
+            const bucketMeta = bucketBySymbol?.[row.tradingsymbol.toUpperCase()];
+
+            return (
             <li
               key={row.tradingsymbol}
               className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 tabular-nums"
@@ -102,10 +108,22 @@ export default function TodayPortfolioHoldings({
               <div>
                 <p className="text-sm font-medium text-apex-text/90">
                   {row.tradingsymbol}
+                  {bucketMeta ? (
+                    <span className="ml-2 rounded border border-apex-border/20 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-apex-muted/80">
+                      {bucketMeta.bucket}
+                    </span>
+                  ) : null}
                 </p>
                 <p className="text-[11px] text-apex-muted/60">
                   {row.quantity} × avg {formatPrice(row.average_price)} · LTP{" "}
                   {formatPrice(row.last_price)}
+                  {bucketMeta ? (
+                    <span>
+                      {" "}
+                      · drift {bucketMeta.drift_pct > 0 ? "+" : ""}
+                      {bucketMeta.drift_pct.toFixed(0)}%
+                    </span>
+                  ) : null}
                 </p>
               </div>
               <div className="text-right">
@@ -122,7 +140,8 @@ export default function TodayPortfolioHoldings({
                 </p>
               </div>
             </li>
-          ))}
+            );
+          })}
         </ul>
       </details>
     </div>

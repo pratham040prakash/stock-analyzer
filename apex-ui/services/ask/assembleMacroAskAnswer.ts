@@ -42,6 +42,7 @@ export function assembleMacroAskAnswer(question: string): AskAnswerViewModel {
         : "Macro stress favors patience — review allocation drift before new buys.",
       uncertainty: "Medium",
       symbol: null,
+      proof_href: null,
       built_at: builtAt,
     };
   }
@@ -53,6 +54,7 @@ export function assembleMacroAskAnswer(question: string): AskAnswerViewModel {
     reason: "Macro questions need a calm plan — check core bucket drift and cash buffer first.",
     uncertainty: "Medium",
     symbol: null,
+    proof_href: null,
     built_at: builtAt,
   };
 }

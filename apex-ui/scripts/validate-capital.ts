@@ -51,6 +51,10 @@ import { runSendReviewDigestSelfCheck } from "../services/review/sendReviewDiges
 import { runMacroAskSelfCheck } from "../services/ask/assembleMacroAskAnswer";
 import { runContextualLessonSelfCheck } from "../services/learning/assembleContextualLesson";
 import { runThesisInvalidationSelfCheck } from "../services/thesis/evaluateThesisInvalidation";
+import { runReviewDigestCronSelfCheck } from "../services/review/runReviewDigestCron";
+import { runParseInvalidationRuleSelfCheck } from "../services/thesis/parseInvalidationRule";
+import { runDisciplineTrendsSelfCheck } from "../services/review/buildDisciplineTrends";
+import { runPortfolioHealthSummarySelfCheck } from "../services/portfolio/buildPortfolioHealthSummary";
 
 runCapitalProjectionSelfCheck();
 runCapitalFinalStateSelfCheck();
@@ -102,3 +106,7 @@ runSendReviewDigestSelfCheck();
 runMacroAskSelfCheck();
 runContextualLessonSelfCheck();
 runThesisInvalidationSelfCheck();
+runReviewDigestCronSelfCheck();
+runParseInvalidationRuleSelfCheck();
+runDisciplineTrendsSelfCheck();
+runPortfolioHealthSummarySelfCheck();

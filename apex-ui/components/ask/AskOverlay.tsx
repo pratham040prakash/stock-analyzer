@@ -80,6 +80,7 @@ export default function AskOverlay({ open, onClose }: Props) {
               value={question}
               onChange={(event) => setQuestion(event.target.value)}
               rows={3}
+              aria-label="Ask a what-if question"
               placeholder="Should I buy RELIANCE? · Am I too concentrated? · What if Nifty falls 2%?"
               className="w-full rounded-xl border border-apex-border/20 bg-white/[0.03] px-3 py-2 text-sm text-apex-text outline-none focus:border-blue-400/40"
             />
@@ -116,6 +117,14 @@ export default function AskOverlay({ open, onClose }: Props) {
                 className="inline-flex text-sm text-blue-200/90 hover:text-blue-100"
               >
                 Open research for {answer.symbol} →
+              </a>
+            ) : null}
+            {answer.proof_href ? (
+              <a
+                href={answer.proof_href}
+                className="inline-flex text-sm text-blue-200/90 hover:text-blue-100"
+              >
+                See the proof →
               </a>
             ) : null}
             <button

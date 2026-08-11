@@ -155,6 +155,23 @@ test.describe("APEX authenticated smoke", () => {
     await expect(page.locator("body")).toContainText(/Settings/i);
   });
 
+  test("affordability ask handles portfolio question", async ({ request }) => {
+    const response = await request.post("/api/ask/answer", {
+      data: { question: "Can I afford this trade?" },
+    });
+    expect(response.ok()).toBeTruthy();
+
+    const body = await response.json();
+    expect(body.status).toBe("ok");
+    expect(body.answer?.answer_word).toMatch(/Buy|Wait|Pass|Reduce/);
+  });
+
+  test("explore page loads for signed-in user", async ({ page }) => {
+    await page.goto("/app/explore");
+    await expect(page).toHaveURL(/\/app\/explore/);
+    await expect(page.locator("body")).toContainText(/Explore/i);
+  });
+
   test("journal redirects into review receipts tab", async ({ page }) => {
     await page.goto("/app/journal");
     await expect(page).toHaveURL(/\/app\/review\?tab=receipts/);

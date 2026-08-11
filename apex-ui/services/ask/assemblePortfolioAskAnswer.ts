@@ -12,6 +12,11 @@ const PORTFOLIO_PATTERNS = [
   /diversif/i,
   /portfolio health/i,
   /allocation/i,
+  /can i afford/i,
+  /afford this/i,
+  /afford to buy/i,
+  /enough cash/i,
+  /margin/i,
 ];
 
 export function isPortfolioQuestion(question: string): boolean {
@@ -35,6 +40,7 @@ export async function assemblePortfolioAskAnswer(
       reason: "Sync Zerodha to see concentration and allocation drift.",
       uncertainty: "High",
       symbol: null,
+      proof_href: null,
       built_at: builtAt,
     };
   }
@@ -46,14 +52,33 @@ export async function assemblePortfolioAskAnswer(
   const tooConcentrated = top && top.allocation_pct >= 35;
   const coreDriftHigh = Math.abs(allocation.drift.core) >= 10;
 
+  if (/can i afford|afford this|afford to buy|enough cash|margin/i.test(question)) {
+    const cash = allocation.cash_available_inr ?? 0;
+    const canAfford = cash >= 25_000;
+
+    return {
+      question,
+      answer_word: "Wait",
+      headline: canAfford ? "Wait · size against policy" : "Wait · cash buffer thin",
+      reason: canAfford
+        ? `₹${Math.round(cash).toLocaleString("en-IN")} deployable — confirm tranche plan before acting.`
+        : "Low deployable cash — build buffer before new buys.",
+      uncertainty: "Medium",
+      symbol: top?.tradingsymbol ?? null,
+      proof_href: null,
+      built_at: builtAt,
+    };
+  }
+
   if (/concentrat|overweight/i.test(question) && tooConcentrated) {
     return {
       question,
       answer_word: "Wait",
-      headline: `Wait · concentration risk`,
+      headline: "Wait · concentration risk",
       reason: `${top.tradingsymbol} is ${top.allocation_pct.toFixed(0)}% of portfolio — research before adding size.`,
       uncertainty: "Medium",
       symbol: top.tradingsymbol,
+      proof_href: null,
       built_at: builtAt,
     };
   }
@@ -66,6 +91,7 @@ export async function assemblePortfolioAskAnswer(
       reason: `Top holding ${top?.tradingsymbol ?? "—"} is within policy bounds today.`,
       uncertainty: "Medium",
       symbol: top?.tradingsymbol ?? null,
+      proof_href: null,
       built_at: builtAt,
     };
   }
@@ -73,13 +99,14 @@ export async function assemblePortfolioAskAnswer(
   if (/diversif|allocation/i.test(question)) {
     return {
       question,
-      answer_word: coreDriftHigh ? "Wait" : "Wait",
+      answer_word: "Wait",
       headline: coreDriftHigh ? "Wait · rebalance first" : "Wait · policy steady",
       reason: coreDriftHigh
         ? `Core drift ${allocation.drift.core > 0 ? "+" : ""}${allocation.drift.core.toFixed(0)}% — align buckets before new buys.`
         : allocation.policy_note,
       uncertainty: "Medium",
       symbol: top?.tradingsymbol ?? null,
+      proof_href: null,
       built_at: builtAt,
     };
   }
@@ -91,6 +118,7 @@ export async function assemblePortfolioAskAnswer(
     reason: overview.allocation?.policy_note ?? "Open Portfolio for allocation detail.",
     uncertainty: "Medium",
     symbol: top?.tradingsymbol ?? null,
+    proof_href: null,
     built_at: builtAt,
   };
 }
@@ -98,5 +126,9 @@ export async function assemblePortfolioAskAnswer(
 export function runPortfolioAskSelfCheck(): void {
   if (!isPortfolioQuestion("Am I too concentrated?")) {
     throw new Error("Portfolio ask self-check failed");
+  }
+
+  if (!isPortfolioQuestion("Can I afford this trade?")) {
+    throw new Error("Portfolio ask self-check failed: afford pattern");
   }
 }

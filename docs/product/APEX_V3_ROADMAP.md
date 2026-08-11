@@ -1,8 +1,8 @@
 # APEX V3 — Roadmap
 
 **Document ID:** APEX-V3-ROADMAP  
-**Version:** 0.7  
-**Status:** ACTIVE — Sprints Q–S shipped (v3.0.0-beta1 prep)  
+**Version:** 0.8  
+**Status:** ACTIVE — Sprints T–V shipped (v3.0.0-rc1 prep)  
 **Date:** 2026-08-11  
 **Owner:** Product  
 **Parent:** [APEX_V3_PRODUCT_STRATEGY.md](./APEX_V3_PRODUCT_STRATEGY.md)  
@@ -56,8 +56,8 @@ APEX V3 extends the **Daily Decision Experience** (V2 GA) into a full **Investme
 | **V3-101** | **Portfolio Command Center** | Overview screen, contracts, assembly, Understand SSOT | **✅ Shipped** |
 | **V3-102** | **Holdings Experience** | Inventory ledger, search/filter/sort, row Understand, watchlist | **✅ Shipped** |
 | **V3-103** | **Portfolio Review** | Theme-first review queue, explanation, Understand, Research handoff | **✅ Shipped** |
-| V3-104 | Allocation indicators | Policy drift vs bucket tags per row | Planned |
-| V3-105 | Health scoring surface | Reuse APS-005 patterns at portfolio level | Planned |
+| V3-104 | Allocation indicators | Policy drift vs bucket tags per row | **✅ Shipped** |
+| V3-105 | Health scoring surface | Reuse APS-005 patterns at portfolio level | **✅ Shipped** |
 | V3-106 | Integration tests | Render-level; 100% gate | ✅ 69-test gate |
 
 **Dependencies:** Zerodha connected; existing portfolio use cases  
@@ -78,7 +78,7 @@ APEX V3 extends the **Daily Decision Experience** (V2 GA) into a full **Investme
 | V3-203 | Decision Receipt | Immutable receipt on ACT/WAIT with proof link | **✅ Shipped** |
 | V3-204 | Weekly Review | Sunday ritual; broker reconcile | **✅ Shipped** |
 | V3-205 | Journal page shell | Trade log integration; Receipts sub-tab | **✅ Shipped (merged into Review)** |
-| V3-206 | Discipline metrics | Process score (not P&L leaderboard) | Planned |
+| V3-206 | Discipline metrics | Process score (not P&L leaderboard) | **✅ Shipped (trends)** |
 
 **Target tag:** `v3.0.0-alpha2`
 
@@ -118,15 +118,15 @@ APEX V3 extends the **Daily Decision Experience** (V2 GA) into a full **Investme
 
 **Theme:** One Investment OS; retire legacy tabs
 
-| ID | Milestone | Outcome |
-|----|-----------|---------|
-| V3-501 | 5-page nav GA | Home · Portfolio · Research · Journal · You |
-| V3-502 | Legacy tab redirects | All bookmarks preserved |
-| V3-503 | Investor DNA v1 | Profile + behavior summary |
-| V3-504 | Contextual Learning | Lessons tied to user verdicts |
-| V3-505 | V3 GA hardening | RC pattern; docs freeze |
+| ID | Milestone | Outcome | Status |
+|----|-----------|---------|--------|
+| V3-501 | 5-page nav GA | Today · Portfolio · Research · Review · You | **✅ Shipped** |
+| V3-502 | Legacy tab redirects | All bookmarks preserved | **✅ Shipped** |
+| V3-503 | Investor DNA v1 | Profile + behavior summary | **✅ Shipped** |
+| V3-504 | Contextual Learning | Lessons tied to user verdicts | **✅ Shipped** |
+| V3-505 | V3 GA hardening | RC pattern; docs freeze | **✅ RC prep** |
 
-**Target tag:** `v3.0.0`
+**Target tag:** `v3.0.0-rc1` — run `npm run rc:checklist` before tag
 
 ---
 

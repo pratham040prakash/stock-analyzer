@@ -9,14 +9,17 @@ CREATE TABLE IF NOT EXISTS auto_trade_locks (
 
 ALTER TABLE auto_trade_locks ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS auto_trade_locks_select_own ON auto_trade_locks;
 CREATE POLICY auto_trade_locks_select_own ON auto_trade_locks
   FOR SELECT
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS auto_trade_locks_insert_own ON auto_trade_locks;
 CREATE POLICY auto_trade_locks_insert_own ON auto_trade_locks
   FOR INSERT
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS auto_trade_locks_delete_own ON auto_trade_locks;
 CREATE POLICY auto_trade_locks_delete_own ON auto_trade_locks
   FOR DELETE
   USING (auth.uid() = user_id);

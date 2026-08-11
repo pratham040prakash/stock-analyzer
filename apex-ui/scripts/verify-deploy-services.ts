@@ -42,6 +42,7 @@ async function fetchHealth(url: string): Promise<{ ok: boolean; detail: string }
 
 async function runChecks(): Promise<ServiceCheck[]> {
   const checks: ServiceCheck[] = [];
+  const strict = process.env.APEX_DEPLOY_VERIFY_STRICT === "1";
   const alphaUrl = process.env.ALPHA_AI_SERVICE_URL?.trim();
   const kiteProxy = process.env.KITE_ORDER_PROXY_URL?.trim();
 
@@ -58,9 +59,11 @@ async function runChecks(): Promise<ServiceCheck[]> {
     record(checks, {
       id: "alpha-ai-skipped",
       label: "Alpha AI worker health",
-      ok: true,
-      detail: "ALPHA_AI_SERVICE_URL not set — skipped",
-      skipped: true,
+      ok: !strict,
+      detail: strict
+        ? "ALPHA_AI_SERVICE_URL required in strict mode"
+        : "ALPHA_AI_SERVICE_URL not set — skipped",
+      skipped: !strict,
     });
   }
 
@@ -76,9 +79,11 @@ async function runChecks(): Promise<ServiceCheck[]> {
     record(checks, {
       id: "kite-proxy-skipped",
       label: "Kite order proxy configured",
-      ok: true,
-      detail: "KITE_ORDER_PROXY_URL not set — skipped",
-      skipped: true,
+      ok: !strict,
+      detail: strict
+        ? "KITE_ORDER_PROXY_URL required in strict mode"
+        : "KITE_ORDER_PROXY_URL not set — skipped",
+      skipped: !strict,
     });
   }
 

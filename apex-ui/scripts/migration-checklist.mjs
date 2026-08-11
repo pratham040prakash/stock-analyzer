@@ -89,6 +89,12 @@ function main() {
     "Automated: npm run db:migrate -- supabase/migrations/<file>.sql",
   );
   console.log("Apply all: npm run db:migrate:all\n");
+  console.log("Production apply order (Supabase SQL Editor — run each file once):");
+  console.log("  0. Skip supabase/schema.sql if tables already exist");
+  ORDERED_MIGRATIONS.forEach((name, index) => {
+    console.log(`  ${String(index + 1).padStart(2, "0")}. supabase/migrations/${name}`);
+  });
+  console.log("");
 
   if (apply) {
     const files = [schema, ...ordered];

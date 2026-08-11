@@ -14,6 +14,8 @@
     "db:migrate:all": "node scripts/migration-checklist.mjs --apply",
     "verify:prod": "npx --yes tsx scripts/verify-prod.ts",
     "verify:deploy": "npx --yes tsx scripts/verify-deploy-services.ts",
+    "verify:deploy:strict": "APEX_DEPLOY_VERIFY_STRICT=1 npx --yes tsx scripts/verify-deploy-services.ts",
+    "rc:checklist": "node scripts/rc-checklist.mjs",
     "test:e2e": "playwright test",
     "test:e2e:install": "playwright install chromium"
   },

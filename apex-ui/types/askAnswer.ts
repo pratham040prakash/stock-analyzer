@@ -7,5 +7,6 @@ export type AskAnswerViewModel = {
   reason: string;
   uncertainty: string;
   symbol: string | null;
+  proof_href: string | null;
   built_at: string;
 };

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import ApexSurfaceNav from "@/components/nav/ApexSurfaceNav";
 import ExploreResearchHandoff from "@/components/research/ExploreResearchHandoff";
 import InvestmentThesisPanel from "@/components/research/InvestmentThesisPanel";
@@ -103,6 +104,9 @@ export default function ResearchPageClient({ initialSymbol }: Props) {
         <div className="space-y-2">
           <ApexTitle>Research</ApexTitle>
           <p className="text-sm text-apex-muted">{helper}</p>
+          <Link href="/app/explore" className="text-sm text-blue-200/90 hover:text-blue-100">
+            Open Explore triggers →
+          </Link>
         </div>
       </header>
 

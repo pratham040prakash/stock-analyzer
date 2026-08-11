@@ -1,5 +1,6 @@
 "use client";
 
+import ProofStructurePanel from "@/components/proof/ProofStructurePanel";
 import type { MorningBriefViewModel } from "@/types/morningBrief";
 import type { DecisionReceiptRow } from "@/services/receipts/persistReceipt";
 
@@ -38,26 +39,23 @@ export default function ReceiptProofPanel({ receipt }: Props) {
       ) : null}
 
       {brief ? (
-        <div className="space-y-2 text-sm text-apex-text/85">
-          <p>
-            <span className="text-apex-muted/70">Verdict · </span>
-            {brief.decision.verdict_display}
-          </p>
-          <p>
-            <span className="text-apex-muted/70">Reason · </span>
-            {brief.decision.reason}
-          </p>
-          <p>
-            <span className="text-apex-muted/70">Trust · </span>
-            {brief.trust.trust_message}
-          </p>
-          {brief.evidence.key_reasons[0] ? (
+        <>
+          <div className="space-y-2 text-sm text-apex-text/85">
             <p>
-              <span className="text-apex-muted/70">Evidence · </span>
-              {brief.evidence.key_reasons[0]}
+              <span className="text-apex-muted/70">Verdict · </span>
+              {brief.decision.verdict_display}
             </p>
-          ) : null}
-        </div>
+            <p>
+              <span className="text-apex-muted/70">Reason · </span>
+              {brief.decision.reason}
+            </p>
+            <p>
+              <span className="text-apex-muted/70">Trust · </span>
+              {brief.trust.trust_message}
+            </p>
+          </div>
+          <ProofStructurePanel brief={brief} />
+        </>
       ) : (
         <p className="text-sm text-apex-muted/75">
           No brief snapshot stored — receipt captures discipline or fill metadata only.

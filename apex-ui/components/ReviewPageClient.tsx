@@ -12,7 +12,9 @@ import QuarterlyReviewPanel from "@/components/review/QuarterlyReviewPanel";
 import WeeklyReviewHero from "@/components/review/WeeklyReviewHero";
 import WeeklyReviewStrip from "@/components/dailyLoop/WeeklyReviewStrip";
 import DisciplineHistoryStrip from "@/components/dailyLoop/DisciplineHistoryStrip";
+import DisciplineTrendPanel from "@/components/review/DisciplineTrendPanel";
 import ContextualLessonPanel from "@/components/learning/ContextualLessonPanel";
+import { buildDisciplineTrends } from "@/services/review/buildDisciplineTrends";
 import ApexErrorBoundary from "@/components/ui/ApexErrorBoundary";
 import { ApexShell } from "@/components/ui/apex";
 import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
@@ -120,7 +122,7 @@ export default function ReviewPageClient({ userName }: Props) {
   const [lessonLoading, setLessonLoading] = useState(true);
 
   const loadHistory = useCallback(async () => {
-    const response = await apiFetch("/api/decision/history?days=14", {
+    const response = await apiFetch("/api/decision/history?days=90", {
       cache: "no-store",
     });
     const data = await parseApiJson<DecisionHistoryResponse>(
@@ -253,6 +255,11 @@ export default function ReviewPageClient({ userName }: Props) {
     [summary, streakCount],
   );
 
+  const disciplineTrends = useMemo(
+    () => buildDisciplineTrends(history, streakCount),
+    [history, streakCount],
+  );
+
   const days = buildLastNIstDays(14);
 
   const dismissReceipt = useCallback(async (id: string) => {
@@ -330,11 +337,13 @@ export default function ReviewPageClient({ userName }: Props) {
         onRetry={() => void reconcileBroker()}
       />
 
-      <div className="my-4 flex flex-wrap gap-2">
+      <div className="my-4 flex flex-wrap gap-2" role="tablist" aria-label="Review cadence">
         {tabs.map((item) => (
           <button
             key={item.key}
             type="button"
+            role="tab"
+            aria-selected={tab === item.key}
             onClick={() => selectTab(item.key)}
             className={
               tab === item.key
@@ -350,7 +359,8 @@ export default function ReviewPageClient({ userName }: Props) {
       {loading ? (
         <p className="text-sm text-apex-muted/70">Loading review…</p>
       ) : tab === "weekly" ? (
-        <div className="space-y-4">
+        <div className="space-y-4" role="tabpanel">
+          <DisciplineTrendPanel trends={disciplineTrends} />
           <PlannedVsActualTable rows={plannedRows} />
           <WeeklyReviewStrip history={history} summary={summary} days={days} />
           <DisciplineHistoryStrip days={days} history={history} />

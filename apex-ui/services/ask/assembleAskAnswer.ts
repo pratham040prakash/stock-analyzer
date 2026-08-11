@@ -48,6 +48,7 @@ export async function assembleAskAnswer(question: string): Promise<AskAnswerView
       reason: "Example: Should I buy RELIANCE?",
       uncertainty: "Mixed",
       symbol: null,
+      proof_href: null,
       built_at: new Date().toISOString(),
     };
   }
@@ -62,6 +63,7 @@ export async function assembleAskAnswer(question: string): Promise<AskAnswerView
       reason: "Include a ticker — e.g. Should I buy INFY?",
       uncertainty: "High",
       symbol: null,
+      proof_href: null,
       built_at: new Date().toISOString(),
     };
   }
@@ -81,6 +83,7 @@ export async function assembleAskAnswer(question: string): Promise<AskAnswerView
           ? "Medium"
           : "High",
     symbol,
+    proof_href: `/app/research?symbol=${encodeURIComponent(symbol)}&proof=1`,
     built_at: new Date().toISOString(),
   };
 }

@@ -89,6 +89,11 @@ test.describe("APEX smoke", () => {
     await expect(page).toHaveURL(/\/login/);
   });
 
+  test("explore route guards anonymous users", async ({ page }) => {
+    await page.goto("/app/explore");
+    await expect(page).toHaveURL(/\/login/);
+  });
+
   test("settings route guards anonymous users", async ({ page }) => {
     await page.goto("/app/you/settings");
     await expect(page).toHaveURL(/\/login/);

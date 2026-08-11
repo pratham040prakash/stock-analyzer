@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import ApexSurfaceNav from "@/components/nav/ApexSurfaceNav";
 import TodayPortfolioHoldings from "@/components/dailyLoop/TodayPortfolioHoldings";
 import TodayTrustStrip from "@/components/dailyLoop/TodayTrustStrip";
@@ -11,6 +11,8 @@ import PositionsView from "@/components/portfolio/PositionsView";
 import ResearchHandoffLink from "@/components/portfolio/ResearchHandoffLink";
 import NewCapitalPanel from "@/components/capital/NewCapitalPanel";
 import ThesisInvalidationBanner from "@/components/thesis/ThesisInvalidationBanner";
+import PortfolioHealthSummary from "@/components/portfolio/PortfolioHealthSummary";
+import { buildPortfolioHealthSummary } from "@/services/portfolio/buildPortfolioHealthSummary";
 import ApexErrorBoundary from "@/components/ui/ApexErrorBoundary";
 import { ApexCard, ApexShell, ApexTitle } from "@/components/ui/apex";
 import { useDayPnlPoll } from "@/lib/useDayPnlPoll";
@@ -195,6 +197,25 @@ export default function PortfolioPageClient({
   const resolvedOpenPnl =
     livePositionsPnl ?? portfolio?.positions_pnl ?? null;
 
+  const healthSummary = useMemo(
+    () => buildPortfolioHealthSummary(overview?.health ?? []),
+    [overview?.health],
+  );
+
+  const bucketBySymbol = useMemo(() => {
+    const map: Record<string, { bucket: "core" | "tactical" | "cash"; drift_pct: number }> =
+      {};
+
+    for (const row of overview?.allocation?.holdings ?? []) {
+      map[row.tradingsymbol.toUpperCase()] = {
+        bucket: row.bucket,
+        drift_pct: row.drift_pct,
+      };
+    }
+
+    return map;
+  }, [overview?.allocation?.holdings]);
+
   return (
     <ApexShell>
       <header className="mb-6 space-y-4">
@@ -232,6 +253,10 @@ export default function PortfolioPageClient({
           />
 
           <ThesisInvalidationBanner warnings={thesisWarnings} />
+
+          {overview?.health?.length ? (
+            <PortfolioHealthSummary summary={healthSummary} />
+          ) : null}
 
           {overviewLoading ? (
             <p className="text-sm text-apex-muted/70">Loading overview…</p>
@@ -271,6 +296,7 @@ export default function PortfolioPageClient({
             totalValue={displayValue}
             totalPnl={displayTotalPnl}
             stale={portfolio?.stale === true}
+            bucketBySymbol={bucketBySymbol}
             loading={
               overviewLoading &&
               displayHoldings.length === 0 &&

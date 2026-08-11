@@ -28,14 +28,17 @@ CREATE UNIQUE INDEX IF NOT EXISTS decision_receipts_user_date_symbol_order_idx
 
 ALTER TABLE decision_receipts ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS decision_receipts_select_own ON decision_receipts;
 CREATE POLICY decision_receipts_select_own ON decision_receipts
   FOR SELECT
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS decision_receipts_insert_own ON decision_receipts;
 CREATE POLICY decision_receipts_insert_own ON decision_receipts
   FOR INSERT
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS decision_receipts_update_dismiss ON decision_receipts;
 CREATE POLICY decision_receipts_update_dismiss ON decision_receipts
   FOR UPDATE
   USING (auth.uid() = user_id)

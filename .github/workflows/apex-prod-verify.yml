@@ -32,10 +32,11 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Run deploy service smoke (optional env)
+      - name: Run deploy service smoke (strict when secrets set)
         env:
           ALPHA_AI_SERVICE_URL: ${{ secrets.ALPHA_AI_SERVICE_URL }}
           KITE_ORDER_PROXY_URL: ${{ secrets.KITE_ORDER_PROXY_URL }}
+          APEX_DEPLOY_VERIFY_STRICT: ${{ secrets.ALPHA_AI_SERVICE_URL != '' && '1' || '' }}
         run: npm run verify:deploy
 
       - name: Run production smoke checks

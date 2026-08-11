@@ -139,8 +139,8 @@ export default function SettingsPageClient({ userName }: { userName: string }) {
           ) : null}
         </section>
 
-        <section className="rounded-xl border border-apex-border/15 bg-white/[0.02] px-4 py-4 space-y-3">
-          <p className="text-xs font-medium uppercase tracking-wide text-apex-muted">
+        <section className="rounded-xl border border-apex-border/15 bg-white/[0.02] px-4 py-4 space-y-3" aria-labelledby="settings-exports">
+          <p id="settings-exports" className="text-xs font-medium uppercase tracking-wide text-apex-muted">
             Exports
           </p>
           <p className="text-sm text-apex-text/85">
