@@ -43,6 +43,7 @@ import {
   resolvePortfolioDisplayValue,
 } from "@/lib/portfolio/displayValue";
 import { useIntentDecision } from "@/lib/useIntentDecision";
+import { usePortfolioPoll } from "@/lib/usePortfolioPoll";
 import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
 import { useGreeting } from "@/lib/useGreeting";
 import { useZerodhaOAuth } from "@/lib/useZerodhaOAuth";
@@ -724,6 +725,14 @@ export default function HomeClient({
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [configured, user, authLoading, refreshDashboard]);
+
+  const livePortfolioPollEnabled =
+    shouldFetchPortfolio && connectionStatus === "CONNECTED";
+
+  usePortfolioPoll({
+    enabled: livePortfolioPollEnabled,
+    onRefresh: () => loadPortfolio({ silent: true }),
+  });
 
   const refreshAfterExecution = useCallback(() => {
     void loadPortfolio({ silent: true });

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
+import { LIVE_KITE_REFRESH_MS } from "@/lib/liveKiteRefresh";
 import type { MonitorLiveTick } from "@/services/monitor/openPositions";
 import type { ZerodhaPositionPnlRow } from "@/services/brokers/zerodha";
 
@@ -49,8 +50,8 @@ function parsePositionsBreakdown(value: unknown): ZerodhaPositionPnlRow[] {
   return rows;
 }
 
-/** One shared poll — avoids duplicate Kite calls (rate limits). */
-export const DAY_PNL_REFRESH_MS = 5_000;
+/** @deprecated Use LIVE_KITE_REFRESH_MS */
+export const DAY_PNL_REFRESH_MS = LIVE_KITE_REFRESH_MS;
 
 export function useDayPnlPoll({ enabled }: Options) {
   const [positionsPnl, setPositionsPnl] = useState<number | null>(null);
@@ -127,7 +128,7 @@ export function useDayPnlPoll({ enabled }: Options) {
 
     const intervalId = window.setInterval(() => {
       void refresh();
-    }, DAY_PNL_REFRESH_MS);
+    }, LIVE_KITE_REFRESH_MS);
     return () => window.clearInterval(intervalId);
   }, [enabled, refresh]);
 
