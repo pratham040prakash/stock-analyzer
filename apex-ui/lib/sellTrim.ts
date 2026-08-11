@@ -155,6 +155,10 @@ export function runSellTrimSelfCheck(): void {
     "Partial trim must be possible with enough shares",
   );
 
+  if (!oneShare) {
+    throw new Error("Sell trim self-check failed: expected oneShare resolution");
+  }
+
   const headline = buildSellTrimHeadline("HEROMOTOCO", oneShare);
   assert(
     headline.includes("only share"),
