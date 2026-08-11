@@ -60,6 +60,44 @@ export function effectivePortfolioQuantity(holding: {
   return settled + t1;
 }
 
+/**
+ * Shares for holdings value / total P&L (Zerodha Holdings tab).
+ * Kite keeps settled qty and T1 separate — CNC position qty must not be added again.
+ */
+export function resolveHoldingDisplayQuantity(
+  holding: { quantity: number; t1Quantity?: number },
+  positionLongQty?: number,
+): number {
+  const settled = Math.max(0, Math.round(holding.quantity));
+  const t1 = Math.max(0, Math.round(holding.t1Quantity ?? 0));
+
+  if (t1 > 0) {
+    if (settled === 0) {
+      return t1;
+    }
+    // Prior merge wrote effective qty into quantity while t1_quantity stayed set.
+    if (settled === t1) {
+      return t1;
+    }
+    // Prior enrich replaced quantity with settled+t1 but kept t1Quantity.
+    const inferredSettled = settled - t1;
+    if (
+      inferredSettled > 0 &&
+      settled === inferredSettled + t1 &&
+      inferredSettled === t1
+    ) {
+      return t1;
+    }
+    return settled + t1;
+  }
+
+  if (settled > 0) {
+    return settled;
+  }
+
+  return Math.max(0, positionLongQty ?? 0);
+}
+
 export function mapKiteHoldingsToPortfolio(holdings: KiteHolding[]): Portfolio {
   return {
     holdings: holdings.map((h) => ({
@@ -404,7 +442,7 @@ export function mergeKiteHoldingsAndPositions(
     const symbol = normalizeSymbol(holding.tradingsymbol);
     merged.set(symbol, {
       ...holding,
-      quantity: effectiveQty,
+      quantity: Math.max(0, Math.round(holding.quantity)),
       last_price: resolveKiteLastPrice(holding),
     });
   }
@@ -429,7 +467,6 @@ export function mergeKiteHoldingsAndPositions(
       const existing = merged.get(symbol)!;
       merged.set(symbol, {
         ...existing,
-        quantity: Math.max(existing.quantity, position.quantity),
         average_price:
           position.average_price > 0
             ? position.average_price
@@ -491,19 +528,18 @@ export function enrichPortfolioQuantitiesFromNetPositions(
 
   const holdings = portfolio.holdings
     .map((holding) => {
-      const effectiveQty = effectivePortfolioQuantity(holding);
-      if (effectiveQty > 0) {
-        return { ...holding, quantity: effectiveQty };
-      }
-
       const fromPosition = longQtyBySymbol.get(normalizeSymbol(holding.symbol));
-      if (fromPosition && fromPosition > 0) {
-        return { ...holding, quantity: fromPosition };
+      const displayQty = resolveHoldingDisplayQuantity(holding, fromPosition);
+      if (displayQty <= 0) {
+        return holding;
       }
 
-      return holding;
+      return { ...holding, quantity: displayQty, t1Quantity: undefined };
     })
-    .filter((holding) => holding.quantity > 0 && holding.symbol.trim().length > 0);
+    .filter(
+      (holding) =>
+        holding.quantity > 0 && holding.symbol.trim().length > 0,
+    );
 
   return { holdings };
 }
@@ -623,6 +659,42 @@ export function runKiteDayPnlSelfCheck(): void {
     ]),
   );
   assert(t1Only === 20, "T1 quantity must count toward Day P&L");
+
+  assert(
+    resolveHoldingDisplayQuantity({ quantity: 0, t1Quantity: 1 }) === 1,
+    "T1-only holding display qty must match Zerodha (Qty 0 · T1: 1)",
+  );
+  assert(
+    resolveHoldingDisplayQuantity({ quantity: 1, t1Quantity: 1 }) === 1,
+    "Merge bug qty must not double-count T1",
+  );
+  assert(
+    resolveHoldingDisplayQuantity({ quantity: 2, t1Quantity: 1 }) === 1,
+    "Enriched snapshot qty must not triple-count T1",
+  );
+  assert(
+    enrichPortfolioQuantitiesFromNetPositions(
+      mapKiteHoldingsToPortfolio([
+        {
+          tradingsymbol: "TITAN",
+          quantity: 0,
+          t1_quantity: 1,
+          average_price: 5058.7,
+          last_price: 5159.75,
+        },
+      ]),
+      [
+        {
+          tradingsymbol: "TITAN",
+          product: "CNC",
+          quantity: 1,
+          average_price: 5058.7,
+          last_price: 5159.75,
+        },
+      ],
+    ).holdings[0]?.quantity === 1,
+    "Enrich must consolidate T1 + CNC position to one share",
+  );
 
   const merged = mergeKiteHoldingsAndPositions(
     [

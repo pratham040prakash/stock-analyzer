@@ -1,7 +1,7 @@
 import type { PortfolioHoldingRow } from "@/types/portfolioApi";
 import type { Portfolio, Holding } from "@/types/portfolio";
 import type { KiteNetPosition } from "@/services/brokers/zerodha";
-import { effectivePortfolioQuantity } from "@/services/brokers/zerodha";
+import { resolveHoldingDisplayQuantity } from "@/services/brokers/zerodha";
 import { resolvePortfolioDisplayValue } from "@/lib/portfolio/displayValue";
 import { portfolioRiskFromAllocation } from "@/lib/portfolioRisk";
 import { computePortfolioDayPnl } from "@/services/brokers/zerodha";
@@ -39,7 +39,10 @@ export function snapshotHoldingsToPortfolio(holdings: unknown): Portfolio {
       0,
       Math.round(readFiniteNumber(row.t1Quantity ?? row.t1_quantity) ?? 0),
     );
-    const quantity = Math.max(settled + t1, settled, t1);
+    const quantity = resolveHoldingDisplayQuantity({
+      quantity: settled,
+      t1Quantity: t1 > 0 ? t1 : undefined,
+    });
     const avgPrice = readFiniteNumber(row.avgPrice ?? row.average_price) ?? 0;
     const currentPrice =
       readFiniteNumber(row.currentPrice ?? row.last_price) ?? 0;
@@ -47,7 +50,7 @@ export function snapshotHoldingsToPortfolio(holdings: unknown): Portfolio {
     rows.push({
       symbol,
       quantity,
-      t1Quantity: t1 > 0 ? t1 : undefined,
+      t1Quantity: undefined,
       avgPrice,
       currentPrice,
       closePrice: readFiniteNumber(row.closePrice ?? row.close_price),
@@ -60,7 +63,7 @@ export function snapshotHoldingsToPortfolio(holdings: unknown): Portfolio {
 }
 
 function holdingRowQuantity(holding: Portfolio["holdings"][number]): number {
-  return effectivePortfolioQuantity(holding);
+  return resolveHoldingDisplayQuantity(holding);
 }
 
 export function formatPortfolioHoldings(
