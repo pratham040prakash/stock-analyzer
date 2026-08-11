@@ -12,7 +12,9 @@ import ResearchHandoffLink from "@/components/portfolio/ResearchHandoffLink";
 import NewCapitalPanel from "@/components/capital/NewCapitalPanel";
 import ThesisInvalidationBanner from "@/components/thesis/ThesisInvalidationBanner";
 import PortfolioHealthSummary from "@/components/portfolio/PortfolioHealthSummary";
+import SectorCapStrip from "@/components/portfolio/SectorCapStrip";
 import { buildPortfolioHealthSummary } from "@/services/portfolio/buildPortfolioHealthSummary";
+import { buildSectorCapSummary } from "@/services/portfolio/sectorCapPolicy";
 import ApexErrorBoundary from "@/components/ui/ApexErrorBoundary";
 import { ApexCard, ApexShell, ApexTitle } from "@/components/ui/apex";
 import { useDayPnlPoll } from "@/lib/useDayPnlPoll";
@@ -221,6 +223,15 @@ export default function PortfolioPageClient({
     [overview?.health],
   );
 
+  const sectorCapSummary = useMemo(
+    () =>
+      buildSectorCapSummary({
+        holdings: displayHoldings,
+        totalValue: displayValue,
+      }),
+    [displayHoldings, displayValue],
+  );
+
   const bucketBySymbol = useMemo(() => {
     const map: Record<string, { bucket: "core" | "tactical" | "cash"; drift_pct: number }> =
       {};
@@ -275,6 +286,10 @@ export default function PortfolioPageClient({
 
           {overview?.health?.length ? (
             <PortfolioHealthSummary summary={healthSummary} />
+          ) : null}
+
+          {displayHoldings.length > 0 ? (
+            <SectorCapStrip summary={sectorCapSummary} />
           ) : null}
 
           {overviewLoading ? (

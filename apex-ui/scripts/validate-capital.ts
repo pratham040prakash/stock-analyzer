@@ -61,6 +61,7 @@ import { runReviewDigestCronSelfCheck } from "../services/review/runReviewDigest
 import { runParseInvalidationRuleSelfCheck } from "../services/thesis/parseInvalidationRule";
 import { runDisciplineTrendsSelfCheck } from "../services/review/buildDisciplineTrends";
 import { runPortfolioHealthSummarySelfCheck } from "../services/portfolio/buildPortfolioHealthSummary";
+import { runSectorCapPolicySelfCheck } from "../services/portfolio/sectorCapPolicy";
 import { runSellTrimSelfCheck } from "../lib/sellTrim";
 
 runCapitalProjectionSelfCheck();
@@ -123,4 +124,5 @@ runReviewDigestCronSelfCheck();
 runParseInvalidationRuleSelfCheck();
 runDisciplineTrendsSelfCheck();
 runPortfolioHealthSummarySelfCheck();
+runSectorCapPolicySelfCheck();
 runSellTrimSelfCheck();

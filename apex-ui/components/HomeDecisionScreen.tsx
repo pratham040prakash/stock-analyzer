@@ -37,8 +37,10 @@ import {
 } from "@/lib/dailyLoop/dailyVerdict";
 import OperatingManualStrip from "@/components/dailyLoop/OperatingManualStrip";
 import CapitalDamsStrip from "@/components/dailyLoop/CapitalDamsStrip";
+import SectorCapStrip from "@/components/portfolio/SectorCapStrip";
 import TodayDetailsAccordion from "@/components/dailyLoop/TodayDetailsAccordion";
 import { isSacredCoreSymbol } from "@/services/portfolio/allocationPolicy";
+import { buildSectorCapSummary } from "@/services/portfolio/sectorCapPolicy";
 import { useMorningBrief } from "@/lib/useMorningBrief";
 import TodayPortfolioHoldings from "@/components/dailyLoop/TodayPortfolioHoldings";
 import TodayProgressStrip from "@/components/dailyLoop/TodayProgressStrip";
@@ -652,6 +654,14 @@ export default function HomeDecisionScreen({
       topSymbol,
     });
   }, [displayPortfolioHoldings, todayHero.symbol, topSymbol]);
+  const sectorCapSummary = useMemo(
+    () =>
+      buildSectorCapSummary({
+        holdings: displayPortfolioHoldings,
+        totalValue: displayPortfolioValue,
+      }),
+    [displayPortfolioHoldings, displayPortfolioValue],
+  );
 
   const verdictPresentation = useMemo(
     () =>
@@ -775,6 +785,9 @@ export default function HomeDecisionScreen({
                   portfolioDayPnl={liveDayPnl}
                   consecutiveLossDays={consecutiveLossDays}
                 />
+                {displayPortfolioHoldings.length > 0 ? (
+                  <SectorCapStrip summary={sectorCapSummary} compact />
+                ) : null}
                 <VerdictCanvas {...verdictCanvasProps} />
               </>
             ) : null}

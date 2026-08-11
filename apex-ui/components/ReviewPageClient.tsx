@@ -8,6 +8,7 @@ import ReceiptProofPanel from "@/components/receipts/ReceiptProofPanel";
 import BrokerReconcilePanel from "@/components/review/BrokerReconcilePanel";
 import MonthlyDoctorPanel from "@/components/review/MonthlyDoctorPanel";
 import PlannedVsActualTable from "@/components/review/PlannedVsActualTable";
+import PlannedVsActualSummaryStrip from "@/components/review/PlannedVsActualSummaryStrip";
 import QuarterlyReviewPanel from "@/components/review/QuarterlyReviewPanel";
 import WeeklyReviewHero from "@/components/review/WeeklyReviewHero";
 import WeeklyReviewStrip from "@/components/dailyLoop/WeeklyReviewStrip";
@@ -104,6 +105,8 @@ export default function ReviewPageClient({ userName }: Props) {
   );
   const [receipts, setReceipts] = useState<DecisionReceiptRow[]>([]);
   const [plannedRows, setPlannedRows] = useState<PlannedVsActualRow[]>([]);
+  const [plannedSummary, setPlannedSummary] =
+    useState<PlannedVsActualSummary | null>(null);
   const [monthlyDoctor, setMonthlyDoctor] = useState<MonthlyDoctorViewModel | null>(
     null,
   );
@@ -144,6 +147,7 @@ export default function ReviewPageClient({ userName }: Props) {
 
     if (response.ok && data?.rows) {
       setPlannedRows(data.rows);
+      setPlannedSummary(data.summary ?? null);
     }
   }, []);
 
@@ -360,8 +364,12 @@ export default function ReviewPageClient({ userName }: Props) {
         <p className="text-sm text-apex-muted/70">Loading review…</p>
       ) : tab === "weekly" ? (
         <div className="space-y-4" role="tabpanel">
-          <DisciplineTrendPanel trends={disciplineTrends} />
+          <PlannedVsActualSummaryStrip
+            summary={plannedSummary}
+            rowCount={plannedRows.length}
+          />
           <PlannedVsActualTable rows={plannedRows} />
+          <DisciplineTrendPanel trends={disciplineTrends} />
           <WeeklyReviewStrip history={history} summary={summary} days={days} />
           <DisciplineHistoryStrip days={days} history={history} />
         </div>
