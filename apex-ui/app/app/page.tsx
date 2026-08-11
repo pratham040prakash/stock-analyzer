@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import HomeClient from "@/components/HomeClient";
 import { samplePortfolio } from "@/data/samplePortfolio";
+import { EMPTY_PORTFOLIO } from "@/types/portfolioDefaults";
 import { hasActiveBrokerConnection } from "@/services/broker/connections";
 import { getLatestPortfolioSnapshot } from "@/services/portfolio/repository";
 import { isSystemConfigured } from "@/lib/env/config";
@@ -49,7 +50,7 @@ export default async function AppHome({
   }
 
   let connectionStatus: ConnectionStatus = "NOT_CONNECTED";
-  let initialPortfolio = samplePortfolio;
+  let initialPortfolio = EMPTY_PORTFOLIO;
 
   const isConnected = await hasActiveBrokerConnection(supabase, user.id);
   if (isConnected) {

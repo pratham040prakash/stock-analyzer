@@ -37,6 +37,7 @@ import { buildFirstRunProgress } from "@/lib/onboarding/firstRun";
 import type { PortfolioApiResponse } from "@/types/portfolioApi";
 import { recordVisit, saveCachedPortfolio } from "@/lib/portfolioCache";
 import { portfolioRiskFromAllocation } from "@/lib/portfolioRisk";
+import { resolvePortfolioDisplayValue } from "@/services/portfolio/format";
 import { useIntentDecision } from "@/lib/useIntentDecision";
 import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
 import { useGreeting } from "@/lib/useGreeting";
@@ -252,7 +253,28 @@ export default function HomeClient({
 
   const applyPortfolioResponse = useCallback(
     (data: PortfolioApiResponse) => {
-      setPortfolioData(data);
+      setPortfolioData((previous) => {
+        if (
+          data.holdings.length === 0 &&
+          previous &&
+          previous.holdings.length > 0
+        ) {
+          return {
+            ...data,
+            holdings: previous.holdings,
+            total_value: resolvePortfolioDisplayValue(
+              data.total_value,
+              previous.holdings,
+            ),
+            total_pnl: previous.total_pnl,
+            top_symbol: previous.top_symbol,
+            top_allocation_pct: previous.top_allocation_pct,
+            stale: true,
+          };
+        }
+
+        return data;
+      });
 
       if (data.holdings.length > 0) {
         setPortfolioError(null);
@@ -882,13 +904,10 @@ export default function HomeClient({
               ledgerCash={ledgerCash ?? (fundsSynced ? 0 : undefined)}
               topSymbol={portfolioData?.top_symbol}
               topAllocationPct={portfolioData?.top_allocation_pct}
-              portfolioValue={
-                brokerPortfolioValue ??
-                portfolioData?.total_value ??
-                (portfolioData?.holdings?.length
-                  ? portfolioData.holdings.reduce((sum, row) => sum + row.value, 0)
-                  : undefined)
-              }
+              portfolioValue={resolvePortfolioDisplayValue(
+                brokerPortfolioValue ?? portfolioData?.total_value,
+                portfolioData?.holdings ?? [],
+              )}
               totalCapital={totalCapital ?? undefined}
               collateral={collateral}
               capitalMode={capitalMode}

@@ -103,9 +103,39 @@ export async function GET() {
   }
 
   const portfolio = mapKiteHoldingsToPortfolio(live.holdings);
-  const metrics = computePortfolioMetrics(portfolio);
-  await savePortfolioSnapshot(supabase, user.id, portfolio, metrics);
-  await syncBrokerActivityFromKite(supabase, user.id);
+
+  if (portfolio.holdings.length === 0) {
+    const existing = await getLatestPortfolioSnapshot(supabase, user.id);
+    if (existing && existing.holdings.length > 0) {
+      const formatted = formatPortfolioHoldings(existing, live.dayPositions);
+      const positions_pnl = computeZerodhaPositionsPnl(
+        live.holdings,
+        live.netPnlPositions,
+      );
+      return okResponse(
+        {
+          holdings: formatted.holdings,
+          total_value: formatted.total_value,
+          total_pnl: formatted.total_pnl,
+          day_pnl: positions_pnl,
+          positions_pnl,
+          portfolio_day_pnl: formatted.day_pnl,
+          concentrated: formatted.concentrated,
+          top_symbol: formatted.top_symbol ?? undefined,
+          top_allocation_pct: formatted.top_allocation_pct,
+          risk_score: formatted.risk_score,
+          risk_level: formatted.risk_level,
+        },
+        true,
+      );
+    }
+  }
+
+  if (portfolio.holdings.length > 0) {
+    const metrics = computePortfolioMetrics(portfolio);
+    await savePortfolioSnapshot(supabase, user.id, portfolio, metrics);
+    await syncBrokerActivityFromKite(supabase, user.id);
+  }
 
   const formatted = formatPortfolioHoldings(portfolio, live.dayPositions);
   const positions_pnl = computeZerodhaPositionsPnl(live.holdings, live.netPnlPositions);

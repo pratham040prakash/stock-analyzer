@@ -6,6 +6,39 @@ import { computePortfolioDayPnl } from "@/services/brokers/zerodha";
 
 const CONCENTRATION_THRESHOLD = 50;
 
+export function sumPortfolioRowValues(
+  holdings: Pick<PortfolioHoldingRow, "value" | "quantity" | "last_price">[],
+): number {
+  return holdings.reduce((sum, row) => {
+    if (row.value > 0) {
+      return sum + row.value;
+    }
+
+    if (row.quantity > 0 && row.last_price > 0) {
+      return sum + row.quantity * row.last_price;
+    }
+
+    return sum;
+  }, 0);
+}
+
+/** Prefer row sums — API `total_value: 0` is common pre-open when LTP is missing. */
+export function resolvePortfolioDisplayValue(
+  totalValue: number | null | undefined,
+  holdings: Pick<PortfolioHoldingRow, "value" | "quantity" | "last_price">[],
+): number {
+  const rowSum = sumPortfolioRowValues(holdings);
+  if (rowSum > 0) {
+    return rowSum;
+  }
+
+  if (typeof totalValue === "number" && Number.isFinite(totalValue)) {
+    return Math.max(0, totalValue);
+  }
+
+  return 0;
+}
+
 export function formatPortfolioHoldings(
   portfolio: Portfolio,
   dayPositions: KiteNetPosition[] = [],
@@ -20,7 +53,7 @@ export function formatPortfolioHoldings(
   risk_score: number;
   risk_level: import("@/lib/portfolioRisk").PortfolioRiskLevel;
 } {
-  const total_value = portfolio.holdings.reduce(
+  const rawTotal = portfolio.holdings.reduce(
     (sum, h) => sum + h.quantity * h.currentPrice,
     0,
   );
@@ -34,8 +67,6 @@ export function formatPortfolioHoldings(
     .map((h) => {
       const value = h.quantity * h.currentPrice;
       const pnl = (h.currentPrice - h.avgPrice) * h.quantity;
-      const allocation_pct =
-        total_value > 0 ? (value / total_value) * 100 : 0;
 
       return {
         tradingsymbol: h.symbol,
@@ -44,19 +75,25 @@ export function formatPortfolioHoldings(
         last_price: h.currentPrice,
         pnl,
         value,
-        allocation_pct,
+        allocation_pct: 0,
       };
     })
     .sort((a, b) => b.value - a.value);
 
-  const top = holdings[0];
+  const total_value = resolvePortfolioDisplayValue(rawTotal, holdings);
+  const holdingsWithAllocation = holdings.map((row) => ({
+    ...row,
+    allocation_pct:
+      total_value > 0 ? (Math.max(row.value, 0) / total_value) * 100 : 0,
+  }));
+  const top = holdingsWithAllocation[0];
   const top_allocation_pct = top?.allocation_pct ?? 0;
   const concentrated = top_allocation_pct > CONCENTRATION_THRESHOLD;
   const { risk_score, risk_level } = portfolioRiskFromAllocation(top_allocation_pct);
   const day_pnl = computePortfolioDayPnl(portfolio, dayPositions);
 
   return {
-    holdings,
+    holdings: holdingsWithAllocation,
     total_value,
     total_pnl,
     day_pnl,

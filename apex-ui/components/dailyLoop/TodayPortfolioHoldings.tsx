@@ -1,6 +1,7 @@
 "use client";
 
 import { formatInr } from "@/lib/funds";
+import { resolvePortfolioDisplayValue } from "@/services/portfolio/format";
 import type { PortfolioHoldingRow } from "@/types/portfolioApi";
 
 export type TodayPortfolioHoldingsProps = {
@@ -45,10 +46,7 @@ export default function TodayPortfolioHoldings({
     return null;
   }
 
-  const resolvedTotal =
-    typeof totalValue === "number" && Number.isFinite(totalValue)
-      ? totalValue
-      : holdings.reduce((sum, row) => sum + row.value, 0);
+  const resolvedTotal = resolvePortfolioDisplayValue(totalValue, holdings);
   const resolvedPnl =
     typeof totalPnl === "number" && Number.isFinite(totalPnl)
       ? totalPnl
