@@ -17,6 +17,12 @@ test.describe("APEX smoke", () => {
     await expect(page.locator("body")).toContainText(/sign in|login|apex/i);
   });
 
+  test("landing page surfaces Wait day brand", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator("body")).toContainText(/Most days, Wait is the win/i);
+    await expect(page.locator("body")).toContainText(/Wait · Trade · Pause/i);
+  });
+
   test("app route guards anonymous users", async ({ page }) => {
     await page.goto("/app");
     await expect(page).toHaveURL(/\/login/);

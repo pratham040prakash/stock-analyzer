@@ -56,6 +56,7 @@ const keyModules = [
   "services/subscription/razorpayConfig.ts",
   "services/subscription/conversionFunnel.ts",
   "lib/supabase/migrationHealth.ts",
+  "lib/gtm/waitDayBrandCopy.ts",
 ];
 
 for (const relative of keyModules) {
@@ -93,5 +94,10 @@ console.log("  app/api/subscription/trial/route.ts");
 console.log("  components/subscription/PremiumTrialOfferCard.tsx");
 console.log("Health probes: lib/supabase/migrationHealth.ts");
 console.log("Tag: git tag v3.2.0 && git push origin v3.2.0\n");
+
+console.log("--- T4a (Wait day GTM) ---");
+console.log("Brand copy: lib/gtm/waitDayBrandCopy.ts");
+console.log("Landing + OG: components/landing/LandingHero.tsx, app/page.tsx");
+console.log("In-app: components/you/HowApexWorksClient.tsx\n");
 
 process.exit(0);

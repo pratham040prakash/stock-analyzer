@@ -75,6 +75,7 @@ import { runBillingSyncSelfCheck } from "../services/subscription/billingSync";
 import { runConversionFunnelSelfCheck } from "../services/subscription/conversionFunnel";
 import { runTrialOfferRepositorySelfCheck } from "../services/subscription/trialOfferRepository";
 import { runMigrationHealthSelfCheck } from "../lib/supabase/migrationHealth";
+import { runWaitDayBrandCopySelfCheck } from "../lib/gtm/waitDayBrandCopy";
 
 runCapitalProjectionSelfCheck();
 runCapitalFinalStateSelfCheck();
@@ -150,3 +151,4 @@ runBillingSyncSelfCheck();
 runConversionFunnelSelfCheck();
 runTrialOfferRepositorySelfCheck();
 runMigrationHealthSelfCheck();
+runWaitDayBrandCopySelfCheck();

@@ -204,7 +204,7 @@ This roadmap is the **only active execution track** until:
 
 | ID | Channel | Deliverable |
 |----|---------|-------------|
-| **T4-1** | Content GTM | “Wait day” brand; anti-FOMO |
+| **T4-1** | Content GTM | “Wait day” brand; anti-FOMO | ✅ Shipped (T4a) |
 | **T4-2** | Zerodha-adjacent audience | After Kite connect → APEX discipline |
 | **T4-3** | RIA / advisor B2B pilot | Receipts + review seats |
 | **T4-4** | Referral | Spouse Review invite (not leaderboard) |

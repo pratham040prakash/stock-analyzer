@@ -1,13 +1,26 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import LandingPage from "@/components/landing/LandingPage";
+import { WAIT_DAY_BRAND } from "@/lib/gtm/waitDayBrandCopy";
+import { getAppBaseUrl, isSystemConfigured } from "@/lib/env/config";
 import { createClient } from "@/lib/supabase/server";
-import { isSystemConfigured } from "@/lib/env/config";
+
+const baseUrl = getAppBaseUrl();
 
 export const metadata: Metadata = {
-  title: "APEX — Your Investment Mentor",
-  description:
-    "Stop guessing your investments. APEX tells you when to buy, when to wait, and when to stay out — with discipline.",
+  title: WAIT_DAY_BRAND.pageTitle,
+  description: WAIT_DAY_BRAND.metaDescription,
+  openGraph: {
+    title: WAIT_DAY_BRAND.ogTitle,
+    description: WAIT_DAY_BRAND.ogDescription,
+    type: "website",
+    ...(baseUrl ? { url: baseUrl } : {}),
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: WAIT_DAY_BRAND.ogTitle,
+    description: WAIT_DAY_BRAND.ogDescription,
+  },
 };
 
 export default async function Home({

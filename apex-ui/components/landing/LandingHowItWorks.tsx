@@ -1,3 +1,4 @@
+import { WAIT_DAY_BRAND } from "@/lib/gtm/waitDayBrandCopy";
 import LandingSection from "./LandingSection";
 
 const STEPS = [
@@ -8,13 +9,13 @@ const STEPS = [
   },
   {
     step: "2",
-    title: "Generates a daily decision",
-    body: "Buy, wait, or stay out — one answer per day.",
+    title: WAIT_DAY_BRAND.howItWorksStep2Title,
+    body: WAIT_DAY_BRAND.howItWorksStep2Body,
   },
   {
     step: "3",
     title: "Guides your execution",
-    body: "Clear steps when you are ready to act.",
+    body: "Clear steps when you are ready to act — never pressure to chase.",
   },
 ] as const;
 

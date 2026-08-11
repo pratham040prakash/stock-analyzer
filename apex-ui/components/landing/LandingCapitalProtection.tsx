@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { WAIT_DAY_BRAND } from "@/lib/gtm/waitDayBrandCopy";
 import LandingSection from "./LandingSection";
 
 type TrustBlock = {
@@ -92,8 +93,8 @@ const BLOCKS: TrustBlock[] = [
     accent: "border-emerald-500/25 bg-emerald-500/10 text-emerald-300",
   },
   {
-    title: "No overtrading",
-    body: "Most days, the right move is to do nothing",
+    title: WAIT_DAY_BRAND.noOvertradingTitle,
+    body: WAIT_DAY_BRAND.noOvertradingBody,
     icon: <PauseIcon />,
     accent: "border-amber-500/25 bg-amber-500/10 text-amber-200",
   },

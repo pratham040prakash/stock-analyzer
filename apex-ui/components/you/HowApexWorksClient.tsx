@@ -5,6 +5,7 @@ import {
   describeInvestmentStyle,
   OPERATING_MANUAL,
 } from "@/lib/dailyLoop/operatingManualCopy";
+import { WAIT_DAY_BRAND } from "@/lib/gtm/waitDayBrandCopy";
 import { INTENT_UI_LABELS } from "@/lib/onboarding/intentLabels";
 import { ApexBody, ApexCard, ApexShell, ApexTitle } from "@/components/ui/apex";
 import ApexSurfaceNav from "@/components/nav/ApexSurfaceNav";
@@ -12,7 +13,7 @@ import ApexSurfaceNav from "@/components/nav/ApexSurfaceNav";
 const PLAYBOOKS = [
   {
     title: "Wait · Trade · Pause",
-    body: "Most days are Wait — staying in cash is success. Trade only when entry confirms and capital dams allow. Pause protects you after loss streaks or daily loss limits.",
+    body: WAIT_DAY_BRAND.playbookIntro,
   },
   {
     title: "Long-term core",
@@ -48,6 +49,18 @@ export default function HowApexWorksClient() {
             <p className="mt-2 text-sm leading-relaxed text-apex-muted/85">{section.body}</p>
           </ApexCard>
         ))}
+
+        <ApexCard hover={false}>
+          <h2 className="text-lg font-semibold text-apex-text">
+            {WAIT_DAY_BRAND.brandCardTitle}
+          </h2>
+          <p className="mt-2 text-sm leading-relaxed text-apex-muted/85">
+            {WAIT_DAY_BRAND.brandCardBody}
+          </p>
+          <p className="mt-3 text-sm leading-relaxed text-apex-muted/70">
+            {WAIT_DAY_BRAND.antiFomoRule}
+          </p>
+        </ApexCard>
 
         <ApexCard hover={false}>
           <h2 className="text-lg font-semibold text-apex-text">Investment styles</h2>
