@@ -16,6 +16,7 @@ const requiredMigrationFiles = [
   "investment_thesis.sql",
   "operating_profile.sql",
   "premium_subscriptions.sql",
+  "premium_trial_offers.sql",
   "user_trust_state.sql",
 ];
 

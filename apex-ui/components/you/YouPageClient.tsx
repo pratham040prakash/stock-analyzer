@@ -2,9 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import ApexSurfaceNav from "@/components/nav/ApexSurfaceNav";
+import PremiumValueCard from "@/components/subscription/PremiumValueCard";
+import PremiumTrialOfferCard from "@/components/subscription/PremiumTrialOfferCard";
 import ReflectionCanvas from "@/components/you/ReflectionCanvas";
+import YouAccountStrip from "@/components/you/YouAccountStrip";
 import { ApexShell, ApexTitle } from "@/components/ui/apex";
 import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
+import { usePremiumTier } from "@/lib/usePremiumTier";
 import type { YouSnapshotViewModel } from "@/types/youSnapshot";
 
 type SnapshotResponse = {
@@ -13,6 +17,13 @@ type SnapshotResponse = {
 };
 
 export default function YouPageClient({ userName }: { userName: string }) {
+  const {
+    tier,
+    activationEnabled,
+    billingEnabled,
+    trial,
+    refresh: refreshTier,
+  } = usePremiumTier(true);
   const [snapshot, setSnapshot] = useState<YouSnapshotViewModel | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -54,6 +65,24 @@ export default function YouPageClient({ userName }: { userName: string }) {
           </p>
         </div>
       </header>
+
+      <YouAccountStrip />
+
+      <div className="mb-6">
+        <PremiumTrialOfferCard trial={trial} onUpdated={() => void refreshTier()} compact />
+      </div>
+
+      {tier === "free" ? (
+        <div className="mb-6">
+          <PremiumValueCard
+            tier={tier}
+            activationEnabled={activationEnabled}
+            billingEnabled={billingEnabled}
+            onSubscribed={() => void refreshTier()}
+            compact
+          />
+        </div>
+      ) : null}
 
       {loading ? (
         <p className="text-sm text-apex-muted/70">Loading reflection…</p>

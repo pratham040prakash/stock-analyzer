@@ -3,6 +3,10 @@ import {
   commitDisciplineStreak,
   getDisciplineStreak,
 } from "@/services/discipline/streak";
+import {
+  maybeOfferPremiumTrialAfterWaitReceipt,
+  resolvePremiumTrialView,
+} from "@/services/subscription/conversionFunnel";
 import { createClient } from "@/lib/supabase/server";
 import type { UserIntent } from "@/types/intent";
 
@@ -71,13 +75,23 @@ export async function POST(request: Request) {
   }
 
   try {
-    const streak = await commitDisciplineStreak(supabase, user.id, {
+    const result = await commitDisciplineStreak(supabase, user.id, {
       intent,
       action: action.trim(),
       stock: typeof stock === "string" ? stock : undefined,
     });
 
-    return apiOk({ streak });
+    let trial = await resolvePremiumTrialView(supabase, user);
+
+    if (result.receipt?.execution_kind === "WAIT" && result.receipt.id) {
+      trial = await maybeOfferPremiumTrialAfterWaitReceipt(
+        supabase,
+        user,
+        result.receipt.id,
+      );
+    }
+
+    return apiOk({ streak: result.snapshot, trial });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to commit discipline";

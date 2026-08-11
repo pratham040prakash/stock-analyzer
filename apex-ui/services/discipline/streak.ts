@@ -89,7 +89,10 @@ export async function commitDisciplineStreak(
     action: string;
     stock?: string;
   },
-): Promise<DisciplineStreakSnapshot> {
+): Promise<{
+  snapshot: DisciplineStreakSnapshot;
+  receipt: Awaited<ReturnType<typeof persistDisciplineWaitReceipt>>;
+}> {
   const { data, error } = await supabase
     .from("discipline_streak_state")
     .select("*")
@@ -128,7 +131,7 @@ export async function commitDisciplineStreak(
     throw new Error(commitError.message);
   }
 
-  await persistDisciplineWaitReceipt(supabase, userId, {
+  const receipt = await persistDisciplineWaitReceipt(supabase, userId, {
     symbol: input.stock,
     action: input.action,
     intent: input.intent,
@@ -136,5 +139,5 @@ export async function commitDisciplineStreak(
     streakCount: next.streakCount,
   });
 
-  return snapshot;
+  return { snapshot, receipt };
 }

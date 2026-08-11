@@ -10,6 +10,10 @@ import {
   hasActivePremiumSubscription,
 } from "@/services/subscription/subscriptionRepository";
 import {
+  getPremiumTrialOffer,
+  isPremiumTrialActive,
+} from "@/services/subscription/trialOfferRepository";
+import {
   resolvePremiumTier,
   tierFeatures,
   type ApexTier,
@@ -30,7 +34,12 @@ async function resolvePaidPremium(
   supabase: Client,
   userId: string,
 ): Promise<boolean> {
-  return hasActivePremiumSubscription(supabase, userId);
+  const [subscribed, trialRow] = await Promise.all([
+    hasActivePremiumSubscription(supabase, userId),
+    getPremiumTrialOffer(supabase, userId),
+  ]);
+
+  return subscribed || isPremiumTrialActive(trialRow);
 }
 
 export async function hasPremiumActivation(

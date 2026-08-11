@@ -72,6 +72,8 @@ import { runRazorpayConfigSelfCheck } from "../services/subscription/razorpayCon
 import { runRazorpayClientSelfCheck } from "../services/subscription/razorpayClient";
 import { runSubscriptionRepositorySelfCheck } from "../services/subscription/subscriptionRepository";
 import { runBillingSyncSelfCheck } from "../services/subscription/billingSync";
+import { runConversionFunnelSelfCheck } from "../services/subscription/conversionFunnel";
+import { runTrialOfferRepositorySelfCheck } from "../services/subscription/trialOfferRepository";
 
 runCapitalProjectionSelfCheck();
 runCapitalFinalStateSelfCheck();
@@ -144,3 +146,5 @@ runRazorpayConfigSelfCheck();
 runRazorpayClientSelfCheck();
 runSubscriptionRepositorySelfCheck();
 runBillingSyncSelfCheck();
+runConversionFunnelSelfCheck();
+runTrialOfferRepositorySelfCheck();

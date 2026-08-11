@@ -61,6 +61,15 @@ Validate Phase T2 (Trust + discipline loop) and Sprint T3-1 (premium packaging) 
 - [ ] Cancelled/halted subscription revokes paid premium (invite codes still work)
 - [ ] Settings shows **Subscribe with Razorpay** when billing enabled
 
+### Conversion funnel — T3-3
+
+- [ ] `premium_trial_offers.sql` applied in prod Supabase
+- [ ] First **WAIT** receipt creates trial offer (`premium_trial_offers` row)
+- [ ] Today + You show **Start 7-day trial** card after first Wait receipt
+- [ ] Claiming trial unlocks premium features until `expires_at`
+- [ ] Trial is one-time per user; dismiss hides offer
+- [ ] You page shows **Account & settings** strip with Open settings CTA
+
 ### Auto-trade gate — T2a
 
 - [ ] `APEX_AUTO_TRADE_ENABLED` unset/false → no auto execution paths fire

@@ -43,6 +43,7 @@ import {
 } from "@/lib/dailyLoop/capitalMargin";
 import { usePremiumTier } from "@/lib/usePremiumTier";
 import PremiumFeatureGate from "@/components/dailyLoop/PremiumFeatureGate";
+import PremiumTrialOfferCard from "@/components/subscription/PremiumTrialOfferCard";
 import FirstRunStrip from "@/components/dailyLoop/FirstRunStrip";
 import { buildFirstRunProgress } from "@/lib/onboarding/firstRun";
 import type { PortfolioApiResponse } from "@/types/portfolioApi";
@@ -158,8 +159,13 @@ export default function HomeClient({
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, loading: authLoading, configured, signOut, supabase } = useAuth();
-  const { features: premiumFeatures, activationEnabled, refresh: refreshPremiumTier } =
-    usePremiumTier(Boolean(user));
+  const {
+    features: premiumFeatures,
+    activationEnabled,
+    billingEnabled,
+    trial: premiumTrial,
+    refresh: refreshPremiumTier,
+  } = usePremiumTier(Boolean(user));
 
   const handlePremiumActivated = useCallback(async () => {
     if (supabase) {
@@ -1138,7 +1144,13 @@ export default function HomeClient({
           ) : null}
 
           {showHomeDecision && dailyDecision ? (
-            <HomeDecisionScreen
+            <>
+              <PremiumTrialOfferCard
+                trial={premiumTrial}
+                compact
+                onUpdated={() => void handlePremiumActivated()}
+              />
+              <HomeDecisionScreen
               decision={dailyDecision}
               entryTiming={entryTiming}
               intent={userIntent}
@@ -1170,6 +1182,7 @@ export default function HomeClient({
               onDisciplineCommitted={() => {
                 void loadDecisionHistory();
                 void loadReceiptContext();
+                void refreshPremiumTier();
               }}
               disciplineHistory={decisionHistory}
               disciplineSummary={disciplineSummary}
@@ -1194,6 +1207,7 @@ export default function HomeClient({
                   : undefined
               }
             />
+            </>
           ) : null}
 
           {showHomeDecision ? (

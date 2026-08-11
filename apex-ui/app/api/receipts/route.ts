@@ -6,6 +6,10 @@ import {
   persistDecisionReceipt,
   type PersistReceiptInput,
 } from "@/services/receipts/persistReceipt";
+import {
+  maybeOfferPremiumTrialAfterWaitReceipt,
+  resolvePremiumTrialView,
+} from "@/services/subscription/conversionFunnel";
 import { createClient } from "@/lib/supabase/server";
 
 export async function GET(request: Request) {
@@ -54,7 +58,17 @@ export async function POST(request: Request) {
     return apiError("Could not persist receipt", 500);
   }
 
-  return NextResponse.json({ status: "ok", receipt });
+  let trial = await resolvePremiumTrialView(supabase, user);
+
+  if (receipt.execution_kind === "WAIT") {
+    trial = await maybeOfferPremiumTrialAfterWaitReceipt(
+      supabase,
+      user,
+      receipt.id,
+    );
+  }
+
+  return NextResponse.json({ status: "ok", receipt, trial });
 }
 
 export async function PATCH(request: Request) {

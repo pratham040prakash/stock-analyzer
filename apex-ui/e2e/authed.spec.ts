@@ -230,6 +230,13 @@ test.describe("APEX authenticated smoke", () => {
     expect(body.digest).toBeTruthy();
   });
 
+  test("you page surfaces settings entry", async ({ page }) => {
+    await page.goto("/app/you");
+    await expect(page).toHaveURL(/\/app\/you/);
+    await expect(page.locator("body")).toContainText(/Account & settings/i);
+    await expect(page.getByRole("link", { name: /Open settings/i })).toBeVisible();
+  });
+
   test("settings page loads for signed-in user", async ({ page }) => {
     await page.goto("/app/you/settings");
     await expect(page).toHaveURL(/\/app\/you\/settings/);

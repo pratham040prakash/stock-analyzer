@@ -28,6 +28,7 @@ const ORDERED_MIGRATIONS = [
   "auto_trade_lock.sql",
   "premium_activations.sql",
   "premium_subscriptions.sql",
+  "premium_trial_offers.sql",
   "decision_receipts.sql",
   "investment_thesis.sql",
   "operating_profile.sql",

@@ -1,4 +1,5 @@
 import { apiError, apiOk } from "@/lib/api/response";
+import { resolvePremiumTrialView } from "@/services/subscription/conversionFunnel";
 import {
   buildTierResponse,
   resolvePremiumTierWithDb,
@@ -18,8 +19,15 @@ export async function GET() {
   }
 
   try {
-    const snapshot = await resolvePremiumTierWithDb(supabase, user);
-    return apiOk(buildTierResponse(snapshot));
+    const [snapshot, trial] = await Promise.all([
+      resolvePremiumTierWithDb(supabase, user),
+      resolvePremiumTrialView(supabase, user),
+    ]);
+
+    return apiOk({
+      ...buildTierResponse(snapshot),
+      trial,
+    });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to load subscription tier";

@@ -47,6 +47,25 @@ export const PREMIUM_VALUE_HEADLINE =
 export const PREMIUM_VALUE_DETAIL =
   "Free tier keeps Today Wait · Trade · Pause, broker truth, and weekly review. Premium adds depth, exports, digests, and trust history when you want the full operating system.";
 
+export const PREMIUM_TRIAL_HEADLINE = "You earned your first Wait receipt.";
+
+export const PREMIUM_TRIAL_BODY =
+  "Try Premium free for {days} days — depth, exports, and review digests while discipline is fresh.";
+
+export function isPremiumTrialEnabled(): boolean {
+  return process.env.APEX_PREMIUM_TRIAL_ENABLED !== "false";
+}
+
+export function readPremiumTrialDays(): number {
+  const raw = Number(process.env.APEX_PREMIUM_TRIAL_DAYS ?? "7");
+
+  if (!Number.isFinite(raw) || raw < 1) {
+    return 7;
+  }
+
+  return Math.min(30, Math.floor(raw));
+}
+
 export function runPremiumCopySelfCheck(): void {
   const keys = Object.keys(PREMIUM_FEATURE_COPY) as PremiumFeatureKey[];
 

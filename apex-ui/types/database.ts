@@ -479,6 +479,32 @@ export type Database = {
         };
         Relationships: [];
       };
+      premium_trial_offers: {
+        Row: {
+          user_id: string;
+          trigger_receipt_id: string;
+          offered_at: string;
+          claimed_at: string | null;
+          expires_at: string | null;
+          dismissed_at: string | null;
+        };
+        Insert: {
+          user_id: string;
+          trigger_receipt_id: string;
+          offered_at?: string;
+          claimed_at?: string | null;
+          expires_at?: string | null;
+          dismissed_at?: string | null;
+        };
+        Update: {
+          trigger_receipt_id?: string;
+          offered_at?: string;
+          claimed_at?: string | null;
+          expires_at?: string | null;
+          dismissed_at?: string | null;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
