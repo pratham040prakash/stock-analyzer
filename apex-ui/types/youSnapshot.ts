@@ -26,6 +26,18 @@ export type YouSnapshotViewModel = {
   cdqs_headline: string;
   cdqs_detail: string;
   cdqs_sample_size: number;
+  outcome_loop_visible: boolean;
+  outcome_loop_stock: string | null;
+  outcome_loop_closed_at: string | null;
+  outcome_loop_result: string | null;
+  outcome_loop_discipline: number | null;
+  outcome_loop_execution: number | null;
+  outcome_loop_trust_delta: number | null;
+  outcome_loop_summary: string | null;
+  override_count_14d: number;
+  override_follow_rate_14d: number | null;
+  override_headline: string;
+  override_detail: string;
   last_week_summary: string;
   this_week_summary: string;
   visible_miss: string | null;

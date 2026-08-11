@@ -135,12 +135,15 @@ test.describe("APEX authenticated smoke", () => {
     const body = await response.json();
     expect(body.status).toBe("ok");
     expect(["wait", "trade", "pause"]).toContain(body.decision?.daily_verdict);
+    expect(typeof body.snapshot?.override_headline).toBe("string");
+    expect(typeof body.snapshot?.outcome_loop_visible).toBe("boolean");
   });
 
   test("trust page surfaces CDQS", async ({ page }) => {
     await page.goto("/app/trust");
     await expect(page).toHaveURL(/\/app\/trust/);
     await expect(page.locator("body")).toContainText(/Calibrated Decision Quality/i);
+    await expect(page.locator("body")).toContainText(/Override discipline/i);
   });
 
   test("you snapshot exposes CDQS fields", async ({ request }) => {

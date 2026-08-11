@@ -527,6 +527,10 @@ async function runChecks(baseUrl: string): Promise<VerifyReport> {
             typeof snapshot.cdqs_headline === "string" &&
             typeof snapshot.cdqs_detail === "string" &&
             typeof snapshot.cdqs_interpretation === "string" &&
+            typeof snapshot.override_headline === "string" &&
+            typeof snapshot.override_detail === "string" &&
+            typeof snapshot.override_count_14d === "number" &&
+            typeof snapshot.outcome_loop_visible === "boolean" &&
             (snapshot.cdqs_score_percent === null ||
               typeof snapshot.cdqs_score_percent === "number")
           );

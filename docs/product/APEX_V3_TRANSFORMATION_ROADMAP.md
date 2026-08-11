@@ -152,8 +152,8 @@ This roadmap is the **only active execution track** until:
 | ID | Deliverable | Outcome |
 |----|-------------|---------|
 | **T2-1** | **CDQS** on Trust surface | Constitution north star visible | **✅ Shipped** — `services/trust/cdqs.ts`, Trust canvas |
-| **T2-2** | Broker-verified outcome loop UI | `trustOutcome.ts`, `outcomeEngine.ts` → user-facing |
-| **T2-3** | Override tracking | Traded when Wait shown → metric ↓ over time |
+| **T2-2** | Broker-verified outcome loop UI | `trustOutcome.ts`, `outcomeEngine.ts` → user-facing | **✅ Shipped** — Trust canvas last close + scores |
+| **T2-3** | Override tracking | Traded when Wait shown → metric ↓ over time | **✅ Shipped** — 14d override strip on Trust |
 | **T2-4** | Hide / gate **autoExecute** default off | Constitution alignment | **✅ Shipped** — `APEX_AUTO_TRADE_ENABLED` env gate (default off) |
 | **T2-5** | Mobile-first Today polish | India usage |
 | **T2-6** | Weekly digest discipline summary | “4/5 days followed plan” |

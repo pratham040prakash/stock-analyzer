@@ -3,6 +3,12 @@ import { getDisciplineHistory } from "@/services/decision/disciplineHistory";
 import { getDisciplineStreak } from "@/services/discipline/streak";
 import { getUserTrustSnapshot } from "@/services/decision/trustOutcome";
 import { computeCdqsSnapshot } from "@/services/trust/cdqs";
+import {
+  buildOutcomeLoopView,
+  buildOverrideDisciplineView,
+  OVERRIDE_WINDOW_DAYS,
+} from "@/services/trust/outcomeLoop";
+import { buildPlannedVsActualRows } from "@/services/review/plannedVsActual";
 import { buildDisciplineProcessScore } from "@/services/review/disciplineScore";
 import type { Database } from "@/types/database";
 import type {
@@ -53,13 +59,20 @@ export async function assembleYouSnapshot(
   supabase: Client,
   userId: string,
 ): Promise<YouSnapshotViewModel> {
-  const [history, streak, trust, investorDna, cdqs] = await Promise.all([
+  const [history, streak, trust, investorDna, cdqs, planned] = await Promise.all([
     getDisciplineHistory(supabase, userId, 14),
     getDisciplineStreak(supabase, userId),
     getUserTrustSnapshot(supabase, userId),
     assembleInvestorDna(supabase, userId),
     computeCdqsSnapshot(supabase, userId),
+    buildPlannedVsActualRows(supabase, userId, OVERRIDE_WINDOW_DAYS),
   ]);
+
+  const outcomeLoop = buildOutcomeLoopView(trust);
+  const overrideDiscipline = buildOverrideDisciplineView(
+    planned.rows,
+    OVERRIDE_WINDOW_DAYS,
+  );
 
   const process = buildDisciplineProcessScore(
     history.summary,
@@ -115,6 +128,18 @@ export async function assembleYouSnapshot(
     cdqs_headline: cdqs.headline,
     cdqs_detail: cdqs.detail,
     cdqs_sample_size: cdqs.total,
+    outcome_loop_visible: outcomeLoop.visible,
+    outcome_loop_stock: outcomeLoop.stock,
+    outcome_loop_closed_at: outcomeLoop.closed_at,
+    outcome_loop_result: outcomeLoop.outcome_label,
+    outcome_loop_discipline: outcomeLoop.discipline_score,
+    outcome_loop_execution: outcomeLoop.execution_quality,
+    outcome_loop_trust_delta: outcomeLoop.trust_delta,
+    outcome_loop_summary: outcomeLoop.summary,
+    override_count_14d: overrideDiscipline.override_count,
+    override_follow_rate_14d: overrideDiscipline.follow_rate_percent,
+    override_headline: overrideDiscipline.headline,
+    override_detail: overrideDiscipline.detail,
     last_week_summary: `Followed ${history.summary.followedDays} · Wait ${history.summary.waitDays} · Wins ${history.summary.wins}`,
     this_week_summary: process.message,
     visible_miss:

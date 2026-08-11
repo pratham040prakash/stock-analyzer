@@ -41,6 +41,7 @@ import { runResearchSummarySelfCheck } from "../services/research/assembleResear
 import { runAlphaAiBridgeSelfCheck } from "../services/research/alphaAiBridge";
 import { runYouSnapshotSelfCheck } from "../services/you/assembleYouSnapshot";
 import { runCdqsSelfCheck } from "../services/trust/cdqs";
+import { runOutcomeLoopSelfCheck } from "../services/trust/outcomeLoop";
 import { runPlannedVsActualSelfCheck } from "../services/review/plannedVsActual";
 import { runMonthlyDoctorSelfCheck } from "../services/review/assembleMonthlyDoctor";
 import { runAskAnswerSelfCheck } from "../services/ask/assembleAskAnswer";
@@ -106,6 +107,7 @@ runResearchSummarySelfCheck();
 runAlphaAiBridgeSelfCheck();
 runYouSnapshotSelfCheck();
 runCdqsSelfCheck();
+runOutcomeLoopSelfCheck();
 runPlannedVsActualSelfCheck();
 runMonthlyDoctorSelfCheck();
 runAskAnswerSelfCheck();
