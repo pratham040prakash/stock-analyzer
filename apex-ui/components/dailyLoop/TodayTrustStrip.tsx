@@ -17,6 +17,8 @@ export type TodayTrustStripProps = {
   lastSyncedAt?: string | null;
   portfolioStale?: boolean;
   pollError?: string | null;
+  breakdownLoading?: boolean;
+  isPolling?: boolean;
   fundsLoading?: boolean;
   fundsSynced?: boolean;
   fundsSyncError?: string | null;
@@ -68,6 +70,8 @@ export default function TodayTrustStrip({
   lastSyncedAt,
   portfolioStale = false,
   pollError = null,
+  breakdownLoading = false,
+  isPolling = false,
   fundsLoading = false,
   fundsSynced = false,
   fundsSyncError = null,
@@ -91,6 +95,7 @@ export default function TodayTrustStrip({
       ? Math.round(breakdownSum * 10) / 10
       : null;
   const openPnlKnown = knownAmount(displayOpenPnl);
+  const showOpenPnl = openPnlKnown && !breakdownLoading;
   const dayPnlKnown = knownAmount(portfolioDayPnl);
   const resolvedTotal =
     totalKnown
@@ -187,7 +192,7 @@ export default function TodayTrustStrip({
           ) : connectionStatus === "CONNECTED" && !pollError ? (
             <span className="text-apex-muted/70">Day P&amp;L …</span>
           ) : null}
-          {openPnlKnown ? (
+          {showOpenPnl ? (
             <span
               className={
                 (displayOpenPnl ?? 0) >= 0 ? "text-emerald-300/90" : "text-amber-200/90"
@@ -196,15 +201,14 @@ export default function TodayTrustStrip({
               Open P&amp;L {(displayOpenPnl ?? 0) >= 0 ? "+" : ""}
               {formatInr(Math.round(displayOpenPnl ?? 0))}
             </span>
-          ) : connectionStatus === "CONNECTED" && !pollError ? (
+          ) : connectionStatus === "CONNECTED" && !pollError && breakdownLoading ? (
+            <span className="text-apex-muted/70">Open P&amp;L syncing…</span>
+          ) : connectionStatus === "CONNECTED" && !pollError && isPolling ? (
             <span className="text-apex-muted/70">Open P&amp;L syncing…</span>
           ) : null}
         </div>
 
-        {openPnlKnown &&
-        positionsBreakdown.length === 0 &&
-        connectionStatus === "CONNECTED" &&
-        !pollError ? (
+        {breakdownLoading && !pollError ? (
           <p className="mt-2 text-xs text-apex-muted/70">
             Fetching position breakdown…
           </p>

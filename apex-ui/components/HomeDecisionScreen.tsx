@@ -384,10 +384,16 @@ export default function HomeDecisionScreen({
     liveHoldingsTotalPnl,
     lastSyncedAt: liveLastSyncedAt,
     pollError: livePollError,
+    isPolling: livePnlPolling,
     refresh: refreshLiveDayPnl,
   } = useDayPnlPoll({
     enabled: dayPnlPollEnabled,
   });
+  const breakdownLoading =
+    connectionStatus === "CONNECTED" &&
+    !livePollError &&
+    livePositionsBreakdown.length === 0 &&
+    Boolean(liveLastSyncedAt);
   const displayPortfolioHoldings =
     liveHoldings.length > 0 ? liveHoldings : portfolioHoldings;
   const displayPortfolioValue =
@@ -530,6 +536,8 @@ export default function HomeDecisionScreen({
               lastSyncedAt={liveLastSyncedAt}
               portfolioStale={portfolioStale}
               pollError={livePollError}
+              breakdownLoading={breakdownLoading}
+              isPolling={livePnlPolling}
               fundsLoading={fundsLoading}
               fundsSynced={fundsSynced}
               fundsSyncError={fundsSyncError}

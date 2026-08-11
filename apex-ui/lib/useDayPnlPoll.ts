@@ -111,7 +111,7 @@ function clearLivePnlState(setters: {
 /** @deprecated Use LIVE_KITE_REFRESH_MS */
 export const DAY_PNL_REFRESH_MS = LIVE_KITE_REFRESH_MS;
 
-const POLL_FAILURE_THRESHOLD = 3;
+const POLL_FAILURE_THRESHOLD = 1;
 
 export function useDayPnlPoll({ enabled }: Options) {
   const [positionsPnl, setPositionsPnl] = useState<number | null>(null);
@@ -132,6 +132,7 @@ export function useDayPnlPoll({ enabled }: Options) {
   >(null);
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
   const [pollError, setPollError] = useState<string | null>(null);
+  const [isPolling, setIsPolling] = useState(false);
   const requestRef = useRef(0);
   const failureCountRef = useRef(0);
 
@@ -152,10 +153,12 @@ export function useDayPnlPoll({ enabled }: Options) {
       });
       setPollError(null);
       failureCountRef.current = 0;
+      setIsPolling(false);
       return;
     }
 
     const requestId = ++requestRef.current;
+    setIsPolling(true);
 
     try {
       const res = await apiFetch("/api/today/pnl", {
@@ -185,6 +188,7 @@ export function useDayPnlPoll({ enabled }: Options) {
         setLiveKiteStatus("TOKEN_EXPIRED");
         setPollError("Zerodha session expired — reconnect to refresh live P&L.");
         failureCountRef.current = 0;
+        setIsPolling(false);
         return;
       }
 
@@ -193,6 +197,7 @@ export function useDayPnlPoll({ enabled }: Options) {
         if (failureCountRef.current >= POLL_FAILURE_THRESHOLD) {
           setPollError("Live P&L sync failed — showing last known values.");
         }
+        setIsPolling(false);
         return;
       }
 
@@ -229,6 +234,7 @@ export function useDayPnlPoll({ enabled }: Options) {
           : null,
       );
       setLastSyncedAt(new Date().toISOString());
+      setIsPolling(false);
     } catch {
       if (requestId !== requestRef.current) {
         return;
@@ -238,6 +244,7 @@ export function useDayPnlPoll({ enabled }: Options) {
       if (failureCountRef.current >= POLL_FAILURE_THRESHOLD) {
         setPollError("Live P&L sync failed — showing last known values.");
       }
+      setIsPolling(false);
     }
   }, [enabled]);
 
@@ -272,6 +279,7 @@ export function useDayPnlPoll({ enabled }: Options) {
     liveHoldingsTotalPnl,
     lastSyncedAt,
     pollError,
+    isPolling,
     refresh,
   };
 }

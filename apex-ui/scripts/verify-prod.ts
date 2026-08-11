@@ -322,13 +322,19 @@ async function runChecks(baseUrl: string): Promise<VerifyReport> {
 
           if (
             typeof dayPnl === "number" &&
-            typeof positionsPnl === "number" &&
-            typeof portfolioDayPnl === "number"
+            typeof portfolioDayPnl === "number" &&
+            Math.abs(dayPnl - portfolioDayPnl) >= 0.01
           ) {
-            return (
-              Math.abs(dayPnl - portfolioDayPnl) < 0.01 &&
-              Math.abs(dayPnl - positionsPnl) > 0.01
-            );
+            return false;
+          }
+
+          if (
+            typeof dayPnl === "number" &&
+            typeof positionsPnl === "number" &&
+            (Math.abs(dayPnl) > 0.01 || Math.abs(positionsPnl) > 0.01) &&
+            Math.abs(dayPnl - positionsPnl) <= 0.01
+          ) {
+            return false;
           }
 
           return true;

@@ -327,6 +327,11 @@ export default function HomeClient({
         setPortfolioError(null);
       } else if (data.status === "TOKEN_EXPIRED") {
         setConnectionStatus("TOKEN_EXPIRED");
+        setPortfolioData((previous) =>
+          previous
+            ? { ...previous, status: "TOKEN_EXPIRED", stale: true }
+            : { ...data, stale: true },
+        );
         if (data.holdings.length > 0) {
           setPortfolioError(null);
         }
@@ -894,12 +899,14 @@ export default function HomeClient({
             {hasPortfolioData &&
             portfolioData &&
             portfolioData.total_value !== undefined &&
-            !showHomeDecision ? (
+            !showHomeDecision &&
+            connectionStatus !== "TOKEN_EXPIRED" ? (
               <PortfolioSummary
                 totalValue={portfolioData.total_value}
                 dayPnl={portfolioData.day_pnl ?? dailyInsight?.day_pnl ?? null}
                 riskScore={portfolioData.risk_score ?? 4}
                 riskLevel={portfolioData.risk_level ?? "Low"}
+                stale={portfolioData.stale === true}
               />
             ) : null}
           </>

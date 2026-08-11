@@ -2,6 +2,7 @@ import { tradingDateKey } from "@/lib/dailyLoop/disciplineDates";
 import { normalizeSymbol } from "@/lib/stockPool";
 import { isAutoTradingEnabled } from "@/lib/tradingPreferences";
 import { executeTradeSafe } from "@/services/trade/execute";
+import type { ExecuteTradeResult } from "@/services/trade/execute";
 import {
   hasBrokerFillToday,
   logTradeFillSafe,
@@ -20,13 +21,15 @@ export type AutoTradeContext = {
 export type AutoTradeSkipReason =
   | "auto_disabled"
   | "not_buy"
-  | "already_attempted"
-  | "already_filled";
+  | "already_executed"
+  | "already_filled"
+  | "in_flight";
 
 export type AutoTradeSkipChecks = {
   autoEnabled: boolean;
   isBuy: boolean;
-  autoAttemptedToday: boolean;
+  autoExecutedToday: boolean;
+  autoInFlight: boolean;
   brokerFillToday: boolean;
 };
 
@@ -39,22 +42,39 @@ export function shouldSkipAutoTrade(checks: AutoTradeSkipChecks): AutoTradeSkipR
     return "not_buy";
   }
 
-  if (checks.autoAttemptedToday) {
-    return "already_attempted";
+  if (checks.autoExecutedToday) {
+    return "already_executed";
   }
 
   if (checks.brokerFillToday) {
     return "already_filled";
   }
 
+  if (checks.autoInFlight) {
+    return "in_flight";
+  }
+
   return null;
 }
 
-async function hasAutoTradeAttemptToday(
+function isRetryableAutoTradeFailure(result: ExecuteTradeResult | null | undefined): boolean {
+  if (!result) {
+    return true;
+  }
+
+  return (
+    result.status === "ENTRY_BLOCKED" ||
+    result.status === "ERROR" ||
+    result.status === "INSUFFICIENT_FUNDS" ||
+    result.status === "RISK_BLOCKED"
+  );
+}
+
+async function listAutoTradeSignalsToday(
   supabase: Client,
   userId: string,
   dateKey = tradingDateKey(),
-): Promise<boolean> {
+): Promise<Signals[]> {
   const { data, error } = await supabase
     .from("decision_memory")
     .select("signals")
@@ -62,29 +82,44 @@ async function hasAutoTradeAttemptToday(
     .eq("decision_date", dateKey);
 
   if (error || !data?.length) {
-    return false;
+    return [];
   }
 
-  for (const row of data) {
-    const signals = row.signals as Signals | null;
-    if (signals?.auto_trade_attempted || signals?.auto_executed) {
-      return true;
-    }
-  }
+  return data
+    .map((row) => row.signals as Signals | null)
+    .filter((signals): signals is Signals => Boolean(signals));
+}
 
-  return false;
+export async function hasAutoTradeSucceededToday(
+  supabase: Client,
+  userId: string,
+  dateKey = tradingDateKey(),
+): Promise<boolean> {
+  const signals = await listAutoTradeSignalsToday(supabase, userId, dateKey);
+  return signals.some((entry) => entry.auto_executed === true);
+}
+
+export async function hasAutoTradeInFlightToday(
+  supabase: Client,
+  userId: string,
+  dateKey = tradingDateKey(),
+): Promise<boolean> {
+  const signals = await listAutoTradeSignalsToday(supabase, userId, dateKey);
+  return signals.some(
+    (entry) => entry.auto_trade_attempted === true && entry.auto_executed !== true,
+  );
 }
 
 async function recordAutoTradeAttempt(
   supabase: Client,
   userId: string,
   stock: string,
-): Promise<void> {
+): Promise<boolean> {
   const today = tradingDateKey();
   const normalized = normalizeSymbol(stock);
 
   if (!normalized) {
-    return;
+    return false;
   }
 
   const { error } = await supabase.from("decision_memory").insert({
@@ -104,8 +139,38 @@ async function recordAutoTradeAttempt(
     } satisfies Signals,
   });
 
-  if (error) {
-    console.warn("Auto trade attempt marker failed:", error.message);
+  return !error;
+}
+
+async function clearAutoTradeAttempt(
+  supabase: Client,
+  userId: string,
+  stock: string,
+): Promise<void> {
+  const today = tradingDateKey();
+  const normalized = normalizeSymbol(stock);
+
+  if (!normalized) {
+    return;
+  }
+
+  const { data, error } = await supabase
+    .from("decision_memory")
+    .select("id, signals")
+    .eq("user_id", userId)
+    .eq("decision_date", today)
+    .eq("stock", normalized)
+    .eq("action", "hold");
+
+  if (error || !data?.length) {
+    return;
+  }
+
+  for (const row of data) {
+    const signals = row.signals as Signals | null;
+    if (signals?.auto_trade_attempted && !signals?.auto_executed) {
+      await supabase.from("decision_memory").delete().eq("id", row.id);
+    }
   }
 }
 
@@ -124,7 +189,8 @@ export async function executeTradeIfAutoEnabled(
       (decision.amount ?? 0) > 0;
 
     const stock = decision.stock ? normalizeSymbol(decision.stock) : "";
-    const autoAttemptedToday = await hasAutoTradeAttemptToday(supabase, userId);
+    const autoExecutedToday = await hasAutoTradeSucceededToday(supabase, userId);
+    const autoInFlight = await hasAutoTradeInFlightToday(supabase, userId);
     const brokerFillToday = stock
       ? await hasBrokerFillToday(supabase, userId, stock)
       : false;
@@ -132,7 +198,8 @@ export async function executeTradeIfAutoEnabled(
     const skipReason = shouldSkipAutoTrade({
       autoEnabled,
       isBuy,
-      autoAttemptedToday,
+      autoExecutedToday,
+      autoInFlight,
       brokerFillToday,
     });
 
@@ -147,7 +214,11 @@ export async function executeTradeIfAutoEnabled(
       return;
     }
 
-    await recordAutoTradeAttempt(supabase, userId, stock);
+    const locked = await recordAutoTradeAttempt(supabase, userId, stock);
+    if (!locked) {
+      console.log("Auto trade skipped: in_flight", stock);
+      return;
+    }
 
     const result = await executeTradeSafe(supabase, userId, {
       stock,
@@ -170,6 +241,10 @@ export async function executeTradeIfAutoEnabled(
       return;
     }
 
+    if (isRetryableAutoTradeFailure(result)) {
+      await clearAutoTradeAttempt(supabase, userId, stock);
+    }
+
     if (result) {
       console.warn("Auto trade skipped:", result);
     }
@@ -189,7 +264,8 @@ export function runAutoTradeSelfCheck(): void {
     shouldSkipAutoTrade({
       autoEnabled: false,
       isBuy: true,
-      autoAttemptedToday: false,
+      autoExecutedToday: false,
+      autoInFlight: false,
       brokerFillToday: false,
     }) === "auto_disabled",
     "Disabled auto trading must skip",
@@ -199,7 +275,8 @@ export function runAutoTradeSelfCheck(): void {
     shouldSkipAutoTrade({
       autoEnabled: true,
       isBuy: false,
-      autoAttemptedToday: false,
+      autoExecutedToday: false,
+      autoInFlight: false,
       brokerFillToday: false,
     }) === "not_buy",
     "Non-buy decisions must skip auto trade",
@@ -209,17 +286,19 @@ export function runAutoTradeSelfCheck(): void {
     shouldSkipAutoTrade({
       autoEnabled: true,
       isBuy: true,
-      autoAttemptedToday: true,
+      autoExecutedToday: true,
+      autoInFlight: false,
       brokerFillToday: false,
-    }) === "already_attempted",
-    "Prior auto attempt today must skip",
+    }) === "already_executed",
+    "Successful auto trade today must skip",
   );
 
   assert(
     shouldSkipAutoTrade({
       autoEnabled: true,
       isBuy: true,
-      autoAttemptedToday: false,
+      autoExecutedToday: false,
+      autoInFlight: false,
       brokerFillToday: true,
     }) === "already_filled",
     "Existing broker fill today must skip",
@@ -229,9 +308,30 @@ export function runAutoTradeSelfCheck(): void {
     shouldSkipAutoTrade({
       autoEnabled: true,
       isBuy: true,
-      autoAttemptedToday: false,
+      autoExecutedToday: false,
+      autoInFlight: true,
+      brokerFillToday: false,
+    }) === "in_flight",
+    "In-flight auto trade must skip duplicate requests",
+  );
+
+  assert(
+    shouldSkipAutoTrade({
+      autoEnabled: true,
+      isBuy: true,
+      autoExecutedToday: false,
+      autoInFlight: false,
       brokerFillToday: false,
     }) === null,
     "Fresh buy with auto enabled must not skip",
+  );
+
+  assert(
+    isRetryableAutoTradeFailure({ status: "ENTRY_BLOCKED", reason: "Late session" }),
+    "Entry blocks must allow retry after clearing attempt marker",
+  );
+  assert(
+    !isRetryableAutoTradeFailure({ status: "OK", stock: "X", amount: 1, price: 1, quantity: 1, orderId: "1" }),
+    "Successful orders must not be treated as retryable failures",
   );
 }

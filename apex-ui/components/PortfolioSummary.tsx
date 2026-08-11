@@ -10,6 +10,7 @@ type Props = {
   riskLevel: PortfolioRiskLevel;
   topSymbol?: string;
   topAllocationPct?: number;
+  stale?: boolean;
 };
 
 function formatCurrency(value: number): string {
@@ -47,9 +48,21 @@ function dayPnlClass(dayPnl: number | null): string {
 export default function PortfolioSummary({
   totalValue,
   dayPnl,
+  stale = false,
 }: Props) {
   return (
     <ApexCard hover={false} padding="compact">
+      {stale ? (
+        <p className="mb-3 text-xs text-amber-200/90">
+          Session expired · portfolio values may be stale.{" "}
+          <a
+            href="/api/zerodha/login"
+            className="underline underline-offset-2 hover:text-amber-100"
+          >
+            Reconnect Zerodha
+          </a>
+        </p>
+      ) : null}
       <ApexRow label="Portfolio" value={formatCurrency(totalValue)} />
       <ApexRow
         label="Today"
