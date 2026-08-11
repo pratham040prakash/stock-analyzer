@@ -182,6 +182,9 @@ async function runChecks(baseUrl: string): Promise<VerifyReport> {
 
   const protectedRoutes = [
     { path: "/api/decision/today", id: "auth-today" },
+    { path: "/api/today/brief", id: "auth-brief" },
+    { path: "/api/portfolio/overview", id: "auth-portfolio-overview" },
+    { path: "/api/receipts", id: "auth-receipts" },
     { path: "/api/discipline/streak", id: "auth-discipline" },
     { path: "/api/trust/outcome", id: "auth-trust" },
     { path: "/api/subscription/tier", id: "auth-tier" },

@@ -1,4 +1,5 @@
 import { tradingDateKey } from "@/lib/dailyLoop/disciplineDates";
+import { persistDecisionReceipt } from "@/services/receipts/persistReceipt";
 import { computeStopLoss } from "@/services/risk/riskControl";
 import type { Signals } from "@/types/decision";
 import type { Database } from "@/types/database";
@@ -411,7 +412,22 @@ export async function logTradeFillSafe(
   fill: TradeFillInput,
 ): Promise<string | null> {
   try {
-    return await logTradeFill(supabase, userId, fill);
+    const memoryId = await logTradeFill(supabase, userId, fill);
+
+    if (memoryId) {
+      await persistDecisionReceipt(supabase, userId, {
+        symbol: fill.stock,
+        executionKind: fill.side === "sell" ? "SELL" : "BUY",
+        orderId: fill.orderId,
+        fillSide: fill.side,
+        fillQuantity: fill.quantity,
+        fillPrice: fill.price,
+        fillAmount: fill.amount,
+        decisionMemoryId: memoryId,
+      });
+    }
+
+    return memoryId;
   } catch (error) {
     console.error("Trade fill log failed:", error);
     return null;

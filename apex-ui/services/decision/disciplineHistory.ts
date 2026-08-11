@@ -89,7 +89,7 @@ export async function getDisciplineHistory(
   summary: DisciplineHistorySummary;
   days: string[];
 }> {
-  const windowDays = Math.min(7, Math.max(1, Math.round(days)));
+  const windowDays = Math.min(14, Math.max(1, Math.round(days)));
   const sinceDate = resolveSinceIstDate(windowDays);
   const dayKeys = buildLastNIstDays(windowDays);
 

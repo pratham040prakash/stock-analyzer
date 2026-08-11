@@ -174,6 +174,54 @@ export type Database = {
         };
         Relationships: [];
       };
+      decision_receipts: {
+        Row: {
+          id: string;
+          user_id: string;
+          receipt_date: string;
+          symbol: string;
+          execution_kind: string;
+          verdict_word: string | null;
+          headline: string | null;
+          subline: string | null;
+          trust_score: number | null;
+          trust_delta: number | null;
+          order_id: string | null;
+          fill_side: string | null;
+          fill_quantity: number | null;
+          fill_price: number | null;
+          fill_amount: number | null;
+          decision_memory_id: string | null;
+          brief_snapshot: unknown;
+          dismissed_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          receipt_date: string;
+          symbol: string;
+          execution_kind: string;
+          verdict_word?: string | null;
+          headline?: string | null;
+          subline?: string | null;
+          trust_score?: number | null;
+          trust_delta?: number | null;
+          order_id?: string | null;
+          fill_side?: string | null;
+          fill_quantity?: number | null;
+          fill_price?: number | null;
+          fill_amount?: number | null;
+          decision_memory_id?: string | null;
+          brief_snapshot?: unknown;
+          dismissed_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          dismissed_at?: string | null;
+        };
+        Relationships: [];
+      };
       decision_memory: {
         Row: {
           id: string;

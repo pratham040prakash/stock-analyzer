@@ -39,6 +39,26 @@ export function getMarketOrderBlockReason(now: Date = new Date()): string | null
   return "Market is closed. NSE cash orders execute 9:15 AM – 3:30 PM IST, Monday–Friday.";
 }
 
+export function getMarketSessionPhase(now: Date = new Date()): string {
+  if (isNseCashSessionOpen(now)) {
+    return "Market open";
+  }
+
+  const day = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Kolkata",
+    weekday: "short",
+  }).format(now);
+
+  if (day === "Sat" || day === "Sun") {
+    return "Weekend";
+  }
+
+  const minutes = getIstMinutes(now);
+  const open = 9 * 60 + 15;
+
+  return minutes < open ? "Pre-market" : "After hours";
+}
+
 export function runMarketSessionSelfCheck(): void {
   const open = isNseCashSessionOpen(new Date("2026-08-11T10:00:00+05:30"));
   const closed = isNseCashSessionOpen(new Date("2026-08-11T08:30:00+05:30"));

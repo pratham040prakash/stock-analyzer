@@ -7,6 +7,8 @@ const SURFACES = [
   { href: "/app", label: "Today" },
   { href: "/app/portfolio", label: "Portfolio" },
   { href: "/app/review", label: "Review" },
+  { href: "/app/journal", label: "Journal" },
+  { href: "/app/research", label: "Research" },
 ] as const;
 
 export default function ApexSurfaceNav() {

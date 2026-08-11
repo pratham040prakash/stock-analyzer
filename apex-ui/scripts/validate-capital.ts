@@ -24,6 +24,12 @@ import { runSyncKiteBrokerFillSelfCheck } from "../services/trade/syncKiteBroker
 import { runSyncBrokerActivitySelfCheck } from "../services/trade/syncBrokerActivity";
 import { runAutoTradeSelfCheck } from "../services/trade/autoExecute";
 import { runLoggerSelfCheck } from "../lib/logging/logger";
+import { runMorningBriefSelfCheck } from "../services/brief/assembleMorningBrief";
+import { runProjectVerdictSelfCheck } from "../lib/dailyLoop/projectVerdict";
+import { runAllocationPolicySelfCheck } from "../services/portfolio/allocationPolicy";
+import { runHoldingHealthSelfCheck } from "../services/portfolio/holdingHealth";
+import { runDisciplineScoreSelfCheck } from "../services/review/disciplineScore";
+import { runReceiptSelfCheck } from "../services/receipts/persistReceipt";
 
 runCapitalProjectionSelfCheck();
 runCapitalFinalStateSelfCheck();
@@ -48,3 +54,9 @@ runSyncKiteBrokerFillSelfCheck();
 runSyncBrokerActivitySelfCheck();
 runAutoTradeSelfCheck();
 runLoggerSelfCheck();
+runMorningBriefSelfCheck();
+runProjectVerdictSelfCheck();
+runAllocationPolicySelfCheck();
+runHoldingHealthSelfCheck();
+runDisciplineScoreSelfCheck();
+runReceiptSelfCheck();

@@ -1,6 +1,7 @@
 "use client";
 
 import type { TodayExecutionKind } from "@/lib/dailyLoop/todaySurface";
+import { resolveVerdictWord } from "@/lib/dailyLoop/todaySurface";
 import type { ConnectionStatus } from "@/lib/broker/zerodha";
 
 export type VerdictCanvasProps = {
@@ -136,15 +137,4 @@ export default function VerdictCanvas({
   );
 }
 
-export function resolveVerdictWord(executionKind: TodayExecutionKind): string {
-  switch (executionKind) {
-    case "BUY":
-      return "ACT";
-    case "SELL":
-      return "TRIM";
-    case "OBSERVE":
-      return "EXPLORE";
-    default:
-      return "WAIT";
-  }
-}
+export { resolveVerdictWord };

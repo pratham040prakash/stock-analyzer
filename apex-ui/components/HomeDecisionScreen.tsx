@@ -24,10 +24,11 @@ import {
 import TodayExecutionPanel from "@/components/dailyLoop/TodayExecutionPanel";
 import TodayMonitorStrip from "@/components/dailyLoop/TodayMonitorStrip";
 import TodayTrustStrip from "@/components/dailyLoop/TodayTrustStrip";
-import VerdictCanvas, {
-  resolveVerdictWord,
-} from "@/components/dailyLoop/VerdictCanvas";
+import VerdictCanvas from "@/components/dailyLoop/VerdictCanvas";
+import TodayBelowFold from "@/components/dailyLoop/belowFold/TodayBelowFold";
 import DecisionReceipt from "@/components/dailyLoop/DecisionReceipt";
+import { projectVerdictCanvasProps } from "@/lib/dailyLoop/projectVerdict";
+import { useMorningBrief } from "@/lib/useMorningBrief";
 import TodayPortfolioHoldings from "@/components/dailyLoop/TodayPortfolioHoldings";
 import TodayProgressStrip from "@/components/dailyLoop/TodayProgressStrip";
 import WeeklyReviewStrip from "@/components/dailyLoop/WeeklyReviewStrip";
@@ -370,6 +371,17 @@ export default function HomeDecisionScreen({
   const isGrow = renderIntent === "grow";
   const isProtect = renderIntent === "protect";
   const isCapitalDeployment = isGrow || isProtect;
+  const morningBriefEnabled = isCapitalDeployment && connectionStatus === "CONNECTED";
+  const {
+    brief: morningBrief,
+    loading: morningBriefLoading,
+    error: morningBriefError,
+    refresh: refreshMorningBrief,
+  } = useMorningBrief({
+    enabled: morningBriefEnabled,
+    intent: renderIntent,
+    refreshKey: decisionUpdatedAt,
+  });
   const monitorEnabled =
     connectionStatus === "CONNECTED" && isCapitalDeployment;
   const dayPnlPollEnabled = connectionStatus === "CONNECTED";
@@ -434,6 +446,35 @@ export default function HomeDecisionScreen({
       if (fill?.orderId) {
         setBrokerFillSummary(fill);
         setReceiptDismissed(false);
+
+        void (async () => {
+          try {
+            await apiFetch("/api/receipts", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                symbol: todayHero.symbol,
+                executionKind: todayHero.executionKind,
+                verdictWord: morningBrief?.decision.verdict_display,
+                headline: morningBrief?.decision.headline ?? displayHero.headline,
+                subline: morningBrief?.decision.subline ?? displayHero.subline,
+                trustScore: morningBrief?.trust.trust_score ?? trustScore,
+                trustDelta: morningBrief?.trust.trust_delta ?? trustDelta,
+                orderId: fill.orderId,
+                fillSide: fill.side,
+                fillQuantity: fill.quantity,
+                fillPrice: fill.price,
+                fillAmount:
+                  fill.price !== undefined
+                    ? fill.price * fill.quantity
+                    : undefined,
+                briefSnapshot: morningBrief ?? undefined,
+              }),
+            });
+          } catch {
+            // Receipt persistence must not block execution UX.
+          }
+        })();
       }
 
       onCapitalRefresh?.();
@@ -441,7 +482,7 @@ export default function HomeDecisionScreen({
       void refreshLiveDayPnl();
       void refreshTrust();
     },
-    [onCapitalRefresh, refreshLiveDayPnl, refreshMonitor, refreshTrust, todayHero.symbol],
+    [displayHero.headline, displayHero.subline, morningBrief, onCapitalRefresh, refreshLiveDayPnl, refreshMonitor, refreshMorningBrief, refreshTrust, todayHero.executionKind, todayHero.symbol, trustDelta, trustScore],
   );
 
   useEffect(() => {
@@ -506,10 +547,38 @@ export default function HomeDecisionScreen({
       )
     : null;
   const evidenceTeaser =
+    morningBrief?.evidence.key_reasons[0] ??
     decision.reason ??
     decision.confidence_factors?.[0] ??
     decision.message ??
     undefined;
+  const verdictCanvasProps = morningBrief
+    ? projectVerdictCanvasProps(morningBrief, {
+        connectionStatus,
+        brokerStepCompleted,
+        pollError: morningBriefError ?? livePollError,
+      })
+    : {
+        verdictWord: displayHero.executionKind === "BUY"
+          ? "ACT"
+          : displayHero.executionKind === "SELL"
+            ? "TRIM"
+            : displayHero.executionKind === "OBSERVE"
+              ? "EXPLORE"
+              : "WAIT",
+        headline: displayHero.headline,
+        subline: displayHero.subline,
+        executionKind: displayHero.executionKind,
+        trustScore,
+        trustDelta,
+        trustMessage,
+        evidenceTeaser,
+        confidence: decision.confidence,
+        portfolioStale,
+        pollError: livePollError,
+        connectionStatus,
+        brokerStepCompleted,
+      };
 
   return (
     <div className={`mx-auto w-full max-w-[600px] ${className}`.trim()}>
@@ -631,21 +700,15 @@ export default function HomeDecisionScreen({
               </p>
             ) : null}
             {isCapitalDeployment ? (
-              <VerdictCanvas
-                verdictWord={resolveVerdictWord(displayHero.executionKind)}
-                headline={heroTitle}
-                subline={heroTone}
-                executionKind={displayHero.executionKind}
-                trustScore={trustScore}
-                trustDelta={trustDelta}
-                trustMessage={trustMessage}
-                evidenceTeaser={evidenceTeaser}
-                confidence={decision.confidence}
-                portfolioStale={portfolioStale}
-                pollError={livePollError}
-                connectionStatus={connectionStatus}
-                brokerStepCompleted={brokerStepCompleted}
-              />
+              <>
+                {morningBriefLoading ? (
+                  <p className="text-xs text-apex-muted/60">Loading morning brief…</p>
+                ) : null}
+                {morningBriefError && !morningBrief ? (
+                  <p className="text-xs text-amber-200/80">{morningBriefError}</p>
+                ) : null}
+                <VerdictCanvas {...verdictCanvasProps} />
+              </>
             ) : (
               <>
                 <p className="text-xs font-medium uppercase tracking-[0.14em] text-apex-muted">
@@ -705,6 +768,11 @@ export default function HomeDecisionScreen({
                   showWhenEmpty={monitorEnabled}
                 />
               </div>
+              {morningBrief ? (
+                <div className="mt-4">
+                  <TodayBelowFold brief={morningBrief} />
+                </div>
+              ) : null}
             </div>
           ) : null}
 

@@ -26,4 +26,19 @@ test.describe("APEX smoke", () => {
     await page.goto("/app/portfolio");
     await expect(page).toHaveURL(/\/login/);
   });
+
+  test("journal route guards anonymous users", async ({ page }) => {
+    await page.goto("/app/journal");
+    await expect(page).toHaveURL(/\/login/);
+  });
+
+  test("today brief rejects anonymous users", async ({ request }) => {
+    const response = await request.get("/api/today/brief");
+    expect(response.status()).toBe(401);
+  });
+
+  test("portfolio overview rejects anonymous users", async ({ request }) => {
+    const response = await request.get("/api/portfolio/overview");
+    expect(response.status()).toBe(401);
+  });
 });

@@ -4,12 +4,16 @@ import { useCallback, useEffect, useState } from "react";
 import ApexSurfaceNav from "@/components/nav/ApexSurfaceNav";
 import TodayPortfolioHoldings from "@/components/dailyLoop/TodayPortfolioHoldings";
 import TodayTrustStrip from "@/components/dailyLoop/TodayTrustStrip";
+import AllocationVsPolicy from "@/components/portfolio/AllocationVsPolicy";
+import { HoldingHealthList } from "@/components/portfolio/HoldingHealthChip";
+import PositionsView from "@/components/portfolio/PositionsView";
+import ResearchHandoffLink from "@/components/portfolio/ResearchHandoffLink";
 import { ApexCard, ApexShell, ApexTitle } from "@/components/ui/apex";
 import { useDayPnlPoll } from "@/lib/useDayPnlPoll";
 import { usePortfolioPoll } from "@/lib/usePortfolioPoll";
 import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
 import type { ConnectionStatus } from "@/lib/broker/zerodha";
-import type { PortfolioApiResponse } from "@/types/portfolioApi";
+import type { PortfolioOverviewViewModel } from "@/types/portfolioOverview";
 
 type FundsResponse = {
   ledger_cash: number;
@@ -22,6 +26,11 @@ type FundsResponse = {
   message?: string;
 };
 
+type OverviewResponse = {
+  status: string;
+  overview: PortfolioOverviewViewModel;
+};
+
 type Props = {
   connectionStatus: ConnectionStatus;
   userName: string;
@@ -31,8 +40,10 @@ export default function PortfolioPageClient({
   connectionStatus,
   userName,
 }: Props) {
-  const [portfolio, setPortfolio] = useState<PortfolioApiResponse | null>(null);
-  const [portfolioLoading, setPortfolioLoading] = useState(true);
+  const [overview, setOverview] = useState<PortfolioOverviewViewModel | null>(
+    null,
+  );
+  const [overviewLoading, setOverviewLoading] = useState(true);
   const [fundsLoading, setFundsLoading] = useState(true);
   const [fundsSynced, setFundsSynced] = useState(false);
   const [fundsSyncError, setFundsSyncError] = useState<string | null>(null);
@@ -40,24 +51,6 @@ export default function PortfolioPageClient({
   const [collateral, setCollateral] = useState<number | undefined>();
   const [availableCash, setAvailableCash] = useState<number | undefined>();
   const [totalCapital, setTotalCapital] = useState<number | undefined>();
-
-  const loadPortfolio = useCallback(async () => {
-    setPortfolioLoading(true);
-
-    try {
-      const response = await apiFetch("/api/portfolio", { cache: "no-store" });
-      const data = await parseApiJson<PortfolioApiResponse>(
-        response,
-        "Portfolio",
-      );
-
-      if (response.ok && data) {
-        setPortfolio(data);
-      }
-    } finally {
-      setPortfolioLoading(false);
-    }
-  }, []);
 
   const loadFunds = useCallback(async () => {
     setFundsLoading(true);
@@ -84,9 +77,26 @@ export default function PortfolioPageClient({
     }
   }, []);
 
+  const loadOverview = useCallback(async () => {
+    setOverviewLoading(true);
+
+    try {
+      const response = await apiFetch("/api/portfolio/overview", {
+        cache: "no-store",
+      });
+      const data = await parseApiJson<OverviewResponse>(response, "Portfolio overview");
+
+      if (response.ok && data?.overview) {
+        setOverview(data.overview);
+      }
+    } finally {
+      setOverviewLoading(false);
+    }
+  }, []);
+
   const refreshAll = useCallback(async () => {
-    await Promise.all([loadPortfolio(), loadFunds()]);
-  }, [loadFunds, loadPortfolio]);
+    await Promise.all([loadOverview(), loadFunds()]);
+  }, [loadFunds, loadOverview]);
 
   useEffect(() => {
     void refreshAll();
@@ -107,6 +117,7 @@ export default function PortfolioPageClient({
     isPolling: livePnlPolling,
   } = useDayPnlPoll({ enabled: pollEnabled });
 
+  const portfolio = overview?.portfolio;
   const displayHoldings =
     liveHoldings.length > 0 ? liveHoldings : (portfolio?.holdings ?? []);
   const displayValue =
@@ -123,7 +134,7 @@ export default function PortfolioPageClient({
         <div className="space-y-2">
           <ApexTitle>Portfolio</ApexTitle>
           <p className="text-sm text-apex-muted">
-            Live holdings and allocation for {userName}.
+            Live holdings, allocation policy, and health for {userName}.
           </p>
         </div>
       </header>
@@ -150,21 +161,40 @@ export default function PortfolioPageClient({
             fundsSyncError={fundsSyncError}
           />
 
+          {overviewLoading ? (
+            <p className="text-sm text-apex-muted/70">Loading overview…</p>
+          ) : null}
+
+          {overview?.allocation ? (
+            <AllocationVsPolicy allocation={overview.allocation} />
+          ) : null}
+
+          {overview?.health?.length ? (
+            <HoldingHealthList chips={overview.health} />
+          ) : null}
+
+          <ResearchHandoffLink symbol={overview?.research_symbol ?? null} />
+
           <TodayPortfolioHoldings
             holdings={displayHoldings}
             totalValue={displayValue}
             totalPnl={displayTotalPnl}
             stale={portfolio?.stale === true}
             loading={
-              portfolioLoading &&
+              overviewLoading &&
               displayHoldings.length === 0 &&
               connectionStatus === "CONNECTED"
             }
             showEmptyWhenSynced={
-              !portfolioLoading &&
+              !overviewLoading &&
               displayHoldings.length === 0 &&
               connectionStatus === "CONNECTED"
             }
+          />
+
+          <PositionsView
+            positions={overview?.positions ?? []}
+            loading={overviewLoading}
           />
         </div>
       </ApexCard>

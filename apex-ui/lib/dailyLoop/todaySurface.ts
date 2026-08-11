@@ -232,6 +232,19 @@ export function resolvePrimaryActionDisplay(
   };
 }
 
+export function resolveVerdictWord(executionKind: TodayExecutionKind): string {
+  switch (executionKind) {
+    case "BUY":
+      return "ACT";
+    case "SELL":
+      return "TRIM";
+    case "OBSERVE":
+      return "EXPLORE";
+    default:
+      return "WAIT";
+  }
+}
+
 export function runTodaySurfaceSelfCheck(): void {
   const assert = (condition: boolean, message: string) => {
     if (!condition) {
