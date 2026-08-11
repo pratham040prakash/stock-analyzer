@@ -39,7 +39,7 @@ export function resolveAllocationTargets(
   return DEFAULT_TARGETS;
 }
 
-function classifyBucket(
+export function classifyBucket(
   holding: PortfolioHoldingRow,
   topSymbol?: string,
 ): AllocationBucket {
@@ -56,6 +56,23 @@ function classifyBucket(
   }
 
   return "tactical";
+}
+
+export function isSacredCoreSymbol(input: {
+  symbol: string;
+  holdings: PortfolioHoldingRow[];
+  topSymbol?: string;
+}): boolean {
+  const normalized = input.symbol.trim().toUpperCase();
+  const holding = input.holdings.find(
+    (row) => row.tradingsymbol.trim().toUpperCase() === normalized,
+  );
+
+  if (!holding) {
+    return false;
+  }
+
+  return classifyBucket(holding, input.topSymbol) === "core";
 }
 
 export function buildAllocationPolicySummary(input: {
@@ -151,7 +168,7 @@ export function runAllocationPolicySelfCheck(): void {
         last_price: 210,
         pnl: 50,
         value: 1050,
-        allocation_pct: 30,
+        allocation_pct: 10,
       },
     ],
     cashAvailableInr: 200,
@@ -163,4 +180,22 @@ export function runAllocationPolicySelfCheck(): void {
   assert(summary.holdings.length === 2, "Must map all holdings");
   assert(summary.targets.core > 0, "Targets must be populated");
   assert(summary.policy_note.length > 0, "Policy note required");
+
+  assert(
+    isSacredCoreSymbol({
+      symbol: "RELIANCE",
+      holdings: summary.holdings,
+      topSymbol: "RELIANCE",
+    }),
+    "Large top holding must classify as sacred core",
+  );
+
+  assert(
+    !isSacredCoreSymbol({
+      symbol: "TCS",
+      holdings: summary.holdings,
+      topSymbol: "RELIANCE",
+    }),
+    "Small tactical holding must not block Today buys",
+  );
 }

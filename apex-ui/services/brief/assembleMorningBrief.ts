@@ -33,6 +33,7 @@ import {
 } from "@/services/brokers/zerodha";
 import { fetchMarketTrend } from "@/services/market/trend";
 import { formatPortfolioHoldings } from "@/services/portfolio/format";
+import { isSacredCoreSymbol } from "@/services/portfolio/allocationPolicy";
 import {
   getFinancialProfileFromDb,
   getLatestMentorOutput,
@@ -344,6 +345,24 @@ export async function assembleMorningBrief(
     suggestedSellPercent: decision.suggested_sell_percent,
   });
   const executionKind = mapExecutionKind(decision.action, hero.executionKind);
+  const portfolioHoldings =
+    live.status === "OK" && live.holdings.length > 0
+      ? formatPortfolioHoldings(
+          enrichPortfolioQuantitiesFromNetPositions(
+            mapKiteHoldingsToPortfolio(live.holdings),
+            live.netPnlPositions,
+          ),
+        ).holdings
+      : [];
+  const topSymbol = portfolioHoldings[0]?.tradingsymbol;
+  const targetSymbol = decision.stock ?? hero.symbol;
+  const targetIsSacredCore = targetSymbol
+    ? isSacredCoreSymbol({
+        symbol: targetSymbol,
+        holdings: portfolioHoldings,
+        topSymbol,
+      })
+    : false;
   const consecutiveLossDays = countConsecutiveLossDays(
     historyBundle.history,
     historyBundle.days,
@@ -356,6 +375,8 @@ export async function assembleMorningBrief(
       portfolioDayPnl: dayPnl,
       portfolioValue: decisionBundle.portfolioValue,
       riskBlocked: decision.validation?.risk_ok === false,
+      targetIsSacredCore,
+      targetSymbol: targetSymbol ?? undefined,
     },
     heroHeadline: hero.headline,
     heroSubline: hero.subline,
@@ -373,6 +394,9 @@ export async function assembleMorningBrief(
   }
   if (decision.validation?.risk_ok === false) {
     warnings.push("Risk controls flagged today's setup.");
+  }
+  if (targetIsSacredCore && executionKind === "BUY") {
+    warnings.push("Today's symbol is in your sacred core — tactical buys only.");
   }
   if (stale) {
     warnings.push("Live broker data may be stale.");

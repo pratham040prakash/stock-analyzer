@@ -15,6 +15,8 @@ export type DailyVerdictInput = {
   riskBlocked?: boolean;
   brokerStepCompleted?: boolean;
   brokerStepSkipped?: boolean;
+  targetIsSacredCore?: boolean;
+  targetSymbol?: string;
 };
 
 export type DailyVerdictPresentation = {
@@ -99,12 +101,20 @@ export function resolvePauseReason(input: DailyVerdictInput): string | undefined
   return undefined;
 }
 
+export function blocksSacredCoreBuy(input: DailyVerdictInput): boolean {
+  return input.executionKind === "BUY" && input.targetIsSacredCore === true;
+}
+
 export function resolveDailyVerdict(input: DailyVerdictInput): DailyVerdict {
   if (resolvePauseReason(input)) {
     return "pause";
   }
 
   if (input.brokerStepCompleted || input.brokerStepSkipped) {
+    return "wait";
+  }
+
+  if (blocksSacredCoreBuy(input)) {
     return "wait";
   }
 
@@ -157,17 +167,22 @@ export function buildDailyVerdictPresentation(input: {
   if (verdict === "wait") {
     const setupNotReady =
       input.verdictInput.executionKind === "BUY" && !input.verdictInput.entryConfirmed;
+    const sacredCoreBlocked = blocksSacredCoreBuy(input.verdictInput);
 
     return {
       verdict,
       displayWord,
-      headline: setupNotReady
-        ? "Wait for entry confirmation"
-        : input.heroHeadline || "Wait today",
-      subline: setupNotReady
-        ? "Breakout is not confirmed yet — price, volume, and momentum must align before risking capital."
-        : input.heroSubline ||
-          "Nothing worth risking capital on today. Staying in cash is an active decision.",
+      headline: sacredCoreBlocked
+        ? "Core holdings are not traded on Today"
+        : setupNotReady
+          ? "Wait for entry confirmation"
+          : input.heroHeadline || "Wait today",
+      subline: sacredCoreBlocked
+        ? `${input.verdictInput.targetSymbol ?? "This holding"} is in your long-term core — Today is for tactical capital only.`
+        : setupNotReady
+          ? "Breakout is not confirmed yet — price, volume, and momentum must align before risking capital."
+          : input.heroSubline ||
+            "Nothing worth risking capital on today. Staying in cash is an active decision.",
       ctaLabel: "You're done for today",
       doneForToday: true,
       tradingLocked: true,
@@ -274,6 +289,30 @@ export function runDailyVerdictSelfCheck(): void {
   });
   assert(pausePresentation.verdict === "pause", "Pause presentation verdict");
   assert(pausePresentation.doneForToday, "Pause must be done for today");
+
+  assert(
+    resolveDailyVerdict({
+      executionKind: "BUY",
+      entryConfirmed: true,
+      targetIsSacredCore: true,
+    }) === "wait",
+    "Sacred core buy must wait",
+  );
+
+  const sacredPresentation = buildDailyVerdictPresentation({
+    verdictInput: {
+      executionKind: "BUY",
+      entryConfirmed: true,
+      targetIsSacredCore: true,
+      targetSymbol: "RELIANCE",
+    },
+    heroHeadline: "Ignored",
+    heroSubline: "Ignored",
+  });
+  assert(
+    sacredPresentation.headline.includes("Core holdings"),
+    "Sacred core must surface plain headline",
+  );
 
   assert(
     countConsecutiveLossDays(

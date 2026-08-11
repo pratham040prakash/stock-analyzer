@@ -36,6 +36,9 @@ import {
   countConsecutiveLossDays,
 } from "@/lib/dailyLoop/dailyVerdict";
 import OperatingManualStrip from "@/components/dailyLoop/OperatingManualStrip";
+import CapitalDamsStrip from "@/components/dailyLoop/CapitalDamsStrip";
+import TodayDetailsAccordion from "@/components/dailyLoop/TodayDetailsAccordion";
+import { isSacredCoreSymbol } from "@/services/portfolio/allocationPolicy";
 import { useMorningBrief } from "@/lib/useMorningBrief";
 import TodayPortfolioHoldings from "@/components/dailyLoop/TodayPortfolioHoldings";
 import TodayProgressStrip from "@/components/dailyLoop/TodayProgressStrip";
@@ -638,6 +641,17 @@ export default function HomeDecisionScreen({
     () => countConsecutiveLossDays(disciplineHistory, disciplineDays),
     [disciplineDays, disciplineHistory],
   );
+  const targetIsSacredCore = useMemo(() => {
+    if (!todayHero.symbol || displayPortfolioHoldings.length === 0) {
+      return false;
+    }
+
+    return isSacredCoreSymbol({
+      symbol: todayHero.symbol,
+      holdings: displayPortfolioHoldings,
+      topSymbol,
+    });
+  }, [displayPortfolioHoldings, todayHero.symbol, topSymbol]);
 
   const verdictPresentation = useMemo(
     () =>
@@ -651,6 +665,8 @@ export default function HomeDecisionScreen({
           riskBlocked: decision.validation?.risk_ok === false,
           brokerStepCompleted,
           brokerStepSkipped,
+          targetIsSacredCore,
+          targetSymbol: todayHero.symbol,
         },
         heroHeadline: displayHero.headline,
         heroSubline: displayHero.subline,
@@ -666,6 +682,8 @@ export default function HomeDecisionScreen({
       displayPortfolioValue,
       entryTiming.enter,
       liveDayPnl,
+      targetIsSacredCore,
+      todayHero.symbol,
     ],
   );
 
@@ -752,90 +770,62 @@ export default function HomeDecisionScreen({
                   dailyVerdict={verdictPresentation.verdict}
                   tacticalPoolInr={decision.amount ?? morningBrief?.portfolio.tactical_pool_inr}
                 />
+                <CapitalDamsStrip
+                  portfolioValue={displayPortfolioValue}
+                  portfolioDayPnl={liveDayPnl}
+                  consecutiveLossDays={consecutiveLossDays}
+                />
                 <VerdictCanvas {...verdictCanvasProps} />
               </>
             ) : null}
 
-            <TodayTrustStrip
-              connectionStatus={connectionStatus}
-              marginAvailable={availableCash}
-              ledgerCash={ledgerCash}
-              collateral={collateral}
-              portfolioValue={displayPortfolioValue ?? portfolioValue}
-              totalCapital={
-                totalCapital ??
-                ((displayPortfolioValue ?? portfolioValue) !== undefined &&
-                ledgerCash !== undefined
-                  ? (displayPortfolioValue ?? portfolioValue)! + ledgerCash
-                  : undefined)
-              }
-              openPnl={resolvedOpenPnl}
-              portfolioDayPnl={liveDayPnl}
-              positionsBreakdown={livePositionsBreakdown}
-              lastSyncedAt={liveLastSyncedAt}
-              portfolioStale={portfolioStale}
-              pollError={livePollError}
-              breakdownLoading={breakdownLoading}
-              isPolling={livePnlPolling}
-              fundsLoading={fundsLoading}
-              fundsSynced={fundsSynced}
-              fundsSyncError={fundsSyncError}
-              proofHref={proofHref}
-            />
+            {!isCapitalDeployment ? (
+              <>
+                <TodayTrustStrip
+                  connectionStatus={connectionStatus}
+                  marginAvailable={availableCash}
+                  ledgerCash={ledgerCash}
+                  collateral={collateral}
+                  portfolioValue={displayPortfolioValue ?? portfolioValue}
+                  totalCapital={
+                    totalCapital ??
+                    ((displayPortfolioValue ?? portfolioValue) !== undefined &&
+                    ledgerCash !== undefined
+                      ? (displayPortfolioValue ?? portfolioValue)! + ledgerCash
+                      : undefined)
+                  }
+                  openPnl={resolvedOpenPnl}
+                  portfolioDayPnl={liveDayPnl}
+                  positionsBreakdown={livePositionsBreakdown}
+                  lastSyncedAt={liveLastSyncedAt}
+                  portfolioStale={portfolioStale}
+                  pollError={livePollError}
+                  breakdownLoading={breakdownLoading}
+                  isPolling={livePnlPolling}
+                  fundsLoading={fundsLoading}
+                  fundsSynced={fundsSynced}
+                  fundsSyncError={fundsSyncError}
+                  proofHref={proofHref}
+                />
 
-            <TodayPortfolioHoldings
-              holdings={displayPortfolioHoldings}
-              totalValue={displayPortfolioValue}
-              totalPnl={displayPortfolioTotalPnl}
-              stale={portfolioStale}
-              loading={
-                portfolioLoading &&
-                displayPortfolioHoldings.length === 0 &&
-                connectionStatus === "CONNECTED"
-              }
-              showEmptyWhenSynced={
-                !portfolioLoading &&
-                displayPortfolioHoldings.length === 0 &&
-                (connectionStatus === "CONNECTED" ||
-                  connectionStatus === "TOKEN_EXPIRED")
-              }
-            />
-
-            {isCapitalDeployment ? (
-              <TodayProgressStrip
-                portfolioDayPnl={liveDayPnl}
-                trustScore={trustScore}
-                trustDelta={trustDelta}
-                streakCount={retention.streakCount}
-                streakMessage={retention.streakMessage}
-              />
-            ) : null}
-
-            {isCapitalDeployment ? (
-              <WeeklyReviewStrip
-                history={disciplineHistory}
-                summary={disciplineSummary}
-                days={disciplineDays}
-              />
-            ) : null}
-
-            {isCapitalDeployment && lastOutcome ? (
-              <LastClosedTrustBlock
-                lastOutcome={lastOutcome}
-                lastOutcomeStock={lastOutcomeStock}
-                compact
-              />
-            ) : null}
-
-            {isCapitalDeployment && onCapitalModeChange ? (
-              <CapitalModeToggle
-                mode={capitalMode ?? "CASH"}
-                onModeChange={onCapitalModeChange}
-                collateral={collateral}
-                premiumLocked={!features.marginMode}
-                activationEnabled={premiumActivationEnabled}
-                onPremiumActivated={onPremiumActivated}
-              />
+                <TodayPortfolioHoldings
+                  holdings={displayPortfolioHoldings}
+                  totalValue={displayPortfolioValue}
+                  totalPnl={displayPortfolioTotalPnl}
+                  stale={portfolioStale}
+                  loading={
+                    portfolioLoading &&
+                    displayPortfolioHoldings.length === 0 &&
+                    connectionStatus === "CONNECTED"
+                  }
+                  showEmptyWhenSynced={
+                    !portfolioLoading &&
+                    displayPortfolioHoldings.length === 0 &&
+                    (connectionStatus === "CONNECTED" ||
+                      connectionStatus === "TOKEN_EXPIRED")
+                  }
+                />
+              </>
             ) : null}
 
             {isRefreshing ? (
@@ -843,80 +833,161 @@ export default function HomeDecisionScreen({
             ) : null}
           </div>
 
-          <header className="mb-6 space-y-2">
-            <p className="text-xs text-apex-muted/60">
-              {retention.dailyContextLabel}
-            </p>
-            {retention.decisionTensionLine ? (
-              <p className="text-xs text-apex-muted/55">
-                {retention.decisionTensionLine}
+          {!isCapitalDeployment ? (
+            <header className="mb-6 space-y-2">
+              <p className="text-xs text-apex-muted/60">
+                {retention.dailyContextLabel}
               </p>
-            ) : null}
-            {brokerStepLine ? (
-              <p className="text-xs text-apex-muted/55">{brokerStepLine}</p>
-            ) : null}
-            {isCapitalDeployment ? (
-              <p className="text-xs text-apex-muted/50">
-                {retention.sessionTimeContext}
-              </p>
-            ) : null}
-            {!isCapitalDeployment ? (
-              <>
-                <p className="text-xs font-medium uppercase tracking-[0.14em] text-apex-muted">
-                  {experience.tagline}
+              {retention.decisionTensionLine ? (
+                <p className="text-xs text-apex-muted/55">
+                  {retention.decisionTensionLine}
                 </p>
-                <h1 className="text-3xl font-bold leading-tight tracking-tight text-apex-text">
-                  {heroTitle}
-                </h1>
-                <p className="mt-2 text-sm text-apex-muted">{heroTone}</p>
-                {capitalDecision.behaviorLock ? (
-                  <p className="text-xs font-medium text-apex-text/75">
-                    {capitalDecision.behaviorLock}
-                  </p>
-                ) : null}
-                {heroSignature ? (
-                  <p className="text-xs text-apex-muted/80">{heroSignature}</p>
-                ) : null}
-              </>
-            ) : null}
-          </header>
+              ) : null}
+              {brokerStepLine ? (
+                <p className="text-xs text-apex-muted/55">{brokerStepLine}</p>
+              ) : null}
+              <p className="text-xs font-medium uppercase tracking-[0.14em] text-apex-muted">
+                {experience.tagline}
+              </p>
+              <h1 className="text-3xl font-bold leading-tight tracking-tight text-apex-text">
+                {heroTitle}
+              </h1>
+              <p className="mt-2 text-sm text-apex-muted">{heroTone}</p>
+              {capitalDecision.behaviorLock ? (
+                <p className="text-xs font-medium text-apex-text/75">
+                  {capitalDecision.behaviorLock}
+                </p>
+              ) : null}
+              {heroSignature ? (
+                <p className="text-xs text-apex-muted/80">{heroSignature}</p>
+              ) : null}
+            </header>
+          ) : null}
 
           {isCapitalDeployment ? (
-            <div className="mb-6">
+            <div className="mb-6 space-y-4">
               {brokerFillSummary &&
               brokerStepCompleted &&
               !receiptDismissed &&
               todayHero.symbol ? (
-                <div className="mb-4">
-                  <DecisionReceipt
-                    symbol={todayHero.symbol}
-                    executionKind={todayHero.executionKind}
-                    fill={brokerFillSummary}
-                    trustDelta={trustDelta}
-                    onDismiss={() => setReceiptDismissed(true)}
-                  />
-                </div>
+                <DecisionReceipt
+                  symbol={todayHero.symbol}
+                  executionKind={todayHero.executionKind}
+                  fill={brokerFillSummary}
+                  trustDelta={trustDelta}
+                  onDismiss={() => setReceiptDismissed(true)}
+                />
               ) : null}
-              <TodayExecutionPanel
-                hero={todayHeroResolved}
-                portfolioValue={portfolioValue ?? 0}
-                holdingAllocationPct={holdingAllocationPct}
-                entryTiming={entryTiming}
-                plan={plan}
-                planLoading={planLoading}
-                brokerStepCompleted={brokerStepResolved}
-                brokerStepSkipped={brokerStepSkipped}
-                brokerFillSummary={brokerFillSummary}
-                postTrimPortfolioWeight={actualSymbolWeight}
-                brokerFillStatusLoading={brokerFillStatusLoading}
-                tradingLocked={verdictPresentation.tradingLocked}
-                dailyVerdict={verdictPresentation.verdict}
-                pauseReason={verdictPresentation.pauseReason}
-                onHoldTrim={() => void handleHoldTrim()}
-                holdTrimProcessing={processingHoldTrim}
-                onExecuted={handleExecuted}
-              />
-              <div className="mt-4">
+              {!verdictPresentation.tradingLocked || brokerStepResolved ? (
+                <TodayExecutionPanel
+                  hero={todayHeroResolved}
+                  portfolioValue={portfolioValue ?? 0}
+                  holdingAllocationPct={holdingAllocationPct}
+                  entryTiming={entryTiming}
+                  plan={plan}
+                  planLoading={planLoading}
+                  brokerStepCompleted={brokerStepResolved}
+                  brokerStepSkipped={brokerStepSkipped}
+                  brokerFillSummary={brokerFillSummary}
+                  postTrimPortfolioWeight={actualSymbolWeight}
+                  brokerFillStatusLoading={brokerFillStatusLoading}
+                  tradingLocked={verdictPresentation.tradingLocked}
+                  dailyVerdict={verdictPresentation.verdict}
+                  pauseReason={verdictPresentation.pauseReason}
+                  onHoldTrim={() => void handleHoldTrim()}
+                  holdTrimProcessing={processingHoldTrim}
+                  onExecuted={handleExecuted}
+                />
+              ) : null}
+              <TodayDetailsAccordion>
+                <TodayTrustStrip
+                  connectionStatus={connectionStatus}
+                  marginAvailable={availableCash}
+                  ledgerCash={ledgerCash}
+                  collateral={collateral}
+                  portfolioValue={displayPortfolioValue ?? portfolioValue}
+                  totalCapital={
+                    totalCapital ??
+                    ((displayPortfolioValue ?? portfolioValue) !== undefined &&
+                    ledgerCash !== undefined
+                      ? (displayPortfolioValue ?? portfolioValue)! + ledgerCash
+                      : undefined)
+                  }
+                  openPnl={resolvedOpenPnl}
+                  portfolioDayPnl={liveDayPnl}
+                  positionsBreakdown={livePositionsBreakdown}
+                  lastSyncedAt={liveLastSyncedAt}
+                  portfolioStale={portfolioStale}
+                  pollError={livePollError}
+                  breakdownLoading={breakdownLoading}
+                  isPolling={livePnlPolling}
+                  fundsLoading={fundsLoading}
+                  fundsSynced={fundsSynced}
+                  fundsSyncError={fundsSyncError}
+                  proofHref={proofHref}
+                />
+                <TodayPortfolioHoldings
+                  holdings={displayPortfolioHoldings}
+                  totalValue={displayPortfolioValue}
+                  totalPnl={displayPortfolioTotalPnl}
+                  stale={portfolioStale}
+                  loading={
+                    portfolioLoading &&
+                    displayPortfolioHoldings.length === 0 &&
+                    connectionStatus === "CONNECTED"
+                  }
+                  showEmptyWhenSynced={
+                    !portfolioLoading &&
+                    displayPortfolioHoldings.length === 0 &&
+                    (connectionStatus === "CONNECTED" ||
+                      connectionStatus === "TOKEN_EXPIRED")
+                  }
+                />
+                <TodayProgressStrip
+                  portfolioDayPnl={liveDayPnl}
+                  trustScore={trustScore}
+                  trustDelta={trustDelta}
+                  streakCount={retention.streakCount}
+                  streakMessage={retention.streakMessage}
+                />
+                <WeeklyReviewStrip
+                  history={disciplineHistory}
+                  summary={disciplineSummary}
+                  days={disciplineDays}
+                />
+                {lastOutcome ? (
+                  <LastClosedTrustBlock
+                    lastOutcome={lastOutcome}
+                    lastOutcomeStock={lastOutcomeStock}
+                    compact
+                  />
+                ) : null}
+                {onCapitalModeChange ? (
+                  <CapitalModeToggle
+                    mode={capitalMode ?? "CASH"}
+                    onModeChange={onCapitalModeChange}
+                    collateral={collateral}
+                    premiumLocked={!features.marginMode}
+                    activationEnabled={premiumActivationEnabled}
+                    onPremiumActivated={onPremiumActivated}
+                  />
+                ) : null}
+                <div className="space-y-2">
+                  <p className="text-xs text-apex-muted/60">
+                    {retention.dailyContextLabel}
+                  </p>
+                  {retention.decisionTensionLine ? (
+                    <p className="text-xs text-apex-muted/55">
+                      {retention.decisionTensionLine}
+                    </p>
+                  ) : null}
+                  {brokerStepLine ? (
+                    <p className="text-xs text-apex-muted/55">{brokerStepLine}</p>
+                  ) : null}
+                  <p className="text-xs text-apex-muted/50">
+                    {retention.sessionTimeContext}
+                  </p>
+                </div>
                 <TodayMonitorStrip
                   positions={monitorPositions}
                   openPnl={monitorStripOpenPnl}
@@ -924,44 +995,43 @@ export default function HomeDecisionScreen({
                   loading={monitorLoading}
                   showWhenEmpty={monitorEnabled}
                 />
-              </div>
-              {morningBrief ? (
-                <div className="mt-4 space-y-3">
-                  <TodayDisciplineChip discipline={morningBrief.discipline} />
-                  <TodayBelowFold brief={morningBrief} />
-                </div>
-              ) : null}
+                {morningBrief ? (
+                  <div className="space-y-3">
+                    <TodayDisciplineChip discipline={morningBrief.discipline} />
+                    <TodayBelowFold brief={morningBrief} />
+                  </div>
+                ) : null}
+                <details className="group rounded-xl border border-apex-border/15 bg-white/[0.02]">
+                  <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium text-apex-text/85 marker:content-none">
+                    Decision depth
+                  </summary>
+                  <div className="border-t border-apex-border/10 px-4 py-4">
+                    {features.decisionDepth ? (
+                      <CapitalActionsBlock
+                        decision={capitalDecision}
+                        delayMs={nextDelay()}
+                        depthOnly
+                        brokerStepCompleted={brokerStepCompleted}
+                        brokerSymbol={todayHero.symbol}
+                        executionKind={todayHero.executionKind}
+                        postTrimPortfolioWeight={actualSymbolWeight}
+                        projectedWeightAfter={todayHero.targetWeightAfter}
+                        brokerFillSummary={brokerFillSummary}
+                      />
+                    ) : (
+                      <PremiumFeatureGate
+                        feature="decisionDepth"
+                        activationEnabled={premiumActivationEnabled}
+                        onActivated={onPremiumActivated}
+                      />
+                    )}
+                  </div>
+                </details>
+              </TodayDetailsAccordion>
             </div>
           ) : null}
 
-          {isCapitalDeployment ? (
-            <details className="mb-6 group rounded-xl border border-apex-border/15 bg-white/[0.02]">
-              <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium text-apex-text/85 marker:content-none">
-                Decision depth
-              </summary>
-              <div className="border-t border-apex-border/10 px-4 py-4">
-                {features.decisionDepth ? (
-                  <CapitalActionsBlock
-                    decision={capitalDecision}
-                    delayMs={nextDelay()}
-                    depthOnly
-                    brokerStepCompleted={brokerStepCompleted}
-                    brokerSymbol={todayHero.symbol}
-                    executionKind={todayHero.executionKind}
-                    postTrimPortfolioWeight={actualSymbolWeight}
-                    projectedWeightAfter={todayHero.targetWeightAfter}
-                    brokerFillSummary={brokerFillSummary}
-                  />
-                ) : (
-                  <PremiumFeatureGate
-                    feature="decisionDepth"
-                    activationEnabled={premiumActivationEnabled}
-                    onActivated={onPremiumActivated}
-                  />
-                )}
-              </div>
-            </details>
-          ) : (
+          {isCapitalDeployment ? null : (
             <>
               <CapitalActionsBlock
                 decision={capitalDecision}
@@ -986,10 +1056,10 @@ export default function HomeDecisionScreen({
                     />
                   ) : (
                     <PremiumFeatureGate
-                    feature="decisionDepth"
-                    activationEnabled={premiumActivationEnabled}
-                    onActivated={onPremiumActivated}
-                  />
+                      feature="decisionDepth"
+                      activationEnabled={premiumActivationEnabled}
+                      onActivated={onPremiumActivated}
+                    />
                   )}
                 </div>
               </details>
