@@ -643,7 +643,6 @@ export default function HomeDecisionScreen({
 
   const {
     triggerBySymbol: exploreTriggerBySymbol,
-    loading: exploreTriggersLoading,
   } = useExploreTriggers({
     enabled: isExplore && explorePicks.length > 0,
     picks: explorePicks,
@@ -1019,7 +1018,6 @@ export default function HomeDecisionScreen({
                     setups={capitalDecision.exploreSetups}
                     summary={watchlistSummary}
                     liveTriggers={exploreTriggerBySymbol}
-                    loading={exploreTriggersLoading}
                   />
                 ) : null}
                 {showPortfolioSummary ? (

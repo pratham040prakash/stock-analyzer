@@ -3,6 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
 import { LIVE_KITE_REFRESH_MS } from "@/lib/liveKiteRefresh";
+import {
+  liveHoldingsSnapshotEqual,
+  positionTicksSnapshotEqual,
+  positionsBreakdownSnapshotEqual,
+} from "@/lib/livePortfolioSnapshot";
 import type { MonitorLiveTick } from "@/services/monitor/openPositions";
 import type { ZerodhaPositionPnlRow } from "@/services/brokers/zerodha";
 import type { PortfolioHoldingRow } from "@/types/portfolioApi";
@@ -136,6 +141,14 @@ export function useDayPnlPoll({ enabled }: Options) {
   const requestRef = useRef(0);
   const failureCountRef = useRef(0);
   const hasLiveDataRef = useRef(false);
+  const liveHoldingsRef = useRef<PortfolioHoldingRow[]>([]);
+  const positionsBreakdownRef = useRef<ZerodhaPositionPnlRow[]>([]);
+  const positionTicksRef = useRef<MonitorLiveTick[]>([]);
+  const portfolioDayPnlRef = useRef<number | null>(null);
+  const positionsPnlRef = useRef<number | null>(null);
+  const monitorOpenPnlRef = useRef<number | null>(null);
+  const liveHoldingsTotalValueRef = useRef<number | null>(null);
+  const liveHoldingsTotalPnlRef = useRef<number | null>(null);
 
   const refresh = useCallback(async (options?: { silent?: boolean }) => {
     if (!enabled) {
@@ -214,29 +227,101 @@ export function useDayPnlPoll({ enabled }: Options) {
           : typeof data.kite_native_pnl === "number"
             ? data.kite_native_pnl
             : null;
+      const nextPositionsBreakdown = parsePositionsBreakdown(data.positions_breakdown);
+      const nextLiveHoldings = parseLiveHoldings(data.holdings_live);
+      const nextPositionTicks = data.position_ticks ?? [];
+      const nextPortfolioDayPnl = data.portfolio_day_pnl ?? null;
+      const nextMonitorOpenPnl = data.monitor_open_pnl ?? null;
+      const nextLiveHoldingsTotalValue =
+        typeof data.holdings_total_value === "number"
+          ? data.holdings_total_value
+          : null;
+      const nextLiveHoldingsTotalPnl =
+        typeof data.holdings_total_pnl === "number"
+          ? data.holdings_total_pnl
+          : null;
 
-      setPositionsPnl(positionsPnlValue);
-      setPositionsBreakdown(parsePositionsBreakdown(data.positions_breakdown));
+      const holdingsChanged = !liveHoldingsSnapshotEqual(
+        liveHoldingsRef.current,
+        nextLiveHoldings,
+      );
+      const breakdownChanged = !positionsBreakdownSnapshotEqual(
+        positionsBreakdownRef.current,
+        nextPositionsBreakdown,
+      );
+      const ticksChanged = !positionTicksSnapshotEqual(
+        positionTicksRef.current,
+        nextPositionTicks,
+      );
+      const positionsPnlChanged = positionsPnlRef.current !== positionsPnlValue;
+      const portfolioDayPnlChanged = portfolioDayPnlRef.current !== nextPortfolioDayPnl;
+      const monitorOpenPnlChanged = monitorOpenPnlRef.current !== nextMonitorOpenPnl;
+      const totalValueChanged =
+        liveHoldingsTotalValueRef.current !== nextLiveHoldingsTotalValue;
+      const totalPnlChanged =
+        liveHoldingsTotalPnlRef.current !== nextLiveHoldingsTotalPnl;
+
+      if (
+        !holdingsChanged &&
+        !breakdownChanged &&
+        !ticksChanged &&
+        !positionsPnlChanged &&
+        !portfolioDayPnlChanged &&
+        !monitorOpenPnlChanged &&
+        !totalValueChanged &&
+        !totalPnlChanged
+      ) {
+        setIsPolling(false);
+        return;
+      }
+
+      if (positionsPnlChanged) {
+        positionsPnlRef.current = positionsPnlValue;
+        setPositionsPnl(positionsPnlValue);
+      }
+
+      if (breakdownChanged) {
+        positionsBreakdownRef.current = nextPositionsBreakdown;
+        setPositionsBreakdown(nextPositionsBreakdown);
+      }
+
       setPositionsNetLegs(
         typeof data.positions_net_legs === "number" ? data.positions_net_legs : 0,
       );
       setLiveKiteStatus(
         typeof data.live_kite_status === "string" ? data.live_kite_status : null,
       );
-      setPortfolioDayPnl(data.portfolio_day_pnl ?? null);
-      setMonitorOpenPnl(data.monitor_open_pnl ?? null);
-      setPositionTicks(data.position_ticks ?? []);
-      setLiveHoldings(parseLiveHoldings(data.holdings_live));
-      setLiveHoldingsTotalValue(
-        typeof data.holdings_total_value === "number"
-          ? data.holdings_total_value
-          : null,
-      );
-      setLiveHoldingsTotalPnl(
-        typeof data.holdings_total_pnl === "number"
-          ? data.holdings_total_pnl
-          : null,
-      );
+
+      if (portfolioDayPnlChanged) {
+        portfolioDayPnlRef.current = nextPortfolioDayPnl;
+        setPortfolioDayPnl(nextPortfolioDayPnl);
+      }
+
+      if (monitorOpenPnlChanged) {
+        monitorOpenPnlRef.current = nextMonitorOpenPnl;
+        setMonitorOpenPnl(nextMonitorOpenPnl);
+      }
+
+      if (ticksChanged) {
+        positionTicksRef.current = nextPositionTicks;
+        setPositionTicks(nextPositionTicks);
+      }
+
+      if (holdingsChanged) {
+        liveHoldingsRef.current = nextLiveHoldings;
+        setLiveHoldings(nextLiveHoldings);
+      }
+
+      if (nextLiveHoldingsTotalValue !== null && totalValueChanged) {
+        liveHoldingsTotalValueRef.current = nextLiveHoldingsTotalValue;
+        setLiveHoldingsTotalValue(nextLiveHoldingsTotalValue);
+      }
+
+      if (nextLiveHoldingsTotalPnl !== null && totalPnlChanged) {
+        liveHoldingsTotalPnlRef.current = nextLiveHoldingsTotalPnl;
+        setLiveHoldingsTotalPnl(nextLiveHoldingsTotalPnl);
+      }
+
       setLastSyncedAt(new Date().toISOString());
       setIsPolling(false);
     } catch {

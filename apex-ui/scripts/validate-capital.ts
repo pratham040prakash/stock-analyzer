@@ -101,6 +101,8 @@ import { runJourneyBarStyleSelfCheck } from "../lib/journey/journeyBarStyle";
 import { runJourneyTimeTargetSelfCheck } from "../lib/journey/journeyTimeTarget";
 import { runJourneyStoreSelfCheck } from "../lib/journey/journeyStore";
 import { runJourneyPlanSanitizeSelfCheck } from "../lib/journey/journeyPlanSanitize";
+import { runLivePortfolioSnapshotSelfCheck } from "../lib/livePortfolioSnapshot";
+import { runExploreTriggersSelfCheck } from "../lib/useExploreTriggers";
 
 runCapitalProjectionSelfCheck();
 runCapitalFinalStateSelfCheck();
@@ -202,3 +204,5 @@ runJourneyBarStyleSelfCheck();
 runJourneyTimeTargetSelfCheck();
 runJourneyStoreSelfCheck();
 runJourneyPlanSanitizeSelfCheck();
+runLivePortfolioSnapshotSelfCheck();
+runExploreTriggersSelfCheck();

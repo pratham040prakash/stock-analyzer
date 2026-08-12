@@ -13,7 +13,6 @@ type Props = {
   setups: ExploreSetup[];
   summary?: string;
   liveTriggers?: Map<string, ExploreLiveTrigger>;
-  loading?: boolean;
   maxVisible?: number;
 };
 
@@ -21,7 +20,6 @@ export default function TodayWatchlistPanel({
   setups,
   summary,
   liveTriggers,
-  loading = false,
   maxVisible = 3,
 }: Props) {
   const [expanded, setExpanded] = useState(false);
@@ -47,9 +45,6 @@ export default function TodayWatchlistPanel({
         </p>
         {summary ? (
           <p className="mt-1 text-sm font-medium text-apex-text/90">{summary}</p>
-        ) : null}
-        {loading ? (
-          <p className="mt-1 text-xs text-apex-muted/70">Updating live prices…</p>
         ) : null}
       </div>
 

@@ -880,18 +880,10 @@ export default function HomeClient({
     setPortfolioLoading(false);
   }, [initialPortfolio]);
 
-  const livePortfolioPollEnabled =
-    shouldFetchPortfolio && connectionStatus === "CONNECTED";
-
   const refreshPortfolioSilent = useCallback(() => {
     void loadPortfolio({ silent: true });
     void loadFunds({ silent: true });
   }, [loadPortfolio, loadFunds]);
-
-  usePortfolioPoll({
-    enabled: livePortfolioPollEnabled,
-    onRefresh: refreshPortfolioSilent,
-  });
 
   const refreshAfterExecution = useCallback(() => {
     void loadPortfolio({ silent: true });
@@ -919,6 +911,16 @@ export default function HomeClient({
     brokerSessionActive &&
     profileComplete &&
     operatingProfileComplete;
+
+  const livePortfolioPollEnabled =
+    shouldFetchPortfolio &&
+    connectionStatus === "CONNECTED" &&
+    !showHomeDecision;
+
+  usePortfolioPoll({
+    enabled: livePortfolioPollEnabled,
+    onRefresh: refreshPortfolioSilent,
+  });
 
   const [autoSyncRetrying, setAutoSyncRetrying] = useState(false);
   const [autoSyncRetryDetail, setAutoSyncRetryDetail] = useState<
