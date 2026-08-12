@@ -25,6 +25,9 @@ export type VerdictCanvasProps = {
   doneForToday?: boolean;
   ctaLabel?: string;
   tradingLocked?: boolean;
+  hideStaleRibbon?: boolean;
+  suppressTrustScore?: boolean;
+  trustFootnote?: string;
 };
 
 function resolveVerdictTone(
@@ -82,11 +85,15 @@ export default function VerdictCanvas({
   doneForToday = false,
   ctaLabel = "You're done for today",
   tradingLocked = false,
+  hideStaleRibbon = false,
+  suppressTrustScore = false,
+  trustFootnote,
 }: VerdictCanvasProps) {
   const showStaleRibbon =
-    portfolioStale ||
-    Boolean(pollError) ||
-    connectionStatus === "TOKEN_EXPIRED";
+    !hideStaleRibbon &&
+    (portfolioStale ||
+      Boolean(pollError) ||
+      connectionStatus === "TOKEN_EXPIRED");
   const staleDetail =
     connectionStatus === "TOKEN_EXPIRED"
       ? "Reconnect Zerodha to refresh live data."
@@ -118,15 +125,23 @@ export default function VerdictCanvas({
 
         <div className="rounded-xl border border-apex-border/15 bg-white/[0.03] px-3 py-2 text-right">
           <p className="text-[11px] uppercase tracking-wide text-apex-muted/70">
-            Trust
+            {suppressTrustScore ? "Discipline" : "Trust"}
           </p>
-          <p className="text-lg font-semibold text-apex-text">
-            {trustScore}{" "}
-            <span className="text-sm font-normal text-apex-muted/80">
-              <TrustDelta delta={trustDelta} />
-            </span>
-          </p>
-          {trustMessage ? (
+          {suppressTrustScore ? (
+            <p className="text-sm font-medium text-apex-text/85">Following plan</p>
+          ) : (
+            <p className="text-lg font-semibold text-apex-text">
+              {trustScore}{" "}
+              <span className="text-sm font-normal text-apex-muted/80">
+                <TrustDelta delta={trustDelta} />
+              </span>
+            </p>
+          )}
+          {trustFootnote ? (
+            <p className="mt-1 max-w-[12rem] text-[11px] text-apex-muted/75">
+              {trustFootnote}
+            </p>
+          ) : trustMessage ? (
             <p className="mt-1 max-w-[12rem] text-[11px] text-apex-muted/75">
               {trustMessage}
             </p>
@@ -147,7 +162,7 @@ export default function VerdictCanvas({
         ) : null}
         {typeof confidence === "number" ? (
           <p className="text-xs text-apex-muted/60">
-            Confidence {Math.round(confidence)}%
+            Setup confidence {Math.round(confidence)}%
           </p>
         ) : null}
         {brokerStepCompleted ? (

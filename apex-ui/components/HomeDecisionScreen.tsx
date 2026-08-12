@@ -37,7 +37,12 @@ import SectorCapStrip from "@/components/portfolio/SectorCapStrip";
 import TodayDetailsAccordion from "@/components/dailyLoop/TodayDetailsAccordion";
 import TodayWaitInsightCard from "@/components/dailyLoop/TodayWaitInsightCard";
 import TodayWatchlistPanel from "@/components/dailyLoop/TodayWatchlistPanel";
-import { buildTodayWaitInsight } from "@/lib/dailyLoop/todayWaitInsight";
+import TodaySyncStatusBanner from "@/components/dailyLoop/TodaySyncStatusBanner";
+import {
+  buildAlignedWaitInsight,
+  resolvePrimaryTradeSymbol,
+} from "@/lib/dailyLoop/todayPrimaryFocus";
+import { resolveTodayDataFreshness } from "@/lib/dailyLoop/todayDataFreshness";
 import {
   formatExplorePipelineSummaryPlain,
   formatExploreSetupSummary,
@@ -194,25 +199,23 @@ export default function HomeDecisionScreen({
     planLoading,
   } = useDailyLoop(decision, entryTiming, intent);
 
-  const capitalDecision = useMemo(
-    () =>
-      buildCapitalDecision({
-        intent: renderIntent,
-        action: decision.action,
-        stock: decision.stock ?? topSymbol,
-        picks: decision.picks,
-        allocationPercent: decision.allocationPercent,
-        suggested_sell_percent: decision.suggested_sell_percent,
-        topAllocationPct,
-        availableCash,
-        ledgerCash,
-        portfolioValue,
-        collateral,
-        capitalMode,
-        holdings,
-        entryTiming,
-        confidence: decision.confidence,
-      }),
+  const capitalDecisionInput = useMemo(
+    () => ({
+      action: decision.action,
+      stock: decision.stock ?? topSymbol,
+      picks: decision.picks,
+      allocationPercent: decision.allocationPercent,
+      suggested_sell_percent: decision.suggested_sell_percent,
+      topAllocationPct,
+      availableCash,
+      ledgerCash,
+      portfolioValue,
+      collateral,
+      capitalMode,
+      holdings,
+      entryTiming,
+      confidence: decision.confidence,
+    }),
     [
       availableCash,
       capitalMode,
@@ -227,10 +230,36 @@ export default function HomeDecisionScreen({
       holdings,
       ledgerCash,
       portfolioValue,
-      renderIntent,
       topAllocationPct,
       topSymbol,
     ],
+  );
+
+  const capitalDecision = useMemo(
+    () =>
+      buildCapitalDecision({
+        intent: renderIntent,
+        ...capitalDecisionInput,
+      }),
+    [capitalDecisionInput, renderIntent],
+  );
+
+  const growDecision = useMemo(
+    () =>
+      buildCapitalDecision({
+        intent: "grow",
+        ...capitalDecisionInput,
+      }),
+    [capitalDecisionInput],
+  );
+
+  const protectDecision = useMemo(
+    () =>
+      buildCapitalDecision({
+        intent: "protect",
+        ...capitalDecisionInput,
+      }),
+    [capitalDecisionInput],
   );
 
   const retention = useDisciplineStreak({
@@ -422,6 +451,21 @@ export default function HomeDecisionScreen({
   });
   const displayPortfolioHoldings =
     liveHoldings.length > 0 ? liveHoldings : portfolioHoldings;
+  const openPortfolioHoldings = useMemo(
+    () => displayPortfolioHoldings.filter((row) => row.quantity > 0),
+    [displayPortfolioHoldings],
+  );
+  const dataFreshness = useMemo(
+    () =>
+      resolveTodayDataFreshness({
+        connectionStatus,
+        portfolioStale,
+        pollError: livePollError,
+        fundsSyncError,
+      }),
+    [connectionStatus, fundsSyncError, livePollError, portfolioStale],
+  );
+  const collapsePlanByDefault = disciplineDays.length >= 7;
   const heroHoldingQty = useMemo(() => {
     if (!todayHero.symbol || displayPortfolioHoldings.length === 0) {
       return undefined;
@@ -699,6 +743,35 @@ export default function HomeDecisionScreen({
     todayHero.symbol,
   ]);
 
+  const primarySymbol = useMemo(
+    () =>
+      resolvePrimaryTradeSymbol({
+        stock: decision.stock ?? topSymbol,
+        growDecision,
+      }),
+    [decision.stock, growDecision, topSymbol],
+  );
+
+  const waitInsight = useMemo(() => {
+    if (!isCapitalDeployment || verdictPresentation.verdict !== "wait") {
+      return null;
+    }
+
+    return buildAlignedWaitInsight({
+      intent: renderIntent,
+      primarySymbol,
+      growDecision,
+      protectDecision,
+    });
+  }, [
+    growDecision,
+    isCapitalDeployment,
+    primarySymbol,
+    protectDecision,
+    renderIntent,
+    verdictPresentation.verdict,
+  ]);
+
   const verdictCanvasProps = useMemo(
     () => ({
       verdictWord: verdictPresentation.displayWord,
@@ -709,12 +782,13 @@ export default function HomeDecisionScreen({
       trustScore: morningBrief?.trust.trust_score ?? trustScore,
       trustDelta: morningBrief?.trust.trust_delta ?? trustDelta,
       trustMessage: morningBrief?.trust.trust_message ?? trustMessage,
-      evidenceTeaser:
-        morningBrief?.evidence.key_reasons[0] ??
-        decision.reason ??
-        decision.confidence_factors?.[0] ??
-        decision.message ??
-        undefined,
+      evidenceTeaser: waitInsight
+        ? undefined
+        : morningBrief?.evidence.key_reasons[0] ??
+          decision.reason ??
+          decision.confidence_factors?.[0] ??
+          decision.message ??
+          undefined,
       confidence: decision.confidence,
       portfolioStale,
       pollError: morningBriefError ?? livePollError,
@@ -724,11 +798,17 @@ export default function HomeDecisionScreen({
       doneForToday: verdictPresentation.doneForToday,
       ctaLabel: verdictPresentation.ctaLabel,
       tradingLocked: verdictPresentation.tradingLocked,
+      hideStaleRibbon: dataFreshness.isStale,
+      suppressTrustScore: dataFreshness.suppressTrustScore,
+      trustFootnote: dataFreshness.trustFootnote || undefined,
     }),
     [
       brokerStepCompleted,
       brokerStepSkipped,
       connectionStatus,
+      dataFreshness.isStale,
+      dataFreshness.suppressTrustScore,
+      dataFreshness.trustFootnote,
       decision.confidence,
       decision.confidence_factors,
       decision.message,
@@ -742,19 +822,9 @@ export default function HomeDecisionScreen({
       trustMessage,
       trustScore,
       verdictPresentation,
+      waitInsight,
     ],
   );
-
-  const waitInsight = useMemo(() => {
-    if (!isCapitalDeployment || verdictPresentation.verdict !== "wait") {
-      return null;
-    }
-
-    return buildTodayWaitInsight({
-      intent: renderIntent,
-      capitalDecision,
-    });
-  }, [capitalDecision, isCapitalDeployment, renderIntent, verdictPresentation.verdict]);
 
   const watchlistSummary = formatExplorePipelineSummaryPlain(
     capitalDecision.explorePipelineSummary,
@@ -792,21 +862,26 @@ export default function HomeDecisionScreen({
         fundsSynced,
         fundsSyncError,
         proofHref,
+        suppressStaleWarnings: dataFreshness.isStale,
       },
       holdings: {
         holdings: displayPortfolioHoldings,
         totalValue: displayPortfolioValue,
         totalPnl: displayPortfolioTotalPnl,
+        deployableCash: availableCash,
         stale: portfolioStale,
+        suppressStaleLabel: dataFreshness.isStale,
         loading:
           portfolioLoading &&
           displayPortfolioHoldings.length === 0 &&
           connectionStatus === "CONNECTED",
         showEmptyWhenSynced:
           !portfolioLoading &&
-          displayPortfolioHoldings.length === 0 &&
+          (openPortfolioHoldings.length === 0 ||
+            displayPortfolioHoldings.length === 0) &&
           (connectionStatus === "CONNECTED" ||
-            connectionStatus === "TOKEN_EXPIRED"),
+            connectionStatus === "TOKEN_EXPIRED" ||
+            fundsSynced),
       },
     }),
     [
@@ -814,6 +889,7 @@ export default function HomeDecisionScreen({
       breakdownLoading,
       collateral,
       connectionStatus,
+      dataFreshness.isStale,
       displayPortfolioHoldings,
       displayPortfolioTotalPnl,
       displayPortfolioValue,
@@ -826,6 +902,7 @@ export default function HomeDecisionScreen({
       livePollError,
       livePnlPolling,
       livePositionsBreakdown,
+      openPortfolioHoldings.length,
       portfolioLoading,
       portfolioStale,
       portfolioValue,
@@ -870,23 +947,8 @@ export default function HomeDecisionScreen({
                 {morningBriefError && !morningBrief && isCapitalDeployment ? (
                   <p className="text-xs text-amber-200/80">{morningBriefError}</p>
                 ) : null}
-                <OperatingManualStrip
-                  dailyVerdict={verdictPresentation.verdict}
-                  tacticalPoolInr={decision.amount ?? morningBrief?.portfolio.tactical_pool_inr}
-                />
-                <CapitalDamsStrip
-                  portfolioValue={displayPortfolioValue}
-                  portfolioDayPnl={liveDayPnl}
-                  consecutiveLossDays={consecutiveLossDays}
-                />
-                {showPortfolioSummary ? (
-                  <TodayPortfolioSummary {...portfolioSummaryProps} />
-                ) : null}
-                {displayPortfolioHoldings.length > 0 ? (
-                  <SectorCapStrip summary={sectorCapSummary} compact />
-                ) : null}
+                <TodaySyncStatusBanner freshness={dataFreshness} />
                 <VerdictCanvas {...verdictCanvasProps} />
-                {waitInsight ? <TodayWaitInsightCard insight={waitInsight} /> : null}
                 {isExplore ? (
                   <TodayWatchlistPanel
                     setups={capitalDecision.exploreSetups}
@@ -894,6 +956,26 @@ export default function HomeDecisionScreen({
                     liveTriggers={exploreTriggerBySymbol}
                     loading={exploreTriggersLoading}
                   />
+                ) : null}
+                {showPortfolioSummary ? (
+                  <TodayPortfolioSummary {...portfolioSummaryProps} />
+                ) : null}
+                {openPortfolioHoldings.length > 0 ? (
+                  <SectorCapStrip summary={sectorCapSummary} compact />
+                ) : null}
+                {isGrow && waitInsight ? (
+                  <TodayWaitInsightCard insight={waitInsight} />
+                ) : null}
+                {isProtect ? (
+                  <>
+                    {waitInsight ? <TodayWaitInsightCard insight={waitInsight} /> : null}
+                    <CapitalDamsStrip
+                      portfolioValue={displayPortfolioValue}
+                      portfolioDayPnl={liveDayPnl}
+                      consecutiveLossDays={consecutiveLossDays}
+                      compact
+                    />
+                  </>
                 ) : null}
               </>
             ) : null}
@@ -954,6 +1036,16 @@ export default function HomeDecisionScreen({
                 />
               ) : null}
               <TodayDetailsAccordion>
+                <OperatingManualStrip
+                  dailyVerdict={verdictPresentation.verdict}
+                  tacticalPoolInr={decision.amount ?? morningBrief?.portfolio.tactical_pool_inr}
+                  collapseByDefault={collapsePlanByDefault}
+                />
+                <CapitalDamsStrip
+                  portfolioValue={displayPortfolioValue}
+                  portfolioDayPnl={liveDayPnl}
+                  consecutiveLossDays={consecutiveLossDays}
+                />
                 <TodayProgressStrip
                   portfolioDayPnl={liveDayPnl}
                   trustScore={trustScore}
@@ -1045,6 +1137,16 @@ export default function HomeDecisionScreen({
           {isExplore && !isExploreEmpty ? (
             <div className="mb-6">
               <TodayDetailsAccordion>
+                <OperatingManualStrip
+                  dailyVerdict={verdictPresentation.verdict}
+                  tacticalPoolInr={decision.amount ?? morningBrief?.portfolio.tactical_pool_inr}
+                  collapseByDefault={collapsePlanByDefault}
+                />
+                <CapitalDamsStrip
+                  portfolioValue={displayPortfolioValue}
+                  portfolioDayPnl={liveDayPnl}
+                  consecutiveLossDays={consecutiveLossDays}
+                />
                 <TodayProgressStrip
                   portfolioDayPnl={liveDayPnl}
                   trustScore={trustScore}

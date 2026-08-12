@@ -9,9 +9,11 @@ export type TodayPortfolioHoldingsProps = {
   holdings: PortfolioHoldingRow[];
   totalValue?: number | null;
   totalPnl?: number | null;
+  deployableCash?: number | null;
   loading?: boolean;
   showEmptyWhenSynced?: boolean;
   stale?: boolean;
+  suppressStaleLabel?: boolean;
   bucketBySymbol?: Record<string, { bucket: AllocationBucket; drift_pct: number }>;
 };
 
@@ -33,11 +35,16 @@ export default function TodayPortfolioHoldings({
   holdings,
   totalValue,
   totalPnl,
+  deployableCash,
   loading = false,
   showEmptyWhenSynced = false,
   stale = false,
+  suppressStaleLabel = false,
   bucketBySymbol,
 }: TodayPortfolioHoldingsProps) {
+  const openHoldings = holdings.filter((row) => row.quantity > 0);
+  const hadGhostRows = holdings.length > 0 && openHoldings.length === 0;
+
   if (loading) {
     return (
       <div
@@ -49,35 +56,42 @@ export default function TodayPortfolioHoldings({
     );
   }
 
-  if (holdings.length === 0) {
-    if (!showEmptyWhenSynced) {
-      return null;
+  if (openHoldings.length === 0) {
+    if (showEmptyWhenSynced || hadGhostRows) {
+      const cashLabel =
+        deployableCash !== null &&
+        deployableCash !== undefined &&
+        Number.isFinite(deployableCash)
+          ? formatInr(Math.round(deployableCash))
+          : null;
+
+      return (
+        <div
+          className="rounded-xl border border-apex-border/20 bg-white/[0.02] px-4 py-3"
+          aria-label="Portfolio holdings empty"
+        >
+          <p className="text-sm text-apex-text/85">
+            {cashLabel
+              ? `No open positions · ${cashLabel} cash ready to deploy`
+              : "No open positions in your synced account"}
+          </p>
+          {hadGhostRows ? (
+            <p className="mt-1 text-xs text-apex-muted/70">
+              Closed or zero-qty symbols are hidden. Reconnect if this looks wrong.
+            </p>
+          ) : null}
+        </div>
+      );
     }
 
-    return (
-      <div
-        className="rounded-xl border border-apex-border/20 bg-white/[0.02] px-4 py-3"
-        aria-label="Portfolio holdings empty"
-      >
-        <p className="text-xs text-apex-muted/75">
-          Holdings not synced yet.{" "}
-          <a
-            href="/api/zerodha/login"
-            className="underline underline-offset-2 hover:text-apex-text/90"
-          >
-            Reconnect Zerodha
-          </a>{" "}
-          or wait until the market opens for a fresh sync.
-        </p>
-      </div>
-    );
+    return null;
   }
 
-  const resolvedTotal = resolvePortfolioDisplayValue(totalValue, holdings);
+  const resolvedTotal = resolvePortfolioDisplayValue(totalValue, openHoldings);
   const resolvedPnl =
     typeof totalPnl === "number" && Number.isFinite(totalPnl)
       ? totalPnl
-      : holdings.reduce((sum, row) => sum + row.pnl, 0);
+      : openHoldings.reduce((sum, row) => sum + row.pnl, 0);
 
   return (
     <div
@@ -87,7 +101,7 @@ export default function TodayPortfolioHoldings({
       <details open className="text-xs text-apex-muted/75">
         <summary className="cursor-pointer select-none text-sm text-apex-text/80 hover:text-apex-text">
           Your holdings · {formatInr(Math.round(resolvedTotal))}
-          {stale ? (
+          {!suppressStaleLabel && stale ? (
             <span className="ml-2 text-amber-200/90">· stale</span>
           ) : null}
           <span className={`ml-2 tabular-nums ${pnlClass(resolvedPnl)}`}>
@@ -97,7 +111,7 @@ export default function TodayPortfolioHoldings({
         </summary>
 
         <ul className="mt-2 space-y-2 border-t border-apex-border/10 pt-2">
-          {holdings.map((row) => {
+          {openHoldings.map((row) => {
             const bucketMeta = bucketBySymbol?.[row.tradingsymbol.toUpperCase()];
 
             return (

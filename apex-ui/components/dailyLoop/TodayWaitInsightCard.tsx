@@ -1,5 +1,6 @@
 "use client";
 
+import { OPERATING_MANUAL } from "@/lib/dailyLoop/operatingManualCopy";
 import type { TodayWaitInsight } from "@/lib/dailyLoop/todayWaitInsight";
 
 type Props = {
@@ -7,6 +8,9 @@ type Props = {
 };
 
 export default function TodayWaitInsightCard({ insight }: Props) {
+  const isProtectTitle = insight.title.toLowerCase().includes("protect") ||
+    insight.title.toLowerCase().includes("risk");
+
   return (
     <section className="rounded-xl border border-blue-500/20 bg-blue-500/[0.06] px-4 py-4">
       <p className="text-xs font-medium uppercase tracking-[0.12em] text-blue-200/80">
@@ -19,11 +23,13 @@ export default function TodayWaitInsightCard({ insight }: Props) {
       ) : null}
       <div className="mt-3 space-y-2 text-sm leading-snug">
         <p>
-          <span className="font-medium text-apex-text/90">Blocking: </span>
+          <span className="font-medium text-apex-text/90">
+            {isProtectTitle ? "Risk: " : "Blocking: "}
+          </span>
           <span className="text-apex-text/80">{insight.blocker}</span>
         </p>
         <p>
-          <span className="font-medium text-emerald-200/90">Unlocks trade: </span>
+          <span className="font-medium text-emerald-200/90">Trade when: </span>
           <span className="text-apex-text/80">{insight.unlock}</span>
         </p>
         {insight.footnote ? (

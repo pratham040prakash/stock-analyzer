@@ -24,6 +24,7 @@ export type TodayTrustStripProps = {
   fundsSynced?: boolean;
   fundsSyncError?: string | null;
   proofHref?: string | null;
+  suppressStaleWarnings?: boolean;
 };
 
 function formatUpdatedAt(updatedAt?: string | null): string | null {
@@ -78,6 +79,7 @@ export default function TodayTrustStrip({
   fundsSynced = false,
   fundsSyncError = null,
   proofHref = null,
+  suppressStaleWarnings = false,
 }: TodayTrustStripProps) {
   const syncedAt = formatUpdatedAt(lastSyncedAt);
   const deployableResolved = knownAmount(marginAvailable)
@@ -132,11 +134,13 @@ export default function TodayTrustStrip({
           {connectionLabel(connectionStatus)}
         </span>
         {syncedAt ? <span>Synced {syncedAt} IST</span> : null}
-        {portfolioStale ? (
+        {!suppressStaleWarnings && portfolioStale ? (
           <span className="text-amber-200/90">Stale · reconnect to refresh</span>
         ) : null}
-        {pollError ? <span className="text-amber-200/90">{pollError}</span> : null}
-        {fundsSyncError && !fundsLoading ? (
+        {!suppressStaleWarnings && pollError ? (
+          <span className="text-amber-200/90">{pollError}</span>
+        ) : null}
+        {!suppressStaleWarnings && fundsSyncError && !fundsLoading ? (
           <span className="text-amber-200/90">
             {fundsSyncError}{" "}
             <a
@@ -147,7 +151,7 @@ export default function TodayTrustStrip({
             </a>
           </span>
         ) : null}
-        {connectionStatus === "TOKEN_EXPIRED" && !fundsSyncError ? (
+        {!suppressStaleWarnings && connectionStatus === "TOKEN_EXPIRED" && !fundsSyncError ? (
           <span className="text-amber-200/90">
             <a
               href="/api/zerodha/login"

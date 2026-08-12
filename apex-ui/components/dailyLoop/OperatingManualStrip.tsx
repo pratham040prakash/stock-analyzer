@@ -7,6 +7,7 @@ import { OPERATING_MANUAL } from "@/lib/dailyLoop/operatingManualCopy";
 export type OperatingManualStripProps = {
   dailyVerdict: DailyVerdict;
   tacticalPoolInr?: number | null;
+  collapseByDefault?: boolean;
   className?: string;
 };
 
@@ -18,19 +19,14 @@ function formatTacticalPool(value?: number | null): string | null {
   return `₹${Math.round(value).toLocaleString("en-IN")}`;
 }
 
-export default function OperatingManualStrip({
+function PlanBody({
   dailyVerdict,
   tacticalPoolInr,
-  className = "",
-}: OperatingManualStripProps) {
+}: Pick<OperatingManualStripProps, "dailyVerdict" | "tacticalPoolInr">) {
   const tactical = formatTacticalPool(tacticalPoolInr);
 
   return (
-    <div
-      className={`rounded-xl border border-apex-border/15 bg-white/[0.02] px-4 py-3 text-xs text-apex-muted/80 ${className}`.trim()}
-      aria-label="Your investment plan"
-    >
-      <p className="font-medium text-apex-text/85">{OPERATING_MANUAL.planTitle}</p>
+    <>
       <ul className="mt-1.5 space-y-1">
         <li>{OPERATING_MANUAL.coreLine}</li>
         <li>{OPERATING_MANUAL.tacticalLine}</li>
@@ -55,6 +51,39 @@ export default function OperatingManualStrip({
       >
         {OPERATING_MANUAL.helpLink}
       </Link>
+    </>
+  );
+}
+
+export default function OperatingManualStrip({
+  dailyVerdict,
+  tacticalPoolInr,
+  collapseByDefault = false,
+  className = "",
+}: OperatingManualStripProps) {
+  if (collapseByDefault) {
+    return (
+      <details
+        className={`rounded-xl border border-apex-border/15 bg-white/[0.02] px-4 py-3 text-xs text-apex-muted/80 ${className}`.trim()}
+      >
+        <summary className="cursor-pointer list-none font-medium text-apex-text/85 marker:content-none [&::-webkit-details-marker]:hidden">
+          {OPERATING_MANUAL.planTitle}
+          <span className="ml-2 font-normal text-apex-muted/60">
+            · tap to expand
+          </span>
+        </summary>
+        <PlanBody dailyVerdict={dailyVerdict} tacticalPoolInr={tacticalPoolInr} />
+      </details>
+    );
+  }
+
+  return (
+    <div
+      className={`rounded-xl border border-apex-border/15 bg-white/[0.02] px-4 py-3 text-xs text-apex-muted/80 ${className}`.trim()}
+      aria-label="Your investment plan"
+    >
+      <p className="font-medium text-apex-text/85">{OPERATING_MANUAL.planTitle}</p>
+      <PlanBody dailyVerdict={dailyVerdict} tacticalPoolInr={tacticalPoolInr} />
     </div>
   );
 }

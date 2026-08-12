@@ -90,6 +90,8 @@ import { runScalePathMetricsSelfCheck } from "../services/subscription/scalePath
 import { runTodayFocusPreviewSelfCheck } from "../lib/dailyLoop/todayFocusPreview";
 import { runTodayWaitInsightSelfCheck } from "../lib/dailyLoop/todayWaitInsight";
 import { runExploreSetupPresentationSelfCheck } from "../lib/dailyLoop/exploreSetupPresentation";
+import { runTodayDataFreshnessSelfCheck } from "../lib/dailyLoop/todayDataFreshness";
+import { runTodayPrimaryFocusSelfCheck } from "../lib/dailyLoop/todayPrimaryFocus";
 
 runCapitalProjectionSelfCheck();
 runCapitalFinalStateSelfCheck();
@@ -180,3 +182,5 @@ runScalePathMetricsSelfCheck();
 runTodayFocusPreviewSelfCheck();
 runTodayWaitInsightSelfCheck();
 runExploreSetupPresentationSelfCheck();
+runTodayDataFreshnessSelfCheck();
+runTodayPrimaryFocusSelfCheck();

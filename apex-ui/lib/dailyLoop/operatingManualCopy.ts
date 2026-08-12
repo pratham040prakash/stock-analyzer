@@ -11,7 +11,7 @@ export const OPERATING_MANUAL = {
   tradeTacticalPrefix: "Today applies to tactical capital only",
   helpLink: "How APEX works →",
   helpHref: "/app/you/how-it-works",
-  damsTitle: "Capital dams",
+  damsTitle: "Risk limits",
   damsDailyLoss: "Daily loss limit",
   damsLossStreak: "Loss-day pause",
   damsSacredCore: "Sacred core · long-term holdings are not bought on Today",
