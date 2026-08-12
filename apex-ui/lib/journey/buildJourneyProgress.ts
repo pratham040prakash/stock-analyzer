@@ -1,4 +1,10 @@
 import { JOURNEY_COPY } from "@/lib/journey/journeyCopy";
+import {
+  computeTimeProgressPct,
+  formatTimeRemaining,
+  formatTimeTargetLabel,
+  resolveJourneyTimeTarget,
+} from "@/lib/journey/journeyTimeTarget";
 import type {
   JourneyHorizon,
   JourneyMilestone,
@@ -231,6 +237,21 @@ export function buildJourneyProgress(
     }
   }
 
+  const timeTarget = resolveJourneyTimeTarget(input.journey);
+  const timeTargetLabel = timeTarget
+    ? formatTimeTargetLabel(timeTarget.amount, timeTarget.unit)
+    : null;
+  const timeProgressPct =
+    timeTarget !== null
+      ? computeTimeProgressPct(daysElapsed, timeTarget.totalDays)
+      : null;
+  const timeRemainingLabel = formatTimeRemaining(daysRemaining);
+  const timeOverdue =
+    timeTarget !== null &&
+    daysRemaining !== null &&
+    daysRemaining <= 0 &&
+    !targetReached;
+
   const invested = input.journey.investedAmountInr ?? null;
   let currentValue: number | null = null;
   let gainPct: number | null = null;
@@ -271,6 +292,10 @@ export function buildJourneyProgress(
     gainPct,
     daysElapsed,
     daysRemaining,
+    timeTargetLabel,
+    timeProgressPct,
+    timeRemainingLabel,
+    timeOverdue,
     milestone,
     milestoneLabel: milestoneLabel(milestone),
     guidance: buildGuidance(milestone, progressPct),
@@ -296,7 +321,9 @@ export function runBuildJourneyProgressSelfCheck(): void {
     entryPriceInr: 8200,
     investedAmountInr: 100000,
     startedAt: "2026-08-01",
-    targetBy: "2026-08-22",
+    targetBy: "2026-08-29",
+    targetDurationAmount: 4,
+    targetDurationUnit: "weeks",
     status: "active",
   };
 
@@ -315,6 +342,10 @@ export function runBuildJourneyProgressSelfCheck(): void {
 
   if (mid.pathSteps.filter((step) => step.status === "current").length !== 1) {
     throw new Error("Journey progress self-check failed: path current step");
+  }
+
+  if (mid.timeTargetLabel !== "4 weeks") {
+    throw new Error("Journey progress self-check failed: time target label");
   }
 
   const reached = buildJourneyProgress({

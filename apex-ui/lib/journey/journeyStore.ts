@@ -1,7 +1,9 @@
 import type {
   JourneyChartBasis,
+  JourneyTimeUnit,
   StoredInvestmentJourney,
 } from "@/types/investmentJourney";
+import { computeTargetByDate } from "@/lib/journey/journeyTimeTarget";
 
 const STORAGE_KEY = "apex_investment_journeys_v1";
 
@@ -60,9 +62,20 @@ export function createJourney(
     startedAt?: string;
     suggestedByApex?: boolean;
     chartBasis?: JourneyChartBasis;
+    targetDurationAmount?: number;
+    targetDurationUnit?: JourneyTimeUnit;
   },
 ): StoredInvestmentJourney {
   const startedAt = input.startedAt ?? new Date().toISOString().slice(0, 10);
+  const targetBy =
+    input.targetDurationAmount && input.targetDurationUnit
+      ? computeTargetByDate(
+          startedAt,
+          input.targetDurationAmount,
+          input.targetDurationUnit,
+        )
+      : input.targetBy;
+
   const journey: StoredInvestmentJourney = {
     id: input.id ?? `journey_${Date.now()}`,
     symbol: input.symbol.trim().toUpperCase(),
@@ -71,7 +84,9 @@ export function createJourney(
     entryPriceInr: input.entryPriceInr,
     investedAmountInr: input.investedAmountInr,
     startedAt,
-    targetBy: input.targetBy,
+    targetBy,
+    targetDurationAmount: input.targetDurationAmount,
+    targetDurationUnit: input.targetDurationUnit,
     status: "active",
     notes: input.notes,
     suggestedByApex: input.suggestedByApex,

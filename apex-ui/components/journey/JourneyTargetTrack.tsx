@@ -13,6 +13,10 @@ export type JourneyTargetTrackProps = {
   thesisBroken?: boolean;
   compact?: boolean;
   className?: string;
+  timeTargetLabel?: string | null;
+  timeProgressPct?: number | null;
+  timeRemainingLabel?: string | null;
+  timeOverdue?: boolean;
 };
 
 function formatPrice(value: number): string {
@@ -29,6 +33,10 @@ export default function JourneyTargetTrack({
   thesisBroken = false,
   compact = false,
   className = "",
+  timeTargetLabel = null,
+  timeProgressPct = null,
+  timeRemainingLabel = null,
+  timeOverdue = false,
 }: JourneyTargetTrackProps) {
   const clampedPct = Math.max(0, Math.min(100, progressPct));
   const barStyle = journeyBarGradient(symbol, { targetReached, thesisBroken });
@@ -39,6 +47,9 @@ export default function JourneyTargetTrack({
     : clampedPct > 0
       ? Math.max(clampedPct, 8)
       : 0;
+
+  const timeClamped =
+    timeProgressPct === null ? null : Math.max(0, Math.min(100, timeProgressPct));
 
   return (
     <div className={className}>
@@ -131,8 +142,62 @@ export default function JourneyTargetTrack({
           >
             {formatPrice(targetPriceInr)}
           </p>
+          {timeTargetLabel ? (
+            <p
+              className={[
+                "mt-0.5 text-[10px] tabular-nums leading-tight",
+                timeOverdue ? "text-amber-300/90" : "text-apex-muted/65",
+              ].join(" ")}
+            >
+              {timeTargetLabel}
+            </p>
+          ) : null}
+          {timeRemainingLabel ? (
+            <p
+              className={[
+                "text-[10px] tabular-nums",
+                timeOverdue ? "text-amber-200/80" : "text-violet-200/70",
+              ].join(" ")}
+            >
+              {timeRemainingLabel}
+            </p>
+          ) : null}
         </div>
       </div>
+
+      {timeClamped !== null && timeTargetLabel ? (
+        <div
+          className={[
+            "mt-2 grid items-center gap-x-3",
+            compact
+              ? "grid-cols-[minmax(5.5rem,6.5rem)_1fr_minmax(3.5rem,4.5rem)] sm:gap-x-4"
+              : "grid-cols-[minmax(6rem,7.5rem)_1fr_minmax(4rem,5rem)] sm:gap-x-4",
+          ].join(" ")}
+        >
+          <p className="text-[10px] text-apex-muted/55">Time</p>
+          <div
+            className="relative h-1.5 overflow-hidden rounded-full bg-black/45"
+            role="progressbar"
+            aria-valuenow={timeClamped}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label={`${symbol} time progress`}
+          >
+            <div
+              className={[
+                "absolute inset-y-0 left-0 rounded-full bg-gradient-to-r transition-[width] duration-500",
+                timeOverdue
+                  ? "from-amber-400/80 to-amber-500/80"
+                  : "from-sky-400/70 to-violet-400/70",
+              ].join(" ")}
+              style={{ width: `${Math.max(timeClamped, timeClamped > 0 ? 6 : 0)}%` }}
+            />
+          </div>
+          <p className="text-right text-[10px] tabular-nums text-apex-muted/60">
+            {timeClamped}%
+          </p>
+        </div>
+      ) : null}
 
       {currentPriceInr !== null && currentPriceInr !== undefined && !compact ? (
         <p className="mt-2 text-[11px] tabular-nums text-apex-muted/65 sm:ml-[calc(7.5rem+1rem)]">

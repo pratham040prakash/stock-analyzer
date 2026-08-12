@@ -1,5 +1,7 @@
 export type JourneyHorizon = "long_term" | "swing";
 
+export type JourneyTimeUnit = "days" | "weeks" | "years";
+
 export type JourneyStatus = "active" | "completed" | "paused";
 
 export type JourneyChartBasis = {
@@ -20,6 +22,8 @@ export type StoredInvestmentJourney = {
   investedAmountInr?: number;
   startedAt: string;
   targetBy?: string;
+  targetDurationAmount?: number;
+  targetDurationUnit?: JourneyTimeUnit;
   status: JourneyStatus;
   notes?: string;
   /** Set when path came from APEX chart backtrace, not manual entry. */
@@ -60,6 +64,10 @@ export type JourneyProgressViewModel = {
   gainPct: number | null;
   daysElapsed: number;
   daysRemaining: number | null;
+  timeTargetLabel: string | null;
+  timeProgressPct: number | null;
+  timeRemainingLabel: string | null;
+  timeOverdue: boolean;
   milestone: JourneyMilestone;
   milestoneLabel: string;
   guidance: string;
@@ -77,6 +85,8 @@ export type StartJourneyInput = {
   entryPriceInr?: number;
   investedAmountInr?: number;
   swingWeeks?: number;
+  targetDurationAmount?: number;
+  targetDurationUnit?: JourneyTimeUnit;
   notes?: string;
   suggestedByApex?: boolean;
   chartBasis?: JourneyChartBasis;

@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import JourneyTargetTrack from "@/components/journey/JourneyTargetTrack";
+import JourneyTimeTargetPicker from "@/components/journey/JourneyTimeTargetPicker";
 import { apiFetchJson } from "@/lib/api/clientFetch";
 import { buildJourneyProgress } from "@/lib/journey/buildJourneyProgress";
 import type { ChartBackedJourneyPlan } from "@/lib/journey/buildChartBackedJourneyPlan";
 import { JOURNEY_COPY } from "@/lib/journey/journeyCopy";
+import { suggestTimeTarget } from "@/lib/journey/journeyTimeTarget";
 import {
   completeJourney,
   createJourney,
@@ -16,6 +18,7 @@ import type { DailyVerdict } from "@/lib/dailyLoop/dailyVerdict";
 import type {
   JourneyHorizon,
   JourneyProgressViewModel,
+  JourneyTimeUnit,
   StoredInvestmentJourney,
 } from "@/types/investmentJourney";
 
@@ -37,16 +40,6 @@ export type InvestmentJourneyPanelProps = {
 const INFOGRAPHIC_CARD =
   "rounded-xl border border-apex-border/25 bg-[#0a0d12]/90 px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]";
 
-function addWeeks(from: Date, weeks: number): string {
-  const next = new Date(from);
-  next.setDate(next.getDate() + weeks * 7);
-  return next.toISOString().slice(0, 10);
-}
-
-type PlanResponse =
-  | { status: "ok"; plan: ChartBackedJourneyPlan }
-  | { status: "insufficient_data"; message?: string };
-
 function previewProgressPct(
   entry: number,
   target: number,
@@ -63,6 +56,10 @@ function previewProgressPct(
   const raw = ((current - entry) / (target - entry)) * 100;
   return Math.max(0, Math.min(100, Math.round(raw)));
 }
+
+type PlanResponse =
+  | { status: "ok"; plan: ChartBackedJourneyPlan }
+  | { status: "insufficient_data"; message?: string };
 
 export default function InvestmentJourneyPanel({
   symbol,
@@ -87,7 +84,8 @@ export default function InvestmentJourneyPanel({
   const [targetPrice, setTargetPrice] = useState("");
   const [entryPrice, setEntryPrice] = useState("");
   const [investedAmount, setInvestedAmount] = useState("");
-  const [swingWeeks, setSwingWeeks] = useState("3");
+  const [timeAmount, setTimeAmount] = useState(4);
+  const [timeUnit, setTimeUnit] = useState<JourneyTimeUnit>("weeks");
   const [formError, setFormError] = useState<string | null>(null);
 
   const reload = useCallback(() => {
@@ -135,8 +133,13 @@ export default function InvestmentJourneyPanel({
           setHorizon(data.plan.horizon);
           setTargetPrice(String(data.plan.targetPriceInr));
           setEntryPrice(String(data.plan.entryPriceInr));
+          const suggestedTime = suggestTimeTarget(data.plan.horizon);
           if (data.plan.swingWeeks) {
-            setSwingWeeks(String(data.plan.swingWeeks));
+            setTimeAmount(data.plan.swingWeeks);
+            setTimeUnit("weeks");
+          } else {
+            setTimeAmount(suggestedTime.amount);
+            setTimeUnit(suggestedTime.unit);
           }
           return;
         }
@@ -183,16 +186,13 @@ export default function InvestmentJourneyPanel({
       return;
     }
 
-    const weeks = chartPlan.swingWeeks ?? 4;
     const created = createJourney({
       symbol: chartPlan.symbol,
       horizon: chartPlan.horizon,
       targetPriceInr: chartPlan.targetPriceInr,
       entryPriceInr: chartPlan.entryPriceInr,
-      targetBy:
-        chartPlan.horizon === "swing"
-          ? addWeeks(new Date(), weeks)
-          : undefined,
+      targetDurationAmount: timeAmount,
+      targetDurationUnit: timeUnit,
       suggestedByApex: true,
       chartBasis: {
         lookbackDays: chartPlan.lookbackDays,
@@ -227,9 +227,8 @@ export default function InvestmentJourneyPanel({
       return;
     }
 
-    const weeks = horizon === "swing" ? Number(swingWeeks) : undefined;
-    if (horizon === "swing" && (!weeks || weeks < 1 || weeks > 12)) {
-      setFormError("Swing window should be 1–12 weeks.");
+    if (timeAmount < 1) {
+      setFormError("Time target must be at least 1.");
       return;
     }
 
@@ -240,7 +239,8 @@ export default function InvestmentJourneyPanel({
       targetPriceInr: Math.round(target),
       entryPriceInr: entry ? Math.round(entry) : undefined,
       investedAmountInr: amount ? Math.round(amount) : undefined,
-      targetBy: horizon === "swing" ? addWeeks(new Date(), weeks ?? 3) : undefined,
+      targetDurationAmount: timeAmount,
+      targetDurationUnit: timeUnit,
     });
 
     setJourney(created);
@@ -307,6 +307,17 @@ export default function InvestmentJourneyPanel({
           </p>
         ) : null}
 
+        <JourneyTimeTargetPicker
+          className="mt-4 border-t border-apex-border/10 pt-4"
+          amount={timeAmount}
+          unit={timeUnit}
+          onChange={({ amount, unit }) => {
+            setTimeAmount(amount);
+            setTimeUnit(unit);
+          }}
+          compact={compact}
+        />
+
         <div className="mt-4 flex flex-wrap gap-3">
           <button
             type="button"
@@ -345,7 +356,12 @@ export default function InvestmentJourneyPanel({
             <button
               key={value}
               type="button"
-              onClick={() => setHorizon(value)}
+              onClick={() => {
+                setHorizon(value);
+                const suggested = suggestTimeTarget(value);
+                setTimeAmount(suggested.amount);
+                setTimeUnit(suggested.unit);
+              }}
               className={[
                 "rounded-lg border px-3 py-2 text-left text-xs",
                 horizon === value
@@ -384,6 +400,16 @@ export default function InvestmentJourneyPanel({
             />
           </label>
         </div>
+
+        <JourneyTimeTargetPicker
+          className="mt-4"
+          amount={timeAmount}
+          unit={timeUnit}
+          onChange={({ amount, unit }) => {
+            setTimeAmount(amount);
+            setTimeUnit(unit);
+          }}
+        />
 
         {formError ? (
           <p className="mt-2 text-xs text-amber-200/90">{formError}</p>
@@ -428,6 +454,10 @@ export default function InvestmentJourneyPanel({
         progressPct={progress.progressPct}
         targetReached={progress.targetReached}
         thesisBroken={progress.thesisBroken}
+        timeTargetLabel={progress.timeTargetLabel}
+        timeProgressPct={progress.timeProgressPct}
+        timeRemainingLabel={progress.timeRemainingLabel}
+        timeOverdue={progress.timeOverdue}
         compact={compact}
       />
 

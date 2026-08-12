@@ -46,6 +46,10 @@ export default function YouJourneySection() {
             progressPct={progress.progressPct}
             targetReached={progress.targetReached}
             thesisBroken={progress.thesisBroken}
+            timeTargetLabel={progress.timeTargetLabel}
+            timeProgressPct={progress.timeProgressPct}
+            timeRemainingLabel={progress.timeRemainingLabel}
+            timeOverdue={progress.timeOverdue}
             compact
           />
         ))}

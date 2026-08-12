@@ -98,6 +98,7 @@ import { runJourneyCopySelfCheck } from "../lib/journey/journeyCopy";
 import { runBuildJourneyProgressSelfCheck } from "../lib/journey/buildJourneyProgress";
 import { runBuildChartBackedJourneyPlanSelfCheck } from "../lib/journey/buildChartBackedJourneyPlan";
 import { runJourneyBarStyleSelfCheck } from "../lib/journey/journeyBarStyle";
+import { runJourneyTimeTargetSelfCheck } from "../lib/journey/journeyTimeTarget";
 import { runJourneyStoreSelfCheck } from "../lib/journey/journeyStore";
 
 runCapitalProjectionSelfCheck();
@@ -197,4 +198,5 @@ runJourneyCopySelfCheck();
 runBuildJourneyProgressSelfCheck();
 runBuildChartBackedJourneyPlanSelfCheck();
 runJourneyBarStyleSelfCheck();
+runJourneyTimeTargetSelfCheck();
 runJourneyStoreSelfCheck();
