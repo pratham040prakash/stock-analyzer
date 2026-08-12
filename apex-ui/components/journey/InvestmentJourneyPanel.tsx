@@ -34,6 +34,9 @@ export type InvestmentJourneyPanelProps = {
   onTakeProfit?: (symbol: string) => void;
 };
 
+const INFOGRAPHIC_CARD =
+  "rounded-xl border border-apex-border/25 bg-[#0a0d12]/90 px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]";
+
 function addWeeks(from: Date, weeks: number): string {
   const next = new Date(from);
   next.setDate(next.getDate() + weeks * 7);
@@ -286,7 +289,7 @@ export default function InvestmentJourneyPanel({
 
     return (
       <section
-        className={`rounded-xl border border-violet-500/25 bg-violet-500/[0.07] px-4 py-4 ${className}`.trim()}
+        className={`${INFOGRAPHIC_CARD} ${className}`.trim()}
         aria-label="Chart-backed investment journey"
       >
         <JourneyTargetTrack
@@ -411,15 +414,10 @@ export default function InvestmentJourneyPanel({
   }
 
   const entryForTrack = progress.entryPriceInr ?? progress.targetPriceInr * 0.92;
-  const borderTone = progress.targetReached
-    ? "border-emerald-500/35 bg-emerald-500/[0.08]"
-    : progress.thesisBroken
-      ? "border-amber-500/30 bg-amber-500/[0.06]"
-      : "border-violet-500/20 bg-violet-500/[0.06]";
 
   return (
     <section
-      className={`rounded-xl border px-4 py-4 ${borderTone} ${className}`.trim()}
+      className={`${INFOGRAPHIC_CARD} ${className}`.trim()}
       aria-label="Investment journey progress"
     >
       <JourneyTargetTrack
