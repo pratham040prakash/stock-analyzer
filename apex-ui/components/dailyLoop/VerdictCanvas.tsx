@@ -28,6 +28,8 @@ export type VerdictCanvasProps = {
   hideStaleRibbon?: boolean;
   suppressTrustScore?: boolean;
   trustFootnote?: string;
+  hideSetupConfidence?: boolean;
+  compactWaitCopy?: boolean;
 };
 
 function resolveVerdictTone(
@@ -88,7 +90,10 @@ export default function VerdictCanvas({
   hideStaleRibbon = false,
   suppressTrustScore = false,
   trustFootnote,
+  hideSetupConfidence = false,
+  compactWaitCopy = false,
 }: VerdictCanvasProps) {
+  const resolvedTrustFootnote = hideStaleRibbon ? undefined : trustFootnote;
   const showStaleRibbon =
     !hideStaleRibbon &&
     (portfolioStale ||
@@ -137,9 +142,9 @@ export default function VerdictCanvas({
               </span>
             </p>
           )}
-          {trustFootnote ? (
+          {resolvedTrustFootnote ? (
             <p className="mt-1 max-w-[12rem] text-[11px] text-apex-muted/75">
-              {trustFootnote}
+              {resolvedTrustFootnote}
             </p>
           ) : trustMessage ? (
             <p className="mt-1 max-w-[12rem] text-[11px] text-apex-muted/75">
@@ -153,14 +158,16 @@ export default function VerdictCanvas({
         <h2 className="text-xl font-semibold leading-snug text-apex-text">
           {headline}
         </h2>
-        <p className="text-sm text-apex-muted/85">{subline}</p>
+        {!compactWaitCopy ? (
+          <p className="text-sm text-apex-muted/85">{subline}</p>
+        ) : null}
         {evidenceTeaser ? (
           <p className="text-xs text-apex-muted/70">
             <span className="font-medium text-apex-muted/85">Why · </span>
             {evidenceTeaser}
           </p>
         ) : null}
-        {typeof confidence === "number" ? (
+        {typeof confidence === "number" && !hideSetupConfidence ? (
           <p className="text-xs text-apex-muted/60">
             Setup confidence {Math.round(confidence)}%
           </p>
@@ -180,7 +187,7 @@ export default function VerdictCanvas({
             Capital protection mode — tactical trades are locked.
           </p>
         ) : null}
-        {tradingLocked && dailyVerdict === "wait" ? (
+        {!compactWaitCopy && tradingLocked && dailyVerdict === "wait" ? (
           <p className="text-xs text-apex-muted/70">
             Long-term holdings do not need action today.
           </p>

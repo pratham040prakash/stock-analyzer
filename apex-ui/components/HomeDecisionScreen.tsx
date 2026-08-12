@@ -801,6 +801,8 @@ export default function HomeDecisionScreen({
       hideStaleRibbon: dataFreshness.isStale,
       suppressTrustScore: dataFreshness.suppressTrustScore,
       trustFootnote: dataFreshness.trustFootnote || undefined,
+      hideSetupConfidence: dataFreshness.isStale || Boolean(waitInsight),
+      compactWaitCopy: Boolean(waitInsight),
     }),
     [
       brokerStepCompleted,
