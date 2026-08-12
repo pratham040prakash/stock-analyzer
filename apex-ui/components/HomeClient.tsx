@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ConnectZerodhaCard from "./ConnectZerodhaCard";
 import HomeDecisionScreen from "./HomeDecisionScreen";
+import { buildTodayFocusPreviews } from "@/lib/dailyLoop/todayFocusPreview";
 import KiteConnectDisciplineCard from "@/components/onboarding/KiteConnectDisciplineCard";
 import ReceiptProofPanel from "@/components/receipts/ReceiptProofPanel";
 import FinancialProfileSetup from "./FinancialProfileSetup";
@@ -945,6 +946,34 @@ export default function HomeClient({
     [brokerPortfolioValue, portfolioData?.total_value, visiblePortfolioHoldings],
   );
 
+  const todayFocusPreviews = useMemo(() => {
+    if (!dailyDecision) {
+      return undefined;
+    }
+
+    return buildTodayFocusPreviews({
+      action: dailyDecision.action,
+      stock: dailyDecision.stock,
+      picks: dailyDecision.picks,
+      allocationPercent: dailyDecision.allocationPercent,
+      suggested_sell_percent: dailyDecision.suggested_sell_percent,
+      topAllocationPct: portfolioData?.top_allocation_pct,
+      availableCash: availableCash ?? undefined,
+      ledgerCash: ledgerCash ?? undefined,
+      portfolioValue: resolvedPortfolioValue,
+      collateral,
+      entryTiming,
+    });
+  }, [
+    availableCash,
+    collateral,
+    dailyDecision,
+    entryTiming,
+    ledgerCash,
+    portfolioData?.top_allocation_pct,
+    resolvedPortfolioValue,
+  ]);
+
   const firstRunProgress = useMemo(
     () =>
       buildFirstRunProgress({
@@ -1061,7 +1090,11 @@ export default function HomeClient({
 
         {showGuidance ? (
           <>
-            <IntentSelector intent={userIntent} onIntentChange={setUserIntent} />
+            <IntentSelector
+              intent={userIntent}
+              onIntentChange={setUserIntent}
+              previews={todayFocusPreviews}
+            />
             {portfolioLoading && !hasPortfolioData ? (
               <PortfolioSummarySkeleton />
             ) : null}

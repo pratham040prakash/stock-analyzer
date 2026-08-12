@@ -981,9 +981,8 @@ function buildExplorePipelineSummary(setups: ExploreSetup[]): string | undefined
     (item) => item.stage === "Close to readiness",
   ).length;
   const buildingCount = setups.length - closeCount;
-  const closeLabel = closeCount === 1 ? "setup" : "setups";
 
-  return `${closeCount} ${closeLabel} close to activation · ${buildingCount} building`;
+  return `${closeCount} almost ready · ${buildingCount} still building`;
 }
 
 function buildExploreSetup(
@@ -1043,16 +1042,16 @@ function buildExploreCapitalDecision(input: CapitalDecisionInput): CapitalDecisi
     actions: [],
     exploreSetups,
     explorePipelineSummary: buildExplorePipelineSummary(exploreSetups),
-    heroHeadline: "Opportunity pipeline — capital stays in reserve.",
+    heroHeadline: "Watch today — your cash stays put.",
     heroSubline:
-      "Track setups as they progress toward activation — switch to Grow to deploy.",
+      "Track the watchlist below. Switch to Trade when a setup confirms.",
     heroAccountability: "Based on current market conditions.",
-    portfolioStance: "Observational — pipeline under review",
+    portfolioStance: "Cash reserved — watching for entry",
     portfolioStanceDetail:
-      "Setups are ranked by readiness — capital deploys only after activation in Grow.",
-    primaryAction: "Monitor the pipeline",
+      "No money moves until price and volume confirm at your buy level.",
+    primaryAction: "Check your watchlist",
     primaryActionDetail:
-      "Move to Grow when a setup confirms at its activation level.",
+      "Switch to Trade when a stock hits its buy level.",
     capitalMode: "CASH",
     collateral: Math.max(0, Math.round(input.collateral ?? 0)),
     deployableCapital: capital.availableCash,

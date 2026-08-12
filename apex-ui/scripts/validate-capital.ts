@@ -87,6 +87,9 @@ import { runEsopReviewPersonaCopySelfCheck } from "../lib/gtm/esopReviewPersonaC
 import { runEsopReviewPersonaConfigSelfCheck } from "../services/review/esopReviewPersonaConfig";
 import { runEsopReviewBriefSelfCheck } from "../services/review/assembleEsopReviewBrief";
 import { runScalePathMetricsSelfCheck } from "../services/subscription/scalePathMetrics";
+import { runTodayFocusPreviewSelfCheck } from "../lib/dailyLoop/todayFocusPreview";
+import { runTodayWaitInsightSelfCheck } from "../lib/dailyLoop/todayWaitInsight";
+import { runExploreSetupPresentationSelfCheck } from "../lib/dailyLoop/exploreSetupPresentation";
 
 runCapitalProjectionSelfCheck();
 runCapitalFinalStateSelfCheck();
@@ -174,3 +177,6 @@ runEsopReviewPersonaCopySelfCheck();
 runEsopReviewPersonaConfigSelfCheck();
 runEsopReviewBriefSelfCheck();
 runScalePathMetricsSelfCheck();
+runTodayFocusPreviewSelfCheck();
+runTodayWaitInsightSelfCheck();
+runExploreSetupPresentationSelfCheck();
