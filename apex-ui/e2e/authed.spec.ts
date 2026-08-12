@@ -277,6 +277,24 @@ test.describe("APEX authenticated smoke", () => {
     expect(typeof body.seats).toBe("number");
   });
 
+  test("spouse review invite rejects anonymous users", async ({ request }) => {
+    const response = await request.get("/api/review/spouse-invite");
+    expect(response.status()).toBe(401);
+  });
+
+  test("spouse review invite returns invite envelope", async ({ request }) => {
+    const response = await request.get("/api/review/spouse-invite");
+    expect(response.ok()).toBeTruthy();
+
+    const body = await response.json();
+    expect(body.status).toBe("ok");
+    expect(typeof body.enabled).toBe("boolean");
+    if (body.enabled) {
+      expect(body.invite?.share_text).toBeTruthy();
+      expect(body.invite?.mailto_href).toContain("mailto:");
+    }
+  });
+
   test("you page surfaces settings entry", async ({ page }) => {
     await page.goto("/app/you");
     await expect(page).toHaveURL(/\/app\/you/);

@@ -63,6 +63,10 @@ const keyModules = [
   "services/review/assembleAdvisorReviewPack.ts",
   "app/api/review/advisor-pack/route.ts",
   "components/review/AdvisorReviewPilotPanel.tsx",
+  "lib/gtm/spouseReviewInviteCopy.ts",
+  "services/review/assembleSpouseReviewInvite.ts",
+  "app/api/review/spouse-invite/route.ts",
+  "components/review/SpouseReviewInvitePanel.tsx",
 ];
 
 for (const relative of keyModules) {
@@ -115,5 +119,10 @@ console.log("--- T4c (Advisor B2B pilot) ---");
 console.log("Enable: APEX_ADVISOR_PILOT_ENABLED=true · APEX_ADVISOR_PILOT_SEATS=1");
 console.log("Pack API: app/api/review/advisor-pack/route.ts");
 console.log("UI: components/review/AdvisorReviewPilotPanel.tsx\n");
+
+console.log("--- T4d (Spouse review invite) ---");
+console.log("Disable: APEX_SPOUSE_REVIEW_INVITE_ENABLED=false");
+console.log("Invite API: app/api/review/spouse-invite/route.ts");
+console.log("UI: components/review/SpouseReviewInvitePanel.tsx\n");
 
 process.exit(0);

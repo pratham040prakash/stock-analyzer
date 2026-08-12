@@ -80,6 +80,9 @@ import { runKiteConnectDisciplineCopySelfCheck } from "../lib/gtm/kiteConnectDis
 import { runAdvisorPilotCopySelfCheck } from "../lib/gtm/advisorPilotCopy";
 import { runAdvisorPilotConfigSelfCheck } from "../services/review/advisorPilotConfig";
 import { runAdvisorReviewPackSelfCheck } from "../services/review/assembleAdvisorReviewPack";
+import { runSpouseReviewInviteCopySelfCheck } from "../lib/gtm/spouseReviewInviteCopy";
+import { runSpouseReviewInviteConfigSelfCheck } from "../services/review/spouseReviewInviteConfig";
+import { runSpouseReviewInviteSelfCheck } from "../services/review/assembleSpouseReviewInvite";
 
 runCapitalProjectionSelfCheck();
 runCapitalFinalStateSelfCheck();
@@ -160,3 +163,6 @@ runKiteConnectDisciplineCopySelfCheck();
 runAdvisorPilotCopySelfCheck();
 runAdvisorPilotConfigSelfCheck();
 runAdvisorReviewPackSelfCheck();
+runSpouseReviewInviteCopySelfCheck();
+runSpouseReviewInviteConfigSelfCheck();
+runSpouseReviewInviteSelfCheck();

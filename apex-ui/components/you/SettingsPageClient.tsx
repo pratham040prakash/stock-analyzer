@@ -6,6 +6,7 @@ import ApexSurfaceNav from "@/components/nav/ApexSurfaceNav";
 import PremiumFeatureGate from "@/components/dailyLoop/PremiumFeatureGate";
 import PremiumValueCard from "@/components/subscription/PremiumValueCard";
 import AdvisorReviewPilotPanel from "@/components/review/AdvisorReviewPilotPanel";
+import SpouseReviewInvitePanel from "@/components/review/SpouseReviewInvitePanel";
 import { ApexShell, ApexTitle } from "@/components/ui/apex";
 import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
 import { usePremiumTier } from "@/lib/usePremiumTier";
@@ -119,6 +120,7 @@ export default function SettingsPageClient({ userName }: { userName: string }) {
         </section>
 
         <AdvisorReviewPilotPanel compact />
+        <SpouseReviewInvitePanel compact />
 
         <section className="rounded-xl border border-apex-border/15 bg-white/[0.02] px-4 py-4 space-y-2">
           <p className="text-xs font-medium uppercase tracking-wide text-apex-muted">
