@@ -17,6 +17,7 @@ export type JourneyTargetTrackProps = {
   timeProgressPct?: number | null;
   timeRemainingLabel?: string | null;
   timeOverdue?: boolean;
+  patienceUntilLabel?: string | null;
 };
 
 function formatPrice(value: number): string {
@@ -37,6 +38,7 @@ export default function JourneyTargetTrack({
   timeProgressPct = null,
   timeRemainingLabel = null,
   timeOverdue = false,
+  patienceUntilLabel = null,
 }: JourneyTargetTrackProps) {
   const clampedPct = Math.max(0, Math.min(100, progressPct));
   const barStyle = journeyBarGradient(symbol, { targetReached, thesisBroken });
@@ -53,6 +55,11 @@ export default function JourneyTargetTrack({
 
   return (
     <div className={className}>
+      {patienceUntilLabel && !compact ? (
+        <p className="mb-3 text-sm font-medium leading-snug text-sky-100/95">
+          {patienceUntilLabel}
+        </p>
+      ) : null}
       <div
         className={[
           "grid items-center gap-x-3",

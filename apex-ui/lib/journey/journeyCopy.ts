@@ -3,7 +3,10 @@
 export const JOURNEY_COPY = {
   panelTitle: "Your target path",
   panelSubtitle:
-    "When APEX surfaces a stock, we read recent candles and stay on the path with you until target or thesis break.",
+    "Trust the chart-backed plan — know how long to stay patient, and we stay on the path with you.",
+  trustIndicatorsLine:
+    "Indicators from past candles · entry, target, and wait window — not predictions.",
+  patienceTitle: "Your patience window",
   suggestTitle: "Chart-backed path",
   suggestDescription:
     "From the last ~3 months of daily closes — support, resistance, and a target zone. Not a prediction.",
@@ -49,11 +52,11 @@ export const JOURNEY_COPY = {
     planning:
       "Path mapped from recent candles. Wait for Today’s confirmation before acting.",
     waiting_entry:
-      "Entry zone not confirmed yet. Waiting is part of the path — not a failure.",
+      "Entry zone not confirmed yet. Stay patient — waiting is discipline, not failure.",
     in_position:
-      "You’re in the position. Hold the plan unless price breaks support from the backtrace.",
+      "You’re in the position. Hold patience until the date on this path unless support breaks.",
     on_path:
-      "Moving toward the resistance target from the backtrace. Review at checkpoints — don’t chase.",
+      "On path toward target. Stay patient — don’t chase; review only at checkpoints.",
     near_target:
       "Near the chart target zone. Decide: take profit, trim, or reset the path.",
     target_reached:

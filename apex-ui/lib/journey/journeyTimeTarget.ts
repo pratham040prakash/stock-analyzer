@@ -12,6 +12,7 @@ export type JourneyTimeSuggestion = {
   unit: JourneyTimeUnit;
   totalDays: number;
   waitLabel: string;
+  patienceUntil: string;
   rationale: string;
   medianHistoricalDays: number | null;
   movePctNeeded: number;
@@ -62,6 +63,43 @@ export function formatTimeTargetLabel(amount: number, unit: JourneyTimeUnit): st
     return value === 1 ? "1 week" : `${value} weeks`;
   }
   return value === 1 ? "1 year" : `${value} years`;
+}
+
+export function formatPatienceUntil(
+  targetByIso: string,
+  daysRemaining: number | null = null,
+): string {
+  const targetDate = new Date(`${targetByIso}T00:00:00`);
+  if (Number.isNaN(targetDate.getTime())) {
+    return "Be patient — path date loading";
+  }
+
+  const formatted = targetDate.toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+
+  if (daysRemaining !== null && daysRemaining <= 0) {
+    return `Patience window ended · review by ${formatted}`;
+  }
+
+  const remaining = formatTimeRemaining(daysRemaining);
+  if (remaining) {
+    return `Be patient until ${formatted} · ${remaining}`;
+  }
+
+  return `Be patient until ${formatted}`;
+}
+
+export function formatPatienceFromDuration(
+  startedAt: string,
+  amount: number,
+  unit: JourneyTimeUnit,
+): string {
+  const targetBy = computeTargetByDate(startedAt, amount, unit);
+  const totalDays = durationToDays(amount, unit);
+  return formatPatienceUntil(targetBy, totalDays);
 }
 
 export function formatTimeRemaining(daysRemaining: number | null): string | null {
@@ -236,6 +274,11 @@ export function suggestTimeTargetFromCandles(input: {
       unit: fallback.unit,
       totalDays,
       waitLabel: `Wait ~${formatTimeTargetLabel(fallback.amount, fallback.unit)}`,
+      patienceUntil: formatPatienceFromDuration(
+        new Date().toISOString().slice(0, 10),
+        fallback.amount,
+        fallback.unit,
+      ),
       rationale:
         input.horizon === "swing"
           ? "ESTIMATE · Swing path default — limited climb history in the backtrace."
@@ -247,12 +290,18 @@ export function suggestTimeTargetFromCandles(input: {
 
   const normalized = normalizeDaysToUnit(rawDays, input.horizon);
   const waitLabel = `Wait ~${formatTimeTargetLabel(normalized.amount, normalized.unit)}`;
+  const startedAt = new Date().toISOString().slice(0, 10);
 
   return {
     amount: normalized.amount,
     unit: normalized.unit,
     totalDays: normalized.totalDays,
     waitLabel,
+    patienceUntil: formatPatienceFromDuration(
+      startedAt,
+      normalized.amount,
+      normalized.unit,
+    ),
     rationale,
     medianHistoricalDays: historicalMedian,
     movePctNeeded,
@@ -328,6 +377,10 @@ export function runJourneyTimeTargetSelfCheck(): void {
 
   if (!suggestion.rationale.startsWith("FACT") && !suggestion.rationale.startsWith("ESTIMATE")) {
     throw new Error("Journey time target self-check failed: rationale prefix");
+  }
+
+  if (!suggestion.patienceUntil.includes("Be patient until")) {
+    throw new Error("Journey time target self-check failed: patience until");
   }
 
   const pct = computeTimeProgressPct(14, 28);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import JourneyPatienceCallout from "@/components/journey/JourneyPatienceCallout";
 import JourneyTargetTrack from "@/components/journey/JourneyTargetTrack";
 import JourneyTimeTargetPicker from "@/components/journey/JourneyTimeTargetPicker";
 import { apiFetchJson } from "@/lib/api/clientFetch";
@@ -289,7 +290,13 @@ export default function InvestmentJourneyPanel({
         className={`${INFOGRAPHIC_CARD} ${className}`.trim()}
         aria-label="Chart-backed investment journey"
       >
+        <JourneyPatienceCallout
+          patienceUntil={chartPlan.suggestedTime.patienceUntil}
+          trustLine={JOURNEY_COPY.trustIndicatorsLine}
+        />
+
         <JourneyTargetTrack
+          className="mt-3"
           symbol={chartPlan.symbol}
           entryPriceInr={chartPlan.entryPriceInr}
           targetPriceInr={chartPlan.targetPriceInr}
@@ -305,16 +312,8 @@ export default function InvestmentJourneyPanel({
         />
 
         {!compact ? (
-          <p className="mt-3 rounded-lg border border-sky-500/20 bg-sky-500/[0.06] px-3 py-2 text-xs leading-relaxed text-sky-50/90">
-            <span className="font-medium text-sky-100">{chartPlan.suggestedTime.waitLabel}</span>
-            {" · "}
+          <p className="mt-3 text-xs leading-relaxed text-apex-muted/75">
             {chartPlan.suggestedTime.rationale}
-          </p>
-        ) : null}
-
-        {!compact ? (
-          <p className="mt-2 text-[11px] leading-relaxed text-apex-muted/75">
-            {chartPlan.backtraceSummary}
           </p>
         ) : null}
 
@@ -458,7 +457,16 @@ export default function InvestmentJourneyPanel({
       className={`${INFOGRAPHIC_CARD} ${className}`.trim()}
       aria-label="Investment journey progress"
     >
+      {progress.patienceUntilLabel ? (
+        <JourneyPatienceCallout
+          patienceUntil={progress.patienceUntilLabel}
+          trustLine={JOURNEY_COPY.trustIndicatorsLine}
+          compact={compact}
+        />
+      ) : null}
+
       <JourneyTargetTrack
+        className={progress.patienceUntilLabel ? "mt-3" : undefined}
         symbol={progress.symbol}
         entryPriceInr={entryForTrack}
         targetPriceInr={progress.targetPriceInr}
@@ -470,6 +478,7 @@ export default function InvestmentJourneyPanel({
         timeProgressPct={progress.timeProgressPct}
         timeRemainingLabel={progress.timeRemainingLabel}
         timeOverdue={progress.timeOverdue}
+        patienceUntilLabel={compact ? progress.patienceUntilLabel : null}
         compact={compact}
       />
 
@@ -503,18 +512,10 @@ export default function InvestmentJourneyPanel({
         </div>
       ) : (
         <>
-          {progress.timeWaitLabel ? (
-            <p className="mt-3 text-sm font-medium text-sky-100/90">{progress.timeWaitLabel}</p>
-          ) : null}
-          {progress.timeSuggestionRationale ? (
-            <p className="mt-1 text-xs leading-relaxed text-apex-muted/75">
-              {progress.timeSuggestionRationale}
-            </p>
-          ) : null}
           <p className="mt-3 text-sm leading-snug text-apex-text/90">{progress.guidance}</p>
-          {!compact && progress.backtraceSummary ? (
+          {progress.timeSuggestionRationale ? (
             <p className="mt-2 text-[11px] leading-relaxed text-apex-muted/65">
-              {progress.backtraceSummary}
+              {progress.timeSuggestionRationale}
             </p>
           ) : null}
           <div className="mt-3 flex flex-wrap gap-3 text-xs">

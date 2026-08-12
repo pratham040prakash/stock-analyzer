@@ -50,6 +50,7 @@ export default function YouJourneySection() {
             timeProgressPct={progress.timeProgressPct}
             timeRemainingLabel={progress.timeRemainingLabel}
             timeOverdue={progress.timeOverdue}
+            patienceUntilLabel={progress.patienceUntilLabel}
             compact
           />
         ))}

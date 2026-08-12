@@ -81,6 +81,7 @@ export type JourneyProgressViewModel = {
   backtraceSummary?: string;
   timeWaitLabel?: string | null;
   timeSuggestionRationale?: string | null;
+  patienceUntilLabel?: string | null;
 };
 
 export type StartJourneyInput = {

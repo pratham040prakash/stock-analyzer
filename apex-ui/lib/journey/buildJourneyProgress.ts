@@ -1,6 +1,7 @@
 import { JOURNEY_COPY } from "@/lib/journey/journeyCopy";
 import {
   computeTimeProgressPct,
+  formatPatienceUntil,
   formatTimeRemaining,
   formatTimeTargetLabel,
   resolveJourneyTimeTarget,
@@ -311,6 +312,10 @@ export function buildJourneyProgress(
     backtraceSummary: input.journey.chartBasis?.backtraceSummary,
     timeWaitLabel: input.journey.chartBasis?.timeWaitLabel ?? null,
     timeSuggestionRationale: input.journey.chartBasis?.timeSuggestionRationale ?? null,
+    patienceUntilLabel:
+      input.journey.targetBy !== undefined
+        ? formatPatienceUntil(input.journey.targetBy, daysRemaining)
+        : null,
   };
 }
 

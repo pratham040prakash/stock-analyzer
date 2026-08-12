@@ -57,6 +57,7 @@ export default function JourneyTimeTargetPicker({
           <p className="text-base font-semibold tracking-tight text-sky-100">
             {suggestion.waitLabel}
           </p>
+          <p className="mt-1 text-sm font-medium text-sky-50/95">{suggestion.patienceUntil}</p>
           <p className="mt-1 text-xs leading-relaxed text-sky-50/85">{suggestion.rationale}</p>
           <p className="mt-2 text-[11px] tabular-nums text-apex-muted/70">
             Target by {targetBy} · +{suggestion.movePctNeeded}% price move needed
