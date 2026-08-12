@@ -309,6 +309,8 @@ export function buildJourneyProgress(
     targetReached,
     thesisBroken,
     backtraceSummary: input.journey.chartBasis?.backtraceSummary,
+    timeWaitLabel: input.journey.chartBasis?.timeWaitLabel ?? null,
+    timeSuggestionRationale: input.journey.chartBasis?.timeSuggestionRationale ?? null,
   };
 }
 

@@ -11,6 +11,9 @@ export type JourneyChartBasis = {
   backtraceSummary: string;
   structureScore?: number;
   suggestedAt: string;
+  suggestedWaitDays?: number;
+  timeSuggestionRationale?: string;
+  timeWaitLabel?: string;
 };
 
 export type StoredInvestmentJourney = {
@@ -76,6 +79,8 @@ export type JourneyProgressViewModel = {
   targetReached: boolean;
   thesisBroken: boolean;
   backtraceSummary?: string;
+  timeWaitLabel?: string | null;
+  timeSuggestionRationale?: string | null;
 };
 
 export type StartJourneyInput = {

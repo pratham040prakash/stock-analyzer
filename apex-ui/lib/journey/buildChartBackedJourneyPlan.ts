@@ -1,4 +1,8 @@
 import { computeStructureScore } from "@/services/market/structureEngine";
+import {
+  suggestTimeTargetFromCandles,
+  type JourneyTimeSuggestion,
+} from "@/lib/journey/journeyTimeTarget";
 import type { JourneyHorizon } from "@/types/investmentJourney";
 
 export type ChartBackedJourneyPlan = {
@@ -14,6 +18,7 @@ export type ChartBackedJourneyPlan = {
   backtraceSummary: string;
   pathRationale: string;
   activationLevelInr?: number;
+  suggestedTime: JourneyTimeSuggestion;
 };
 
 export type BuildChartBackedJourneyPlanInput = {
@@ -127,6 +132,17 @@ export function buildChartBackedJourneyPlan(
       ? "Swing path: entry zone to nearest resistance from the backtrace — not a forecast."
       : "Long-term path: accumulate near support, target prior resistance — thesis-led, not guaranteed.";
 
+  const suggestedTime = suggestTimeTargetFromCandles({
+    prices,
+    entryPriceInr: entry,
+    targetPriceInr: target,
+    currentPriceInr: current,
+    horizon,
+    lookbackDays,
+  });
+
+  facts.push(suggestedTime.rationale);
+
   return {
     symbol: input.symbol.trim().toUpperCase(),
     horizon,
@@ -140,6 +156,7 @@ export function buildChartBackedJourneyPlan(
     backtraceSummary: facts.join(" "),
     pathRationale,
     activationLevelInr: input.activationLevelInr,
+    suggestedTime,
   };
 }
 
@@ -162,5 +179,9 @@ export function runBuildChartBackedJourneyPlanSelfCheck(): void {
 
   if (!plan.backtraceSummary.includes("FACT")) {
     throw new Error("Chart-backed journey plan self-check failed: backtrace");
+  }
+
+  if (!plan.suggestedTime.waitLabel.includes("Wait ~")) {
+    throw new Error("Chart-backed journey plan self-check failed: suggested time");
   }
 }

@@ -7,7 +7,7 @@ import { apiFetchJson } from "@/lib/api/clientFetch";
 import { buildJourneyProgress } from "@/lib/journey/buildJourneyProgress";
 import type { ChartBackedJourneyPlan } from "@/lib/journey/buildChartBackedJourneyPlan";
 import { JOURNEY_COPY } from "@/lib/journey/journeyCopy";
-import { suggestTimeTarget } from "@/lib/journey/journeyTimeTarget";
+import { formatTimeTargetLabel, suggestTimeTarget } from "@/lib/journey/journeyTimeTarget";
 import {
   completeJourney,
   createJourney,
@@ -133,14 +133,8 @@ export default function InvestmentJourneyPanel({
           setHorizon(data.plan.horizon);
           setTargetPrice(String(data.plan.targetPriceInr));
           setEntryPrice(String(data.plan.entryPriceInr));
-          const suggestedTime = suggestTimeTarget(data.plan.horizon);
-          if (data.plan.swingWeeks) {
-            setTimeAmount(data.plan.swingWeeks);
-            setTimeUnit("weeks");
-          } else {
-            setTimeAmount(suggestedTime.amount);
-            setTimeUnit(suggestedTime.unit);
-          }
+          setTimeAmount(data.plan.suggestedTime.amount);
+          setTimeUnit(data.plan.suggestedTime.unit);
           return;
         }
 
@@ -201,6 +195,9 @@ export default function InvestmentJourneyPanel({
         backtraceSummary: chartPlan.backtraceSummary,
         structureScore: chartPlan.structureScore,
         suggestedAt: new Date().toISOString().slice(0, 10),
+        suggestedWaitDays: chartPlan.suggestedTime.totalDays,
+        timeSuggestionRationale: chartPlan.suggestedTime.rationale,
+        timeWaitLabel: chartPlan.suggestedTime.waitLabel,
       },
     });
 
@@ -298,11 +295,25 @@ export default function InvestmentJourneyPanel({
           targetPriceInr={chartPlan.targetPriceInr}
           currentPriceInr={currentPriceInr}
           progressPct={previewPct}
+          timeTargetLabel={formatTimeTargetLabel(
+            chartPlan.suggestedTime.amount,
+            chartPlan.suggestedTime.unit,
+          )}
+          timeProgressPct={0}
+          timeRemainingLabel={chartPlan.suggestedTime.waitLabel.replace(/^Wait ~/, "")}
           compact={compact}
         />
 
         {!compact ? (
-          <p className="mt-3 text-[11px] leading-relaxed text-apex-muted/75">
+          <p className="mt-3 rounded-lg border border-sky-500/20 bg-sky-500/[0.06] px-3 py-2 text-xs leading-relaxed text-sky-50/90">
+            <span className="font-medium text-sky-100">{chartPlan.suggestedTime.waitLabel}</span>
+            {" · "}
+            {chartPlan.suggestedTime.rationale}
+          </p>
+        ) : null}
+
+        {!compact ? (
+          <p className="mt-2 text-[11px] leading-relaxed text-apex-muted/75">
             {chartPlan.backtraceSummary}
           </p>
         ) : null}
@@ -311,6 +322,7 @@ export default function InvestmentJourneyPanel({
           className="mt-4 border-t border-apex-border/10 pt-4"
           amount={timeAmount}
           unit={timeUnit}
+          suggestion={chartPlan.suggestedTime}
           onChange={({ amount, unit }) => {
             setTimeAmount(amount);
             setTimeUnit(unit);
@@ -491,6 +503,14 @@ export default function InvestmentJourneyPanel({
         </div>
       ) : (
         <>
+          {progress.timeWaitLabel ? (
+            <p className="mt-3 text-sm font-medium text-sky-100/90">{progress.timeWaitLabel}</p>
+          ) : null}
+          {progress.timeSuggestionRationale ? (
+            <p className="mt-1 text-xs leading-relaxed text-apex-muted/75">
+              {progress.timeSuggestionRationale}
+            </p>
+          ) : null}
           <p className="mt-3 text-sm leading-snug text-apex-text/90">{progress.guidance}</p>
           {!compact && progress.backtraceSummary ? (
             <p className="mt-2 text-[11px] leading-relaxed text-apex-muted/65">
