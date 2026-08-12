@@ -5,6 +5,7 @@ import ApexSurfaceNav from "@/components/nav/ApexSurfaceNav";
 import PremiumValueCard from "@/components/subscription/PremiumValueCard";
 import PremiumTrialOfferCard from "@/components/subscription/PremiumTrialOfferCard";
 import ReflectionCanvas from "@/components/you/ReflectionCanvas";
+import YouJourneySection from "@/components/journey/YouJourneySection";
 import YouAccountStrip from "@/components/you/YouAccountStrip";
 import { ApexShell, ApexTitle } from "@/components/ui/apex";
 import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
@@ -67,6 +68,10 @@ export default function YouPageClient({ userName }: { userName: string }) {
       </header>
 
       <YouAccountStrip />
+
+      <div className="mb-6">
+        <YouJourneySection />
+      </div>
 
       <div className="mb-6">
         <PremiumTrialOfferCard trial={trial} onUpdated={() => void refreshTier()} compact />

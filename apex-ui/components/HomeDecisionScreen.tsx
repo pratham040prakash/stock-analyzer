@@ -38,6 +38,7 @@ import TodayDetailsAccordion from "@/components/dailyLoop/TodayDetailsAccordion"
 import TodayWaitInsightCard from "@/components/dailyLoop/TodayWaitInsightCard";
 import TodayWatchlistPanel from "@/components/dailyLoop/TodayWatchlistPanel";
 import TodaySyncStatusBanner from "@/components/dailyLoop/TodaySyncStatusBanner";
+import InvestmentJourneyPanel from "@/components/journey/InvestmentJourneyPanel";
 import {
   buildAlignedWaitInsight,
   resolvePrimaryTradeSymbol,
@@ -925,6 +926,38 @@ export default function HomeDecisionScreen({
     ],
   );
 
+  const primarySymbolPrice = useMemo(() => {
+    if (!primarySymbol) {
+      return null;
+    }
+
+    const normalized = primarySymbol.trim().toUpperCase();
+    const holding = openPortfolioHoldings.find(
+      (row) => row.tradingsymbol.trim().toUpperCase() === normalized,
+    );
+
+    return holding?.last_price ?? null;
+  }, [openPortfolioHoldings, primarySymbol]);
+
+  const primarySymbolQty = useMemo(() => {
+    if (!primarySymbol) {
+      return undefined;
+    }
+
+    const normalized = primarySymbol.trim().toUpperCase();
+    return openPortfolioHoldings.find(
+      (row) => row.tradingsymbol.trim().toUpperCase() === normalized,
+    )?.quantity;
+  }, [openPortfolioHoldings, primarySymbol]);
+
+  const journeySymbol = useMemo(() => {
+    if (isExplore && capitalDecision.exploreSetups[0]?.symbol) {
+      return capitalDecision.exploreSetups[0].symbol;
+    }
+
+    return primarySymbol;
+  }, [capitalDecision.exploreSetups, isExplore, primarySymbol]);
+
   const showTodayVerdict = isCapitalDeployment || (isExplore && !isExploreEmpty);
 
   return (
@@ -995,6 +1028,16 @@ export default function HomeDecisionScreen({
                       compact
                     />
                   </>
+                ) : null}
+                {journeySymbol ? (
+                  <InvestmentJourneyPanel
+                    symbol={journeySymbol}
+                    currentPriceInr={primarySymbolPrice}
+                    quantity={primarySymbolQty}
+                    dailyVerdict={verdictPresentation.verdict}
+                    brokerStepCompleted={brokerStepCompleted}
+                    compact={verdictPresentation.verdict === "wait"}
+                  />
                 ) : null}
               </>
             ) : null}

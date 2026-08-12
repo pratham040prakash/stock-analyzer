@@ -94,6 +94,9 @@ import { runTodayDataFreshnessSelfCheck } from "../lib/dailyLoop/todayDataFreshn
 import { runTodayPrimaryFocusSelfCheck } from "../lib/dailyLoop/todayPrimaryFocus";
 import { runTodaySyncRecoveryCopySelfCheck } from "../lib/dailyLoop/todaySyncRecoveryCopy";
 import { runTodaySyncAutoRetrySelfCheck } from "../lib/dailyLoop/todaySyncAutoRetry";
+import { runJourneyCopySelfCheck } from "../lib/journey/journeyCopy";
+import { runBuildJourneyProgressSelfCheck } from "../lib/journey/buildJourneyProgress";
+import { runJourneyStoreSelfCheck } from "../lib/journey/journeyStore";
 
 runCapitalProjectionSelfCheck();
 runCapitalFinalStateSelfCheck();
@@ -188,3 +191,6 @@ runTodayDataFreshnessSelfCheck();
 runTodayPrimaryFocusSelfCheck();
 runTodaySyncRecoveryCopySelfCheck();
 runTodaySyncAutoRetrySelfCheck();
+runJourneyCopySelfCheck();
+runBuildJourneyProgressSelfCheck();
+runJourneyStoreSelfCheck();
