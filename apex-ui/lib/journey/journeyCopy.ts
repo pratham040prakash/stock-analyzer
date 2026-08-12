@@ -24,7 +24,12 @@ export const JOURNEY_COPY = {
   amountLabel: "Amount in this plan (₹) — optional",
   swingWeeksLabel: "Swing window (weeks)",
   saveJourney: "Start this path",
-  completeJourney: "Target reached — close path",
+  completeJourney: "I sold — close path",
+  takeProfitTitle: "Target reached — book profits",
+  takeProfitBody:
+    "Price hit your chart target. Consider selling or trimming to lock gains before resetting the plan.",
+  takeProfitAction: "Sell & take profit",
+  takeProfitLater: "Hold for now",
   pauseJourney: "Path broken — pause and review",
   progressLabel: "Progress toward target",
   investedLabel: "In this plan",
@@ -43,7 +48,7 @@ export const JOURNEY_COPY = {
     near_target:
       "Near the chart target zone. Decide: take profit, trim, or reset the path.",
     target_reached:
-      "Target zone reached. Close this path and record what you learned.",
+      "Target reached on the path above. Book profits — sell or trim before you close this path.",
     review:
       "Price broke below backtrace support — thesis may be broken. Pause and review before adding.",
   },

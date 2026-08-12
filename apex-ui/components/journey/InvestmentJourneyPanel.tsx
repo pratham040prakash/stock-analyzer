@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import JourneyTargetTrack from "@/components/journey/JourneyTargetTrack";
 import { apiFetchJson } from "@/lib/api/clientFetch";
 import { buildJourneyProgress } from "@/lib/journey/buildJourneyProgress";
 import type { ChartBackedJourneyPlan } from "@/lib/journey/buildChartBackedJourneyPlan";
@@ -11,7 +12,6 @@ import {
   getActiveJourneyForSymbol,
   pauseJourney,
 } from "@/lib/journey/journeyStore";
-import { formatInr } from "@/lib/funds";
 import type { DailyVerdict } from "@/lib/dailyLoop/dailyVerdict";
 import type {
   JourneyHorizon,
@@ -31,11 +31,8 @@ export type InvestmentJourneyPanelProps = {
   apexSuggested?: boolean;
   preferSwing?: boolean;
   activationLevelInr?: number;
+  onTakeProfit?: (symbol: string) => void;
 };
-
-function formatPrice(value: number): string {
-  return formatInr(Math.round(value));
-}
 
 function addWeeks(from: Date, weeks: number): string {
   const next = new Date(from);
@@ -46,6 +43,23 @@ function addWeeks(from: Date, weeks: number): string {
 type PlanResponse =
   | { status: "ok"; plan: ChartBackedJourneyPlan }
   | { status: "insufficient_data"; message?: string };
+
+function previewProgressPct(
+  entry: number,
+  target: number,
+  current: number | null | undefined,
+): number {
+  if (current === null || current === undefined || !Number.isFinite(current)) {
+    return 0;
+  }
+
+  if (target === entry) {
+    return 0;
+  }
+
+  const raw = ((current - entry) / (target - entry)) * 100;
+  return Math.max(0, Math.min(100, Math.round(raw)));
+}
 
 export default function InvestmentJourneyPanel({
   symbol,
@@ -58,6 +72,7 @@ export default function InvestmentJourneyPanel({
   apexSuggested = false,
   preferSwing = false,
   activationLevelInr,
+  onTakeProfit,
 }: InvestmentJourneyPanelProps) {
   const [journey, setJourney] = useState<StoredInvestmentJourney | null>(null);
   const [chartPlan, setChartPlan] = useState<ChartBackedJourneyPlan | null>(null);
@@ -263,42 +278,31 @@ export default function InvestmentJourneyPanel({
   }
 
   if (!journey && !showStartForm && chartPlan && planState === "ready") {
+    const previewPct = previewProgressPct(
+      chartPlan.entryPriceInr,
+      chartPlan.targetPriceInr,
+      currentPriceInr,
+    );
+
     return (
       <section
         className={`rounded-xl border border-violet-500/25 bg-violet-500/[0.07] px-4 py-4 ${className}`.trim()}
         aria-label="Chart-backed investment journey"
       >
-        <p className="text-xs font-medium uppercase tracking-[0.12em] text-violet-200/80">
-          {JOURNEY_COPY.suggestTitle}
-        </p>
-        <p className="mt-1 text-lg font-semibold tracking-tight text-apex-text">
-          {chartPlan.symbol}
-          <span className="ml-2 text-sm font-normal text-apex-muted/75">
-            ·{" "}
-            {chartPlan.horizon === "swing"
-              ? JOURNEY_COPY.horizonSwing
-              : JOURNEY_COPY.horizonLongTerm}
-          </span>
-        </p>
-        <p className="mt-2 text-xs leading-relaxed text-apex-text/80">
-          {chartPlan.backtraceSummary}
-        </p>
-        <p className="mt-2 text-xs text-apex-muted/75">{chartPlan.pathRationale}</p>
+        <JourneyTargetTrack
+          symbol={chartPlan.symbol}
+          entryPriceInr={chartPlan.entryPriceInr}
+          targetPriceInr={chartPlan.targetPriceInr}
+          currentPriceInr={currentPriceInr}
+          progressPct={previewPct}
+          compact={compact}
+        />
 
-        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-apex-text/90">
-          <span>Entry zone {formatPrice(chartPlan.entryPriceInr)}</span>
-          <span>Target {formatPrice(chartPlan.targetPriceInr)}</span>
-          {chartPlan.supportLevelInr ? (
-            <span>Support {formatPrice(chartPlan.supportLevelInr)}</span>
-          ) : null}
-          {chartPlan.resistanceLevelInr ? (
-            <span>Resistance {formatPrice(chartPlan.resistanceLevelInr)}</span>
-          ) : null}
-        </div>
-
-        <p className="mt-3 text-sm leading-snug text-violet-100/90">
-          {JOURNEY_COPY.panelSubtitle}
-        </p>
+        {!compact ? (
+          <p className="mt-3 text-[11px] leading-relaxed text-apex-muted/75">
+            {chartPlan.backtraceSummary}
+          </p>
+        ) : null}
 
         <div className="mt-4 flex flex-wrap gap-3">
           <button
@@ -406,131 +410,81 @@ export default function InvestmentJourneyPanel({
     return null;
   }
 
-  const borderTone = progress.thesisBroken
-    ? "border-amber-500/30 bg-amber-500/[0.06]"
-    : "border-violet-500/20 bg-violet-500/[0.06]";
+  const entryForTrack = progress.entryPriceInr ?? progress.targetPriceInr * 0.92;
+  const borderTone = progress.targetReached
+    ? "border-emerald-500/35 bg-emerald-500/[0.08]"
+    : progress.thesisBroken
+      ? "border-amber-500/30 bg-amber-500/[0.06]"
+      : "border-violet-500/20 bg-violet-500/[0.06]";
 
   return (
     <section
       className={`rounded-xl border px-4 py-4 ${borderTone} ${className}`.trim()}
       aria-label="Investment journey progress"
     >
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-[0.12em] text-violet-200/80">
-            {JOURNEY_COPY.panelTitle}
+      <JourneyTargetTrack
+        symbol={progress.symbol}
+        entryPriceInr={entryForTrack}
+        targetPriceInr={progress.targetPriceInr}
+        currentPriceInr={progress.currentPriceInr}
+        progressPct={progress.progressPct}
+        targetReached={progress.targetReached}
+        thesisBroken={progress.thesisBroken}
+        compact={compact}
+      />
+
+      {progress.targetReached ? (
+        <div className="mt-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-3">
+          <p className="text-sm font-medium text-emerald-100">{JOURNEY_COPY.takeProfitTitle}</p>
+          <p className="mt-1 text-xs leading-relaxed text-emerald-50/85">
+            {JOURNEY_COPY.takeProfitBody}
           </p>
-          <p className="mt-1 text-lg font-semibold tracking-tight text-apex-text">
-            {progress.symbol}
-            <span className="ml-2 text-sm font-normal text-apex-muted/75">
-              · {progress.horizonLabel}
-            </span>
-          </p>
-          <p className="mt-1 text-xs text-violet-100/75">{progress.milestoneLabel}</p>
-        </div>
-        <div className="text-right text-sm tabular-nums">
-          <p className="text-2xl font-semibold text-apex-text">{progress.progressPct}%</p>
-          <p className="text-xs text-apex-muted/75">{JOURNEY_COPY.progressLabel}</p>
-        </div>
-      </div>
-
-      {progress.backtraceSummary && !compact ? (
-        <p className="mt-2 text-[11px] leading-relaxed text-apex-muted/70">
-          {progress.backtraceSummary}
-        </p>
-      ) : null}
-
-      <div
-        className="mt-3 h-2 overflow-hidden rounded-full bg-black/25"
-        role="progressbar"
-        aria-valuenow={progress.progressPct}
-        aria-valuemin={0}
-        aria-valuemax={100}
-      >
-        <div
-          className={[
-            "h-full rounded-full transition-all",
-            progress.thesisBroken
-              ? "bg-gradient-to-r from-amber-400/80 to-amber-600/70"
-              : "bg-gradient-to-r from-violet-400/80 to-emerald-400/80",
-          ].join(" ")}
-          style={{ width: `${progress.progressPct}%` }}
-        />
-      </div>
-
-      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-apex-text/80">
-        <span>Target {formatPrice(progress.targetPriceInr)}</span>
-        {progress.entryPriceInr !== null ? (
-          <span>Entry zone {formatPrice(progress.entryPriceInr)}</span>
-        ) : null}
-        {progress.currentPriceInr !== null ? (
-          <span>Now {formatPrice(progress.currentPriceInr)}</span>
-        ) : null}
-        {progress.priceRemainingInr !== null ? (
-          <span>{formatPrice(progress.priceRemainingInr)} to go</span>
-        ) : null}
-        <span>
-          {JOURNEY_COPY.daysLabel} {progress.daysElapsed}
-          {progress.daysRemaining !== null ? ` · ${progress.daysRemaining}d left` : ""}
-        </span>
-      </div>
-
-      <p className="mt-3 text-sm leading-snug text-apex-text/90">{progress.guidance}</p>
-
-      {!compact ? (
-        <ol className="mt-4 space-y-2 border-t border-apex-border/10 pt-3">
-          {progress.pathSteps.map((step) => (
-            <li
-              key={step.id}
-              className={[
-                "flex gap-3 text-xs",
-                step.status === "current"
-                  ? "text-apex-text"
-                  : step.status === "done"
-                    ? "text-emerald-200/80"
-                    : "text-apex-muted/55",
-              ].join(" ")}
+          <div className="mt-3 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                onTakeProfit?.(progress.symbol);
+              }}
+              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500"
             >
-              <span className="mt-0.5 w-4 shrink-0 text-center">
-                {step.status === "done" ? "✓" : step.status === "current" ? "→" : "·"}
-              </span>
-              <span>
-                <span className="font-medium">{step.label}</span>
-                <span className="mt-0.5 block text-[11px] opacity-85">{step.detail}</span>
-              </span>
-            </li>
-          ))}
-        </ol>
-      ) : null}
+              {JOURNEY_COPY.takeProfitAction}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                completeJourney(progress.journey.id);
+                reload();
+              }}
+              className="text-sm text-emerald-100/80 underline underline-offset-2 hover:text-white"
+            >
+              {JOURNEY_COPY.completeJourney}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <p className="mt-3 text-sm leading-snug text-apex-text/90">{progress.guidance}</p>
+          {!compact && progress.backtraceSummary ? (
+            <p className="mt-2 text-[11px] leading-relaxed text-apex-muted/65">
+              {progress.backtraceSummary}
+            </p>
+          ) : null}
+          <div className="mt-3 flex flex-wrap gap-3 text-xs">
+            <button
+              type="button"
+              onClick={() => {
+                pauseJourney(progress.journey.id);
+                reload();
+              }}
+              className="text-apex-muted/70 underline underline-offset-2 hover:text-apex-text"
+            >
+              {progress.thesisBroken ? JOURNEY_COPY.pauseJourney : "Pause path"}
+            </button>
+          </div>
+        </>
+      )}
 
       <p className="mt-3 text-[11px] text-apex-muted/60">{progress.disclaimer}</p>
-
-      <div className="mt-3 flex flex-wrap gap-3 text-xs">
-        {progress.targetReached ? (
-          <button
-            type="button"
-            onClick={() => {
-              completeJourney(progress.journey.id);
-              reload();
-            }}
-            className="font-medium text-emerald-200/90 underline underline-offset-2"
-          >
-            {JOURNEY_COPY.completeJourney}
-          </button>
-        ) : null}
-        <button
-          type="button"
-          onClick={() => {
-            pauseJourney(progress.journey.id);
-            reload();
-          }}
-          className="text-apex-muted/70 underline underline-offset-2 hover:text-apex-text"
-        >
-          {progress.thesisBroken
-            ? JOURNEY_COPY.pauseJourney
-            : "Pause path"}
-        </button>
-      </div>
     </section>
   );
 }

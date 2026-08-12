@@ -1053,6 +1053,11 @@ export default function HomeDecisionScreen({
                           journeySymbol.trim().toUpperCase(),
                       )?.activationLevel
                     }
+                    onTakeProfit={() => {
+                      document
+                        .getElementById("today-execution")
+                        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    }}
                   />
                 ) : null}
               </>
@@ -1093,6 +1098,7 @@ export default function HomeDecisionScreen({
                 />
               ) : null}
               {!verdictPresentation.tradingLocked || brokerStepResolved ? (
+                <div id="today-execution">
                 <TodayExecutionPanel
                   hero={todayHeroResolved}
                   portfolioValue={portfolioValue ?? 0}
@@ -1112,6 +1118,7 @@ export default function HomeDecisionScreen({
                   holdTrimProcessing={processingHoldTrim}
                   onExecuted={handleExecuted}
                 />
+                </div>
               ) : null}
               <TodayDetailsAccordion>
                 <OperatingManualStrip
