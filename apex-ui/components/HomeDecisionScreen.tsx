@@ -22,7 +22,7 @@ import {
 } from "@/components/dailyLoop/DecisionDepthSections";
 import TodayExecutionPanel from "@/components/dailyLoop/TodayExecutionPanel";
 import TodayMonitorStrip from "@/components/dailyLoop/TodayMonitorStrip";
-import TodayTrustStrip from "@/components/dailyLoop/TodayTrustStrip";
+import TodayPortfolioSummary from "@/components/dailyLoop/TodayPortfolioSummary";
 import ResearchTodayHandoff from "@/components/research/ResearchTodayHandoff";
 import VerdictCanvas from "@/components/dailyLoop/VerdictCanvas";
 import TodayBelowFold from "@/components/dailyLoop/belowFold/TodayBelowFold";
@@ -45,7 +45,6 @@ import {
 import { isSacredCoreSymbol } from "@/services/portfolio/allocationPolicy";
 import { buildSectorCapSummary } from "@/services/portfolio/sectorCapPolicy";
 import { useMorningBrief } from "@/lib/useMorningBrief";
-import TodayPortfolioHoldings from "@/components/dailyLoop/TodayPortfolioHoldings";
 import TodayProgressStrip from "@/components/dailyLoop/TodayProgressStrip";
 import WeeklyReviewStrip from "@/components/dailyLoop/WeeklyReviewStrip";
 import LastClosedTrustBlock from "@/components/dailyLoop/LastClosedTrustBlock";
@@ -761,6 +760,81 @@ export default function HomeDecisionScreen({
     capitalDecision.explorePipelineSummary,
   );
 
+  const showPortfolioSummary =
+    connectionStatus === "CONNECTED" ||
+    connectionStatus === "TOKEN_EXPIRED" ||
+    fundsSynced ||
+    displayPortfolioHoldings.length > 0;
+
+  const portfolioSummaryProps = useMemo(
+    () => ({
+      trust: {
+        connectionStatus,
+        marginAvailable: availableCash,
+        ledgerCash,
+        collateral,
+        portfolioValue: displayPortfolioValue ?? portfolioValue,
+        totalCapital:
+          totalCapital ??
+          ((displayPortfolioValue ?? portfolioValue) !== undefined &&
+          ledgerCash !== undefined
+            ? (displayPortfolioValue ?? portfolioValue)! + ledgerCash
+            : undefined),
+        openPnl: resolvedOpenPnl,
+        portfolioDayPnl: liveDayPnl,
+        positionsBreakdown: livePositionsBreakdown,
+        lastSyncedAt: liveLastSyncedAt,
+        portfolioStale,
+        pollError: livePollError,
+        breakdownLoading,
+        isPolling: livePnlPolling,
+        fundsLoading,
+        fundsSynced,
+        fundsSyncError,
+        proofHref,
+      },
+      holdings: {
+        holdings: displayPortfolioHoldings,
+        totalValue: displayPortfolioValue,
+        totalPnl: displayPortfolioTotalPnl,
+        stale: portfolioStale,
+        loading:
+          portfolioLoading &&
+          displayPortfolioHoldings.length === 0 &&
+          connectionStatus === "CONNECTED",
+        showEmptyWhenSynced:
+          !portfolioLoading &&
+          displayPortfolioHoldings.length === 0 &&
+          (connectionStatus === "CONNECTED" ||
+            connectionStatus === "TOKEN_EXPIRED"),
+      },
+    }),
+    [
+      availableCash,
+      breakdownLoading,
+      collateral,
+      connectionStatus,
+      displayPortfolioHoldings,
+      displayPortfolioTotalPnl,
+      displayPortfolioValue,
+      fundsLoading,
+      fundsSynced,
+      fundsSyncError,
+      ledgerCash,
+      liveDayPnl,
+      liveLastSyncedAt,
+      livePollError,
+      livePnlPolling,
+      livePositionsBreakdown,
+      portfolioLoading,
+      portfolioStale,
+      portfolioValue,
+      proofHref,
+      resolvedOpenPnl,
+      totalCapital,
+    ],
+  );
+
   const showTodayVerdict = isCapitalDeployment || (isExplore && !isExploreEmpty);
 
   return (
@@ -805,6 +879,9 @@ export default function HomeDecisionScreen({
                   portfolioDayPnl={liveDayPnl}
                   consecutiveLossDays={consecutiveLossDays}
                 />
+                {showPortfolioSummary ? (
+                  <TodayPortfolioSummary {...portfolioSummaryProps} />
+                ) : null}
                 {displayPortfolioHoldings.length > 0 ? (
                   <SectorCapStrip summary={sectorCapSummary} compact />
                 ) : null}
@@ -830,6 +907,10 @@ export default function HomeDecisionScreen({
                   No watchlist yet. Check Research or come back after the next market scan.
                 </p>
               </section>
+            ) : null}
+
+            {!showTodayVerdict && showPortfolioSummary ? (
+              <TodayPortfolioSummary {...portfolioSummaryProps} />
             ) : null}
 
             {isRefreshing ? (
@@ -873,49 +954,6 @@ export default function HomeDecisionScreen({
                 />
               ) : null}
               <TodayDetailsAccordion>
-                <TodayTrustStrip
-                  connectionStatus={connectionStatus}
-                  marginAvailable={availableCash}
-                  ledgerCash={ledgerCash}
-                  collateral={collateral}
-                  portfolioValue={displayPortfolioValue ?? portfolioValue}
-                  totalCapital={
-                    totalCapital ??
-                    ((displayPortfolioValue ?? portfolioValue) !== undefined &&
-                    ledgerCash !== undefined
-                      ? (displayPortfolioValue ?? portfolioValue)! + ledgerCash
-                      : undefined)
-                  }
-                  openPnl={resolvedOpenPnl}
-                  portfolioDayPnl={liveDayPnl}
-                  positionsBreakdown={livePositionsBreakdown}
-                  lastSyncedAt={liveLastSyncedAt}
-                  portfolioStale={portfolioStale}
-                  pollError={livePollError}
-                  breakdownLoading={breakdownLoading}
-                  isPolling={livePnlPolling}
-                  fundsLoading={fundsLoading}
-                  fundsSynced={fundsSynced}
-                  fundsSyncError={fundsSyncError}
-                  proofHref={proofHref}
-                />
-                <TodayPortfolioHoldings
-                  holdings={displayPortfolioHoldings}
-                  totalValue={displayPortfolioValue}
-                  totalPnl={displayPortfolioTotalPnl}
-                  stale={portfolioStale}
-                  loading={
-                    portfolioLoading &&
-                    displayPortfolioHoldings.length === 0 &&
-                    connectionStatus === "CONNECTED"
-                  }
-                  showEmptyWhenSynced={
-                    !portfolioLoading &&
-                    displayPortfolioHoldings.length === 0 &&
-                    (connectionStatus === "CONNECTED" ||
-                      connectionStatus === "TOKEN_EXPIRED")
-                  }
-                />
                 <TodayProgressStrip
                   portfolioDayPnl={liveDayPnl}
                   trustScore={trustScore}
@@ -1007,49 +1045,6 @@ export default function HomeDecisionScreen({
           {isExplore && !isExploreEmpty ? (
             <div className="mb-6">
               <TodayDetailsAccordion>
-                <TodayTrustStrip
-                  connectionStatus={connectionStatus}
-                  marginAvailable={availableCash}
-                  ledgerCash={ledgerCash}
-                  collateral={collateral}
-                  portfolioValue={displayPortfolioValue ?? portfolioValue}
-                  totalCapital={
-                    totalCapital ??
-                    ((displayPortfolioValue ?? portfolioValue) !== undefined &&
-                    ledgerCash !== undefined
-                      ? (displayPortfolioValue ?? portfolioValue)! + ledgerCash
-                      : undefined)
-                  }
-                  openPnl={resolvedOpenPnl}
-                  portfolioDayPnl={liveDayPnl}
-                  positionsBreakdown={livePositionsBreakdown}
-                  lastSyncedAt={liveLastSyncedAt}
-                  portfolioStale={portfolioStale}
-                  pollError={livePollError}
-                  breakdownLoading={breakdownLoading}
-                  isPolling={livePnlPolling}
-                  fundsLoading={fundsLoading}
-                  fundsSynced={fundsSynced}
-                  fundsSyncError={fundsSyncError}
-                  proofHref={proofHref}
-                />
-                <TodayPortfolioHoldings
-                  holdings={displayPortfolioHoldings}
-                  totalValue={displayPortfolioValue}
-                  totalPnl={displayPortfolioTotalPnl}
-                  stale={portfolioStale}
-                  loading={
-                    portfolioLoading &&
-                    displayPortfolioHoldings.length === 0 &&
-                    connectionStatus === "CONNECTED"
-                  }
-                  showEmptyWhenSynced={
-                    !portfolioLoading &&
-                    displayPortfolioHoldings.length === 0 &&
-                    (connectionStatus === "CONNECTED" ||
-                      connectionStatus === "TOKEN_EXPIRED")
-                  }
-                />
                 <TodayProgressStrip
                   portfolioDayPnl={liveDayPnl}
                   trustScore={trustScore}

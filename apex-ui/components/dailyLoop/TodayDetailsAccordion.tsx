@@ -19,7 +19,7 @@ export default function TodayDetailsAccordion({
         <span className="inline-flex items-center gap-2">
           Details
           <span className="text-xs font-normal text-apex-muted/60 group-open:hidden">
-            Portfolio · progress · depth
+            Progress · monitor · depth
           </span>
         </span>
       </summary>
