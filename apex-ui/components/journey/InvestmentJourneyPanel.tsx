@@ -258,16 +258,12 @@ export default function InvestmentJourneyPanel({
     return null;
   }
 
-  if (portfolioDataStale && !journey) {
-    return (
-      <section
-        className={`rounded-xl border border-amber-500/20 bg-amber-500/[0.06] px-4 py-3 ${className}`.trim()}
-        aria-label="Investment journey paused"
-      >
-        <p className="text-sm text-amber-100/90">{JOURNEY_COPY.stalePlanBlocked}</p>
-      </section>
-    );
-  }
+  const stalePlanBanner =
+    portfolioDataStale && !journey ? (
+      <p className="mb-3 rounded-lg border border-amber-500/20 bg-amber-500/[0.06] px-3 py-2 text-xs leading-relaxed text-amber-100/90">
+        {JOURNEY_COPY.stalePlanWarning}
+      </p>
+    ) : null;
 
   if (!journey && !apexSuggested) {
     return null;
@@ -279,6 +275,7 @@ export default function InvestmentJourneyPanel({
         className={`rounded-xl border border-apex-border/20 bg-white/[0.02] px-4 py-4 ${className}`.trim()}
         aria-label="Loading investment journey"
       >
+        {stalePlanBanner}
         <p className="text-xs font-medium uppercase tracking-[0.12em] text-apex-muted">
           {JOURNEY_COPY.panelTitle}
         </p>
@@ -293,6 +290,7 @@ export default function InvestmentJourneyPanel({
         className={`rounded-xl border border-amber-500/15 bg-amber-500/[0.04] px-4 py-4 ${className}`.trim()}
         aria-label="Investment journey unavailable"
       >
+        {stalePlanBanner}
         <p className="text-sm text-apex-text/90">{JOURNEY_COPY.insufficientData}</p>
       </section>
     );
@@ -305,6 +303,7 @@ export default function InvestmentJourneyPanel({
           className={`rounded-xl border border-amber-500/15 bg-amber-500/[0.04] px-4 py-4 ${className}`.trim()}
           aria-label="Investment journey unavailable"
         >
+          {stalePlanBanner}
           <p className="text-sm text-apex-text/90">{JOURNEY_COPY.insufficientData}</p>
         </section>
       );
@@ -321,6 +320,7 @@ export default function InvestmentJourneyPanel({
         className={`${INFOGRAPHIC_CARD} ${className}`.trim()}
         aria-label="Chart-backed investment journey"
       >
+        {stalePlanBanner}
         <JourneyPatienceCallout
           patienceUntil={chartPlan.suggestedTime.patienceUntil}
           trustLine={JOURNEY_COPY.trustIndicatorsLine}
@@ -498,6 +498,11 @@ export default function InvestmentJourneyPanel({
       className={`${INFOGRAPHIC_CARD} ${className}`.trim()}
       aria-label="Investment journey progress"
     >
+      {portfolioDataStale ? (
+        <p className="mb-3 rounded-lg border border-amber-500/20 bg-amber-500/[0.06] px-3 py-2 text-xs leading-relaxed text-amber-100/90">
+          {JOURNEY_COPY.stalePlanWarning}
+        </p>
+      ) : null}
       {progress.patienceUntilLabel ? (
         <JourneyPatienceCallout
           patienceUntil={progress.patienceUntilLabel}
