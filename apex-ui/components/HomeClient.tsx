@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ConnectZerodhaCard from "./ConnectZerodhaCard";
 import HomeDecisionScreen from "./HomeDecisionScreen";
+import KiteConnectDisciplineCard from "@/components/onboarding/KiteConnectDisciplineCard";
 import ReceiptProofPanel from "@/components/receipts/ReceiptProofPanel";
 import FinancialProfileSetup from "./FinancialProfileSetup";
 import InvestmentStyleSetup from "@/components/onboarding/InvestmentStyleSetup";
@@ -44,6 +45,7 @@ import { usePremiumTier } from "@/lib/usePremiumTier";
 import PremiumFeatureGate from "@/components/dailyLoop/PremiumFeatureGate";
 import PremiumTrialOfferCard from "@/components/subscription/PremiumTrialOfferCard";
 import FirstRunStrip from "@/components/dailyLoop/FirstRunStrip";
+import { KITE_CONNECT_DISCIPLINE } from "@/lib/gtm/kiteConnectDisciplineCopy";
 import { buildFirstRunProgress } from "@/lib/onboarding/firstRun";
 import type { PortfolioApiResponse } from "@/types/portfolioApi";
 import { recordVisit, saveCachedPortfolio } from "@/lib/portfolioCache";
@@ -218,7 +220,7 @@ export default function HomeClient({
   const fundsRequestRef = useRef(0);
   const [brokerMessage, setBrokerMessage] = useState<string | null>(
     zerodhaNotice === "connected"
-      ? "Zerodha connected — syncing your portfolio now."
+      ? KITE_CONNECT_DISCIPLINE.successSyncing
       : zerodhaError ?? null,
   );
   const greeting = useGreeting(userName);
@@ -230,7 +232,7 @@ export default function HomeClient({
 
     if (notice === "connected") {
       setConnectionStatus("CONNECTED");
-      setBrokerMessage("Zerodha connected — syncing your portfolio now.");
+      setBrokerMessage(KITE_CONNECT_DISCIPLINE.successSyncing);
       setPortfolioError(null);
     } else if (error) {
       setBrokerMessage(decodeURIComponent(error));
@@ -454,7 +456,11 @@ export default function HomeClient({
 
       if (data.status === "OK" && data.holdings.length > 0) {
         setConnectionStatus("CONNECTED");
-        setBrokerMessage(null);
+        setBrokerMessage((current) =>
+          current?.includes("syncing") || current?.includes("connected")
+            ? KITE_CONNECT_DISCIPLINE.successSynced
+            : current,
+        );
         setPortfolioError(null);
       } else if (data.status === "TOKEN_EXPIRED") {
         setConnectionStatus("TOKEN_EXPIRED");
@@ -1089,9 +1095,10 @@ export default function HomeClient({
       ) : null}
 
       {showBrokerSuccess ? (
-        <ApexCard hover={false} padding="compact" className="border-emerald-500/20">
-          <ApexBody className="text-emerald-200/90">{brokerMessage}</ApexBody>
-        </ApexCard>
+        <KiteConnectDisciplineCard
+          syncMessage={brokerMessage}
+          onDismiss={() => setBrokerMessage(null)}
+        />
       ) : null}
 
       {proofReceipt ? <ReceiptProofPanel receipt={proofReceipt} /> : null}

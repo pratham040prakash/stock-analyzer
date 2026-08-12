@@ -57,6 +57,8 @@ const keyModules = [
   "services/subscription/conversionFunnel.ts",
   "lib/supabase/migrationHealth.ts",
   "lib/gtm/waitDayBrandCopy.ts",
+  "lib/gtm/kiteConnectDisciplineCopy.ts",
+  "components/onboarding/KiteConnectDisciplineCard.tsx",
 ];
 
 for (const relative of keyModules) {
@@ -99,5 +101,10 @@ console.log("--- T4a (Wait day GTM) ---");
 console.log("Brand copy: lib/gtm/waitDayBrandCopy.ts");
 console.log("Landing + OG: components/landing/LandingHero.tsx, app/page.tsx");
 console.log("In-app: components/you/HowApexWorksClient.tsx\n");
+
+console.log("--- T4b (Kite connect discipline) ---");
+console.log("Copy: lib/gtm/kiteConnectDisciplineCopy.ts");
+console.log("Connect card: components/ConnectZerodhaCard.tsx");
+console.log("Post-connect welcome: components/onboarding/KiteConnectDisciplineCard.tsx\n");
 
 process.exit(0);

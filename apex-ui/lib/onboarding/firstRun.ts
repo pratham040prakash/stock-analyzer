@@ -1,4 +1,5 @@
 import type { ConnectionStatus } from "@/lib/broker/zerodha";
+import { KITE_CONNECT_DISCIPLINE } from "@/lib/gtm/kiteConnectDisciplineCopy";
 
 export type FirstRunStepId = "connect" | "profile" | "style" | "today";
 
@@ -43,7 +44,7 @@ export function buildFirstRunProgress(input: {
     {
       id: "connect",
       label: "Connect Zerodha",
-      detail: "Read-only link to your real holdings and cash.",
+      detail: KITE_CONNECT_DISCIPLINE.firstRunConnectDetail,
       done: connectDone,
     },
     {

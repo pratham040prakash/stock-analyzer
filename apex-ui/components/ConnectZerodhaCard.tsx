@@ -1,3 +1,4 @@
+import { KITE_CONNECT_DISCIPLINE } from "@/lib/gtm/kiteConnectDisciplineCopy";
 import { ApexBody, ApexButton, ApexCard, ApexTitle } from "@/components/ui/apex";
 
 type Props = {
@@ -8,10 +9,10 @@ type Props = {
 };
 
 export default function ConnectZerodhaCard({
-  title = "Connect your portfolio",
-  description = "A secure link to Zerodha — read-only, nothing manual.",
-  buttonLabel = "Connect Zerodha",
-  subtext = "Takes less than 10 seconds",
+  title = KITE_CONNECT_DISCIPLINE.connectTitle,
+  description = KITE_CONNECT_DISCIPLINE.connectDescription,
+  buttonLabel = KITE_CONNECT_DISCIPLINE.connectButton,
+  subtext = KITE_CONNECT_DISCIPLINE.connectSubtext,
 }: Props) {
   return (
     <ApexCard>
@@ -24,8 +25,9 @@ export default function ConnectZerodhaCard({
 
       <ApexBody className="mt-3">{subtext}</ApexBody>
       <ul className="mt-4 space-y-1 text-xs text-apex-muted/70">
-        <li>Read-only — APEX never places trades without you.</li>
-        <li>Your login stays with Zerodha; we only sync holdings and cash.</li>
+        {KITE_CONNECT_DISCIPLINE.connectBullets.map((line) => (
+          <li key={line}>{line}</li>
+        ))}
       </ul>
     </ApexCard>
   );

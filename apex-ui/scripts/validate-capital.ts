@@ -76,6 +76,7 @@ import { runConversionFunnelSelfCheck } from "../services/subscription/conversio
 import { runTrialOfferRepositorySelfCheck } from "../services/subscription/trialOfferRepository";
 import { runMigrationHealthSelfCheck } from "../lib/supabase/migrationHealth";
 import { runWaitDayBrandCopySelfCheck } from "../lib/gtm/waitDayBrandCopy";
+import { runKiteConnectDisciplineCopySelfCheck } from "../lib/gtm/kiteConnectDisciplineCopy";
 
 runCapitalProjectionSelfCheck();
 runCapitalFinalStateSelfCheck();
@@ -152,3 +153,4 @@ runConversionFunnelSelfCheck();
 runTrialOfferRepositorySelfCheck();
 runMigrationHealthSelfCheck();
 runWaitDayBrandCopySelfCheck();
+runKiteConnectDisciplineCopySelfCheck();
