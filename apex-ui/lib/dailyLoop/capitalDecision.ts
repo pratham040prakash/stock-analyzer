@@ -168,6 +168,12 @@ function resolveCapitalStructure(input: CapitalDecisionInput): CapitalStructure 
 function resolveOverweightHoldings(
   input: CapitalDecisionInput,
 ): CapitalHoldingWeight[] {
+  const capital = resolveCapitalStructure(input);
+
+  if (capital.portfolioValue <= 0) {
+    return [];
+  }
+
   if (input.holdings?.length) {
     return input.holdings
       .filter((holding) => holding.weight > CONCENTRATION_LIMIT)
@@ -485,6 +491,7 @@ function resolveWaitContext(
   pick: StockPick | undefined,
   input: CapitalDecisionInput,
   isPrimary: boolean,
+  concentrationBlocked = false,
 ): WaitContext {
   const stage = resolveWaitStage(pick);
   const timing = waitTiming(stage);
@@ -501,7 +508,7 @@ function resolveWaitContext(
     };
   }
 
-  if (input.intent === "protect" && isPrimary) {
+  if (input.intent === "protect" && isPrimary && concentrationBlocked) {
     return {
       stage,
       reason: {
@@ -1230,7 +1237,7 @@ function buildGrowActions(
     const isPrimary = symbol === input.stock;
 
     if (hasConcentrationRisk) {
-      addAction(buildWaitAction(symbol, pick, input, isPrimary));
+      addAction(buildWaitAction(symbol, pick, input, isPrimary, true));
       continue;
     }
 
@@ -1292,8 +1299,9 @@ function buildWaitAction(
   pick: StockPick | undefined,
   input: CapitalDecisionInput,
   isPrimary: boolean,
+  concentrationBlocked = false,
 ): CapitalAction {
-  const context = resolveWaitContext(pick, input, isPrimary);
+  const context = resolveWaitContext(pick, input, isPrimary, concentrationBlocked);
 
   return {
     symbol,

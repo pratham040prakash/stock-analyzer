@@ -38,6 +38,10 @@ export const JOURNEY_COPY = {
   timeSuggestLead: "APEX suggests a wait window from the same candle backtrace — not a return promise.",
   timeSuggestUse: "Use APEX suggestion",
   timeAdjust: "Change wait time",
+  waitPreviewLead:
+    "Today says Wait — this path applies if entry confirms. No new trade until then.",
+  stalePlanBlocked:
+    "Refresh holdings to load a chart-backed path. Targets need fresh broker data.",
   timeTargetHint: "Override only if your plan differs from the chart-based estimate.",
   timeAmountLabel: "Duration",
   timeUnitLabel: "Unit",

@@ -4,6 +4,7 @@ import type {
   StoredInvestmentJourney,
 } from "@/types/investmentJourney";
 import { computeTargetByDate } from "@/lib/journey/journeyTimeTarget";
+import { normalizeJourneyPrices, repairStoredJourney } from "@/lib/journey/journeyPlanSanitize";
 
 const STORAGE_KEY = "apex_investment_journeys_v1";
 
@@ -19,7 +20,19 @@ function readAll(): StoredInvestmentJourney[] {
     }
 
     const parsed = JSON.parse(raw) as StoredInvestmentJourney[];
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    const repaired = parsed.map((journey) => repairStoredJourney(journey));
+    const changed = repaired.some(
+      (journey, index) => JSON.stringify(journey) !== JSON.stringify(parsed[index]),
+    );
+    if (changed) {
+      writeAll(repaired);
+    }
+
+    return repaired;
   } catch {
     return [];
   }
@@ -67,6 +80,10 @@ export function createJourney(
   },
 ): StoredInvestmentJourney {
   const startedAt = input.startedAt ?? new Date().toISOString().slice(0, 10);
+  const normalized = normalizeJourneyPrices({
+    entryPriceInr: input.entryPriceInr ?? input.targetPriceInr * 0.94,
+    targetPriceInr: input.targetPriceInr,
+  });
   const targetBy =
     input.targetDurationAmount && input.targetDurationUnit
       ? computeTargetByDate(
@@ -80,8 +97,8 @@ export function createJourney(
     id: input.id ?? `journey_${Date.now()}`,
     symbol: input.symbol.trim().toUpperCase(),
     horizon: input.horizon,
-    targetPriceInr: input.targetPriceInr,
-    entryPriceInr: input.entryPriceInr,
+    targetPriceInr: normalized.targetPriceInr,
+    entryPriceInr: normalized.entryPriceInr,
     investedAmountInr: input.investedAmountInr,
     startedAt,
     targetBy,

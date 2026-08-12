@@ -1,5 +1,9 @@
 import { computeStructureScore } from "@/services/market/structureEngine";
 import {
+  normalizeJourneyPrices,
+  sanitizeChartBackedJourneyPlan,
+} from "@/lib/journey/journeyPlanSanitize";
+import {
   suggestTimeTargetFromCandles,
   type JourneyTimeSuggestion,
 } from "@/lib/journey/journeyTimeTarget";
@@ -74,10 +78,11 @@ export function buildChartBackedJourneyPlan(
     return null;
   }
 
+  const lastClose = prices[prices.length - 1];
   const current =
     input.currentPriceInr && input.currentPriceInr > 0
-      ? input.currentPriceInr
-      : prices[prices.length - 1];
+      ? Math.max(input.currentPriceInr, lastClose * 0.85)
+      : lastClose;
 
   const structure = computeStructureScore(prices);
   const support = nearestSupportBelow(current, structure.supportLevels);
@@ -97,11 +102,19 @@ export function buildChartBackedJourneyPlan(
     target = roundInr(target);
   }
 
-  const entry = roundInr(support ?? current);
+  let entry = roundInr(support ?? current);
 
   if (target <= entry) {
-    target = roundInr(entry * 1.06);
+    target = roundInr(Math.max(entry * 1.06, current * 1.08));
   }
+
+  const normalized = normalizeJourneyPrices({
+    entryPriceInr: entry,
+    targetPriceInr: target,
+    currentPriceInr: current,
+  });
+  entry = normalized.entryPriceInr;
+  target = normalized.targetPriceInr;
 
   const horizon: JourneyHorizon = input.preferSwing ? "swing" : "long_term";
   const swingWeeks = horizon === "swing" ? 4 : undefined;
@@ -143,21 +156,24 @@ export function buildChartBackedJourneyPlan(
 
   facts.push(suggestedTime.rationale);
 
-  return {
-    symbol: input.symbol.trim().toUpperCase(),
-    horizon,
-    swingWeeks,
-    entryPriceInr: entry,
-    targetPriceInr: target,
-    supportLevelInr: support !== null ? roundInr(support) : null,
-    resistanceLevelInr: resistance !== null ? roundInr(resistance) : null,
-    lookbackDays,
-    structureScore: structure.structureScore,
-    backtraceSummary: facts.join(" "),
-    pathRationale,
-    activationLevelInr: input.activationLevelInr,
-    suggestedTime,
-  };
+  return sanitizeChartBackedJourneyPlan(
+    {
+      symbol: input.symbol.trim().toUpperCase(),
+      horizon,
+      swingWeeks,
+      entryPriceInr: entry,
+      targetPriceInr: target,
+      supportLevelInr: support !== null ? roundInr(support) : null,
+      resistanceLevelInr: resistance !== null ? roundInr(resistance) : null,
+      lookbackDays,
+      structureScore: structure.structureScore,
+      backtraceSummary: facts.join(" "),
+      pathRationale,
+      activationLevelInr: input.activationLevelInr,
+      suggestedTime,
+    },
+    current,
+  );
 }
 
 export function runBuildChartBackedJourneyPlanSelfCheck(): void {

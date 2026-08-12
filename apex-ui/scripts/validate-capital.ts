@@ -100,6 +100,7 @@ import { runBuildChartBackedJourneyPlanSelfCheck } from "../lib/journey/buildCha
 import { runJourneyBarStyleSelfCheck } from "../lib/journey/journeyBarStyle";
 import { runJourneyTimeTargetSelfCheck } from "../lib/journey/journeyTimeTarget";
 import { runJourneyStoreSelfCheck } from "../lib/journey/journeyStore";
+import { runJourneyPlanSanitizeSelfCheck } from "../lib/journey/journeyPlanSanitize";
 
 runCapitalProjectionSelfCheck();
 runCapitalFinalStateSelfCheck();
@@ -200,3 +201,4 @@ runBuildChartBackedJourneyPlanSelfCheck();
 runJourneyBarStyleSelfCheck();
 runJourneyTimeTargetSelfCheck();
 runJourneyStoreSelfCheck();
+runJourneyPlanSanitizeSelfCheck();

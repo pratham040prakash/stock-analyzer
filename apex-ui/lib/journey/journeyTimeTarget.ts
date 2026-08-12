@@ -13,6 +13,8 @@ export type JourneyTimeSuggestion = {
   totalDays: number;
   waitLabel: string;
   patienceUntil: string;
+  /** ISO date (YYYY-MM-DD) aligned with patienceUntil and waitLabel. */
+  targetByIso: string;
   rationale: string;
   medianHistoricalDays: number | null;
   movePctNeeded: number;
@@ -120,8 +122,8 @@ export function formatTimeRemaining(daysRemaining: number | null): string | null
   }
 
   const weeks = Math.round(daysRemaining / 7);
-  if (weeks < 8) {
-    return `${weeks} wk left`;
+  if (weeks <= 12) {
+    return weeks === 1 ? "1 wk left" : `${weeks} wk left`;
   }
 
   const months = Math.round(daysRemaining / 30);
@@ -244,9 +246,11 @@ export function suggestTimeTargetFromCandles(input: {
   lookbackDays?: number;
 }): JourneyTimeSuggestion {
   const anchor =
-    input.currentPriceInr && input.currentPriceInr > 0
-      ? input.currentPriceInr
-      : input.entryPriceInr;
+    input.entryPriceInr > 0
+      ? input.entryPriceInr
+      : input.currentPriceInr && input.currentPriceInr > 0
+        ? input.currentPriceInr
+        : input.targetPriceInr;
   const movePctNeeded = Math.max(
     1,
     Math.round(((input.targetPriceInr - anchor) / anchor) * 100),
@@ -269,16 +273,15 @@ export function suggestTimeTargetFromCandles(input: {
   } else {
     const fallback = suggestTimeTarget(input.horizon);
     const totalDays = durationToDays(fallback.amount, fallback.unit);
+    const startedAt = new Date().toISOString().slice(0, 10);
+    const targetByIso = computeTargetByDate(startedAt, fallback.amount, fallback.unit);
     return {
       amount: fallback.amount,
       unit: fallback.unit,
       totalDays,
       waitLabel: `Wait ~${formatTimeTargetLabel(fallback.amount, fallback.unit)}`,
-      patienceUntil: formatPatienceFromDuration(
-        new Date().toISOString().slice(0, 10),
-        fallback.amount,
-        fallback.unit,
-      ),
+      patienceUntil: formatPatienceUntil(targetByIso, totalDays),
+      targetByIso,
       rationale:
         input.horizon === "swing"
           ? "ESTIMATE · Swing path default — limited climb history in the backtrace."
@@ -291,17 +294,15 @@ export function suggestTimeTargetFromCandles(input: {
   const normalized = normalizeDaysToUnit(rawDays, input.horizon);
   const waitLabel = `Wait ~${formatTimeTargetLabel(normalized.amount, normalized.unit)}`;
   const startedAt = new Date().toISOString().slice(0, 10);
+  const targetByIso = computeTargetByDate(startedAt, normalized.amount, normalized.unit);
 
   return {
     amount: normalized.amount,
     unit: normalized.unit,
     totalDays: normalized.totalDays,
     waitLabel,
-    patienceUntil: formatPatienceFromDuration(
-      startedAt,
-      normalized.amount,
-      normalized.unit,
-    ),
+    patienceUntil: formatPatienceUntil(targetByIso, normalized.totalDays),
+    targetByIso,
     rationale,
     medianHistoricalDays: historicalMedian,
     movePctNeeded,
@@ -381,6 +382,14 @@ export function runJourneyTimeTargetSelfCheck(): void {
 
   if (!suggestion.patienceUntil.includes("Be patient until")) {
     throw new Error("Journey time target self-check failed: patience until");
+  }
+
+  if (suggestion.targetByIso !== computeTargetByDate(
+    new Date().toISOString().slice(0, 10),
+    suggestion.amount,
+    suggestion.unit,
+  )) {
+    throw new Error("Journey time target self-check failed: targetByIso");
   }
 
   const pct = computeTimeProgressPct(14, 28);

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { buildCapitalDecision } from "@/lib/dailyLoop/capitalDecision";
 import { resolveTodayHero, resolveTodayHeroDisplay, enrichTodayHeroWithSellTrim } from "@/lib/dailyLoop/todaySurface";
@@ -771,6 +772,7 @@ export default function HomeDecisionScreen({
       primarySymbol,
       growDecision,
       protectDecision,
+      openHoldingsCount: openPortfolioHoldings.length,
     });
   }, [
     growDecision,
@@ -779,6 +781,7 @@ export default function HomeDecisionScreen({
     protectDecision,
     renderIntent,
     verdictPresentation.verdict,
+    openPortfolioHoldings.length,
   ]);
 
   const verdictCanvasProps = useMemo(
@@ -950,6 +953,9 @@ export default function HomeDecisionScreen({
     )?.quantity;
   }, [openPortfolioHoldings, primarySymbol]);
 
+  const journeyBlockedByStale =
+    portfolioStale || dataFreshness.isStale || dataFreshness.suppressTrustScore;
+
   const journeyExploreSetup = capitalDecision.exploreSetups[0];
   const journeySymbol = useMemo(() => {
     if (isExplore && journeyExploreSetup?.symbol) {
@@ -1022,19 +1028,16 @@ export default function HomeDecisionScreen({
                 {openPortfolioHoldings.length > 0 ? (
                   <SectorCapStrip summary={sectorCapSummary} compact />
                 ) : null}
-                {isGrow && waitInsight ? (
+                {(isGrow || isProtect) && waitInsight ? (
                   <TodayWaitInsightCard insight={waitInsight} />
                 ) : null}
-                {isProtect ? (
-                  <>
-                    {waitInsight ? <TodayWaitInsightCard insight={waitInsight} /> : null}
-                    <CapitalDamsStrip
-                      portfolioValue={displayPortfolioValue}
-                      portfolioDayPnl={liveDayPnl}
-                      consecutiveLossDays={consecutiveLossDays}
-                      compact
-                    />
-                  </>
+                {isProtect && openPortfolioHoldings.length > 0 ? (
+                  <CapitalDamsStrip
+                    portfolioValue={displayPortfolioValue}
+                    portfolioDayPnl={liveDayPnl}
+                    consecutiveLossDays={consecutiveLossDays}
+                    compact
+                  />
                 ) : null}
                 {journeySymbol ? (
                   <InvestmentJourneyPanel
@@ -1044,6 +1047,7 @@ export default function HomeDecisionScreen({
                     dailyVerdict={verdictPresentation.verdict}
                     brokerStepCompleted={brokerStepCompleted}
                     compact={verdictPresentation.verdict === "wait"}
+                    portfolioDataStale={journeyBlockedByStale}
                     apexSuggested={journeyApexSuggested}
                     preferSwing={journeyPreferSwing}
                     activationLevelInr={
@@ -1069,8 +1073,15 @@ export default function HomeDecisionScreen({
                   APEX is scanning for ideas
                 </p>
                 <p className="mt-1 text-sm leading-snug text-apex-muted">
-                  No watchlist yet. Check Research or come back after the next market scan.
+                  No watchlist yet. Open Research to study symbols, or check back after
+                  the next market scan.
                 </p>
+                <Link
+                  href="/app/research"
+                  className="mt-3 inline-block text-sm font-medium text-sky-200 underline underline-offset-2 hover:text-white"
+                >
+                  Open Research →
+                </Link>
               </section>
             ) : null}
 

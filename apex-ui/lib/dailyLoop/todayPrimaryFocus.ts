@@ -26,9 +26,40 @@ export function buildAlignedWaitInsight(input: {
   primarySymbol?: string;
   growDecision: CapitalDecision;
   protectDecision: CapitalDecision;
+  openHoldingsCount?: number;
 }): TodayWaitInsight | null {
   if (input.intent === "explore") {
     return null;
+  }
+
+  if (input.intent === "protect" && input.openHoldingsCount === 0) {
+    const base = buildTodayWaitInsight({
+      intent: input.intent,
+      capitalDecision: input.protectDecision,
+    });
+
+    if (!base) {
+      return {
+        title: "Protect mode — cash only today",
+        symbol: input.primarySymbol,
+        blocker: "No open positions — capital stays in cash.",
+        unlock: "Trade when a setup confirms and risk limits allow.",
+        footnote: input.primarySymbol
+          ? `Watching ${input.primarySymbol} — no new risk until you hold a position to trim.`
+          : "No trim needed until you hold positions.",
+      };
+    }
+
+    return {
+      ...base,
+      title: "Protect mode — cash only today",
+      symbol: input.primarySymbol ?? base.symbol,
+      blocker: "No open positions — capital stays in cash.",
+      unlock: base.unlock || "Trade when a setup confirms and risk limits allow.",
+      footnote: input.primarySymbol
+        ? `Watching ${input.primarySymbol}. ${base.footnote ?? ""}`.trim()
+        : base.footnote,
+    };
   }
 
   const decision =
@@ -176,5 +207,17 @@ export function runTodayPrimaryFocusSelfCheck(): void {
 
   if (tradeInsight?.symbol !== "DIVISLAB") {
     throw new Error("Today primary focus self-check failed: trade align");
+  }
+
+  const cashProtect = buildAlignedWaitInsight({
+    intent: "protect",
+    primarySymbol: "DIVISLAB",
+    growDecision: grow,
+    protectDecision: protect,
+    openHoldingsCount: 0,
+  });
+
+  if (cashProtect?.blocker !== "No open positions — capital stays in cash.") {
+    throw new Error("Today primary focus self-check failed: cash protect");
   }
 }

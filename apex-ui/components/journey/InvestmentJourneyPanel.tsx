@@ -6,6 +6,7 @@ import JourneyTargetTrack from "@/components/journey/JourneyTargetTrack";
 import JourneyTimeTargetPicker from "@/components/journey/JourneyTimeTargetPicker";
 import { apiFetchJson } from "@/lib/api/clientFetch";
 import { buildJourneyProgress } from "@/lib/journey/buildJourneyProgress";
+import { isValidJourneyPlan } from "@/lib/journey/journeyPlanSanitize";
 import type { ChartBackedJourneyPlan } from "@/lib/journey/buildChartBackedJourneyPlan";
 import { JOURNEY_COPY } from "@/lib/journey/journeyCopy";
 import { formatTimeTargetLabel, suggestTimeTarget } from "@/lib/journey/journeyTimeTarget";
@@ -31,6 +32,8 @@ export type InvestmentJourneyPanelProps = {
   brokerStepCompleted?: boolean;
   compact?: boolean;
   className?: string;
+  /** Hide chart path when portfolio sync is stale — targets need fresh context. */
+  portfolioDataStale?: boolean;
   /** When true, panel loads chart backtrace and offers APEX path — not manual guesswork. */
   apexSuggested?: boolean;
   preferSwing?: boolean;
@@ -70,6 +73,7 @@ export default function InvestmentJourneyPanel({
   brokerStepCompleted = false,
   compact = false,
   className = "",
+  portfolioDataStale = false,
   apexSuggested = false,
   preferSwing = false,
   activationLevelInr,
@@ -88,6 +92,11 @@ export default function InvestmentJourneyPanel({
   const [timeAmount, setTimeAmount] = useState(4);
   const [timeUnit, setTimeUnit] = useState<JourneyTimeUnit>("weeks");
   const [formError, setFormError] = useState<string | null>(null);
+
+  const planStartIso = useMemo(
+    () => new Date().toISOString().slice(0, 10),
+    [],
+  );
 
   const reload = useCallback(() => {
     setJourney(getActiveJourneyForSymbol(symbol));
@@ -249,6 +258,17 @@ export default function InvestmentJourneyPanel({
     return null;
   }
 
+  if (portfolioDataStale && !journey) {
+    return (
+      <section
+        className={`rounded-xl border border-amber-500/20 bg-amber-500/[0.06] px-4 py-3 ${className}`.trim()}
+        aria-label="Investment journey paused"
+      >
+        <p className="text-sm text-amber-100/90">{JOURNEY_COPY.stalePlanBlocked}</p>
+      </section>
+    );
+  }
+
   if (!journey && !apexSuggested) {
     return null;
   }
@@ -279,6 +299,17 @@ export default function InvestmentJourneyPanel({
   }
 
   if (!journey && !showStartForm && chartPlan && planState === "ready") {
+    if (!isValidJourneyPlan(chartPlan)) {
+      return (
+        <section
+          className={`rounded-xl border border-amber-500/15 bg-amber-500/[0.04] px-4 py-4 ${className}`.trim()}
+          aria-label="Investment journey unavailable"
+        >
+          <p className="text-sm text-apex-text/90">{JOURNEY_COPY.insufficientData}</p>
+        </section>
+      );
+    }
+
     const previewPct = previewProgressPct(
       chartPlan.entryPriceInr,
       chartPlan.targetPriceInr,
@@ -293,7 +324,14 @@ export default function InvestmentJourneyPanel({
         <JourneyPatienceCallout
           patienceUntil={chartPlan.suggestedTime.patienceUntil}
           trustLine={JOURNEY_COPY.trustIndicatorsLine}
+          compact={compact}
         />
+
+        {dailyVerdict === "wait" && !brokerStepCompleted ? (
+          <p className="mt-2 text-xs leading-relaxed text-apex-muted/75">
+            {JOURNEY_COPY.waitPreviewLead}
+          </p>
+        ) : null}
 
         <JourneyTargetTrack
           className="mt-3"
@@ -312,22 +350,24 @@ export default function InvestmentJourneyPanel({
         />
 
         {!compact ? (
-          <p className="mt-3 text-xs leading-relaxed text-apex-muted/75">
-            {chartPlan.suggestedTime.rationale}
-          </p>
+          <>
+            <p className="mt-3 text-xs leading-relaxed text-apex-muted/75">
+              {chartPlan.suggestedTime.rationale}
+            </p>
+            <JourneyTimeTargetPicker
+              className="mt-4 border-t border-apex-border/10 pt-4"
+              amount={timeAmount}
+              unit={timeUnit}
+              startedAt={planStartIso}
+              suggestion={chartPlan.suggestedTime}
+              onChange={({ amount, unit }) => {
+                setTimeAmount(amount);
+                setTimeUnit(unit);
+              }}
+              compact={compact}
+            />
+          </>
         ) : null}
-
-        <JourneyTimeTargetPicker
-          className="mt-4 border-t border-apex-border/10 pt-4"
-          amount={timeAmount}
-          unit={timeUnit}
-          suggestion={chartPlan.suggestedTime}
-          onChange={({ amount, unit }) => {
-            setTimeAmount(amount);
-            setTimeUnit(unit);
-          }}
-          compact={compact}
-        />
 
         <div className="mt-4 flex flex-wrap gap-3">
           <button
@@ -416,6 +456,7 @@ export default function InvestmentJourneyPanel({
           className="mt-4"
           amount={timeAmount}
           unit={timeUnit}
+          startedAt={planStartIso}
           onChange={({ amount, unit }) => {
             setTimeAmount(amount);
             setTimeUnit(unit);
