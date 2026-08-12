@@ -16,16 +16,22 @@ export function useMorningBrief({ enabled, intent, refreshKey }: Options) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestRef = useRef(0);
+  const hasBriefRef = useRef(false);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (options?: { silent?: boolean }) => {
     if (!enabled) {
       setBrief(null);
       setError(null);
+      hasBriefRef.current = false;
       return;
     }
 
     const requestId = ++requestRef.current;
-    setLoading(true);
+    const silent = options?.silent ?? false;
+
+    if (!silent || !hasBriefRef.current) {
+      setLoading(true);
+    }
     setError(null);
 
     try {
@@ -43,16 +49,19 @@ export function useMorningBrief({ enabled, intent, refreshKey }: Options) {
       }
 
       if (!response.ok || !data?.brief) {
-        setError(data?.message ?? "Could not load morning brief.");
+        if (!silent || !hasBriefRef.current) {
+          setError(data?.message ?? "Could not load morning brief.");
+        }
         return;
       }
 
       setBrief(data.brief);
+      hasBriefRef.current = true;
       if (data.brief.failure_message) {
         setError(data.brief.failure_message);
       }
     } catch (loadError) {
-      if (requestId === requestRef.current) {
+      if (requestId === requestRef.current && (!silent || !hasBriefRef.current)) {
         setError(
           loadError instanceof Error
             ? loadError.message
@@ -67,7 +76,7 @@ export function useMorningBrief({ enabled, intent, refreshKey }: Options) {
   }, [enabled, intent]);
 
   useEffect(() => {
-    void refresh();
+    void refresh({ silent: hasBriefRef.current });
   }, [refresh, refreshKey]);
 
   return {

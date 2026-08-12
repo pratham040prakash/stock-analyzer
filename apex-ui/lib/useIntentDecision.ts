@@ -81,7 +81,10 @@ export function useIntentDecision({
   }, []);
 
   const fetchDecision = useCallback(
-    async (targetIntent: Intent, options?: { force?: boolean }) => {
+    async (
+      targetIntent: Intent,
+      options?: { force?: boolean; silent?: boolean },
+    ) => {
       if (!enabled) return;
 
       const cached = cacheRef.current[targetIntent];
@@ -93,7 +96,10 @@ export function useIntentDecision({
         return;
       }
 
-      if (intentRef.current === targetIntent) {
+      const keepVisibleWhileRefreshing =
+        Boolean(options?.silent && cached);
+
+      if (intentRef.current === targetIntent && !keepVisibleWhileRefreshing) {
         setIsRefreshing(true);
       }
 
@@ -118,7 +124,7 @@ export function useIntentDecision({
           onFetchedRef.current?.();
         }
       } catch {
-        if (intentRef.current === targetIntent) {
+        if (intentRef.current === targetIntent && !options?.silent) {
           setDecision(createLoadingDecision());
         }
       } finally {
@@ -130,9 +136,14 @@ export function useIntentDecision({
     [enabled],
   );
 
-  const refreshDecision = useCallback(() => {
-    delete cacheRef.current[intentRef.current];
-    void fetchDecision(intentRef.current, { force: true });
+  const refreshDecision = useCallback((options?: { silent?: boolean }) => {
+    if (!options?.silent) {
+      delete cacheRef.current[intentRef.current];
+    }
+    void fetchDecision(intentRef.current, {
+      force: true,
+      silent: options?.silent,
+    });
   }, [fetchDecision]);
 
   useEffect(() => {

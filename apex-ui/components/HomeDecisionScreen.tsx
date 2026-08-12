@@ -770,7 +770,7 @@ export default function HomeDecisionScreen({
 
             {isCapitalDeployment ? (
               <>
-                {morningBriefLoading ? (
+                {morningBriefLoading && !morningBrief ? (
                   <p className="text-xs text-apex-muted/60">Loading today&apos;s decision…</p>
                 ) : null}
                 {morningBriefError && !morningBrief ? (
@@ -1005,7 +1005,7 @@ export default function HomeDecisionScreen({
                   positions={monitorPositions}
                   openPnl={monitorStripOpenPnl}
                   liveTicksById={monitorLiveTicksById}
-                  loading={monitorLoading}
+                  loading={monitorLoading && monitorPositions.length === 0}
                   showWhenEmpty={monitorEnabled}
                 />
                 {morningBrief ? (

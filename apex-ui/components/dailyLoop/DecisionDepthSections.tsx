@@ -449,7 +449,7 @@ function ExploreMonitoringBlock({
       <div className="space-y-4">
         <StancePrimaryHeader decision={decision} />
 
-        {liveTriggersLoading ? (
+        {liveTriggersLoading && (!liveTriggers || liveTriggers.size === 0) ? (
           <p className="text-xs text-apex-muted/70">Refreshing live triggers…</p>
         ) : liveTriggers && liveTriggers.size > 0 ? (
           <p className="text-xs text-apex-muted/65">

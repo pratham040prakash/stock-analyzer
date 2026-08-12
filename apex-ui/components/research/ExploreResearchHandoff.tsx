@@ -9,7 +9,7 @@ type Props = {
 };
 
 export default function ExploreResearchHandoff({ triggers, loading }: Props) {
-  if (loading) {
+  if (loading && triggers.length === 0) {
     return <p className="text-sm text-apex-muted/70">Loading explore triggers…</p>;
   }
 

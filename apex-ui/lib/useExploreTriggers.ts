@@ -25,15 +25,21 @@ export function useExploreTriggers({
   const [triggers, setTriggers] = useState<ExploreLiveTrigger[]>([]);
   const [loading, setLoading] = useState(false);
   const requestRef = useRef(0);
+  const hasTriggersRef = useRef(false);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (options?: { silent?: boolean }) => {
     if (!enabled || picks.length === 0) {
       setTriggers([]);
+      hasTriggersRef.current = false;
       return;
     }
 
     const requestId = ++requestRef.current;
-    setLoading(true);
+    const silent = options?.silent ?? false;
+
+    if (!silent || !hasTriggersRef.current) {
+      setLoading(true);
+    }
 
     try {
       const res = await apiFetch("/api/explore/triggers", {
@@ -48,16 +54,24 @@ export function useExploreTriggers({
       }
 
       if (!res.ok || !data) {
-        setTriggers([]);
+        if (!silent) {
+          setTriggers([]);
+          hasTriggersRef.current = false;
+        }
         return;
       }
 
-      setTriggers(data.triggers ?? []);
+      const nextTriggers = data.triggers ?? [];
+      setTriggers(nextTriggers);
+      hasTriggersRef.current = nextTriggers.length > 0;
     } catch {
       if (requestId !== requestRef.current) {
         return;
       }
-      setTriggers([]);
+      if (!silent) {
+        setTriggers([]);
+        hasTriggersRef.current = false;
+      }
     } finally {
       if (requestId === requestRef.current) {
         setLoading(false);
@@ -75,7 +89,7 @@ export function useExploreTriggers({
     }
 
     const timer = window.setInterval(() => {
-      void refresh();
+      void refresh({ silent: true });
     }, REFRESH_MS);
 
     return () => {

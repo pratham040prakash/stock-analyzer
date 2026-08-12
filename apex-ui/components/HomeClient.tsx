@@ -732,7 +732,7 @@ export default function HomeClient({
     try {
       console.log("Tab active → refreshing data");
       await loadPortfolio({ silent: true });
-      refreshDecision();
+      refreshDecision({ silent: true });
       await loadDailyInsight();
       await loadFunds({ silent: true });
       await loadDecisionHistory();
@@ -897,8 +897,7 @@ export default function HomeClient({
   const refreshPortfolioSilent = useCallback(() => {
     void loadPortfolio({ silent: true });
     void loadFunds({ silent: true });
-    refreshDecision();
-  }, [loadPortfolio, loadFunds, refreshDecision]);
+  }, [loadPortfolio, loadFunds]);
 
   usePortfolioPoll({
     enabled: livePortfolioPollEnabled,

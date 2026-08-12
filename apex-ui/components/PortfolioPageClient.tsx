@@ -129,8 +129,10 @@ export default function PortfolioPageClient({
     }
   }, []);
 
-  const loadNewCapital = useCallback(async () => {
-    setNewCapitalLoading(true);
+  const loadNewCapital = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) {
+      setNewCapitalLoading(true);
+    }
 
     try {
       const response = await apiFetch("/api/capital/new", { cache: "no-store" });
@@ -140,7 +142,9 @@ export default function PortfolioPageClient({
         setNewCapital(data.workflow);
       }
     } finally {
-      setNewCapitalLoading(false);
+      if (!options?.silent) {
+        setNewCapitalLoading(false);
+      }
     }
   }, []);
 
@@ -171,7 +175,7 @@ export default function PortfolioPageClient({
     await Promise.all([
       loadOverview({ silent }),
       loadFunds({ silent: silent || fundsSynced }),
-      loadNewCapital(),
+      loadNewCapital({ silent }),
       loadThesisWatch(),
       loadPortfolioProof(),
     ]);
