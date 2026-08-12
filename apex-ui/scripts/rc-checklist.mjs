@@ -147,7 +147,7 @@ console.log("--- T5a (Scale path metrics) ---");
 console.log("Health: GET /api/health → scale_path (paying subs, trials, T4-6 targets)");
 console.log("T4-6 (15k paying / ARR) is a business milestone — not a deploy gate\n");
 
-console.log("--- T6–T8 (Today trust UX) ---");
+console.log("--- T6–T9 (Today trust UX) ---");
 console.log("One-scroll Today: lib/dailyLoop/todayPrimaryFocus.ts, todayDataFreshness.ts");
 console.log("Sync recovery: lib/dailyLoop/todaySyncRecoveryCopy.ts");
 console.log("Auto-retry: lib/dailyLoop/todaySyncAutoRetry.ts");

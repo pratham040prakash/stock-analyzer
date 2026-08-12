@@ -10,6 +10,7 @@ export const TODAY_SYNC_RECOVERY = {
   fundsSyncDetailSuffix: "Refresh to retry, or reconnect if the issue persists.",
   autoRetryLabel: "Refreshing portfolio…",
   autoRetryDetail: "Checking for a fresh sync before showing a warning.",
+  focusRetryDetail: "Tab active again — checking for fresh portfolio data.",
 } as const;
 
 export function runTodaySyncRecoveryCopySelfCheck(): void {

@@ -8,6 +8,7 @@ type Props = {
   onSoftRefresh?: () => void;
   refreshing?: boolean;
   autoRetryInProgress?: boolean;
+  autoRetryDetail?: string;
 };
 
 export default function TodaySyncStatusBanner({
@@ -15,6 +16,7 @@ export default function TodaySyncStatusBanner({
   onSoftRefresh,
   refreshing = false,
   autoRetryInProgress = false,
+  autoRetryDetail,
 }: Props) {
   if (autoRetryInProgress) {
     return (
@@ -27,7 +29,7 @@ export default function TodaySyncStatusBanner({
           {TODAY_SYNC_RECOVERY.autoRetryLabel}
         </p>
         <p className="mt-1 text-xs leading-snug text-apex-muted/75">
-          {TODAY_SYNC_RECOVERY.autoRetryDetail}
+          {autoRetryDetail ?? TODAY_SYNC_RECOVERY.autoRetryDetail}
         </p>
       </div>
     );

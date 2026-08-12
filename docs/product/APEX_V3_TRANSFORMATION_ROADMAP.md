@@ -215,6 +215,7 @@ This roadmap is the **only active execution track** until:
 | **T6** | Today one-scroll UX | Verdict-first layout, unified stale state, mode insights | ✅ Shipped |
 | **T7** | Sync recovery on Today | Soft refresh before reconnect on stale banner | ✅ Shipped |
 | **T8** | Stale auto-retry on mount | Silent portfolio refresh before stale warning | ✅ Shipped |
+| **T9** | Stale retry on focus + pull | Tab return and pull-to-refresh reuse sync recovery | ✅ Shipped |
 
 **Valuation narrative (ESTIMATE):** Retention SaaS on broker-connected cohort + trust moat (receipts, broker truth).
 
@@ -310,3 +311,4 @@ This roadmap is the **only active execution track** until:
 | 1.2 | 2026-08-12 | T5a shipped: `scale_path` on `/api/health`, release index |
 | 1.3 | 2026-08-12 | T6–T7 shipped: Today one-scroll UX + sync recovery banner |
 | 1.4 | 2026-08-12 | T8 shipped: silent stale auto-retry on Today mount |
+| 1.5 | 2026-08-12 | T9 shipped: stale auto-retry on tab focus and pull-to-refresh |

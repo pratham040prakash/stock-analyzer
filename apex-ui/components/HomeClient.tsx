@@ -6,6 +6,8 @@ import ConnectZerodhaCard from "./ConnectZerodhaCard";
 import HomeDecisionScreen from "./HomeDecisionScreen";
 import { buildTodayFocusPreviews } from "@/lib/dailyLoop/todayFocusPreview";
 import { shouldAttemptStaleAutoRetry } from "@/lib/dailyLoop/todaySyncAutoRetry";
+import type { StaleAutoRetryTrigger } from "@/lib/dailyLoop/todaySyncAutoRetry";
+import { TODAY_SYNC_RECOVERY } from "@/lib/dailyLoop/todaySyncRecoveryCopy";
 import KiteConnectDisciplineCard from "@/components/onboarding/KiteConnectDisciplineCard";
 import ReceiptProofPanel from "@/components/receipts/ReceiptProofPanel";
 import FinancialProfileSetup from "./FinancialProfileSetup";
@@ -878,21 +880,6 @@ export default function HomeClient({
     setPortfolioLoading(false);
   }, [initialPortfolio]);
 
-  useEffect(() => {
-    if (!configured || !user || authLoading) return;
-
-    const onVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        void refreshDashboard();
-      }
-    };
-
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    return () => {
-      document.removeEventListener("visibilitychange", onVisibilityChange);
-    };
-  }, [configured, user, authLoading, refreshDashboard]);
-
   const livePortfolioPollEnabled =
     shouldFetchPortfolio && connectionStatus === "CONNECTED";
 
@@ -934,45 +921,105 @@ export default function HomeClient({
     operatingProfileComplete;
 
   const [autoSyncRetrying, setAutoSyncRetrying] = useState(false);
-  const staleAutoRetryAttemptedRef = useRef(false);
+  const [autoSyncRetryDetail, setAutoSyncRetryDetail] = useState<
+    string | undefined
+  >();
+  const staleMountAttemptedRef = useRef(false);
+  const staleLastAutoRetryAtRef = useRef<number | null>(null);
+  const portfolioStaleRef = useRef(false);
 
   useEffect(() => {
-    if (portfolioData?.stale !== true) {
-      staleAutoRetryAttemptedRef.current = false;
-      return;
-    }
+    portfolioStaleRef.current = portfolioData?.stale === true;
+  }, [portfolioData?.stale]);
 
-    if (
-      !shouldAttemptStaleAutoRetry({
-        enabled: showHomeDecision && shouldFetchPortfolio,
-        connectionStatus,
-        portfolioStale: portfolioData.stale === true,
-        alreadyAttempted: staleAutoRetryAttemptedRef.current,
-      })
-    ) {
-      return;
-    }
+  const staleAutoRetryEnabled = showHomeDecision && shouldFetchPortfolio;
 
-    staleAutoRetryAttemptedRef.current = true;
-    setAutoSyncRetrying(true);
+  const runStaleAutoRetry = useCallback(
+    async (trigger: StaleAutoRetryTrigger): Promise<boolean> => {
+      if (
+        !shouldAttemptStaleAutoRetry({
+          enabled: staleAutoRetryEnabled,
+          connectionStatus,
+          portfolioStale: portfolioStaleRef.current,
+          trigger,
+          mountAttempted: staleMountAttemptedRef.current,
+          lastAttemptAt: staleLastAutoRetryAtRef.current,
+        })
+      ) {
+        return false;
+      }
 
-    void (async () => {
+      if (trigger === "mount") {
+        staleMountAttemptedRef.current = true;
+      }
+
+      staleLastAutoRetryAtRef.current = Date.now();
+      setAutoSyncRetryDetail(
+        trigger === "focus" ? TODAY_SYNC_RECOVERY.focusRetryDetail : undefined,
+      );
+      setAutoSyncRetrying(true);
+
       try {
         await loadPortfolio({ silent: true });
         await loadFunds({ silent: true });
         refreshDecision();
+        return true;
       } finally {
         setAutoSyncRetrying(false);
+        setAutoSyncRetryDetail(undefined);
       }
-    })();
+    },
+    [
+      connectionStatus,
+      loadFunds,
+      loadPortfolio,
+      refreshDecision,
+      staleAutoRetryEnabled,
+    ],
+  );
+
+  useEffect(() => {
+    if (portfolioData?.stale !== true) {
+      staleMountAttemptedRef.current = false;
+      return;
+    }
+
+    void runStaleAutoRetry("mount");
+  }, [portfolioData?.stale, runStaleAutoRetry]);
+
+  useEffect(() => {
+    if (!configured || !user || authLoading) {
+      return;
+    }
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== "visible") {
+        return;
+      }
+
+      if (portfolioStaleRef.current && connectionStatus === "CONNECTED") {
+        void runStaleAutoRetry("focus").then((attempted) => {
+          if (!attempted) {
+            void refreshDashboard();
+          }
+        });
+        return;
+      }
+
+      void refreshDashboard();
+    };
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, [
+    authLoading,
+    configured,
     connectionStatus,
-    loadFunds,
-    loadPortfolio,
-    portfolioData?.stale,
-    refreshDecision,
-    shouldFetchPortfolio,
-    showHomeDecision,
+    refreshDashboard,
+    runStaleAutoRetry,
+    user,
   ]);
 
   const visiblePortfolioHoldings = useMemo(
@@ -1082,9 +1129,21 @@ export default function HomeClient({
 
   const pullToRefreshEnabled =
     showGuidance && !isOnboarding && !isCompletingOAuth && Boolean(user);
+
+  const handlePullRefresh = useCallback(async () => {
+    if (portfolioStaleRef.current && connectionStatus === "CONNECTED") {
+      const attempted = await runStaleAutoRetry("pull");
+      if (attempted) {
+        return;
+      }
+    }
+
+    await refreshDashboard();
+  }, [connectionStatus, refreshDashboard, runStaleAutoRetry]);
+
   const { pullDistance, isRefreshing: pullRefreshing } = usePullToRefresh({
     enabled: pullToRefreshEnabled,
-    onRefresh: refreshDashboard,
+    onRefresh: handlePullRefresh,
   });
   const showPullIndicator = pullDistance > 0 || pullRefreshing;
 
@@ -1263,6 +1322,7 @@ export default function HomeClient({
               onBrokerDataRefresh={refreshPortfolio}
               brokerDataRefreshing={portfolioLoading}
               autoSyncRetrying={autoSyncRetrying}
+              autoSyncRetryDetail={autoSyncRetryDetail}
               onDisciplineCommitted={() => {
                 void loadDecisionHistory();
                 void loadReceiptContext();

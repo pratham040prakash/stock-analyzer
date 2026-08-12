@@ -130,6 +130,7 @@ export type HomeDecisionScreenProps = {
   onBrokerDataRefresh?: () => void;
   brokerDataRefreshing?: boolean;
   autoSyncRetrying?: boolean;
+  autoSyncRetryDetail?: string;
   onDisciplineCommitted?: () => void;
   disciplineHistory?: DisciplineHistoryEntry[];
   disciplineSummary?: DisciplineHistorySummary;
@@ -176,6 +177,7 @@ export default function HomeDecisionScreen({
   onBrokerDataRefresh,
   brokerDataRefreshing = false,
   autoSyncRetrying = false,
+  autoSyncRetryDetail,
   onDisciplineCommitted,
   disciplineHistory = [],
   disciplineSummary,
@@ -963,6 +965,7 @@ export default function HomeDecisionScreen({
                   onSoftRefresh={onBrokerDataRefresh}
                   refreshing={brokerDataRefreshing}
                   autoRetryInProgress={autoSyncRetrying}
+                  autoRetryDetail={autoSyncRetryDetail}
                 />
                 <VerdictCanvas {...verdictCanvasProps} />
                 {isExplore ? (
