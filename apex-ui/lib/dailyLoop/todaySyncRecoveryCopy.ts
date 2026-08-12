@@ -8,6 +8,8 @@ export const TODAY_SYNC_RECOVERY = {
     "Cash may still be accurate. Refresh holdings first — reconnect only if it still looks wrong.",
   pollErrorDetail: "Live quotes may lag. Refresh to retry before reconnecting.",
   fundsSyncDetailSuffix: "Refresh to retry, or reconnect if the issue persists.",
+  autoRetryLabel: "Refreshing portfolio…",
+  autoRetryDetail: "Checking for a fresh sync before showing a warning.",
 } as const;
 
 export function runTodaySyncRecoveryCopySelfCheck(): void {

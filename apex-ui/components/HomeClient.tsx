@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import ConnectZerodhaCard from "./ConnectZerodhaCard";
 import HomeDecisionScreen from "./HomeDecisionScreen";
 import { buildTodayFocusPreviews } from "@/lib/dailyLoop/todayFocusPreview";
+import { shouldAttemptStaleAutoRetry } from "@/lib/dailyLoop/todaySyncAutoRetry";
 import KiteConnectDisciplineCard from "@/components/onboarding/KiteConnectDisciplineCard";
 import ReceiptProofPanel from "@/components/receipts/ReceiptProofPanel";
 import FinancialProfileSetup from "./FinancialProfileSetup";
@@ -932,6 +933,48 @@ export default function HomeClient({
     profileComplete &&
     operatingProfileComplete;
 
+  const [autoSyncRetrying, setAutoSyncRetrying] = useState(false);
+  const staleAutoRetryAttemptedRef = useRef(false);
+
+  useEffect(() => {
+    if (portfolioData?.stale !== true) {
+      staleAutoRetryAttemptedRef.current = false;
+      return;
+    }
+
+    if (
+      !shouldAttemptStaleAutoRetry({
+        enabled: showHomeDecision && shouldFetchPortfolio,
+        connectionStatus,
+        portfolioStale: portfolioData.stale === true,
+        alreadyAttempted: staleAutoRetryAttemptedRef.current,
+      })
+    ) {
+      return;
+    }
+
+    staleAutoRetryAttemptedRef.current = true;
+    setAutoSyncRetrying(true);
+
+    void (async () => {
+      try {
+        await loadPortfolio({ silent: true });
+        await loadFunds({ silent: true });
+        refreshDecision();
+      } finally {
+        setAutoSyncRetrying(false);
+      }
+    })();
+  }, [
+    connectionStatus,
+    loadFunds,
+    loadPortfolio,
+    portfolioData?.stale,
+    refreshDecision,
+    shouldFetchPortfolio,
+    showHomeDecision,
+  ]);
+
   const visiblePortfolioHoldings = useMemo(
     () => filterRealPortfolioHoldings(portfolioData?.holdings ?? []),
     [portfolioData?.holdings],
@@ -1219,6 +1262,7 @@ export default function HomeClient({
               onCapitalRefresh={refreshAfterExecution}
               onBrokerDataRefresh={refreshPortfolio}
               brokerDataRefreshing={portfolioLoading}
+              autoSyncRetrying={autoSyncRetrying}
               onDisciplineCommitted={() => {
                 void loadDecisionHistory();
                 void loadReceiptContext();

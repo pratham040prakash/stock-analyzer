@@ -214,6 +214,7 @@ This roadmap is the **only active execution track** until:
 | **T5a** | Scale path metrics | `/api/health` `scale_path` + release index | ✅ Shipped |
 | **T6** | Today one-scroll UX | Verdict-first layout, unified stale state, mode insights | ✅ Shipped |
 | **T7** | Sync recovery on Today | Soft refresh before reconnect on stale banner | ✅ Shipped |
+| **T8** | Stale auto-retry on mount | Silent portfolio refresh before stale warning | ✅ Shipped |
 
 **Valuation narrative (ESTIMATE):** Retention SaaS on broker-connected cohort + trust moat (receipts, broker truth).
 
@@ -308,3 +309,4 @@ This roadmap is the **only active execution track** until:
 | 1.1 | 2026-08-12 | T4a–T4e shipped; T4f soak + verify-prod; T4-6 marked business milestone |
 | 1.2 | 2026-08-12 | T5a shipped: `scale_path` on `/api/health`, release index |
 | 1.3 | 2026-08-12 | T6–T7 shipped: Today one-scroll UX + sync recovery banner |
+| 1.4 | 2026-08-12 | T8 shipped: silent stale auto-retry on Today mount |

@@ -7,13 +7,32 @@ type Props = {
   freshness: TodayDataFreshness;
   onSoftRefresh?: () => void;
   refreshing?: boolean;
+  autoRetryInProgress?: boolean;
 };
 
 export default function TodaySyncStatusBanner({
   freshness,
   onSoftRefresh,
   refreshing = false,
+  autoRetryInProgress = false,
 }: Props) {
+  if (autoRetryInProgress) {
+    return (
+      <div
+        className="rounded-xl border border-apex-border/20 bg-white/[0.03] px-4 py-3"
+        role="status"
+        aria-live="polite"
+      >
+        <p className="text-sm font-medium text-apex-text/85">
+          {TODAY_SYNC_RECOVERY.autoRetryLabel}
+        </p>
+        <p className="mt-1 text-xs leading-snug text-apex-muted/75">
+          {TODAY_SYNC_RECOVERY.autoRetryDetail}
+        </p>
+      </div>
+    );
+  }
+
   if (!freshness.isStale) {
     return null;
   }

@@ -93,6 +93,7 @@ import { runExploreSetupPresentationSelfCheck } from "../lib/dailyLoop/exploreSe
 import { runTodayDataFreshnessSelfCheck } from "../lib/dailyLoop/todayDataFreshness";
 import { runTodayPrimaryFocusSelfCheck } from "../lib/dailyLoop/todayPrimaryFocus";
 import { runTodaySyncRecoveryCopySelfCheck } from "../lib/dailyLoop/todaySyncRecoveryCopy";
+import { runTodaySyncAutoRetrySelfCheck } from "../lib/dailyLoop/todaySyncAutoRetry";
 
 runCapitalProjectionSelfCheck();
 runCapitalFinalStateSelfCheck();
@@ -186,3 +187,4 @@ runExploreSetupPresentationSelfCheck();
 runTodayDataFreshnessSelfCheck();
 runTodayPrimaryFocusSelfCheck();
 runTodaySyncRecoveryCopySelfCheck();
+runTodaySyncAutoRetrySelfCheck();
