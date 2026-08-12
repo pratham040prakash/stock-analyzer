@@ -60,7 +60,12 @@ function resolveMilestone(input: {
   waitingForEntry: boolean;
   inPosition: boolean;
   targetReached: boolean;
+  thesisBroken: boolean;
 }): JourneyMilestone {
+  if (input.thesisBroken) {
+    return "review";
+  }
+
   if (input.targetReached) {
     return "target_reached";
   }
@@ -188,10 +193,18 @@ export function buildJourneyProgress(
   const entry = input.journey.entryPriceInr ?? null;
   const current = input.currentPriceInr ?? null;
   const target = input.journey.targetPriceInr;
+  const supportLevel =
+    input.journey.chartBasis?.supportLevelInr ?? entry ?? null;
+  const thesisBroken =
+    supportLevel !== null &&
+    current !== null &&
+    Number.isFinite(current) &&
+    current < supportLevel * 0.98;
   const progressPct = computeProgressPct(entry, target, current);
   const inPosition = (input.quantity ?? 0) > 0 || input.entryConfirmed === true;
   const waitingForEntry = input.waitingForEntry ?? !inPosition;
   const targetReached =
+    !thesisBroken &&
     current !== null &&
     Number.isFinite(current) &&
     current >= target &&
@@ -202,6 +215,7 @@ export function buildJourneyProgress(
     waitingForEntry,
     inPosition,
     targetReached,
+    thesisBroken,
   });
 
   const daysElapsed = daysBetween(input.journey.startedAt, now);
@@ -268,6 +282,8 @@ export function buildJourneyProgress(
     }),
     disclaimer: JOURNEY_COPY.disclaimer,
     targetReached,
+    thesisBroken,
+    backtraceSummary: input.journey.chartBasis?.backtraceSummary,
   };
 }
 

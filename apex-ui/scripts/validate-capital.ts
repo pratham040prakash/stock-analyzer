@@ -96,6 +96,7 @@ import { runTodaySyncRecoveryCopySelfCheck } from "../lib/dailyLoop/todaySyncRec
 import { runTodaySyncAutoRetrySelfCheck } from "../lib/dailyLoop/todaySyncAutoRetry";
 import { runJourneyCopySelfCheck } from "../lib/journey/journeyCopy";
 import { runBuildJourneyProgressSelfCheck } from "../lib/journey/buildJourneyProgress";
+import { runBuildChartBackedJourneyPlanSelfCheck } from "../lib/journey/buildChartBackedJourneyPlan";
 import { runJourneyStoreSelfCheck } from "../lib/journey/journeyStore";
 
 runCapitalProjectionSelfCheck();
@@ -193,4 +194,5 @@ runTodaySyncRecoveryCopySelfCheck();
 runTodaySyncAutoRetrySelfCheck();
 runJourneyCopySelfCheck();
 runBuildJourneyProgressSelfCheck();
+runBuildChartBackedJourneyPlanSelfCheck();
 runJourneyStoreSelfCheck();

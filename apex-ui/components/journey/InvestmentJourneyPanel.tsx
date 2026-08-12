@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { apiFetchJson } from "@/lib/api/clientFetch";
 import { buildJourneyProgress } from "@/lib/journey/buildJourneyProgress";
+import type { ChartBackedJourneyPlan } from "@/lib/journey/buildChartBackedJourneyPlan";
 import { JOURNEY_COPY } from "@/lib/journey/journeyCopy";
 import {
   completeJourney,
@@ -25,6 +27,10 @@ export type InvestmentJourneyPanelProps = {
   brokerStepCompleted?: boolean;
   compact?: boolean;
   className?: string;
+  /** When true, panel loads chart backtrace and offers APEX path — not manual guesswork. */
+  apexSuggested?: boolean;
+  preferSwing?: boolean;
+  activationLevelInr?: number;
 };
 
 function formatPrice(value: number): string {
@@ -37,6 +43,10 @@ function addWeeks(from: Date, weeks: number): string {
   return next.toISOString().slice(0, 10);
 }
 
+type PlanResponse =
+  | { status: "ok"; plan: ChartBackedJourneyPlan }
+  | { status: "insufficient_data"; message?: string };
+
 export default function InvestmentJourneyPanel({
   symbol,
   currentPriceInr,
@@ -45,8 +55,15 @@ export default function InvestmentJourneyPanel({
   brokerStepCompleted = false,
   compact = false,
   className = "",
+  apexSuggested = false,
+  preferSwing = false,
+  activationLevelInr,
 }: InvestmentJourneyPanelProps) {
   const [journey, setJourney] = useState<StoredInvestmentJourney | null>(null);
+  const [chartPlan, setChartPlan] = useState<ChartBackedJourneyPlan | null>(null);
+  const [planState, setPlanState] = useState<
+    "idle" | "loading" | "ready" | "insufficient"
+  >("idle");
   const [showStartForm, setShowStartForm] = useState(false);
   const [horizon, setHorizon] = useState<JourneyHorizon>("swing");
   const [targetPrice, setTargetPrice] = useState("");
@@ -64,10 +81,64 @@ export default function InvestmentJourneyPanel({
   }, [reload]);
 
   useEffect(() => {
-    if (currentPriceInr && !entryPrice && showStartForm) {
-      setEntryPrice(String(Math.round(currentPriceInr)));
+    if (journey || !apexSuggested || !symbol.trim()) {
+      return;
     }
-  }, [currentPriceInr, entryPrice, showStartForm]);
+
+    let cancelled = false;
+
+    async function loadPlan() {
+      setPlanState("loading");
+      const params = new URLSearchParams({ symbol: symbol.trim().toUpperCase() });
+      if (preferSwing) {
+        params.set("preferSwing", "1");
+      }
+      if (activationLevelInr && activationLevelInr > 0) {
+        params.set("activationLevel", String(Math.round(activationLevelInr)));
+      }
+
+      try {
+        const { data } = await apiFetchJson<PlanResponse>(
+          `/api/journey/plan?${params.toString()}`,
+          { cache: "no-store" },
+        );
+
+        if (cancelled || !data) {
+          if (!cancelled && !data) {
+            setChartPlan(null);
+            setPlanState("insufficient");
+          }
+          return;
+        }
+
+        if (data.status === "ok" && "plan" in data && data.plan) {
+          setChartPlan(data.plan);
+          setPlanState("ready");
+          setHorizon(data.plan.horizon);
+          setTargetPrice(String(data.plan.targetPriceInr));
+          setEntryPrice(String(data.plan.entryPriceInr));
+          if (data.plan.swingWeeks) {
+            setSwingWeeks(String(data.plan.swingWeeks));
+          }
+          return;
+        }
+
+        setChartPlan(null);
+        setPlanState("insufficient");
+      } catch {
+        if (!cancelled) {
+          setChartPlan(null);
+          setPlanState("insufficient");
+        }
+      }
+    }
+
+    void loadPlan();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activationLevelInr, apexSuggested, journey, preferSwing, symbol]);
 
   const progress: JourneyProgressViewModel | null = useMemo(() => {
     if (!journey) {
@@ -88,6 +159,36 @@ export default function InvestmentJourneyPanel({
     journey,
     quantity,
   ]);
+
+  const commitChartPlan = () => {
+    if (!chartPlan) {
+      return;
+    }
+
+    const weeks = chartPlan.swingWeeks ?? 4;
+    const created = createJourney({
+      symbol: chartPlan.symbol,
+      horizon: chartPlan.horizon,
+      targetPriceInr: chartPlan.targetPriceInr,
+      entryPriceInr: chartPlan.entryPriceInr,
+      targetBy:
+        chartPlan.horizon === "swing"
+          ? addWeeks(new Date(), weeks)
+          : undefined,
+      suggestedByApex: true,
+      chartBasis: {
+        lookbackDays: chartPlan.lookbackDays,
+        supportLevelInr: chartPlan.supportLevelInr ?? undefined,
+        resistanceLevelInr: chartPlan.resistanceLevelInr ?? undefined,
+        backtraceSummary: chartPlan.backtraceSummary,
+        structureScore: chartPlan.structureScore,
+        suggestedAt: new Date().toISOString().slice(0, 10),
+      },
+    });
+
+    setJourney(created);
+    setShowStartForm(false);
+  };
 
   const handleStartJourney = () => {
     const target = Number(targetPrice);
@@ -132,23 +233,91 @@ export default function InvestmentJourneyPanel({
     return null;
   }
 
-  if (!journey && !showStartForm) {
+  if (!journey && !apexSuggested) {
+    return null;
+  }
+
+  if (!journey && !showStartForm && planState === "loading") {
     return (
       <section
         className={`rounded-xl border border-apex-border/20 bg-white/[0.02] px-4 py-4 ${className}`.trim()}
-        aria-label="Investment journey"
+        aria-label="Loading investment journey"
       >
         <p className="text-xs font-medium uppercase tracking-[0.12em] text-apex-muted">
           {JOURNEY_COPY.panelTitle}
         </p>
-        <p className="mt-2 text-sm text-apex-text/85">{JOURNEY_COPY.startDescription}</p>
-        <button
-          type="button"
-          onClick={() => setShowStartForm(true)}
-          className="mt-3 text-sm font-medium text-blue-200/90 underline underline-offset-2 hover:text-blue-100"
-        >
-          {JOURNEY_COPY.startTitle} for {symbol}
-        </button>
+        <p className="mt-2 text-sm text-apex-muted/80">{JOURNEY_COPY.loadingPlan}</p>
+      </section>
+    );
+  }
+
+  if (!journey && !showStartForm && planState === "insufficient") {
+    return (
+      <section
+        className={`rounded-xl border border-amber-500/15 bg-amber-500/[0.04] px-4 py-4 ${className}`.trim()}
+        aria-label="Investment journey unavailable"
+      >
+        <p className="text-sm text-apex-text/90">{JOURNEY_COPY.insufficientData}</p>
+      </section>
+    );
+  }
+
+  if (!journey && !showStartForm && chartPlan && planState === "ready") {
+    return (
+      <section
+        className={`rounded-xl border border-violet-500/25 bg-violet-500/[0.07] px-4 py-4 ${className}`.trim()}
+        aria-label="Chart-backed investment journey"
+      >
+        <p className="text-xs font-medium uppercase tracking-[0.12em] text-violet-200/80">
+          {JOURNEY_COPY.suggestTitle}
+        </p>
+        <p className="mt-1 text-lg font-semibold tracking-tight text-apex-text">
+          {chartPlan.symbol}
+          <span className="ml-2 text-sm font-normal text-apex-muted/75">
+            ·{" "}
+            {chartPlan.horizon === "swing"
+              ? JOURNEY_COPY.horizonSwing
+              : JOURNEY_COPY.horizonLongTerm}
+          </span>
+        </p>
+        <p className="mt-2 text-xs leading-relaxed text-apex-text/80">
+          {chartPlan.backtraceSummary}
+        </p>
+        <p className="mt-2 text-xs text-apex-muted/75">{chartPlan.pathRationale}</p>
+
+        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-apex-text/90">
+          <span>Entry zone {formatPrice(chartPlan.entryPriceInr)}</span>
+          <span>Target {formatPrice(chartPlan.targetPriceInr)}</span>
+          {chartPlan.supportLevelInr ? (
+            <span>Support {formatPrice(chartPlan.supportLevelInr)}</span>
+          ) : null}
+          {chartPlan.resistanceLevelInr ? (
+            <span>Resistance {formatPrice(chartPlan.resistanceLevelInr)}</span>
+          ) : null}
+        </div>
+
+        <p className="mt-3 text-sm leading-snug text-violet-100/90">
+          {JOURNEY_COPY.panelSubtitle}
+        </p>
+
+        <div className="mt-4 flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={commitChartPlan}
+            className="rounded-lg bg-violet-600/85 px-4 py-2 text-sm font-medium text-white hover:bg-violet-600"
+          >
+            {JOURNEY_COPY.stayOnPath}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowStartForm(true)}
+            className="text-sm text-apex-muted/75 underline underline-offset-2 hover:text-apex-text"
+          >
+            {JOURNEY_COPY.adjustManually}
+          </button>
+        </div>
+
+        <p className="mt-3 text-[11px] text-apex-muted/60">{JOURNEY_COPY.disclaimer}</p>
       </section>
     );
   }
@@ -182,11 +351,6 @@ export default function InvestmentJourneyPanel({
                   ? JOURNEY_COPY.horizonSwing
                   : JOURNEY_COPY.horizonLongTerm}
               </span>
-              <span className="mt-0.5 block text-[11px] opacity-80">
-                {value === "swing"
-                  ? JOURNEY_COPY.horizonSwingHint
-                  : JOURNEY_COPY.horizonLongTermHint}
-              </span>
             </button>
           ))}
         </div>
@@ -212,29 +376,6 @@ export default function InvestmentJourneyPanel({
               className="mt-1 w-full rounded-lg border border-apex-border/25 bg-black/20 px-3 py-2 text-sm text-apex-text"
             />
           </label>
-          <label className="text-xs text-apex-muted/80">
-            {JOURNEY_COPY.amountLabel}
-            <input
-              type="number"
-              inputMode="numeric"
-              value={investedAmount}
-              onChange={(event) => setInvestedAmount(event.target.value)}
-              className="mt-1 w-full rounded-lg border border-apex-border/25 bg-black/20 px-3 py-2 text-sm text-apex-text"
-            />
-          </label>
-          {horizon === "swing" ? (
-            <label className="text-xs text-apex-muted/80">
-              {JOURNEY_COPY.swingWeeksLabel}
-              <input
-                type="number"
-                min={1}
-                max={12}
-                value={swingWeeks}
-                onChange={(event) => setSwingWeeks(event.target.value)}
-                className="mt-1 w-full rounded-lg border border-apex-border/25 bg-black/20 px-3 py-2 text-sm text-apex-text"
-              />
-            </label>
-          ) : null}
         </div>
 
         {formError ? (
@@ -265,9 +406,13 @@ export default function InvestmentJourneyPanel({
     return null;
   }
 
+  const borderTone = progress.thesisBroken
+    ? "border-amber-500/30 bg-amber-500/[0.06]"
+    : "border-violet-500/20 bg-violet-500/[0.06]";
+
   return (
     <section
-      className={`rounded-xl border border-violet-500/20 bg-violet-500/[0.06] px-4 py-4 ${className}`.trim()}
+      className={`rounded-xl border px-4 py-4 ${borderTone} ${className}`.trim()}
       aria-label="Investment journey progress"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -289,6 +434,12 @@ export default function InvestmentJourneyPanel({
         </div>
       </div>
 
+      {progress.backtraceSummary && !compact ? (
+        <p className="mt-2 text-[11px] leading-relaxed text-apex-muted/70">
+          {progress.backtraceSummary}
+        </p>
+      ) : null}
+
       <div
         className="mt-3 h-2 overflow-hidden rounded-full bg-black/25"
         role="progressbar"
@@ -297,29 +448,26 @@ export default function InvestmentJourneyPanel({
         aria-valuemax={100}
       >
         <div
-          className="h-full rounded-full bg-gradient-to-r from-violet-400/80 to-emerald-400/80 transition-all"
+          className={[
+            "h-full rounded-full transition-all",
+            progress.thesisBroken
+              ? "bg-gradient-to-r from-amber-400/80 to-amber-600/70"
+              : "bg-gradient-to-r from-violet-400/80 to-emerald-400/80",
+          ].join(" ")}
           style={{ width: `${progress.progressPct}%` }}
         />
       </div>
 
       <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-apex-text/80">
         <span>Target {formatPrice(progress.targetPriceInr)}</span>
+        {progress.entryPriceInr !== null ? (
+          <span>Entry zone {formatPrice(progress.entryPriceInr)}</span>
+        ) : null}
         {progress.currentPriceInr !== null ? (
           <span>Now {formatPrice(progress.currentPriceInr)}</span>
         ) : null}
         {progress.priceRemainingInr !== null ? (
           <span>{formatPrice(progress.priceRemainingInr)} to go</span>
-        ) : null}
-        {progress.investedAmountInr !== null ? (
-          <span>
-            {JOURNEY_COPY.investedLabel} {formatPrice(progress.investedAmountInr)}
-            {progress.currentValueInr !== null
-              ? ` → ${formatPrice(progress.currentValueInr)}`
-              : ""}
-            {progress.gainPct !== null
-              ? ` (${progress.gainPct >= 0 ? "+" : ""}${progress.gainPct}%)`
-              : ""}
-          </span>
         ) : null}
         <span>
           {JOURNEY_COPY.daysLabel} {progress.daysElapsed}
@@ -378,7 +526,9 @@ export default function InvestmentJourneyPanel({
           }}
           className="text-apex-muted/70 underline underline-offset-2 hover:text-apex-text"
         >
-          {JOURNEY_COPY.pauseJourney}
+          {progress.thesisBroken
+            ? JOURNEY_COPY.pauseJourney
+            : "Pause path"}
         </button>
       </div>
     </section>

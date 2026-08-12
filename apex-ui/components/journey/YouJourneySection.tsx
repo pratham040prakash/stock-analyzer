@@ -12,9 +12,8 @@ export default function YouJourneySection() {
       <section className="rounded-xl border border-apex-border/15 bg-white/[0.02] px-4 py-4">
         <p className="text-sm font-medium text-apex-text/90">Target paths</p>
         <p className="mt-1 text-sm text-apex-muted/80">
-          Set a target path from Today when you are tracking a stock — long-term or
-          swing. APEX will show progress and guide each step until you reach or reset
-          the target.
+          When APEX surfaces a stock on Today, we map a chart-backed path and stay
+          with you until target or thesis break.
         </p>
       </section>
     );

@@ -1,4 +1,7 @@
-import type { StoredInvestmentJourney } from "@/types/investmentJourney";
+import type {
+  JourneyChartBasis,
+  StoredInvestmentJourney,
+} from "@/types/investmentJourney";
 
 const STORAGE_KEY = "apex_investment_journeys_v1";
 
@@ -55,6 +58,8 @@ export function createJourney(
   input: Omit<StoredInvestmentJourney, "id" | "status" | "startedAt"> & {
     id?: string;
     startedAt?: string;
+    suggestedByApex?: boolean;
+    chartBasis?: JourneyChartBasis;
   },
 ): StoredInvestmentJourney {
   const startedAt = input.startedAt ?? new Date().toISOString().slice(0, 10);
@@ -69,6 +74,8 @@ export function createJourney(
     targetBy: input.targetBy,
     status: "active",
     notes: input.notes,
+    suggestedByApex: input.suggestedByApex,
+    chartBasis: input.chartBasis,
   };
 
   saveJourney(journey);

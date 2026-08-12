@@ -950,13 +950,20 @@ export default function HomeDecisionScreen({
     )?.quantity;
   }, [openPortfolioHoldings, primarySymbol]);
 
+  const journeyExploreSetup = capitalDecision.exploreSetups[0];
   const journeySymbol = useMemo(() => {
-    if (isExplore && capitalDecision.exploreSetups[0]?.symbol) {
-      return capitalDecision.exploreSetups[0].symbol;
+    if (isExplore && journeyExploreSetup?.symbol) {
+      return journeyExploreSetup.symbol;
     }
 
     return primarySymbol;
-  }, [capitalDecision.exploreSetups, isExplore, primarySymbol]);
+  }, [isExplore, journeyExploreSetup?.symbol, primarySymbol]);
+
+  const journeyApexSuggested = Boolean(journeySymbol && (isExplore || isCapitalDeployment));
+  const journeyPreferSwing =
+    isExplore &&
+    (journeyExploreSetup?.stage === "Close to readiness" ||
+      journeyExploreSetup?.stage === "Developing setup");
 
   const showTodayVerdict = isCapitalDeployment || (isExplore && !isExploreEmpty);
 
@@ -1037,6 +1044,15 @@ export default function HomeDecisionScreen({
                     dailyVerdict={verdictPresentation.verdict}
                     brokerStepCompleted={brokerStepCompleted}
                     compact={verdictPresentation.verdict === "wait"}
+                    apexSuggested={journeyApexSuggested}
+                    preferSwing={journeyPreferSwing}
+                    activationLevelInr={
+                      decision.picks?.find(
+                        (pick) =>
+                          pick.stock.trim().toUpperCase() ===
+                          journeySymbol.trim().toUpperCase(),
+                      )?.activationLevel
+                    }
                   />
                 ) : null}
               </>

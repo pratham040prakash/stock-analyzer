@@ -2,6 +2,15 @@ export type JourneyHorizon = "long_term" | "swing";
 
 export type JourneyStatus = "active" | "completed" | "paused";
 
+export type JourneyChartBasis = {
+  lookbackDays: number;
+  supportLevelInr?: number;
+  resistanceLevelInr?: number;
+  backtraceSummary: string;
+  structureScore?: number;
+  suggestedAt: string;
+};
+
 export type StoredInvestmentJourney = {
   id: string;
   symbol: string;
@@ -13,6 +22,9 @@ export type StoredInvestmentJourney = {
   targetBy?: string;
   status: JourneyStatus;
   notes?: string;
+  /** Set when path came from APEX chart backtrace, not manual entry. */
+  suggestedByApex?: boolean;
+  chartBasis?: JourneyChartBasis;
 };
 
 export type JourneyPathStepStatus = "done" | "current" | "upcoming";
@@ -54,6 +66,8 @@ export type JourneyProgressViewModel = {
   pathSteps: JourneyPathStep[];
   disclaimer: string;
   targetReached: boolean;
+  thesisBroken: boolean;
+  backtraceSummary?: string;
 };
 
 export type StartJourneyInput = {
@@ -64,4 +78,6 @@ export type StartJourneyInput = {
   investedAmountInr?: number;
   swingWeeks?: number;
   notes?: string;
+  suggestedByApex?: boolean;
+  chartBasis?: JourneyChartBasis;
 };
