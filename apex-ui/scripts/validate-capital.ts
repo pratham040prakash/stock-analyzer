@@ -92,6 +92,7 @@ import { runTodayWaitInsightSelfCheck } from "../lib/dailyLoop/todayWaitInsight"
 import { runExploreSetupPresentationSelfCheck } from "../lib/dailyLoop/exploreSetupPresentation";
 import { runTodayDataFreshnessSelfCheck } from "../lib/dailyLoop/todayDataFreshness";
 import { runTodayPrimaryFocusSelfCheck } from "../lib/dailyLoop/todayPrimaryFocus";
+import { runTodaySyncRecoveryCopySelfCheck } from "../lib/dailyLoop/todaySyncRecoveryCopy";
 
 runCapitalProjectionSelfCheck();
 runCapitalFinalStateSelfCheck();
@@ -184,3 +185,4 @@ runTodayWaitInsightSelfCheck();
 runExploreSetupPresentationSelfCheck();
 runTodayDataFreshnessSelfCheck();
 runTodayPrimaryFocusSelfCheck();
+runTodaySyncRecoveryCopySelfCheck();

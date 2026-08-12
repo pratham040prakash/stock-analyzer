@@ -71,6 +71,9 @@ const keyModules = [
   "services/review/assembleEsopReviewBrief.ts",
   "app/api/review/esop-brief/route.ts",
   "components/review/EsopReviewPersonaPanel.tsx",
+  "lib/dailyLoop/todayDataFreshness.ts",
+  "lib/dailyLoop/todaySyncRecoveryCopy.ts",
+  "components/dailyLoop/TodaySyncStatusBanner.tsx",
 ];
 
 for (const relative of keyModules) {
@@ -142,5 +145,11 @@ console.log("Release index: docs/product/APEX_V3_RELEASE_INDEX.md\n");
 console.log("--- T5a (Scale path metrics) ---");
 console.log("Health: GET /api/health → scale_path (paying subs, trials, T4-6 targets)");
 console.log("T4-6 (15k paying / ARR) is a business milestone — not a deploy gate\n");
+
+console.log("--- T6–T7 (Today trust UX) ---");
+console.log("One-scroll Today: lib/dailyLoop/todayPrimaryFocus.ts, todayDataFreshness.ts");
+console.log("Sync recovery: lib/dailyLoop/todaySyncRecoveryCopy.ts");
+console.log("Banner: components/dailyLoop/TodaySyncStatusBanner.tsx");
+console.log("IA: docs/product/APEX_V3_CANONICAL_IA.md v1.1\n");
 
 process.exit(0);

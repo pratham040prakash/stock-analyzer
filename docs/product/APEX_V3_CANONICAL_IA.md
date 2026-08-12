@@ -61,14 +61,14 @@ Investors with zero market jargon see **one of three words**:
 
 Implementation: `lib/dailyLoop/dailyVerdict.ts` → `VerdictCanvas.tsx`.
 
-### Above-the-fold order (Phase T0)
+### Above-the-fold order (Phase T6 — one-scroll story)
 
-1. Operating manual strip (Core / Tactical / Not intraday)
-2. Capital dams strip (daily max loss, tactical scope)
-3. Sector cap strip (compact, when relevant)
-4. Verdict canvas (Wait · Trade · Pause)
-5. Execution panel (Trade days only)
-6. **Details** accordion — portfolio, monitor, depth
+1. Sync status banner (single stale state + refresh / reconnect)
+2. Verdict canvas (Wait · Trade · Pause)
+3. Watchlist panel (Watch mode only)
+4. Portfolio summary (trust strip + open holdings)
+5. Mode insight (Trade when / portfolio risk) or compact risk limits (Protect)
+6. **Details** accordion — plan, risk limits, monitor, depth
 
 ---
 
@@ -133,6 +133,7 @@ Depth lives in **Research**, **Review**, **Ask overlay**, and **Proof receipts**
 | Version | Date | Change |
 |---------|------|--------|
 | 1.0 | 2026-08-11 | Initial canonical IA after Phase T0 ship (Sprints Z1–Z3, T1a–T1b) |
+| 1.1 | 2026-08-12 | T6 one-scroll Today order; sync banner; plan/dams in Details |
 
 ---
 

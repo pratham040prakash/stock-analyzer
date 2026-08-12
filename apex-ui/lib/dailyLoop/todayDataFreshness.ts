@@ -1,4 +1,5 @@
 import type { ConnectionStatus } from "@/lib/broker/zerodha";
+import { TODAY_SYNC_RECOVERY } from "@/lib/dailyLoop/todaySyncRecoveryCopy";
 
 export type TodayDataFreshness = {
   isStale: boolean;
@@ -7,6 +8,8 @@ export type TodayDataFreshness = {
   reconnectHref: string;
   suppressTrustScore: boolean;
   trustFootnote: string;
+  showSoftRefresh: boolean;
+  softRefreshLabel: string;
 };
 
 export function resolveTodayDataFreshness(input: {
@@ -16,6 +19,7 @@ export function resolveTodayDataFreshness(input: {
   fundsSyncError?: string | null;
 }): TodayDataFreshness {
   const reconnectHref = "/api/zerodha/login";
+  const softRefreshLabel = TODAY_SYNC_RECOVERY.softRefreshLabel;
 
   if (input.connectionStatus === "TOKEN_EXPIRED") {
     return {
@@ -25,6 +29,8 @@ export function resolveTodayDataFreshness(input: {
       reconnectHref,
       suppressTrustScore: true,
       trustFootnote: "Discipline score · reconnect for live prices",
+      showSoftRefresh: false,
+      softRefreshLabel,
     };
   }
 
@@ -32,10 +38,12 @@ export function resolveTodayDataFreshness(input: {
     return {
       isStale: true,
       headline: "Broker sync issue",
-      detail: input.fundsSyncError,
+      detail: `${input.fundsSyncError} ${TODAY_SYNC_RECOVERY.fundsSyncDetailSuffix}`,
       reconnectHref,
       suppressTrustScore: true,
       trustFootnote: "Discipline score · prices may be outdated",
+      showSoftRefresh: true,
+      softRefreshLabel,
     };
   }
 
@@ -43,10 +51,12 @@ export function resolveTodayDataFreshness(input: {
     return {
       isStale: true,
       headline: "Live prices updating",
-      detail: input.pollError,
+      detail: TODAY_SYNC_RECOVERY.pollErrorDetail,
       reconnectHref,
       suppressTrustScore: true,
       trustFootnote: "Discipline score · live quotes may lag",
+      showSoftRefresh: true,
+      softRefreshLabel,
     };
   }
 
@@ -54,10 +64,12 @@ export function resolveTodayDataFreshness(input: {
     return {
       isStale: true,
       headline: "Portfolio data is stale",
-      detail: "Cash may still be accurate. Reconnect to refresh holdings and LTP.",
+      detail: TODAY_SYNC_RECOVERY.portfolioStaleDetail,
       reconnectHref,
       suppressTrustScore: true,
       trustFootnote: "Discipline score · portfolio snapshot may lag",
+      showSoftRefresh: true,
+      softRefreshLabel,
     };
   }
 
@@ -68,6 +80,8 @@ export function resolveTodayDataFreshness(input: {
     reconnectHref,
     suppressTrustScore: false,
     trustFootnote: "",
+    showSoftRefresh: false,
+    softRefreshLabel,
   };
 }
 
@@ -79,6 +93,18 @@ export function runTodayDataFreshnessSelfCheck(): void {
 
   if (!stale.isStale || !stale.suppressTrustScore) {
     throw new Error("Today data freshness self-check failed: stale portfolio");
+  }
+
+  if (!stale.showSoftRefresh) {
+    throw new Error("Today data freshness self-check failed: portfolio stale refresh");
+  }
+
+  const expired = resolveTodayDataFreshness({
+    connectionStatus: "TOKEN_EXPIRED",
+  });
+
+  if (expired.showSoftRefresh) {
+    throw new Error("Today data freshness self-check failed: token expired refresh");
   }
 
   const fresh = resolveTodayDataFreshness({

@@ -1217,6 +1217,8 @@ export default function HomeClient({
               fundsSyncError={fundsSyncError}
               isRefreshing={decisionRefreshing}
               onCapitalRefresh={refreshAfterExecution}
+              onBrokerDataRefresh={refreshPortfolio}
+              brokerDataRefreshing={portfolioLoading}
               onDisciplineCommitted={() => {
                 void loadDecisionHistory();
                 void loadReceiptContext();

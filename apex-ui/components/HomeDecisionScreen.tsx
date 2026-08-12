@@ -127,6 +127,8 @@ export type HomeDecisionScreenProps = {
   fundsSyncError?: string | null;
   isRefreshing?: boolean;
   onCapitalRefresh?: () => void;
+  onBrokerDataRefresh?: () => void;
+  brokerDataRefreshing?: boolean;
   onDisciplineCommitted?: () => void;
   disciplineHistory?: DisciplineHistoryEntry[];
   disciplineSummary?: DisciplineHistorySummary;
@@ -170,6 +172,8 @@ export default function HomeDecisionScreen({
   fundsSyncError = null,
   isRefreshing = false,
   onCapitalRefresh,
+  onBrokerDataRefresh,
+  brokerDataRefreshing = false,
   onDisciplineCommitted,
   disciplineHistory = [],
   disciplineSummary,
@@ -802,7 +806,8 @@ export default function HomeDecisionScreen({
       suppressTrustScore: dataFreshness.suppressTrustScore,
       trustFootnote: dataFreshness.trustFootnote || undefined,
       hideSetupConfidence: dataFreshness.isStale || Boolean(waitInsight),
-      compactWaitCopy: Boolean(waitInsight),
+      compactWaitCopy:
+        Boolean(waitInsight) || (isExplore && !isExploreEmpty),
     }),
     [
       brokerStepCompleted,
@@ -825,6 +830,8 @@ export default function HomeDecisionScreen({
       trustScore,
       verdictPresentation,
       waitInsight,
+      isExplore,
+      isExploreEmpty,
     ],
   );
 
@@ -949,7 +956,11 @@ export default function HomeDecisionScreen({
                 {morningBriefError && !morningBrief && isCapitalDeployment ? (
                   <p className="text-xs text-amber-200/80">{morningBriefError}</p>
                 ) : null}
-                <TodaySyncStatusBanner freshness={dataFreshness} />
+                <TodaySyncStatusBanner
+                  freshness={dataFreshness}
+                  onSoftRefresh={onBrokerDataRefresh}
+                  refreshing={brokerDataRefreshing}
+                />
                 <VerdictCanvas {...verdictCanvasProps} />
                 {isExplore ? (
                   <TodayWatchlistPanel
