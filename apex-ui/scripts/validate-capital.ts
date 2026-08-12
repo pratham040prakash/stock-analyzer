@@ -86,6 +86,7 @@ import { runSpouseReviewInviteSelfCheck } from "../services/review/assembleSpous
 import { runEsopReviewPersonaCopySelfCheck } from "../lib/gtm/esopReviewPersonaCopy";
 import { runEsopReviewPersonaConfigSelfCheck } from "../services/review/esopReviewPersonaConfig";
 import { runEsopReviewBriefSelfCheck } from "../services/review/assembleEsopReviewBrief";
+import { runScalePathMetricsSelfCheck } from "../services/subscription/scalePathMetrics";
 
 runCapitalProjectionSelfCheck();
 runCapitalFinalStateSelfCheck();
@@ -172,3 +173,4 @@ runSpouseReviewInviteSelfCheck();
 runEsopReviewPersonaCopySelfCheck();
 runEsopReviewPersonaConfigSelfCheck();
 runEsopReviewBriefSelfCheck();
+runScalePathMetricsSelfCheck();

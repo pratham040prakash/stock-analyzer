@@ -134,4 +134,13 @@ console.log("Disable: APEX_ESOP_REVIEW_PERSONA_ENABLED=false");
 console.log("Brief API: app/api/review/esop-brief/route.ts");
 console.log("UI: components/review/EsopReviewPersonaPanel.tsx\n");
 
+console.log("--- T4f (Phase T4 release prep) ---");
+console.log("See docs/product/APEX_V3_T4_SOAK.md before closing Phase T4");
+console.log("Prod verify: advisor-pack, spouse-invite, esop-brief auth probes");
+console.log("Release index: docs/product/APEX_V3_RELEASE_INDEX.md\n");
+
+console.log("--- T5a (Scale path metrics) ---");
+console.log("Health: GET /api/health → scale_path (paying subs, trials, T4-6 targets)");
+console.log("T4-6 (15k paying / ARR) is a business milestone — not a deploy gate\n");
+
 process.exit(0);

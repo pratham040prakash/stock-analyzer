@@ -208,6 +208,24 @@ async function runChecks(baseUrl: string): Promise<VerifyReport> {
     critical: false,
   });
 
+  const scalePath = healthBody?.scale_path;
+  record(checks, {
+    id: "health-scale-path",
+    label: "Scale path snapshot exposed in health report",
+    ok:
+      scalePath == null ||
+      (isRecord(scalePath) &&
+        scalePath.milestone_id === "T4-6" &&
+        (scalePath.paying_subscriptions == null ||
+          typeof scalePath.paying_subscriptions === "number") &&
+        typeof scalePath.target_paying_users_min === "number"),
+    detail:
+      scalePath == null
+        ? "not configured (service role missing)"
+        : `paying=${String(isRecord(scalePath) ? scalePath.paying_subscriptions : "invalid")}`,
+    critical: false,
+  });
+
   const proxyUrl = process.env.KITE_ORDER_PROXY_URL?.trim();
   if (proxyUrl) {
     try {
@@ -254,6 +272,9 @@ async function runChecks(baseUrl: string): Promise<VerifyReport> {
     { path: "/api/review/monthly", id: "auth-monthly" },
     { path: "/api/review/quarterly", id: "auth-quarterly" },
     { path: "/api/review/digest", id: "auth-digest" },
+    { path: "/api/review/advisor-pack", id: "auth-advisor-pack" },
+    { path: "/api/review/spouse-invite", id: "auth-spouse-invite" },
+    { path: "/api/review/esop-brief", id: "auth-esop-brief" },
     { path: "/api/capital/new", id: "auth-capital-new" },
     { path: "/api/thesis", id: "auth-thesis" },
     { path: "/api/discipline/streak", id: "auth-discipline" },
@@ -703,6 +724,48 @@ async function runChecks(baseUrl: string): Promise<VerifyReport> {
         },
       },
       {
+        id: "authed-advisor-pack",
+        path: "/api/review/advisor-pack",
+        validate: (body: Record<string, unknown> | null) =>
+          body?.status === "ok" &&
+          typeof body.enabled === "boolean" &&
+          typeof body.seats === "number",
+      },
+      {
+        id: "authed-spouse-invite",
+        path: "/api/review/spouse-invite",
+        validate: (body: Record<string, unknown> | null) => {
+          if (body?.status !== "ok" || typeof body.enabled !== "boolean") {
+            return false;
+          }
+
+          if (!body.enabled) {
+            return body.invite === null;
+          }
+
+          return isRecord(body.invite) && typeof body.invite.share_text === "string";
+        },
+      },
+      {
+        id: "authed-esop-brief",
+        path: "/api/review/esop-brief",
+        validate: (body: Record<string, unknown> | null) => {
+          if (body?.status !== "ok" || typeof body.enabled !== "boolean") {
+            return false;
+          }
+
+          if (!body.enabled) {
+            return body.brief === null;
+          }
+
+          return (
+            isRecord(body.brief) &&
+            typeof body.brief.share_text === "string" &&
+            typeof body.brief.markdown === "string"
+          );
+        },
+      },
+      {
         id: "authed-macro-ask",
         path: "/api/ask/answer",
         method: "POST" as const,
@@ -751,7 +814,8 @@ async function runChecks(baseUrl: string): Promise<VerifyReport> {
       ok:
         howItWorksAuthed.status === 200 &&
         howItWorksHtml.includes("How APEX works") &&
-        howItWorksHtml.includes("Wait"),
+        howItWorksHtml.includes("Wait") &&
+        howItWorksHtml.includes("Corporate ESOP"),
       detail: `status=${howItWorksAuthed.status}`,
       critical: false,
     });

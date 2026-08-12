@@ -9,6 +9,7 @@ test.describe("APEX smoke", () => {
     expect(body).toHaveProperty("supabase");
     expect(body).toHaveProperty("env");
     expect(body).toHaveProperty("kite_proxy");
+    expect(body).toHaveProperty("scale_path");
   });
 
   test("login page loads", async ({ page }) => {
