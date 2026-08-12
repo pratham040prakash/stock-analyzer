@@ -43,6 +43,11 @@ test.describe("APEX smoke", () => {
     await expect(page).toHaveURL(/\/login/);
   });
 
+  test("advisor pack route guards anonymous users", async ({ request }) => {
+    const response = await request.get("/api/review/advisor-pack");
+    expect(response.status()).toBe(401);
+  });
+
   test("planned review rejects anonymous users", async ({ request }) => {
     const response = await request.get("/api/review/planned?days=7");
     expect(response.status()).toBe(401);

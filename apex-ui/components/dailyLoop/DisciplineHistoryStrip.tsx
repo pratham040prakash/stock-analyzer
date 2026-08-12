@@ -2,7 +2,6 @@
 
 import type {
   DisciplineHistoryEntry,
-  DisciplineHistorySummary,
 } from "@/types/decisionHistory";
 
 type Props = {
@@ -111,34 +110,4 @@ export default function DisciplineHistoryStrip({ days, history }: Props) {
       </div>
     </div>
   );
-}
-
-export function formatDisciplineSummary(summary: DisciplineHistorySummary): string {
-  const parts: string[] = [];
-
-  if (summary.wins > 0) {
-    parts.push(`${summary.wins} win${summary.wins === 1 ? "" : "s"}`);
-  }
-
-  if (summary.losses > 0) {
-    parts.push(`${summary.losses} loss${summary.losses === 1 ? "" : "es"}`);
-  }
-
-  if (summary.open > 0) {
-    parts.push(`${summary.open} open`);
-  }
-
-  if (summary.followedDays > 0) {
-    parts.push(`${summary.followedDays} followed`);
-  }
-
-  if (summary.waitDays > 0) {
-    parts.push(`${summary.waitDays} wait`);
-  }
-
-  if (parts.length === 0) {
-    return "No discipline logged in the last seven days.";
-  }
-
-  return parts.join(" · ");
 }

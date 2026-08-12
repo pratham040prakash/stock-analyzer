@@ -77,6 +77,9 @@ import { runTrialOfferRepositorySelfCheck } from "../services/subscription/trial
 import { runMigrationHealthSelfCheck } from "../lib/supabase/migrationHealth";
 import { runWaitDayBrandCopySelfCheck } from "../lib/gtm/waitDayBrandCopy";
 import { runKiteConnectDisciplineCopySelfCheck } from "../lib/gtm/kiteConnectDisciplineCopy";
+import { runAdvisorPilotCopySelfCheck } from "../lib/gtm/advisorPilotCopy";
+import { runAdvisorPilotConfigSelfCheck } from "../services/review/advisorPilotConfig";
+import { runAdvisorReviewPackSelfCheck } from "../services/review/assembleAdvisorReviewPack";
 
 runCapitalProjectionSelfCheck();
 runCapitalFinalStateSelfCheck();
@@ -154,3 +157,6 @@ runTrialOfferRepositorySelfCheck();
 runMigrationHealthSelfCheck();
 runWaitDayBrandCopySelfCheck();
 runKiteConnectDisciplineCopySelfCheck();
+runAdvisorPilotCopySelfCheck();
+runAdvisorPilotConfigSelfCheck();
+runAdvisorReviewPackSelfCheck();

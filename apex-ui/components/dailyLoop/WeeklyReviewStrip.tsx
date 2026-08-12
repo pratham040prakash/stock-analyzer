@@ -1,8 +1,7 @@
 "use client";
 
-import DisciplineHistoryStrip, {
-  formatDisciplineSummary,
-} from "@/components/dailyLoop/DisciplineHistoryStrip";
+import DisciplineHistoryStrip from "@/components/dailyLoop/DisciplineHistoryStrip";
+import { formatDisciplineSummary } from "@/lib/dailyLoop/disciplineHistoryMerge";
 import { buildLastNIstDays } from "@/lib/dailyLoop/disciplineHistoryMerge";
 import { buildWeeklyReviewHeadline } from "@/lib/dailyLoop/weeklyReview";
 import type {

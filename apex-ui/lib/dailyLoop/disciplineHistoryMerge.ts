@@ -176,6 +176,36 @@ export function mergeDisciplineHistory(input: {
   return history;
 }
 
+export function formatDisciplineSummary(summary: DisciplineHistorySummary): string {
+  const parts: string[] = [];
+
+  if (summary.wins > 0) {
+    parts.push(`${summary.wins} win${summary.wins === 1 ? "" : "s"}`);
+  }
+
+  if (summary.losses > 0) {
+    parts.push(`${summary.losses} loss${summary.losses === 1 ? "" : "es"}`);
+  }
+
+  if (summary.open > 0) {
+    parts.push(`${summary.open} open`);
+  }
+
+  if (summary.followedDays > 0) {
+    parts.push(`${summary.followedDays} followed`);
+  }
+
+  if (summary.waitDays > 0) {
+    parts.push(`${summary.waitDays} wait`);
+  }
+
+  if (parts.length === 0) {
+    return "No discipline logged in the last seven days.";
+  }
+
+  return parts.join(" · ");
+}
+
 function assert(condition: boolean, message: string): void {
   if (!condition) {
     throw new Error(`disciplineHistoryMerge self-check failed: ${message}`);

@@ -262,6 +262,21 @@ test.describe("APEX authenticated smoke", () => {
     expect(typeof body.billingEnabled).toBe("boolean");
   });
 
+  test("advisor review pack rejects anonymous users", async ({ request }) => {
+    const response = await request.get("/api/review/advisor-pack");
+    expect(response.status()).toBe(401);
+  });
+
+  test("advisor review pack returns pilot envelope", async ({ request }) => {
+    const response = await request.get("/api/review/advisor-pack");
+    expect(response.ok()).toBeTruthy();
+
+    const body = await response.json();
+    expect(body.status).toBe("ok");
+    expect(typeof body.enabled).toBe("boolean");
+    expect(typeof body.seats).toBe("number");
+  });
+
   test("you page surfaces settings entry", async ({ page }) => {
     await page.goto("/app/you");
     await expect(page).toHaveURL(/\/app\/you/);

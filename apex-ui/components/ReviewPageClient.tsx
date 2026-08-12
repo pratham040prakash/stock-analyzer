@@ -15,6 +15,7 @@ import WeeklyReviewHero from "@/components/review/WeeklyReviewHero";
 import WeeklyReviewStrip from "@/components/dailyLoop/WeeklyReviewStrip";
 import DecisionHistoryPanel from "@/components/DecisionHistoryPanel";
 import DisciplineTrendPanel from "@/components/review/DisciplineTrendPanel";
+import AdvisorReviewPilotPanel from "@/components/review/AdvisorReviewPilotPanel";
 import ContextualLessonPanel from "@/components/learning/ContextualLessonPanel";
 import { buildDisciplineTrends } from "@/services/review/buildDisciplineTrends";
 import ApexErrorBoundary from "@/components/ui/ApexErrorBoundary";
@@ -385,6 +386,7 @@ export default function ReviewPageClient({ userName }: Props) {
         <p className="text-sm text-apex-muted/70">Loading review…</p>
       ) : tab === "weekly" ? (
         <div className="space-y-4" role="tabpanel">
+          <AdvisorReviewPilotPanel />
           <DisciplineDigestStrip
             headline={disciplineDigest.headline}
             detail={disciplineDigest.detail}

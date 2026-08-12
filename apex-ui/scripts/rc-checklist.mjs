@@ -59,6 +59,10 @@ const keyModules = [
   "lib/gtm/waitDayBrandCopy.ts",
   "lib/gtm/kiteConnectDisciplineCopy.ts",
   "components/onboarding/KiteConnectDisciplineCard.tsx",
+  "lib/gtm/advisorPilotCopy.ts",
+  "services/review/assembleAdvisorReviewPack.ts",
+  "app/api/review/advisor-pack/route.ts",
+  "components/review/AdvisorReviewPilotPanel.tsx",
 ];
 
 for (const relative of keyModules) {
@@ -106,5 +110,10 @@ console.log("--- T4b (Kite connect discipline) ---");
 console.log("Copy: lib/gtm/kiteConnectDisciplineCopy.ts");
 console.log("Connect card: components/ConnectZerodhaCard.tsx");
 console.log("Post-connect welcome: components/onboarding/KiteConnectDisciplineCard.tsx\n");
+
+console.log("--- T4c (Advisor B2B pilot) ---");
+console.log("Enable: APEX_ADVISOR_PILOT_ENABLED=true · APEX_ADVISOR_PILOT_SEATS=1");
+console.log("Pack API: app/api/review/advisor-pack/route.ts");
+console.log("UI: components/review/AdvisorReviewPilotPanel.tsx\n");
 
 process.exit(0);
