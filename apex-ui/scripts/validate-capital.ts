@@ -83,6 +83,9 @@ import { runAdvisorReviewPackSelfCheck } from "../services/review/assembleAdviso
 import { runSpouseReviewInviteCopySelfCheck } from "../lib/gtm/spouseReviewInviteCopy";
 import { runSpouseReviewInviteConfigSelfCheck } from "../services/review/spouseReviewInviteConfig";
 import { runSpouseReviewInviteSelfCheck } from "../services/review/assembleSpouseReviewInvite";
+import { runEsopReviewPersonaCopySelfCheck } from "../lib/gtm/esopReviewPersonaCopy";
+import { runEsopReviewPersonaConfigSelfCheck } from "../services/review/esopReviewPersonaConfig";
+import { runEsopReviewBriefSelfCheck } from "../services/review/assembleEsopReviewBrief";
 
 runCapitalProjectionSelfCheck();
 runCapitalFinalStateSelfCheck();
@@ -166,3 +169,6 @@ runAdvisorReviewPackSelfCheck();
 runSpouseReviewInviteCopySelfCheck();
 runSpouseReviewInviteConfigSelfCheck();
 runSpouseReviewInviteSelfCheck();
+runEsopReviewPersonaCopySelfCheck();
+runEsopReviewPersonaConfigSelfCheck();
+runEsopReviewBriefSelfCheck();

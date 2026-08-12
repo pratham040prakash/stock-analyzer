@@ -67,6 +67,10 @@ const keyModules = [
   "services/review/assembleSpouseReviewInvite.ts",
   "app/api/review/spouse-invite/route.ts",
   "components/review/SpouseReviewInvitePanel.tsx",
+  "lib/gtm/esopReviewPersonaCopy.ts",
+  "services/review/assembleEsopReviewBrief.ts",
+  "app/api/review/esop-brief/route.ts",
+  "components/review/EsopReviewPersonaPanel.tsx",
 ];
 
 for (const relative of keyModules) {
@@ -124,5 +128,10 @@ console.log("--- T4d (Spouse review invite) ---");
 console.log("Disable: APEX_SPOUSE_REVIEW_INVITE_ENABLED=false");
 console.log("Invite API: app/api/review/spouse-invite/route.ts");
 console.log("UI: components/review/SpouseReviewInvitePanel.tsx\n");
+
+console.log("--- T4e (ESOP review persona) ---");
+console.log("Disable: APEX_ESOP_REVIEW_PERSONA_ENABLED=false");
+console.log("Brief API: app/api/review/esop-brief/route.ts");
+console.log("UI: components/review/EsopReviewPersonaPanel.tsx\n");
 
 process.exit(0);

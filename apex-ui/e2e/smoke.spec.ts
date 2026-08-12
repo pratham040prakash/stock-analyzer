@@ -53,6 +53,11 @@ test.describe("APEX smoke", () => {
     expect(response.status()).toBe(401);
   });
 
+  test("esop brief route guards anonymous users", async ({ request }) => {
+    const response = await request.get("/api/review/esop-brief");
+    expect(response.status()).toBe(401);
+  });
+
   test("planned review rejects anonymous users", async ({ request }) => {
     const response = await request.get("/api/review/planned?days=7");
     expect(response.status()).toBe(401);

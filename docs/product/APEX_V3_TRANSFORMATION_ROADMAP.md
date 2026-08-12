@@ -208,7 +208,7 @@ This roadmap is the **only active execution track** until:
 | **T4-2** | Zerodha-adjacent audience | After Kite connect → APEX discipline | ✅ Shipped (T4b) |
 | **T4-3** | RIA / advisor B2B pilot | Receipts + review seats | ✅ Shipped (T4c) |
 | **T4-4** | Referral | Spouse Review invite (not leaderboard) | ✅ Shipped (T4d) |
-| **T4-5** | Corporate ESOP | Long-term + review persona |
+| **T4-5** | Corporate ESOP | Long-term + review persona | ✅ Shipped (T4e) |
 | **T4-6** | 15k–25k paying users | ₹8–15 Cr ARR path |
 
 **Valuation narrative (ESTIMATE):** Retention SaaS on broker-connected cohort + trust moat (receipts, broker truth).

@@ -6,6 +6,7 @@ import {
   OPERATING_MANUAL,
 } from "@/lib/dailyLoop/operatingManualCopy";
 import { WAIT_DAY_BRAND } from "@/lib/gtm/waitDayBrandCopy";
+import { ESOP_REVIEW_PERSONA_COPY } from "@/lib/gtm/esopReviewPersonaCopy";
 import { INTENT_UI_LABELS } from "@/lib/onboarding/intentLabels";
 import { ApexBody, ApexCard, ApexShell, ApexTitle } from "@/components/ui/apex";
 import ApexSurfaceNav from "@/components/nav/ApexSurfaceNav";
@@ -59,6 +60,18 @@ export default function HowApexWorksClient() {
           </p>
           <p className="mt-3 text-sm leading-relaxed text-apex-muted/70">
             {WAIT_DAY_BRAND.antiFomoRule}
+          </p>
+        </ApexCard>
+
+        <ApexCard hover={false}>
+          <h2 className="text-lg font-semibold text-apex-text">
+            {ESOP_REVIEW_PERSONA_COPY.howItWorksCardTitle}
+          </h2>
+          <p className="mt-2 text-sm leading-relaxed text-apex-muted/85">
+            {ESOP_REVIEW_PERSONA_COPY.howItWorksCardBody}
+          </p>
+          <p className="mt-3 text-sm leading-relaxed text-apex-muted/70">
+            {ESOP_REVIEW_PERSONA_COPY.holdCoreRule}
           </p>
         </ApexCard>
 

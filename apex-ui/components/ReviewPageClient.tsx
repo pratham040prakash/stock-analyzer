@@ -17,6 +17,7 @@ import DecisionHistoryPanel from "@/components/DecisionHistoryPanel";
 import DisciplineTrendPanel from "@/components/review/DisciplineTrendPanel";
 import AdvisorReviewPilotPanel from "@/components/review/AdvisorReviewPilotPanel";
 import SpouseReviewInvitePanel from "@/components/review/SpouseReviewInvitePanel";
+import EsopReviewPersonaPanel from "@/components/review/EsopReviewPersonaPanel";
 import ContextualLessonPanel from "@/components/learning/ContextualLessonPanel";
 import { buildDisciplineTrends } from "@/services/review/buildDisciplineTrends";
 import ApexErrorBoundary from "@/components/ui/ApexErrorBoundary";
@@ -389,6 +390,7 @@ export default function ReviewPageClient({ userName }: Props) {
         <div className="space-y-4" role="tabpanel">
           <AdvisorReviewPilotPanel />
           <SpouseReviewInvitePanel />
+          <EsopReviewPersonaPanel />
           <DisciplineDigestStrip
             headline={disciplineDigest.headline}
             detail={disciplineDigest.detail}

@@ -295,6 +295,24 @@ test.describe("APEX authenticated smoke", () => {
     }
   });
 
+  test("esop review brief rejects anonymous users", async ({ request }) => {
+    const response = await request.get("/api/review/esop-brief");
+    expect(response.status()).toBe(401);
+  });
+
+  test("esop review brief returns brief envelope", async ({ request }) => {
+    const response = await request.get("/api/review/esop-brief");
+    expect(response.ok()).toBeTruthy();
+
+    const body = await response.json();
+    expect(body.status).toBe("ok");
+    expect(typeof body.enabled).toBe("boolean");
+    if (body.enabled) {
+      expect(body.brief?.share_text).toBeTruthy();
+      expect(body.brief?.markdown).toContain("Review cadence");
+    }
+  });
+
   test("you page surfaces settings entry", async ({ page }) => {
     await page.goto("/app/you");
     await expect(page).toHaveURL(/\/app\/you/);
