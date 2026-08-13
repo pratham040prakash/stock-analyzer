@@ -117,8 +117,12 @@ export default function InvestmentJourneyPanel({
       return null;
     }
 
-    return sanitizeChartBackedJourneyPlan(chartPlan, effectiveLivePrice);
-  }, [chartPlan, effectiveLivePrice]);
+    return sanitizeChartBackedJourneyPlan(
+      chartPlan,
+      effectiveLivePrice,
+      activationLevelInr,
+    );
+  }, [activationLevelInr, chartPlan, effectiveLivePrice]);
 
   const planStartIso = useMemo(
     () => new Date().toISOString().slice(0, 10),

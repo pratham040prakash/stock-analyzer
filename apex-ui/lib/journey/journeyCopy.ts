@@ -53,7 +53,7 @@ export const JOURNEY_COPY = {
   timeProgressLabel: "Time on path",
   progressLabel: "Progress toward target",
   waitBarLabel: "Not in trade",
-  waitBarHint: "Support → buy trigger — exit target applies after you enter.",
+  waitBarHint: "Support → buy trigger — exit target sits above buy once you enter.",
   waitAtBuyCallout:
     "Live price is at the buy trigger — breakout not confirmed yet. Do not chase; wait for Today.",
   waitNearBuyCallout:

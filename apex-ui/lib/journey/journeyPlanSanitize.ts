@@ -6,6 +6,7 @@ export function normalizeJourneyPrices(input: {
   entryPriceInr: number;
   targetPriceInr: number;
   currentPriceInr?: number | null;
+  buyAboveInr?: number | null;
 }): { entryPriceInr: number; targetPriceInr: number } {
   let entry = Math.round(input.entryPriceInr);
   let target = Math.round(input.targetPriceInr);
@@ -21,6 +22,16 @@ export function normalizeJourneyPrices(input: {
   const current = input.currentPriceInr;
   if (current !== null && current !== undefined && Number.isFinite(current) && target <= current) {
     target = Math.round(Math.max(entry * 1.06, current * 1.08));
+  }
+
+  const buyAbove = input.buyAboveInr;
+  if (
+    buyAbove !== null &&
+    buyAbove !== undefined &&
+    Number.isFinite(buyAbove) &&
+    target <= buyAbove
+  ) {
+    target = Math.round(Math.max(buyAbove * 1.06, entry * 1.08));
   }
 
   return { entryPriceInr: entry, targetPriceInr: target };
@@ -41,11 +52,13 @@ export function isValidJourneyPlan(plan: {
 export function sanitizeChartBackedJourneyPlan(
   plan: ChartBackedJourneyPlan,
   currentPriceInr?: number | null,
+  buyAboveInr?: number | null,
 ): ChartBackedJourneyPlan {
   const normalized = normalizeJourneyPrices({
     entryPriceInr: plan.entryPriceInr,
     targetPriceInr: plan.targetPriceInr,
     currentPriceInr,
+    buyAboveInr,
   });
 
   return {
@@ -94,6 +107,17 @@ export function runJourneyPlanSanitizeSelfCheck(): void {
 
   if (fixed.targetPriceInr <= fixed.entryPriceInr) {
     throw new Error("Journey plan sanitize self-check failed: target/entry");
+  }
+
+  const aboveBuy = normalizeJourneyPrices({
+    entryPriceInr: 1902,
+    targetPriceInr: 1966,
+    currentPriceInr: 1963,
+    buyAboveInr: 1978,
+  });
+
+  if (aboveBuy.targetPriceInr <= 1978) {
+    throw new Error("Journey plan sanitize self-check failed: exit below buy");
   }
 
   const repaired = repairStoredJourney({

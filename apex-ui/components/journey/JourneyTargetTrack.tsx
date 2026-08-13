@@ -106,6 +106,9 @@ export default function JourneyTargetTrack({
     Number.isFinite(buyAboveInr) &&
     buyAboveInr > entryPriceInr;
 
+  const exitAfterEntryInr =
+    showBuyAbove && targetPriceInr > buyAboveInr! ? targetPriceInr : null;
+
   return (
     <div className={className}>
       {patienceUntilLabel && !compact ? (
@@ -241,9 +244,9 @@ export default function JourneyTargetTrack({
           >
             {formatPrice(showBuyAbove ? buyAboveInr! : targetPriceInr)}
           </p>
-          {showBuyAbove ? (
+          {exitAfterEntryInr !== null ? (
             <p className="mt-0.5 text-[10px] leading-tight text-apex-muted/55">
-              Exit {formatPrice(targetPriceInr)} after entry
+              Exit {formatPrice(exitAfterEntryInr)} after entry
             </p>
           ) : null}
           {timeTargetLabel ? (
