@@ -24,6 +24,9 @@ export const JOURNEY_COPY = {
   horizonSwingHint: "2–6 weeks · tactical move from structure",
   targetLabel: "Target price (₹)",
   entryLabel: "Entry zone (₹)",
+  supportLabel: "Support",
+  buyAboveLabel: "Buy above",
+  exitTargetLabel: "Exit target",
   amountLabel: "Amount in this plan (₹) — optional",
   swingWeeksLabel: "Swing window (weeks)",
   saveJourney: "Start this path",
@@ -50,11 +53,15 @@ export const JOURNEY_COPY = {
   timeProgressLabel: "Time on path",
   progressLabel: "Progress toward target",
   waitBarLabel: "Not in trade",
-  waitBarHint: "Live price on the path — progress starts after you enter.",
+  waitBarHint: "Support → buy trigger — exit target applies after you enter.",
+  waitAtBuyCallout:
+    "Live price is at the buy trigger — breakout not confirmed yet. Do not chase; wait for Today.",
+  waitNearBuyCallout:
+    "Live price is near the buy trigger — you have not entered yet. Wait for confirmation.",
   waitAtTargetCallout:
-    "Live price is at the chart target — you have not entered yet. This path may be late; wait for a fresh setup.",
+    "Live price is at the chart exit zone — you have not entered yet. This path may be late; wait for a fresh setup.",
   waitNearTargetCallout:
-    "Live price is near the chart target — you have not entered yet. Do not chase; wait for confirmation.",
+    "Live price is near the chart exit zone — you have not entered yet. Do not chase; wait for confirmation.",
   investedLabel: "In this plan",
   daysLabel: "Days on path",
   disclaimer:
@@ -104,5 +111,9 @@ export function runJourneyCopySelfCheck(): void {
 
   if (!JOURNEY_COPY.waitAtTargetCallout.includes("not entered")) {
     throw new Error("Journey copy self-check failed: waitAtTargetCallout");
+  }
+
+  if (!JOURNEY_COPY.buyAboveLabel.length) {
+    throw new Error("Journey copy self-check failed: buyAboveLabel");
   }
 }

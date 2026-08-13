@@ -13,6 +13,8 @@ export type JourneyTargetTrackProps = {
   progressPct: number;
   /** When true, show live price marker only — no trade progress fill. */
   waitingForEntry?: boolean;
+  /** Today breakout trigger — shown on the right while waiting for entry. */
+  buyAboveInr?: number | null;
   targetReached?: boolean;
   thesisBroken?: boolean;
   compact?: boolean;
@@ -52,6 +54,7 @@ export default function JourneyTargetTrack({
   currentPriceInr,
   progressPct,
   waitingForEntry = false,
+  buyAboveInr = null,
   targetReached = false,
   thesisBroken = false,
   compact = false,
@@ -65,8 +68,16 @@ export default function JourneyTargetTrack({
   const clampedPct = Math.max(0, Math.min(100, progressPct));
   const showTradeProgress = !waitingForEntry;
   const displayPct = showTradeProgress ? clampedPct : 0;
+  const waitPathEndInr =
+    waitingForEntry &&
+    buyAboveInr !== null &&
+    buyAboveInr !== undefined &&
+    Number.isFinite(buyAboveInr) &&
+    buyAboveInr > entryPriceInr
+      ? buyAboveInr
+      : targetPriceInr;
   const priceMarkerPct = waitingForEntry
-    ? pricePathPositionPct(entryPriceInr, targetPriceInr, currentPriceInr)
+    ? pricePathPositionPct(entryPriceInr, waitPathEndInr, currentPriceInr)
     : null;
   const barStyle = journeyBarGradient(symbol, { targetReached, thesisBroken });
   const barHeight = compact ? "h-7" : "h-9";
@@ -84,8 +95,16 @@ export default function JourneyTargetTrack({
     waitingForEntry,
     entryPriceInr,
     targetPriceInr,
+    buyAboveInr,
     currentPriceInr,
   });
+
+  const showBuyAbove =
+    waitingForEntry &&
+    buyAboveInr !== null &&
+    buyAboveInr !== undefined &&
+    Number.isFinite(buyAboveInr) &&
+    buyAboveInr > entryPriceInr;
 
   return (
     <div className={className}>
@@ -119,7 +138,8 @@ export default function JourneyTargetTrack({
                 {symbol}
               </p>
               <p className="mt-0.5 truncate text-[10px] tabular-nums text-apex-muted/75 sm:text-[11px]">
-                Entry {formatPrice(entryPriceInr)}
+                {waitingForEntry ? JOURNEY_COPY.supportLabel : "Entry"}{" "}
+                {formatPrice(entryPriceInr)}
               </p>
               <p
                 className={[
@@ -208,17 +228,24 @@ export default function JourneyTargetTrack({
           ) : null}
         </div>
 
-        {/* Right target */}
+        {/* Right label — buy trigger before entry, exit target after */}
         <div className="min-w-0 text-right">
-          <p className="text-[10px] uppercase tracking-wide text-apex-muted/55">Target</p>
+          <p className="text-[10px] uppercase tracking-wide text-apex-muted/55">
+            {showBuyAbove ? JOURNEY_COPY.buyAboveLabel : JOURNEY_COPY.exitTargetLabel}
+          </p>
           <p
             className={[
               "font-semibold tabular-nums leading-tight text-apex-text",
               compact ? "text-xs" : "text-sm",
             ].join(" ")}
           >
-            {formatPrice(targetPriceInr)}
+            {formatPrice(showBuyAbove ? buyAboveInr! : targetPriceInr)}
           </p>
+          {showBuyAbove ? (
+            <p className="mt-0.5 text-[10px] leading-tight text-apex-muted/55">
+              Exit {formatPrice(targetPriceInr)} after entry
+            </p>
+          ) : null}
           {timeTargetLabel ? (
             <p
               className={[

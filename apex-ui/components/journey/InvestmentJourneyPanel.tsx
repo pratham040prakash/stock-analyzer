@@ -419,6 +419,7 @@ export default function InvestmentJourneyPanel({
           currentPriceInr={effectiveLivePrice}
           progressPct={previewPct}
           waitingForEntry={(quantity ?? 0) === 0 && !brokerStepCompleted}
+          buyAboveInr={activationLevelInr}
           timeTargetLabel={formatTimeTargetLabel(
             displayChartPlan.suggestedTime.amount,
             displayChartPlan.suggestedTime.unit,
@@ -600,6 +601,7 @@ export default function InvestmentJourneyPanel({
         waitingForEntry={
           progress.milestone === "waiting_entry" || progress.milestone === "planning"
         }
+        buyAboveInr={activationLevelInr}
         targetReached={progress.targetReached}
         thesisBroken={progress.thesisBroken}
         timeTargetLabel={progress.timeTargetLabel}
