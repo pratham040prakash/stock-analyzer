@@ -2,6 +2,7 @@
 
 import { formatInr } from "@/lib/funds";
 import { journeyBarGradient } from "@/lib/journey/journeyBarStyle";
+import { JOURNEY_COPY } from "@/lib/journey/journeyCopy";
 
 export type JourneyTargetTrackProps = {
   symbol: string;
@@ -86,6 +87,18 @@ export default function JourneyTargetTrack({
               </p>
               <p className="mt-0.5 truncate text-[10px] tabular-nums text-apex-muted/75 sm:text-[11px]">
                 Entry {formatPrice(entryPriceInr)}
+              </p>
+              <p
+                className={[
+                  "mt-0.5 truncate text-[10px] tabular-nums sm:text-[11px]",
+                  currentPriceInr !== null && currentPriceInr !== undefined
+                    ? "font-medium text-sky-200/95"
+                    : "text-apex-muted/55",
+                ].join(" ")}
+              >
+                {currentPriceInr !== null && currentPriceInr !== undefined
+                  ? `Now ${formatPrice(currentPriceInr)}`
+                  : JOURNEY_COPY.currentPricePending}
               </p>
             </div>
           </div>
@@ -204,13 +217,6 @@ export default function JourneyTargetTrack({
             {timeClamped}%
           </p>
         </div>
-      ) : null}
-
-      {currentPriceInr !== null && currentPriceInr !== undefined && !compact ? (
-        <p className="mt-2 text-[11px] tabular-nums text-apex-muted/65 sm:ml-[calc(7.5rem+1rem)]">
-          Now {formatPrice(currentPriceInr)}
-          {clampedPct < 100 && !targetReached ? ` · ${100 - clampedPct}% left` : ""}
-        </p>
       ) : null}
     </div>
   );

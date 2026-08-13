@@ -42,6 +42,7 @@ export const JOURNEY_COPY = {
     "Today says Wait — this path applies if entry confirms. No new trade until then.",
   stalePlanWarning:
     "Broker sync may be stale — refresh holdings before you act. The chart path below still comes from recent price candles.",
+  currentPricePending: "Now — fetching live price…",
   timeTargetHint: "Override only if your plan differs from the chart-based estimate.",
   timeAmountLabel: "Duration",
   timeUnitLabel: "Unit",
@@ -85,5 +86,9 @@ export function runJourneyCopySelfCheck(): void {
 
   if (!JOURNEY_COPY.stayOnPath.length) {
     throw new Error("Journey copy self-check failed: stayOnPath");
+  }
+
+  if (!JOURNEY_COPY.currentPricePending.includes("Now")) {
+    throw new Error("Journey copy self-check failed: currentPricePending");
   }
 }

@@ -11,6 +11,7 @@ import {
   lookupJourneyLiveQuote,
   type JourneyLiveQuote,
 } from "@/lib/journey/journeyPriceMap";
+import { hydrateJourneyPriceMap } from "@/lib/journey/journeyWatchLtp";
 import {
   syncAllActiveJourneys,
   updateJourneyStatusOnServer,
@@ -40,9 +41,7 @@ export default function YouJourneySection() {
 
     setActiveJourneys(journeys);
     setPriceMap(
-      portfolioData?.holdings?.length
-        ? buildJourneyPriceMap(portfolioData.holdings)
-        : new Map(),
+      await hydrateJourneyPriceMap(journeys, portfolioData?.holdings ?? []),
     );
   }, []);
 

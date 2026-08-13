@@ -19,6 +19,7 @@ import {
   syncJourneyForSymbol,
   updateJourneyStatusOnServer,
 } from "@/lib/journey/journeySync";
+import { fetchJourneySymbolLivePrice } from "@/lib/journey/journeyWatchLtp";
 import type { DailyVerdict } from "@/lib/dailyLoop/dailyVerdict";
 import type {
   JourneyHorizon,
@@ -95,6 +96,20 @@ export default function InvestmentJourneyPanel({
   const [timeAmount, setTimeAmount] = useState(4);
   const [timeUnit, setTimeUnit] = useState<JourneyTimeUnit>("weeks");
   const [formError, setFormError] = useState<string | null>(null);
+  const [fetchedLivePrice, setFetchedLivePrice] = useState<number | null>(null);
+
+  const effectiveLivePrice = useMemo(() => {
+    if (
+      currentPriceInr !== null &&
+      currentPriceInr !== undefined &&
+      Number.isFinite(currentPriceInr) &&
+      currentPriceInr > 0
+    ) {
+      return currentPriceInr;
+    }
+
+    return fetchedLivePrice;
+  }, [currentPriceInr, fetchedLivePrice]);
 
   const planStartIso = useMemo(
     () => new Date().toISOString().slice(0, 10),
@@ -109,6 +124,47 @@ export default function InvestmentJourneyPanel({
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  useEffect(() => {
+    if (
+      currentPriceInr !== null &&
+      currentPriceInr !== undefined &&
+      Number.isFinite(currentPriceInr) &&
+      currentPriceInr > 0
+    ) {
+      setFetchedLivePrice(null);
+      return;
+    }
+
+    if (!symbol.trim()) {
+      return;
+    }
+
+    let cancelled = false;
+    const entryHint =
+      chartPlan?.entryPriceInr ??
+      journey?.entryPriceInr ??
+      (entryPrice.trim() ? Number(entryPrice) : undefined);
+
+    void fetchJourneySymbolLivePrice(
+      symbol,
+      Number.isFinite(entryHint) ? entryHint : undefined,
+    ).then((price) => {
+      if (!cancelled) {
+        setFetchedLivePrice(price);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    chartPlan?.entryPriceInr,
+    currentPriceInr,
+    entryPrice,
+    journey?.entryPriceInr,
+    symbol,
+  ]);
 
   useEffect(() => {
     if (journey || !apexSuggested || !symbol.trim()) {
@@ -176,15 +232,15 @@ export default function InvestmentJourneyPanel({
 
     return buildJourneyProgress({
       journey,
-      currentPriceInr,
+      currentPriceInr: effectiveLivePrice,
       quantity,
       waitingForEntry: dailyVerdict === "wait" && !brokerStepCompleted,
       entryConfirmed: brokerStepCompleted || (quantity ?? 0) > 0,
     });
   }, [
     brokerStepCompleted,
-    currentPriceInr,
     dailyVerdict,
+    effectiveLivePrice,
     journey,
     quantity,
   ]);
@@ -318,7 +374,7 @@ export default function InvestmentJourneyPanel({
     const previewPct = previewProgressPct(
       chartPlan.entryPriceInr,
       chartPlan.targetPriceInr,
-      currentPriceInr,
+      effectiveLivePrice,
     );
 
     return (
@@ -344,7 +400,7 @@ export default function InvestmentJourneyPanel({
           symbol={chartPlan.symbol}
           entryPriceInr={chartPlan.entryPriceInr}
           targetPriceInr={chartPlan.targetPriceInr}
-          currentPriceInr={currentPriceInr}
+          currentPriceInr={effectiveLivePrice}
           progressPct={previewPct}
           timeTargetLabel={formatTimeTargetLabel(
             chartPlan.suggestedTime.amount,

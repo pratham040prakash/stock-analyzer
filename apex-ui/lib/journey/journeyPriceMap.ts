@@ -6,6 +6,11 @@ export type JourneyLiveQuote = {
   quantity: number;
 };
 
+export type JourneyWatchPathQuote = {
+  symbol: string;
+  livePrice: number;
+};
+
 export function buildJourneyPriceMap(
   holdings: PortfolioHoldingRow[],
 ): Map<string, JourneyLiveQuote> {
@@ -37,6 +42,29 @@ export function lookupJourneyLiveQuote(
   return priceMap.get(normalizeSymbol(symbol));
 }
 
+export function mergeWatchPathQuotes(
+  priceMap: Map<string, JourneyLiveQuote>,
+  watchQuotes: JourneyWatchPathQuote[],
+): Map<string, JourneyLiveQuote> {
+  for (const quote of watchQuotes) {
+    const symbol = normalizeSymbol(quote.symbol);
+    if (!symbol || priceMap.has(symbol)) {
+      continue;
+    }
+
+    if (!Number.isFinite(quote.livePrice) || quote.livePrice <= 0) {
+      continue;
+    }
+
+    priceMap.set(symbol, {
+      currentPriceInr: Math.round(quote.livePrice),
+      quantity: 0,
+    });
+  }
+
+  return priceMap;
+}
+
 export function runJourneyPriceMapSelfCheck(): void {
   const map = buildJourneyPriceMap([
     {
@@ -53,5 +81,11 @@ export function runJourneyPriceMapSelfCheck(): void {
   const quote = lookupJourneyLiveQuote(map, "reliance");
   if (!quote || quote.currentPriceInr !== 2550 || quote.quantity !== 5) {
     throw new Error("Journey price map self-check failed");
+  }
+
+  mergeWatchPathQuotes(map, [{ symbol: "TCS", livePrice: 4100.6 }]);
+  const watchQuote = lookupJourneyLiveQuote(map, "TCS");
+  if (!watchQuote || watchQuote.currentPriceInr !== 4101 || watchQuote.quantity !== 0) {
+    throw new Error("Journey price map self-check failed: watch path");
   }
 }

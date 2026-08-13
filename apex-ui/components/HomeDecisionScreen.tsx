@@ -964,6 +964,42 @@ export default function HomeDecisionScreen({
     return primarySymbol;
   }, [isExplore, journeyExploreSetup?.symbol, primarySymbol]);
 
+  const journeySymbolPrice = useMemo(() => {
+    if (!journeySymbol) {
+      return null;
+    }
+
+    const normalized = journeySymbol.trim().toUpperCase();
+    const holding = openPortfolioHoldings.find(
+      (row) => row.tradingsymbol.trim().toUpperCase() === normalized,
+    );
+
+    if (holding?.last_price) {
+      return holding.last_price;
+    }
+
+    const trigger = exploreTriggerBySymbol.get(normalized);
+    if (trigger?.livePrice) {
+      return trigger.livePrice;
+    }
+
+    const pick = decision.picks?.find(
+      (row) => row.stock.trim().toUpperCase() === normalized,
+    );
+
+    if (pick?.price && pick.price > 0) {
+      return pick.price;
+    }
+
+    return primarySymbolPrice;
+  }, [
+    decision.picks,
+    exploreTriggerBySymbol,
+    journeySymbol,
+    openPortfolioHoldings,
+    primarySymbolPrice,
+  ]);
+
   const journeyApexSuggested = Boolean(journeySymbol && (isExplore || isCapitalDeployment));
   const journeyPreferSwing =
     isExplore &&
@@ -1040,7 +1076,7 @@ export default function HomeDecisionScreen({
                 {journeySymbol ? (
                   <InvestmentJourneyPanel
                     symbol={journeySymbol}
-                    currentPriceInr={primarySymbolPrice}
+                    currentPriceInr={journeySymbolPrice}
                     quantity={primarySymbolQty}
                     dailyVerdict={verdictPresentation.verdict}
                     brokerStepCompleted={brokerStepCompleted}

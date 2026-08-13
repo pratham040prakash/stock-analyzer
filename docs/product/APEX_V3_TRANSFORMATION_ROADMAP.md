@@ -220,6 +220,7 @@ This roadmap is the **only active execution track** until:
 | **T11** | Journey list sync on You | List all active paths from server; You page hydrates | ✅ Shipped |
 | **T12** | Live journey progress on You | Broker holdings LTP drives entry→target bars on You | ✅ Shipped |
 | **T13** | Journey actions on You | Pause, complete, and take-profit links on active paths | ✅ Shipped |
+| **T14** | Watch-path LTP on You | Live quotes for paths not yet in portfolio | ✅ Shipped |
 
 **Valuation narrative (ESTIMATE):** Retention SaaS on broker-connected cohort + trust moat (receipts, broker truth).
 
@@ -320,3 +321,4 @@ This roadmap is the **only active execution track** until:
 | 1.7 | 2026-08-13 | T11 shipped: list active journeys API + You page server sync |
 | 1.8 | 2026-08-13 | T12 shipped: live portfolio LTP on You journey progress bars |
 | 1.9 | 2026-08-13 | T13 shipped: pause/complete/take-profit actions on You journey paths |
+| 2.0 | 2026-08-13 | T14 shipped: watch-path LTP via explore triggers on You journeys |

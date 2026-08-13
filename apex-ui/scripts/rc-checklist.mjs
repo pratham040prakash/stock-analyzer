@@ -80,6 +80,7 @@ const keyModules = [
   "app/api/journey/route.ts",
   "lib/journey/journeySync.ts",
   "lib/journey/journeyPriceMap.ts",
+  "lib/journey/journeyWatchLtp.ts",
   "services/journey/repository.ts",
 ];
 
@@ -177,5 +178,9 @@ console.log("You bars use /api/portfolio last_price for entry→target progress\
 console.log("--- T13 (Journey actions on You) ---");
 console.log("You paths: pause/complete via updateJourneyStatusOnServer");
 console.log("Take profit: link to /app/portfolio from YouJourneySection\n");
+
+console.log("--- T14 (Watch-path LTP on You) ---");
+console.log("Watch quotes: lib/journey/journeyWatchLtp.ts → POST /api/explore/triggers");
+console.log("Fills journey bars for symbols not yet in portfolio holdings\n");
 
 process.exit(0);
