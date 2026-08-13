@@ -174,4 +174,8 @@ console.log("--- T12 (Live journey progress on You) ---");
 console.log("Price map: lib/journey/journeyPriceMap.ts");
 console.log("You bars use /api/portfolio last_price for entry→target progress\n");
 
+console.log("--- T13 (Journey actions on You) ---");
+console.log("You paths: pause/complete via updateJourneyStatusOnServer");
+console.log("Take profit: link to /app/portfolio from YouJourneySection\n");
+
 process.exit(0);
