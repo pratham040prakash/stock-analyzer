@@ -2,25 +2,54 @@
 
 import { useEffect, useMemo, useState } from "react";
 import JourneyTargetTrack from "@/components/journey/JourneyTargetTrack";
+import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
 import { buildJourneyProgress } from "@/lib/journey/buildJourneyProgress";
+import {
+  buildJourneyPriceMap,
+  lookupJourneyLiveQuote,
+  type JourneyLiveQuote,
+} from "@/lib/journey/journeyPriceMap";
 import { syncAllActiveJourneys } from "@/lib/journey/journeySync";
 import type { StoredInvestmentJourney } from "@/types/investmentJourney";
+import type { PortfolioApiResponse } from "@/types/portfolioApi";
 
 export default function YouJourneySection() {
   const [activeJourneys, setActiveJourneys] = useState<StoredInvestmentJourney[]>(
     [],
+  );
+  const [priceMap, setPriceMap] = useState<Map<string, JourneyLiveQuote>>(
+    () => new Map(),
   );
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
 
-    void syncAllActiveJourneys().then((journeys) => {
-      if (!cancelled) {
-        setActiveJourneys(journeys);
-        setLoading(false);
+    async function load() {
+      const [journeys, portfolioResponse] = await Promise.all([
+        syncAllActiveJourneys(),
+        apiFetch("/api/portfolio", { cache: "no-store" }),
+      ]);
+
+      if (cancelled) {
+        return;
       }
-    });
+
+      const portfolioData = await parseApiJson<PortfolioApiResponse>(
+        portfolioResponse,
+        "You journey portfolio",
+      );
+
+      setActiveJourneys(journeys);
+      setPriceMap(
+        portfolioData?.holdings?.length
+          ? buildJourneyPriceMap(portfolioData.holdings)
+          : new Map(),
+      );
+      setLoading(false);
+    }
+
+    void load();
 
     return () => {
       cancelled = true;
@@ -30,11 +59,17 @@ export default function YouJourneySection() {
   const rows = useMemo(
     () =>
       activeJourneys.map((journey) => {
-        const progress = buildJourneyProgress({ journey });
+        const quote = lookupJourneyLiveQuote(priceMap, journey.symbol);
+        const progress = buildJourneyProgress({
+          journey,
+          currentPriceInr: quote?.currentPriceInr ?? null,
+          quantity: quote?.quantity ?? 0,
+          entryConfirmed: (quote?.quantity ?? 0) > 0,
+        });
         const entry = progress.entryPriceInr ?? progress.targetPriceInr * 0.92;
         return { journey, progress, entry };
       }),
-    [activeJourneys],
+    [activeJourneys, priceMap],
   );
 
   if (loading) {

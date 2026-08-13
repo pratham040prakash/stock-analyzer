@@ -79,6 +79,7 @@ const keyModules = [
   "app/api/journey/active/route.ts",
   "app/api/journey/route.ts",
   "lib/journey/journeySync.ts",
+  "lib/journey/journeyPriceMap.ts",
   "services/journey/repository.ts",
 ];
 
@@ -168,5 +169,9 @@ console.log("Health probe: migrations.investment_journeys on GET /api/health\n")
 console.log("--- T11 (Journey list on You) ---");
 console.log("List API: GET /api/journey/active (no symbol) → { journeys }");
 console.log("You sync: syncAllActiveJourneys in components/journey/YouJourneySection.tsx\n");
+
+console.log("--- T12 (Live journey progress on You) ---");
+console.log("Price map: lib/journey/journeyPriceMap.ts");
+console.log("You bars use /api/portfolio last_price for entry→target progress\n");
 
 process.exit(0);
