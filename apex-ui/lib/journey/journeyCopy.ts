@@ -49,6 +49,8 @@ export const JOURNEY_COPY = {
   timeTargetBy: "Target by",
   timeProgressLabel: "Time on path",
   progressLabel: "Progress toward target",
+  waitBarLabel: "Not in trade",
+  waitBarHint: "Live price on the path — progress starts after you enter.",
   investedLabel: "In this plan",
   daysLabel: "Days on path",
   disclaimer:
@@ -90,5 +92,9 @@ export function runJourneyCopySelfCheck(): void {
 
   if (!JOURNEY_COPY.currentPricePending.includes("Now")) {
     throw new Error("Journey copy self-check failed: currentPricePending");
+  }
+
+  if (!JOURNEY_COPY.waitBarLabel.length) {
+    throw new Error("Journey copy self-check failed: waitBarLabel");
   }
 }

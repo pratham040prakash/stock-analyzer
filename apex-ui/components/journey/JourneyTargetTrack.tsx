@@ -10,6 +10,8 @@ export type JourneyTargetTrackProps = {
   targetPriceInr: number;
   currentPriceInr?: number | null;
   progressPct: number;
+  /** When true, show live price marker only — no trade progress fill. */
+  waitingForEntry?: boolean;
   targetReached?: boolean;
   thesisBroken?: boolean;
   compact?: boolean;
@@ -25,12 +27,30 @@ function formatPrice(value: number): string {
   return formatInr(Math.round(value));
 }
 
+function pricePathPositionPct(
+  entry: number,
+  target: number,
+  current: number | null | undefined,
+): number | null {
+  if (current === null || current === undefined || !Number.isFinite(current)) {
+    return null;
+  }
+
+  if (target === entry) {
+    return null;
+  }
+
+  const raw = ((current - entry) / (target - entry)) * 100;
+  return Math.max(0, Math.min(100, raw));
+}
+
 export default function JourneyTargetTrack({
   symbol,
   entryPriceInr,
   targetPriceInr,
   currentPriceInr,
   progressPct,
+  waitingForEntry = false,
   targetReached = false,
   thesisBroken = false,
   compact = false,
@@ -42,13 +62,18 @@ export default function JourneyTargetTrack({
   patienceUntilLabel = null,
 }: JourneyTargetTrackProps) {
   const clampedPct = Math.max(0, Math.min(100, progressPct));
+  const showTradeProgress = !waitingForEntry;
+  const displayPct = showTradeProgress ? clampedPct : 0;
+  const priceMarkerPct = waitingForEntry
+    ? pricePathPositionPct(entryPriceInr, targetPriceInr, currentPriceInr)
+    : null;
   const barStyle = journeyBarGradient(symbol, { targetReached, thesisBroken });
   const barHeight = compact ? "h-7" : "h-9";
-  const pctInsideFill = clampedPct >= 14;
+  const pctInsideFill = showTradeProgress && displayPct >= 14;
   const fillWidth = targetReached
     ? 100
-    : clampedPct > 0
-      ? Math.max(clampedPct, 8)
+    : showTradeProgress && displayPct > 0
+      ? Math.max(displayPct, 8)
       : 0;
 
   const timeClamped =
@@ -112,41 +137,65 @@ export default function JourneyTargetTrack({
               barHeight,
             ].join(" ")}
             role="progressbar"
-            aria-valuenow={clampedPct}
+            aria-valuenow={displayPct}
             aria-valuemin={0}
             aria-valuemax={100}
-            aria-label={`${symbol}: ${clampedPct}% from entry to target`}
+            aria-label={
+              waitingForEntry
+                ? `${symbol}: not in trade — live price on chart path`
+                : `${symbol}: ${displayPct}% from entry to target`
+            }
           >
-            <div
-              className={[
-                "absolute inset-y-0 left-0 rounded-full bg-gradient-to-r transition-[width] duration-700 ease-out",
-                barStyle.fillClass,
-                targetReached ? "shadow-[0_0_14px_rgba(52,211,153,0.4)]" : "",
-              ].join(" ")}
-              style={{ width: `${fillWidth}%` }}
-            >
-              {pctInsideFill ? (
-                <span
-                  className={[
-                    "absolute inset-y-0 right-2 flex items-center font-bold tabular-nums text-white drop-shadow-sm",
-                    compact ? "text-[11px]" : "text-xs",
-                  ].join(" ")}
-                >
-                  {targetReached ? "100%" : `${clampedPct}%`}
-                </span>
-              ) : null}
-            </div>
+            {showTradeProgress ? (
+              <div
+                className={[
+                  "absolute inset-y-0 left-0 rounded-full bg-gradient-to-r transition-[width] duration-700 ease-out",
+                  barStyle.fillClass,
+                  targetReached ? "shadow-[0_0_14px_rgba(52,211,153,0.4)]" : "",
+                ].join(" ")}
+                style={{ width: `${fillWidth}%` }}
+              >
+                {pctInsideFill ? (
+                  <span
+                    className={[
+                      "absolute inset-y-0 right-2 flex items-center font-bold tabular-nums text-white drop-shadow-sm",
+                      compact ? "text-[11px]" : "text-xs",
+                    ].join(" ")}
+                  >
+                    {targetReached ? "100%" : `${displayPct}%`}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
+
+            {waitingForEntry && priceMarkerPct !== null ? (
+              <span
+                className="pointer-events-none absolute top-1/2 z-10 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-sky-100/90 bg-sky-400 shadow-[0_0_10px_rgba(56,189,248,0.55)]"
+                style={{ left: `${priceMarkerPct}%` }}
+                aria-hidden
+              />
+            ) : null}
 
             {targetReached ? (
               <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-50/95">
                 Target met
               </span>
+            ) : waitingForEntry ? (
+              <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-[10px] font-semibold uppercase tracking-[0.1em] text-apex-muted/70">
+                {JOURNEY_COPY.waitBarLabel}
+              </span>
             ) : null}
           </div>
 
-          {!pctInsideFill && clampedPct > 0 && !targetReached ? (
+          {waitingForEntry && !compact ? (
+            <p className="mt-1 text-center text-[10px] leading-relaxed text-apex-muted/60">
+              {JOURNEY_COPY.waitBarHint}
+            </p>
+          ) : null}
+
+          {!pctInsideFill && showTradeProgress && displayPct > 0 && !targetReached ? (
             <p className="mt-1 text-center text-[10px] font-semibold tabular-nums text-apex-muted/80">
-              {clampedPct}%
+              {displayPct}%
             </p>
           ) : null}
         </div>

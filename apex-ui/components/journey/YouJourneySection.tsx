@@ -118,6 +118,9 @@ export default function YouJourneySection() {
               targetPriceInr={progress.targetPriceInr}
               currentPriceInr={progress.currentPriceInr}
               progressPct={progress.progressPct}
+              waitingForEntry={
+                progress.milestone === "waiting_entry" || progress.milestone === "planning"
+              }
               targetReached={progress.targetReached}
               thesisBroken={progress.thesisBroken}
               timeTargetLabel={progress.timeTargetLabel}
