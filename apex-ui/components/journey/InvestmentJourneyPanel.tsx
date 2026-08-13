@@ -7,6 +7,7 @@ import JourneyTimeTargetPicker from "@/components/journey/JourneyTimeTargetPicke
 import { apiFetchJson } from "@/lib/api/clientFetch";
 import { buildJourneyProgress } from "@/lib/journey/buildJourneyProgress";
 import { isValidJourneyPlan } from "@/lib/journey/journeyPlanSanitize";
+import { sanitizeChartBackedJourneyPlan } from "@/lib/journey/journeyPlanSanitize";
 import type { ChartBackedJourneyPlan } from "@/lib/journey/buildChartBackedJourneyPlan";
 import { JOURNEY_COPY } from "@/lib/journey/journeyCopy";
 import { formatTimeTargetLabel, suggestTimeTarget } from "@/lib/journey/journeyTimeTarget";
@@ -111,6 +112,14 @@ export default function InvestmentJourneyPanel({
     return fetchedLivePrice;
   }, [currentPriceInr, fetchedLivePrice]);
 
+  const displayChartPlan = useMemo(() => {
+    if (!chartPlan) {
+      return null;
+    }
+
+    return sanitizeChartBackedJourneyPlan(chartPlan, effectiveLivePrice);
+  }, [chartPlan, effectiveLivePrice]);
+
   const planStartIso = useMemo(
     () => new Date().toISOString().slice(0, 10),
     [],
@@ -182,6 +191,13 @@ export default function InvestmentJourneyPanel({
       if (activationLevelInr && activationLevelInr > 0) {
         params.set("activationLevel", String(Math.round(activationLevelInr)));
       }
+      if (
+        effectiveLivePrice !== null &&
+        effectiveLivePrice !== undefined &&
+        effectiveLivePrice > 0
+      ) {
+        params.set("currentPrice", String(Math.round(effectiveLivePrice)));
+      }
 
       try {
         const { data } = await apiFetchJson<PlanResponse>(
@@ -223,7 +239,7 @@ export default function InvestmentJourneyPanel({
     return () => {
       cancelled = true;
     };
-  }, [activationLevelInr, apexSuggested, journey, preferSwing, symbol]);
+  }, [activationLevelInr, apexSuggested, effectiveLivePrice, journey, preferSwing, symbol]);
 
   const progress: JourneyProgressViewModel | null = useMemo(() => {
     if (!journey) {
@@ -246,28 +262,28 @@ export default function InvestmentJourneyPanel({
   ]);
 
   const commitChartPlan = async () => {
-    if (!chartPlan) {
+    if (!displayChartPlan) {
       return;
     }
 
     const created = createJourney({
-      symbol: chartPlan.symbol,
-      horizon: chartPlan.horizon,
-      targetPriceInr: chartPlan.targetPriceInr,
-      entryPriceInr: chartPlan.entryPriceInr,
+      symbol: displayChartPlan.symbol,
+      horizon: displayChartPlan.horizon,
+      targetPriceInr: displayChartPlan.targetPriceInr,
+      entryPriceInr: displayChartPlan.entryPriceInr,
       targetDurationAmount: timeAmount,
       targetDurationUnit: timeUnit,
       suggestedByApex: true,
       chartBasis: {
-        lookbackDays: chartPlan.lookbackDays,
-        supportLevelInr: chartPlan.supportLevelInr ?? undefined,
-        resistanceLevelInr: chartPlan.resistanceLevelInr ?? undefined,
-        backtraceSummary: chartPlan.backtraceSummary,
-        structureScore: chartPlan.structureScore,
+        lookbackDays: displayChartPlan.lookbackDays,
+        supportLevelInr: displayChartPlan.supportLevelInr ?? undefined,
+        resistanceLevelInr: displayChartPlan.resistanceLevelInr ?? undefined,
+        backtraceSummary: displayChartPlan.backtraceSummary,
+        structureScore: displayChartPlan.structureScore,
         suggestedAt: new Date().toISOString().slice(0, 10),
-        suggestedWaitDays: chartPlan.suggestedTime.totalDays,
-        timeSuggestionRationale: chartPlan.suggestedTime.rationale,
-        timeWaitLabel: chartPlan.suggestedTime.waitLabel,
+        suggestedWaitDays: displayChartPlan.suggestedTime.totalDays,
+        timeSuggestionRationale: displayChartPlan.suggestedTime.rationale,
+        timeWaitLabel: displayChartPlan.suggestedTime.waitLabel,
       },
     });
 
@@ -358,8 +374,8 @@ export default function InvestmentJourneyPanel({
     );
   }
 
-  if (!journey && !showStartForm && chartPlan && planState === "ready") {
-    if (!isValidJourneyPlan(chartPlan)) {
+  if (!journey && !showStartForm && displayChartPlan && planState === "ready") {
+    if (!isValidJourneyPlan(displayChartPlan)) {
       return (
         <section
           className={`rounded-xl border border-amber-500/15 bg-amber-500/[0.04] px-4 py-4 ${className}`.trim()}
@@ -372,8 +388,8 @@ export default function InvestmentJourneyPanel({
     }
 
     const previewPct = previewProgressPct(
-      chartPlan.entryPriceInr,
-      chartPlan.targetPriceInr,
+      displayChartPlan.entryPriceInr,
+      displayChartPlan.targetPriceInr,
       effectiveLivePrice,
     );
 
@@ -384,7 +400,7 @@ export default function InvestmentJourneyPanel({
       >
         {stalePlanBanner}
         <JourneyPatienceCallout
-          patienceUntil={chartPlan.suggestedTime.patienceUntil}
+          patienceUntil={displayChartPlan.suggestedTime.patienceUntil}
           trustLine={JOURNEY_COPY.trustIndicatorsLine}
           compact={compact}
         />
@@ -397,32 +413,32 @@ export default function InvestmentJourneyPanel({
 
         <JourneyTargetTrack
           className="mt-3"
-          symbol={chartPlan.symbol}
-          entryPriceInr={chartPlan.entryPriceInr}
-          targetPriceInr={chartPlan.targetPriceInr}
+          symbol={displayChartPlan.symbol}
+          entryPriceInr={displayChartPlan.entryPriceInr}
+          targetPriceInr={displayChartPlan.targetPriceInr}
           currentPriceInr={effectiveLivePrice}
           progressPct={previewPct}
           waitingForEntry={(quantity ?? 0) === 0 && !brokerStepCompleted}
           timeTargetLabel={formatTimeTargetLabel(
-            chartPlan.suggestedTime.amount,
-            chartPlan.suggestedTime.unit,
+            displayChartPlan.suggestedTime.amount,
+            displayChartPlan.suggestedTime.unit,
           )}
           timeProgressPct={0}
-          timeRemainingLabel={chartPlan.suggestedTime.waitLabel.replace(/^Wait ~/, "")}
+          timeRemainingLabel={displayChartPlan.suggestedTime.waitLabel.replace(/^Wait ~/, "")}
           compact={compact}
         />
 
         {!compact ? (
           <>
             <p className="mt-3 text-xs leading-relaxed text-apex-muted/75">
-              {chartPlan.suggestedTime.rationale}
+              {displayChartPlan.suggestedTime.rationale}
             </p>
             <JourneyTimeTargetPicker
               className="mt-4 border-t border-apex-border/10 pt-4"
               amount={timeAmount}
               unit={timeUnit}
               startedAt={planStartIso}
-              suggestion={chartPlan.suggestedTime}
+              suggestion={displayChartPlan.suggestedTime}
               onChange={({ amount, unit }) => {
                 setTimeAmount(amount);
                 setTimeUnit(unit);

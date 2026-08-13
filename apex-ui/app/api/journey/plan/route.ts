@@ -30,9 +30,16 @@ export async function GET(request: Request) {
   }
 
   const data = await fetchStockData(symbol);
+  const currentRaw = searchParams.get("currentPrice");
+  const currentPriceInr =
+    currentRaw && Number.isFinite(Number(currentRaw)) && Number(currentRaw) > 0
+      ? Number(currentRaw)
+      : undefined;
+
   const plan = buildChartBackedJourneyPlan({
     symbol,
     prices: data.prices,
+    currentPriceInr,
     activationLevelInr: activationLevel,
     preferSwing,
   });

@@ -3,6 +3,7 @@
 import { formatInr } from "@/lib/funds";
 import { journeyBarGradient } from "@/lib/journey/journeyBarStyle";
 import { JOURNEY_COPY } from "@/lib/journey/journeyCopy";
+import { resolveJourneyWaitPathInsight } from "@/lib/journey/journeyWaitPathInsight";
 
 export type JourneyTargetTrackProps = {
   symbol: string;
@@ -78,6 +79,13 @@ export default function JourneyTargetTrack({
 
   const timeClamped =
     timeProgressPct === null ? null : Math.max(0, Math.min(100, timeProgressPct));
+
+  const waitPathInsight = resolveJourneyWaitPathInsight({
+    waitingForEntry,
+    entryPriceInr,
+    targetPriceInr,
+    currentPriceInr,
+  });
 
   return (
     <div className={className}>
@@ -266,6 +274,12 @@ export default function JourneyTargetTrack({
             {timeClamped}%
           </p>
         </div>
+      ) : null}
+
+      {waitPathInsight ? (
+        <p className="mt-2 rounded-lg border border-amber-500/25 bg-amber-500/[0.06] px-3 py-2 text-[11px] leading-relaxed text-amber-100/90">
+          {waitPathInsight.message}
+        </p>
       ) : null}
     </div>
   );

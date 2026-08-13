@@ -51,6 +51,10 @@ export const JOURNEY_COPY = {
   progressLabel: "Progress toward target",
   waitBarLabel: "Not in trade",
   waitBarHint: "Live price on the path — progress starts after you enter.",
+  waitAtTargetCallout:
+    "Live price is at the chart target — you have not entered yet. This path may be late; wait for a fresh setup.",
+  waitNearTargetCallout:
+    "Live price is near the chart target — you have not entered yet. Do not chase; wait for confirmation.",
   investedLabel: "In this plan",
   daysLabel: "Days on path",
   disclaimer:
@@ -96,5 +100,9 @@ export function runJourneyCopySelfCheck(): void {
 
   if (!JOURNEY_COPY.waitBarLabel.length) {
     throw new Error("Journey copy self-check failed: waitBarLabel");
+  }
+
+  if (!JOURNEY_COPY.waitAtTargetCallout.includes("not entered")) {
+    throw new Error("Journey copy self-check failed: waitAtTargetCallout");
   }
 }

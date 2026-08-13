@@ -104,6 +104,7 @@ import { runJourneyPlanSanitizeSelfCheck } from "../lib/journey/journeyPlanSanit
 import { runJourneySyncSelfCheck } from "../lib/journey/journeySync";
 import { runJourneyPriceMapSelfCheck } from "../lib/journey/journeyPriceMap";
 import { runJourneyWatchLtpSelfCheck } from "../lib/journey/journeyWatchLtp";
+import { runJourneyWaitPathInsightSelfCheck } from "../lib/journey/journeyWaitPathInsight";
 import { runInvestmentJourneyRepositorySelfCheck } from "../services/journey/repository";
 import { runInvestmentJourneyErrorsSelfCheck } from "../services/journey/errors";
 import { runLivePortfolioSnapshotSelfCheck } from "../lib/livePortfolioSnapshot";
@@ -211,6 +212,7 @@ runJourneyStoreSelfCheck();
 runJourneyPlanSanitizeSelfCheck();
 runJourneyPriceMapSelfCheck();
 runJourneyWatchLtpSelfCheck();
+runJourneyWaitPathInsightSelfCheck();
 runJourneySyncSelfCheck();
 runInvestmentJourneyRepositorySelfCheck();
 runInvestmentJourneyErrorsSelfCheck();

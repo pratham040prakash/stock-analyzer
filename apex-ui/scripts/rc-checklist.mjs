@@ -183,4 +183,8 @@ console.log("--- T14 (Watch-path LTP on You) ---");
 console.log("Watch quotes: lib/journey/journeyWatchLtp.ts → POST /api/explore/triggers");
 console.log("Fills journey bars for symbols not yet in portfolio holdings\n");
 
+console.log("--- T15 (Wait-path target clarity) ---");
+console.log("Insight: lib/journey/journeyWaitPathInsight.ts — callout when live price at/near target without entry");
+console.log("Live plan: GET /api/journey/plan?currentPrice= + client sanitize with effectiveLivePrice\n");
+
 process.exit(0);
