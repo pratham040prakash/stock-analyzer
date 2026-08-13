@@ -32,6 +32,7 @@ const ORDERED_MIGRATIONS = [
   "decision_receipts.sql",
   "investment_thesis.sql",
   "operating_profile.sql",
+  "investment_journeys.sql",
 ];
 
 function listMigrations() {

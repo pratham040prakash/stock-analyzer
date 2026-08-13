@@ -128,6 +128,18 @@ test.describe("APEX authenticated smoke", () => {
     expect(body.profile === null || typeof body.profile?.investmentStyle === "string").toBeTruthy();
   });
 
+  test("active investment journey endpoint returns envelope", async ({ request }) => {
+    const response = await request.get("/api/journey/active?symbol=RELIANCE");
+    expect(response.ok()).toBeTruthy();
+
+    const body = await response.json();
+    expect(
+      body.journey === null ||
+        (typeof body.journey?.symbol === "string" &&
+          typeof body.journey?.targetPriceInr === "number"),
+    ).toBeTruthy();
+  });
+
   test("today brief includes daily verdict", async ({ request }) => {
     const response = await request.get("/api/today/brief");
     expect(response.ok()).toBeTruthy();

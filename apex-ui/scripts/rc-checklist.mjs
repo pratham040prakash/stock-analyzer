@@ -18,6 +18,7 @@ const requiredMigrationFiles = [
   "premium_subscriptions.sql",
   "premium_trial_offers.sql",
   "user_trust_state.sql",
+  "investment_journeys.sql",
 ];
 
 console.log("APEX v3.0.0-rc1 checklist\n");
@@ -75,6 +76,10 @@ const keyModules = [
   "lib/dailyLoop/todaySyncRecoveryCopy.ts",
   "lib/dailyLoop/todaySyncAutoRetry.ts",
   "components/dailyLoop/TodaySyncStatusBanner.tsx",
+  "app/api/journey/active/route.ts",
+  "app/api/journey/route.ts",
+  "lib/journey/journeySync.ts",
+  "services/journey/repository.ts",
 ];
 
 for (const relative of keyModules) {
@@ -153,5 +158,11 @@ console.log("Sync recovery: lib/dailyLoop/todaySyncRecoveryCopy.ts");
 console.log("Auto-retry: lib/dailyLoop/todaySyncAutoRetry.ts");
 console.log("Banner: components/dailyLoop/TodaySyncStatusBanner.tsx");
 console.log("IA: docs/product/APEX_V3_CANONICAL_IA.md v1.1\n");
+
+console.log("--- T10 (Investment journey persistence) ---");
+console.log("Apply migration: supabase/migrations/investment_journeys.sql");
+console.log("API: GET /api/journey/active?symbol= · POST/PATCH /api/journey");
+console.log("Client sync: lib/journey/journeySync.ts");
+console.log("Health probe: migrations.investment_journeys on GET /api/health\n");
 
 process.exit(0);

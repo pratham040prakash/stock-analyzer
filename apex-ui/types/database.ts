@@ -4,6 +4,14 @@ import type { MentorDecision } from "@/types/mentorDecision";
 import type { FinancialProfile } from "@/lib/financialProfile";
 import type { DailyDecisionType } from "@/types/decision";
 
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[];
+
 export type Database = {
   public: {
     Tables: {
@@ -111,6 +119,63 @@ export type Database = {
         Update: {
           investment_style?: "long_term_only" | "core_plus_tactical" | "tactical_only";
           intraday_acknowledged_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      investment_journeys: {
+        Row: {
+          id: string;
+          user_id: string;
+          symbol: string;
+          horizon: "swing" | "long_term";
+          target_price_inr: number;
+          entry_price_inr: number | null;
+          invested_amount_inr: number | null;
+          started_at: string;
+          target_by: string | null;
+          target_duration_amount: number | null;
+          target_duration_unit: "days" | "weeks" | "years" | null;
+          status: "active" | "completed" | "paused";
+          notes: string | null;
+          suggested_by_apex: boolean;
+          chart_basis: Json | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          symbol: string;
+          horizon: "swing" | "long_term";
+          target_price_inr: number;
+          entry_price_inr?: number | null;
+          invested_amount_inr?: number | null;
+          started_at: string;
+          target_by?: string | null;
+          target_duration_amount?: number | null;
+          target_duration_unit?: "days" | "weeks" | "years" | null;
+          status?: "active" | "completed" | "paused";
+          notes?: string | null;
+          suggested_by_apex?: boolean;
+          chart_basis?: Json | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          symbol?: string;
+          horizon?: "swing" | "long_term";
+          target_price_inr?: number;
+          entry_price_inr?: number | null;
+          invested_amount_inr?: number | null;
+          started_at?: string;
+          target_by?: string | null;
+          target_duration_amount?: number | null;
+          target_duration_unit?: "days" | "weeks" | "years" | null;
+          status?: "active" | "completed" | "paused";
+          notes?: string | null;
+          suggested_by_apex?: boolean;
+          chart_basis?: Json | null;
           updated_at?: string;
         };
         Relationships: [];

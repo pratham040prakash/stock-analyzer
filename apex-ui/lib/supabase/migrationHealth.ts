@@ -6,6 +6,7 @@ export type MigrationHealthReport = {
   operating_profile: MigrationProbeStatus;
   premium_subscriptions: MigrationProbeStatus;
   premium_trial_offers: MigrationProbeStatus;
+  investment_journeys: MigrationProbeStatus;
 };
 
 async function probeTable(table: string): Promise<MigrationProbeStatus> {
@@ -44,6 +45,10 @@ export async function probePremiumTrialOffersMigration(): Promise<MigrationProbe
   return probeTable("premium_trial_offers");
 }
 
+export async function probeInvestmentJourneysMigration(): Promise<MigrationProbeStatus> {
+  return probeTable("investment_journeys");
+}
+
 export async function probeMigrationHealth(
   serviceRoleConfigured: boolean,
 ): Promise<MigrationHealthReport> {
@@ -52,20 +57,27 @@ export async function probeMigrationHealth(
       operating_profile: "unknown",
       premium_subscriptions: "unknown",
       premium_trial_offers: "unknown",
+      investment_journeys: "unknown",
     };
   }
 
-  const [operating_profile, premium_subscriptions, premium_trial_offers] =
-    await Promise.all([
-      probeOperatingProfileMigration(),
-      probePremiumSubscriptionsMigration(),
-      probePremiumTrialOffersMigration(),
-    ]);
+  const [
+    operating_profile,
+    premium_subscriptions,
+    premium_trial_offers,
+    investment_journeys,
+  ] = await Promise.all([
+    probeOperatingProfileMigration(),
+    probePremiumSubscriptionsMigration(),
+    probePremiumTrialOffersMigration(),
+    probeInvestmentJourneysMigration(),
+  ]);
 
   return {
     operating_profile,
     premium_subscriptions,
     premium_trial_offers,
+    investment_journeys,
   };
 }
 

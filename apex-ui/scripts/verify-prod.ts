@@ -208,6 +208,27 @@ async function runChecks(baseUrl: string): Promise<VerifyReport> {
     critical: false,
   });
 
+  const investmentJourneysMigration = migrationBody?.investment_journeys;
+
+  record(checks, {
+    id: "health-migration-investment-journeys",
+    label: "investment_journeys migration status exposed in health report",
+    ok:
+      investmentJourneysMigration === "ready" ||
+      investmentJourneysMigration === "pending" ||
+      investmentJourneysMigration === "unknown",
+    detail: String(investmentJourneysMigration ?? "missing"),
+    critical: false,
+  });
+
+  record(checks, {
+    id: "health-migration-investment-journeys-ready",
+    label: "investment_journeys migration applied on prod",
+    ok: investmentJourneysMigration === "ready",
+    detail: String(investmentJourneysMigration ?? "missing"),
+    critical: false,
+  });
+
   const scalePath = healthBody?.scale_path;
   record(checks, {
     id: "health-scale-path",

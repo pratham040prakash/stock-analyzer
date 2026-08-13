@@ -11,11 +11,14 @@ import type { ChartBackedJourneyPlan } from "@/lib/journey/buildChartBackedJourn
 import { JOURNEY_COPY } from "@/lib/journey/journeyCopy";
 import { formatTimeTargetLabel, suggestTimeTarget } from "@/lib/journey/journeyTimeTarget";
 import {
-  completeJourney,
   createJourney,
   getActiveJourneyForSymbol,
-  pauseJourney,
 } from "@/lib/journey/journeyStore";
+import {
+  persistJourneyToServer,
+  syncJourneyForSymbol,
+  updateJourneyStatusOnServer,
+} from "@/lib/journey/journeySync";
 import type { DailyVerdict } from "@/lib/dailyLoop/dailyVerdict";
 import type {
   JourneyHorizon,
@@ -98,12 +101,13 @@ export default function InvestmentJourneyPanel({
     [],
   );
 
-  const reload = useCallback(() => {
-    setJourney(getActiveJourneyForSymbol(symbol));
+  const reload = useCallback(async () => {
+    const synced = await syncJourneyForSymbol(symbol);
+    setJourney(synced ?? getActiveJourneyForSymbol(symbol));
   }, [symbol]);
 
   useEffect(() => {
-    reload();
+    void reload();
   }, [reload]);
 
   useEffect(() => {
@@ -185,7 +189,7 @@ export default function InvestmentJourneyPanel({
     quantity,
   ]);
 
-  const commitChartPlan = () => {
+  const commitChartPlan = async () => {
     if (!chartPlan) {
       return;
     }
@@ -211,11 +215,12 @@ export default function InvestmentJourneyPanel({
       },
     });
 
-    setJourney(created);
+    const saved = await persistJourneyToServer(created);
+    setJourney(saved ?? created);
     setShowStartForm(false);
   };
 
-  const handleStartJourney = () => {
+  const handleStartJourney = async () => {
     const target = Number(targetPrice);
     if (!Number.isFinite(target) || target <= 0) {
       setFormError("Enter a valid target price.");
@@ -250,7 +255,8 @@ export default function InvestmentJourneyPanel({
       targetDurationUnit: timeUnit,
     });
 
-    setJourney(created);
+    const saved = await persistJourneyToServer(created);
+    setJourney(saved ?? created);
     setShowStartForm(false);
   };
 
@@ -547,8 +553,10 @@ export default function InvestmentJourneyPanel({
             <button
               type="button"
               onClick={() => {
-                completeJourney(progress.journey.id);
-                reload();
+                void updateJourneyStatusOnServer(
+                  progress.journey.id,
+                  "completed",
+                ).then(() => reload());
               }}
               className="text-sm text-emerald-100/80 underline underline-offset-2 hover:text-white"
             >
@@ -568,8 +576,9 @@ export default function InvestmentJourneyPanel({
             <button
               type="button"
               onClick={() => {
-                pauseJourney(progress.journey.id);
-                reload();
+                void updateJourneyStatusOnServer(progress.journey.id, "paused").then(
+                  () => reload(),
+                );
               }}
               className="text-apex-muted/70 underline underline-offset-2 hover:text-apex-text"
             >
