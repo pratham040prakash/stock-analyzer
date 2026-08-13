@@ -5,6 +5,7 @@ import type {
   JourneyTimeUnit,
   StoredInvestmentJourney,
 } from "@/types/investmentJourney";
+import { repairStoredJourney } from "@/lib/journey/journeyPlanSanitize";
 import type { Database, Json } from "@/types/database";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -138,6 +139,30 @@ export async function getActiveJourneyForSymbolFromDb(
   }
 
   return mapRow(data);
+}
+
+export async function listActiveJourneysFromDb(
+  supabase: Client,
+  userId: string,
+  limit = 12,
+): Promise<StoredInvestmentJourney[]> {
+  const { data, error } = await supabase
+    .from("investment_journeys")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("status", "active")
+    .order("updated_at", { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data?.length) {
+    return [];
+  }
+
+  return data.map((row) => repairStoredJourney(mapRow(row)));
 }
 
 export async function upsertActiveJourney(

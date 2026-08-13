@@ -165,4 +165,8 @@ console.log("API: GET /api/journey/active?symbol= · POST/PATCH /api/journey");
 console.log("Client sync: lib/journey/journeySync.ts");
 console.log("Health probe: migrations.investment_journeys on GET /api/health\n");
 
+console.log("--- T11 (Journey list on You) ---");
+console.log("List API: GET /api/journey/active (no symbol) → { journeys }");
+console.log("You sync: syncAllActiveJourneys in components/journey/YouJourneySection.tsx\n");
+
 process.exit(0);

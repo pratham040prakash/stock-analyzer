@@ -2,6 +2,7 @@ import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
 import {
   completeJourney as completeLocalJourney,
   getActiveJourneyForSymbol,
+  listActiveJourneys,
   pauseJourney as pauseLocalJourney,
   saveJourney,
 } from "@/lib/journey/journeyStore";
@@ -12,6 +13,10 @@ import type {
 
 type ActiveJourneyResponse = {
   journey: StoredInvestmentJourney | null;
+};
+
+type ActiveJourneysListResponse = {
+  journeys: StoredInvestmentJourney[];
 };
 
 type JourneyMutationResponse = {
@@ -51,6 +56,44 @@ export async function syncJourneyForSymbol(
   } catch {
     return local;
   }
+}
+
+export async function syncAllActiveJourneys(): Promise<StoredInvestmentJourney[]> {
+  const localBefore = listActiveJourneys();
+
+  try {
+    const response = await apiFetch("/api/journey/active", { cache: "no-store" });
+    const data = await parseApiJson<ActiveJourneysListResponse>(
+      response,
+      "Journey list sync",
+    );
+
+    if (response.ok && Array.isArray(data?.journeys)) {
+      for (const journey of data.journeys) {
+        saveJourney(journey);
+      }
+
+      const serverSymbols = new Set(
+        data.journeys.map((journey) => journey.symbol.trim().toUpperCase()),
+      );
+
+      for (const local of localBefore) {
+        if (!serverSymbols.has(local.symbol.trim().toUpperCase())) {
+          await persistJourneyToServer(local);
+        }
+      }
+
+      return listActiveJourneys();
+    }
+  } catch {
+    // Fall through to local-only paths.
+  }
+
+  for (const local of localBefore) {
+    await persistJourneyToServer(local);
+  }
+
+  return listActiveJourneys();
 }
 
 export async function persistJourneyToServer(
@@ -112,6 +155,10 @@ export async function updateJourneyStatusOnServer(
 
 export function runJourneySyncSelfCheck(): void {
   if (typeof syncJourneyForSymbol !== "function") {
-    throw new Error("Journey sync self-check failed");
+    throw new Error("Journey sync self-check failed: symbol sync");
+  }
+
+  if (typeof syncAllActiveJourneys !== "function") {
+    throw new Error("Journey sync self-check failed: list sync");
   }
 }

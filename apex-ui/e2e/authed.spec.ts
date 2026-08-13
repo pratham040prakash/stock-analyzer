@@ -140,6 +140,14 @@ test.describe("APEX authenticated smoke", () => {
     ).toBeTruthy();
   });
 
+  test("active investment journeys list returns envelope", async ({ request }) => {
+    const response = await request.get("/api/journey/active");
+    expect(response.ok()).toBeTruthy();
+
+    const body = await response.json();
+    expect(Array.isArray(body.journeys)).toBeTruthy();
+  });
+
   test("today brief includes daily verdict", async ({ request }) => {
     const response = await request.get("/api/today/brief");
     expect(response.ok()).toBeTruthy();

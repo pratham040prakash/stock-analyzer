@@ -1,12 +1,31 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import JourneyTargetTrack from "@/components/journey/JourneyTargetTrack";
 import { buildJourneyProgress } from "@/lib/journey/buildJourneyProgress";
-import { listActiveJourneys } from "@/lib/journey/journeyStore";
+import { syncAllActiveJourneys } from "@/lib/journey/journeySync";
+import type { StoredInvestmentJourney } from "@/types/investmentJourney";
 
 export default function YouJourneySection() {
-  const activeJourneys = useMemo(() => listActiveJourneys(), []);
+  const [activeJourneys, setActiveJourneys] = useState<StoredInvestmentJourney[]>(
+    [],
+  );
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void syncAllActiveJourneys().then((journeys) => {
+      if (!cancelled) {
+        setActiveJourneys(journeys);
+        setLoading(false);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const rows = useMemo(
     () =>
@@ -17,6 +36,15 @@ export default function YouJourneySection() {
       }),
     [activeJourneys],
   );
+
+  if (loading) {
+    return (
+      <section className="rounded-xl border border-apex-border/15 bg-white/[0.02] px-4 py-4">
+        <p className="text-sm font-medium text-apex-text/90">Target paths</p>
+        <p className="mt-2 text-sm text-apex-muted/70">Loading active paths…</p>
+      </section>
+    );
+  }
 
   if (activeJourneys.length === 0) {
     return (

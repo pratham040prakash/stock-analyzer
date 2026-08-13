@@ -217,6 +217,7 @@ This roadmap is the **only active execution track** until:
 | **T8** | Stale auto-retry on mount | Silent portfolio refresh before stale warning | ✅ Shipped |
 | **T9** | Stale retry on focus + pull | Tab return and pull-to-refresh reuse sync recovery | ✅ Shipped |
 | **T10** | Investment journey persistence | Supabase-backed active journeys + client sync | ✅ Shipped |
+| **T11** | Journey list sync on You | List all active paths from server; You page hydrates | ✅ Shipped |
 
 **Valuation narrative (ESTIMATE):** Retention SaaS on broker-connected cohort + trust moat (receipts, broker truth).
 
@@ -314,3 +315,4 @@ This roadmap is the **only active execution track** until:
 | 1.4 | 2026-08-12 | T8 shipped: silent stale auto-retry on Today mount |
 | 1.5 | 2026-08-12 | T9 shipped: stale auto-retry on tab focus and pull-to-refresh |
 | 1.6 | 2026-08-13 | T10 shipped: investment_journeys Supabase table, `/api/journey` sync, health probe |
+| 1.7 | 2026-08-13 | T11 shipped: list active journeys API + You page server sync |

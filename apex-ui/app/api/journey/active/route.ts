@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { apiError } from "@/lib/api/response";
 import { createClient } from "@/lib/supabase/server";
-import { repairStoredJourney } from "@/lib/journey/journeyPlanSanitize";
 import {
   getActiveJourneyForSymbolFromDb,
+  listActiveJourneysFromDb,
   normalizeJourneySymbol,
 } from "@/services/journey/repository";
 import { resolveInvestmentJourneyDbError } from "@/services/journey/errors";
@@ -22,7 +22,13 @@ export async function GET(request: Request) {
   const symbol = searchParams.get("symbol");
 
   if (!symbol) {
-    return apiError("symbol query param required", 400);
+    try {
+      const journeys = await listActiveJourneysFromDb(supabase, user.id);
+      return NextResponse.json({ journeys });
+    } catch (error) {
+      const resolved = resolveInvestmentJourneyDbError(error);
+      return apiError(resolved.message, resolved.status);
+    }
   }
 
   const normalized = normalizeJourneySymbol(symbol);
