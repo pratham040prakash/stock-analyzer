@@ -147,6 +147,7 @@ export type HomeDecisionScreenProps = {
     headline?: string;
     onDismiss: () => void;
   };
+  tapeHardWait?: boolean;
   className?: string;
 };
 
@@ -189,6 +190,7 @@ export default function HomeDecisionScreen({
   onPremiumActivated,
   proofHref = null,
   researchHandoff,
+  tapeHardWait: tapeHardWaitProp = false,
   className = "",
 }: HomeDecisionScreenProps) {
   const features = premiumFeatures ?? {
@@ -308,6 +310,7 @@ export default function HomeDecisionScreen({
     useState<BrokerFillSummary | null>(null);
   const [receiptDismissed, setReceiptDismissed] = useState(false);
   const [processingHoldTrim, setProcessingHoldTrim] = useState(false);
+  const [liveTapeHardWait, setLiveTapeHardWait] = useState(tapeHardWaitProp);
   const [brokerFillStatusLoading, setBrokerFillStatusLoading] = useState(() => {
     const symbol = todayHero.symbol?.trim().toUpperCase();
     if (!symbol || typeof window === "undefined") {
@@ -316,6 +319,39 @@ export default function HomeDecisionScreen({
 
     return !readBrokerStepCompleted(symbol);
   });
+
+  useEffect(() => {
+    if (tapeHardWaitProp) {
+      setLiveTapeHardWait(true);
+    }
+  }, [tapeHardWaitProp]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const response = await apiFetch("/api/market/tape", {
+          cache: "no-store",
+        });
+        const payload = await parseApiJson<{
+          tape?: { hardWait?: boolean };
+        }>(response, "Market tape");
+
+        if (cancelled || !response.ok) {
+          return;
+        }
+
+        setLiveTapeHardWait(payload?.tape?.hardWait === true);
+      } catch {
+        // Yahoo tape is optional — fail open so a missing index does not lock Today.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const actualSymbolWeight = useMemo(() => {
     if (!brokerStepCompleted || !todayHero.symbol || !holdings?.length) {
@@ -704,6 +740,7 @@ export default function HomeDecisionScreen({
         brokerStepSkipped,
         targetIsSacredCore,
         targetSymbol: todayHero.symbol,
+        tapeHardWait: liveTapeHardWait,
       },
       heroHeadline: displayHero.headline,
       heroSubline: displayHero.subline,
@@ -748,6 +785,7 @@ export default function HomeDecisionScreen({
     isExplore,
     isExploreEmpty,
     liveDayPnl,
+    liveTapeHardWait,
     targetIsSacredCore,
     todayHero.symbol,
   ]);

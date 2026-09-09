@@ -31,6 +31,7 @@ import {
   enrichPortfolioQuantitiesFromNetPositions,
   mapKiteHoldingsToPortfolio,
 } from "@/services/brokers/zerodha";
+import { getTapeRegimeSafe } from "@/services/market/regime";
 import { fetchMarketTrend } from "@/services/market/trend";
 import { formatPortfolioHoldings } from "@/services/portfolio/format";
 import { isSacredCoreSymbol } from "@/services/portfolio/allocationPolicy";
@@ -220,11 +221,12 @@ export async function assembleMorningBrief(
   const builtAt = new Date().toISOString();
   const sessionPhase = getMarketSessionPhase(new Date());
 
-  const [decisionBundle, trust, market, historyBundle, live, streakSnapshot] =
+  const [decisionBundle, trust, market, tape, historyBundle, live, streakSnapshot] =
     await Promise.all([
       loadDecisionReadOnly(supabase, userId, intent),
       getUserTrustSnapshot(supabase, userId),
       fetchMarketTrend(),
+      getTapeRegimeSafe(),
       getDisciplineHistory(supabase, userId, 14),
       fetchLiveKitePortfolioCached(supabase, userId),
       getDisciplineStreak(supabase, userId),
@@ -247,7 +249,7 @@ export async function assembleMorningBrief(
       ? computeZerodhaPositionsPnl(live.holdings, live.netPnlPositions)
       : null;
 
-  const insight = buildDailyInsight(dayPnl, market);
+  const insight = buildDailyInsight(dayPnl, market, tape);
 
   if (!decision) {
     return {
@@ -377,6 +379,7 @@ export async function assembleMorningBrief(
       riskBlocked: decision.validation?.risk_ok === false,
       targetIsSacredCore,
       targetSymbol: targetSymbol ?? undefined,
+      tapeHardWait: tape.hardWait,
     },
     heroHeadline: hero.headline,
     heroSubline: hero.subline,
@@ -400,6 +403,9 @@ export async function assembleMorningBrief(
   }
   if (stale) {
     warnings.push("Live broker data may be stale.");
+  }
+  if (tape.hardWait) {
+    warnings.push(tape.briefLine);
   }
 
   const topOpportunity = decision.opportunities?.[0];

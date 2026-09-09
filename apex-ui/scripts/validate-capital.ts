@@ -2,6 +2,8 @@ process.env.APEX_CAPITAL_SELF_CHECK = "1";
 
 import "../lib/dailyLoop/capitalDecision";
 import { runDailyVerdictSelfCheck } from "../lib/dailyLoop/dailyVerdict";
+import { runTapeRegimeSelfCheck } from "../lib/market/tapeRegime";
+import { runIndicatorsSelfCheck } from "../services/market/indicators";
 import { runOperatingManualCopySelfCheck } from "../lib/dailyLoop/operatingManualCopy";
 import { runBrokerConnectPreferenceSelfCheck } from "../lib/onboarding/brokerConnectPreference";
 import { runFirstRunSelfCheck } from "../lib/onboarding/firstRun";
@@ -119,6 +121,8 @@ runCapitalDecisionLockSelfCheck();
 runCapitalMarginSelfCheck();
 runTodaySurfaceSelfCheck();
 runDailyVerdictSelfCheck();
+runTapeRegimeSelfCheck();
+runIndicatorsSelfCheck();
 runOperatingManualCopySelfCheck();
 runFirstRunSelfCheck();
 runBrokerConnectPreferenceSelfCheck();

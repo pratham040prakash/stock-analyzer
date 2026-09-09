@@ -82,6 +82,8 @@ const keyModules = [
   "lib/journey/journeyPriceMap.ts",
   "lib/journey/journeyWatchLtp.ts",
   "services/journey/repository.ts",
+  "lib/market/tapeRegime.ts",
+  "app/api/market/tape/route.ts",
 ];
 
 for (const relative of keyModules) {
@@ -196,5 +198,10 @@ console.log("First-run order: profile → style → optional Connect Zerodha →
 console.log("Skip persist: lib/onboarding/brokerConnectPreference.ts");
 console.log("Kite not-enabled map: lib/broker/kiteConnectErrors.ts");
 console.log("Unconnected Wait: lib/onboarding/unconnectedTodayDecision.ts → GET /api/decision/today\n");
+
+console.log("--- T18 (5y tape gates) ---");
+console.log("Chop + mid RSI → Wait on new buys: lib/market/tapeRegime.ts");
+console.log("Verdict lock: dailyVerdict tapeHardWait (trims still Trade)");
+console.log("Today + brief: GET /api/market/tape + insight/brief tape_label\n");
 
 process.exit(0);

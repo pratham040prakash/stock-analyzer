@@ -6,6 +6,7 @@ import {
   computePortfolioDayPnl,
   mapKiteHoldingsToPortfolio,
 } from "@/services/brokers/zerodha";
+import { getTapeRegimeSafe } from "@/services/market/regime";
 import { fetchMarketTrend } from "@/services/market/trend";
 import { formatPortfolioHoldings } from "@/services/portfolio/format";
 import { getLatestPortfolioSnapshot } from "@/services/portfolio/repository";
@@ -41,12 +42,13 @@ export async function GET() {
     return apiError("Unauthorized", 401);
   }
 
-  const [market, dayPnl] = await Promise.all([
+  const [market, tape, dayPnl] = await Promise.all([
     fetchMarketTrend(),
+    getTapeRegimeSafe(),
     resolvePortfolioDayPnl(user.id),
   ]);
 
-  const insight: DailyInsight = buildDailyInsight(dayPnl, market);
+  const insight: DailyInsight = buildDailyInsight(dayPnl, market, tape);
 
   return NextResponse.json({ insight });
 }

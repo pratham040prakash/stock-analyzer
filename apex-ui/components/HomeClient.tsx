@@ -1378,6 +1378,7 @@ export default function HomeClient({
                     }
                   : undefined
               }
+              tapeHardWait={dailyInsight?.tape_hard_wait === true}
             />
             </>
           ) : null}

@@ -17,6 +17,7 @@ export type DailyVerdictInput = {
   brokerStepSkipped?: boolean;
   targetIsSacredCore?: boolean;
   targetSymbol?: string;
+  tapeHardWait?: boolean;
 };
 
 export type DailyVerdictPresentation = {
@@ -105,6 +106,10 @@ export function blocksSacredCoreBuy(input: DailyVerdictInput): boolean {
   return input.executionKind === "BUY" && input.targetIsSacredCore === true;
 }
 
+export function blocksTapeHardWaitBuy(input: DailyVerdictInput): boolean {
+  return input.executionKind === "BUY" && input.tapeHardWait === true;
+}
+
 export function resolveDailyVerdict(input: DailyVerdictInput): DailyVerdict {
   if (resolvePauseReason(input)) {
     return "pause";
@@ -115,6 +120,10 @@ export function resolveDailyVerdict(input: DailyVerdictInput): DailyVerdict {
   }
 
   if (blocksSacredCoreBuy(input)) {
+    return "wait";
+  }
+
+  if (blocksTapeHardWaitBuy(input)) {
     return "wait";
   }
 
@@ -168,21 +177,26 @@ export function buildDailyVerdictPresentation(input: {
     const setupNotReady =
       input.verdictInput.executionKind === "BUY" && !input.verdictInput.entryConfirmed;
     const sacredCoreBlocked = blocksSacredCoreBuy(input.verdictInput);
+    const tapeBlocked = blocksTapeHardWaitBuy(input.verdictInput);
 
     return {
       verdict,
       displayWord,
       headline: sacredCoreBlocked
         ? "Core holdings are not traded on Today"
-        : setupNotReady
-          ? "Wait for entry confirmation"
-          : input.heroHeadline || "Wait today",
+        : tapeBlocked
+          ? "Wait — index is range-bound"
+          : setupNotReady
+            ? "Wait for entry confirmation"
+            : input.heroHeadline || "Wait today",
       subline: sacredCoreBlocked
         ? `${input.verdictInput.targetSymbol ?? "This holding"} is in your long-term core — Today is for tactical capital only.`
-        : setupNotReady
-          ? "Breakout is not confirmed yet — price, volume, and momentum must align before risking capital."
-          : input.heroSubline ||
-            "Nothing worth risking capital on today. Staying in cash is an active decision.",
+        : tapeBlocked
+          ? "Mid-range chop has no edge. New buys wait until a trend or an oversold bounce."
+          : setupNotReady
+            ? "Breakout is not confirmed yet — price, volume, and momentum must align before risking capital."
+            : input.heroSubline ||
+              "Nothing worth risking capital on today. Staying in cash is an active decision.",
       ctaLabel: "You're done for today",
       doneForToday: true,
       tradingLocked: true,
@@ -289,6 +303,37 @@ export function runDailyVerdictSelfCheck(): void {
   });
   assert(pausePresentation.verdict === "pause", "Pause presentation verdict");
   assert(pausePresentation.doneForToday, "Pause must be done for today");
+
+  assert(
+    resolveDailyVerdict({
+      executionKind: "BUY",
+      entryConfirmed: true,
+      tapeHardWait: true,
+    }) === "wait",
+    "Chop tape must wait on new buys",
+  );
+
+  assert(
+    resolveDailyVerdict({
+      executionKind: "SELL",
+      tapeHardWait: true,
+    }) === "trade",
+    "Chop tape must still allow required trims",
+  );
+
+  const tapePresentation = buildDailyVerdictPresentation({
+    verdictInput: {
+      executionKind: "BUY",
+      entryConfirmed: true,
+      tapeHardWait: true,
+    },
+    heroHeadline: "Ignored",
+    heroSubline: "Ignored",
+  });
+  assert(
+    tapePresentation.headline.includes("range-bound"),
+    "Chop tape must surface a Wait headline",
+  );
 
   assert(
     resolveDailyVerdict({

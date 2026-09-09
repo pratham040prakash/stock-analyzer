@@ -11,4 +11,6 @@ export type DailyInsight = {
   market_label: string;
   guidance: string;
   pnl_line: string;
+  tape_label?: string;
+  tape_hard_wait?: boolean;
 };

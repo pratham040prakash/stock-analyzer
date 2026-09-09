@@ -1,5 +1,10 @@
+import {
+  resolveTapeRegime,
+  UNAVAILABLE_TAPE,
+  type TapeRegime,
+} from "@/lib/market/tapeRegime";
 import { calculateMA } from "@/services/market/indicators";
-import { fetchIndexPrices } from "@/services/market/stockData";
+import { fetchIndexBars, fetchIndexPrices } from "@/services/market/stockData";
 import type { MarketTrend } from "@/types/decision";
 
 export type SignalWeights = {
@@ -10,6 +15,7 @@ export type SignalWeights = {
 
 const CACHE_MS = 5 * 60 * 1000;
 let cachedRegime: { trend: MarketTrend; at: number } | null = null;
+let cachedTape: { tape: TapeRegime; at: number } | null = null;
 
 /** Normalized 0–1 volatility estimate from recent index returns. */
 export function computeVolatilityFromPrices(prices: number[]): number {
@@ -97,4 +103,24 @@ export async function getMarketRegime(): Promise<MarketTrend> {
 
   cachedRegime = { trend, at: Date.now() };
   return trend;
+}
+
+export async function getTapeRegime(): Promise<TapeRegime> {
+  if (cachedTape && Date.now() - cachedTape.at < CACHE_MS) {
+    return cachedTape.tape;
+  }
+
+  const bars = await fetchIndexBars();
+  const tape = bars.length === 0 ? UNAVAILABLE_TAPE : resolveTapeRegime(bars);
+  cachedTape = { tape, at: Date.now() };
+  return tape;
+}
+
+export async function getTapeRegimeSafe(): Promise<TapeRegime> {
+  try {
+    return await getTapeRegime();
+  } catch (error) {
+    console.error("Tape regime lookup failed:", error);
+    return UNAVAILABLE_TAPE;
+  }
 }

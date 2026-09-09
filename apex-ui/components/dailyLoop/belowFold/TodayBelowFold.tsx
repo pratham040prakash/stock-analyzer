@@ -86,6 +86,9 @@ export function MarketContextZone({
   return (
     <ZoneShell title="Market context">
       <p className="text-sm text-apex-text/85">{market.market_label}</p>
+      {market.tape_label ? (
+        <p className="text-xs text-apex-text/75">{market.tape_label}</p>
+      ) : null}
       <p className="text-xs text-apex-muted/75">{market.guidance}</p>
       <p className="text-xs text-apex-muted/60">{market.pnl_line}</p>
     </ZoneShell>
