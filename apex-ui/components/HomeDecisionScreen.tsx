@@ -37,6 +37,7 @@ import CapitalDamsStrip from "@/components/dailyLoop/CapitalDamsStrip";
 import SectorCapStrip from "@/components/portfolio/SectorCapStrip";
 import TodayDetailsAccordion from "@/components/dailyLoop/TodayDetailsAccordion";
 import TodayWaitInsightCard from "@/components/dailyLoop/TodayWaitInsightCard";
+import TodayBookLine from "@/components/dailyLoop/TodayBookLine";
 import TodayWatchlistPanel from "@/components/dailyLoop/TodayWatchlistPanel";
 import TodaySyncStatusBanner from "@/components/dailyLoop/TodaySyncStatusBanner";
 import InvestmentJourneyPanel from "@/components/journey/InvestmentJourneyPanel";
@@ -1084,6 +1085,11 @@ export default function HomeDecisionScreen({
                   autoRetryDetail={autoSyncRetryDetail}
                 />
                 <VerdictCanvas {...verdictCanvasProps} />
+                <TodayBookLine
+                  connectionStatus={connectionStatus}
+                  portfolioValue={displayPortfolioValue}
+                  dayPnl={liveDayPnl}
+                />
               </>
             ) : null}
 
@@ -1091,6 +1097,8 @@ export default function HomeDecisionScreen({
               <p className="text-xs text-apex-muted/60">Refreshing decision…</p>
             ) : null}
           </div>
+
+          <div id="today-execution" />
 
           {isCapitalDeployment ? (
             <div className="mb-6 space-y-4">
@@ -1107,10 +1115,9 @@ export default function HomeDecisionScreen({
                 />
               ) : null}
               {!verdictPresentation.tradingLocked || brokerStepResolved ? (
-                <div id="today-execution">
                 <TodayExecutionPanel
                   hero={todayHeroResolved}
-                  portfolioValue={portfolioValue ?? 0}
+                  portfolioValue={displayPortfolioValue ?? portfolioValue ?? 0}
                   holdingAllocationPct={holdingAllocationPct}
                   entryTiming={entryTiming}
                   plan={plan}
@@ -1127,27 +1134,8 @@ export default function HomeDecisionScreen({
                   holdTrimProcessing={processingHoldTrim}
                   onExecuted={handleExecuted}
                 />
-                </div>
               ) : null}
               <TodayDetailsAccordion>
-                {isExplore && !isExploreEmpty ? (
-                  <TodayWatchlistPanel
-                    setups={capitalDecision.exploreSetups}
-                    summary={watchlistSummary}
-                    liveTriggers={exploreTriggerBySymbol}
-                  />
-                ) : null}
-                {isExploreEmpty ? (
-                  <section className="rounded-xl border border-apex-border/15 bg-white/[0.02] px-4 py-3">
-                    <p className="text-sm text-apex-text/90">No ideas on the watchlist yet.</p>
-                    <Link
-                      href="/app/research"
-                      className="mt-2 inline-block text-sm font-medium text-sky-200 underline underline-offset-2 hover:text-white"
-                    >
-                      Open Research →
-                    </Link>
-                  </section>
-                ) : null}
                 {showPortfolioSummary ? (
                   <TodayPortfolioSummary {...portfolioSummaryProps} />
                 ) : null}

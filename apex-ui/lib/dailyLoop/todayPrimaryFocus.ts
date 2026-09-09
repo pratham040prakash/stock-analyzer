@@ -43,7 +43,7 @@ export function buildAlignedWaitInsight(input: {
         title: "Protect mode — cash only today",
         symbol: input.primarySymbol,
         blocker: "No open positions — capital stays in cash.",
-        unlock: "Trade when a setup confirms and risk limits allow.",
+        unlock: "Deploy when a setup confirms and risk limits allow.",
         footnote: input.primarySymbol
           ? `Watching ${input.primarySymbol} — no new risk until you hold a position to trim.`
           : "No trim needed until you hold positions.",
@@ -55,7 +55,7 @@ export function buildAlignedWaitInsight(input: {
       title: "Protect mode — cash only today",
       symbol: input.primarySymbol ?? base.symbol,
       blocker: "No open positions — capital stays in cash.",
-      unlock: base.unlock || "Trade when a setup confirms and risk limits allow.",
+      unlock: base.unlock || "Deploy when a setup confirms and risk limits allow.",
       footnote: input.primarySymbol
         ? `Watching ${input.primarySymbol}. ${base.footnote ?? ""}`.trim()
         : base.footnote,
@@ -124,8 +124,8 @@ export function buildAlignedWaitInsight(input: {
         ...base,
         title:
           focus.action === "BUY"
-            ? "Trade mode — entry when confirmed"
-            : "Trade mode — waiting for confirmation",
+            ? "Deploy view — entry when confirmed"
+            : "Deploy view — waiting for confirmation",
         symbol: primary,
         blocker: focus.reason.missing,
         unlock: focus.reason.confirm,

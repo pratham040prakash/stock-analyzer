@@ -1,6 +1,5 @@
 "use client";
 
-import { OPERATING_MANUAL } from "@/lib/dailyLoop/operatingManualCopy";
 import type { TodayWaitInsight } from "@/lib/dailyLoop/todayWaitInsight";
 
 type Props = {
@@ -29,7 +28,7 @@ export default function TodayWaitInsightCard({ insight }: Props) {
           <span className="text-apex-text/80">{insight.blocker}</span>
         </p>
         <p>
-          <span className="font-medium text-emerald-200/90">Trade when: </span>
+          <span className="font-medium text-emerald-200/90">Ready when: </span>
           <span className="text-apex-text/80">{insight.unlock}</span>
         </p>
         {insight.footnote ? (

@@ -40,7 +40,7 @@ export function buildTodayWaitInsight(input: {
       title:
         intent === "protect"
           ? "Protect mode — no new risk today"
-          : "Trade mode — waiting for confirmation",
+          : "Deploy view — waiting for confirmation",
       symbol: wait.symbol,
       blocker: wait.reason.missing,
       unlock: wait.reason.confirm,
@@ -57,8 +57,8 @@ export function buildTodayWaitInsight(input: {
       blocker: "Nothing meets your entry rules yet.",
       unlock:
         intent === "protect"
-          ? "Switch to Watch to see what's building, or check back tomorrow."
-          : "Switch to Watch to track setups, or wait for tomorrow's scan.",
+          ? "Open Ideas to see what's building, or check back tomorrow."
+          : "Open Ideas to track setups, or wait for tomorrow's scan.",
     };
   }
 
