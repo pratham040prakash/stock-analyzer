@@ -271,6 +271,7 @@ export function useDayPnlPoll({ enabled }: Options) {
         !totalValueChanged &&
         !totalPnlChanged
       ) {
+        setLastSyncedAt((current) => current ?? new Date().toISOString());
         setIsPolling(false);
         return;
       }

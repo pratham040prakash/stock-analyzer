@@ -120,22 +120,21 @@ export async function GET() {
         live.holdings,
         live.netPnlPositions,
       );
-      return okResponse(
-        {
-          holdings: formatted.holdings,
-          total_value: formatted.total_value,
-          total_pnl: formatted.total_pnl,
-          day_pnl: formatted.day_pnl,
-          positions_pnl,
-          portfolio_day_pnl: formatted.day_pnl,
-          concentrated: formatted.concentrated,
-          top_symbol: formatted.top_symbol ?? undefined,
-          top_allocation_pct: formatted.top_allocation_pct,
-          risk_score: formatted.risk_score,
-          risk_level: formatted.risk_level,
-        },
-        true,
-      );
+      // Live Kite session succeeded. Cached rows fill a holdings gap (T1 / flake);
+      // that is a merge fallback, not a dead session — do not ask to reconnect.
+      return okResponse({
+        holdings: formatted.holdings,
+        total_value: formatted.total_value,
+        total_pnl: formatted.total_pnl,
+        day_pnl: formatted.day_pnl,
+        positions_pnl,
+        portfolio_day_pnl: formatted.day_pnl,
+        concentrated: formatted.concentrated,
+        top_symbol: formatted.top_symbol ?? undefined,
+        top_allocation_pct: formatted.top_allocation_pct,
+        risk_score: formatted.risk_score,
+        risk_level: formatted.risk_level,
+      });
     }
   }
 

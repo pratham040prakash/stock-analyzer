@@ -446,7 +446,8 @@ export default function HomeClient({
             total_pnl: previous.total_pnl,
             top_symbol: previous.top_symbol,
             top_allocation_pct: previous.top_allocation_pct,
-            stale: true,
+            stale:
+              normalized.status === "OK" ? normalized.stale === true : true,
           };
         }
 

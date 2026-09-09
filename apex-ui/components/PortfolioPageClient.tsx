@@ -213,6 +213,11 @@ export default function PortfolioPageClient({
   } = useDayPnlPoll({ enabled: pollEnabled });
 
   const portfolio = overview?.portfolio;
+  const liveBookFresh =
+    liveHoldings.length > 0 ||
+    liveLastSyncedAt !== null ||
+    liveHoldingsTotalValue !== null;
+  const snapshotStale = portfolio?.stale === true && !liveBookFresh;
   const displayHoldings =
     liveHoldings.length > 0 ? liveHoldings : (portfolio?.holdings ?? []);
   const displayValue =
@@ -276,8 +281,9 @@ export default function PortfolioPageClient({
             portfolioDayPnl={liveDayPnl ?? portfolio?.day_pnl ?? null}
             positionsBreakdown={livePositionsBreakdown}
             lastSyncedAt={liveLastSyncedAt}
-            portfolioStale={portfolio?.stale === true}
+            portfolioStale={snapshotStale}
             pollError={livePollError}
+            suppressStaleWarnings={liveBookFresh}
             breakdownLoading={false}
             isPolling={livePnlPolling}
             fundsLoading={fundsLoading}
@@ -333,7 +339,8 @@ export default function PortfolioPageClient({
             holdings={displayHoldings}
             totalValue={displayValue}
             totalPnl={displayTotalPnl}
-            stale={portfolio?.stale === true}
+            stale={snapshotStale}
+            suppressStaleLabel={liveBookFresh}
             bucketBySymbol={bucketBySymbol}
             loading={
               overviewLoading &&

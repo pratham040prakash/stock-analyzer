@@ -17,6 +17,7 @@ export function resolveTodayDataFreshness(input: {
   portfolioStale?: boolean;
   pollError?: string | null;
   fundsSyncError?: string | null;
+  liveBookFresh?: boolean;
 }): TodayDataFreshness {
   const reconnectHref = "/api/zerodha/login";
   const softRefreshLabel = TODAY_SYNC_RECOVERY.softRefreshLabel;
@@ -47,7 +48,7 @@ export function resolveTodayDataFreshness(input: {
     };
   }
 
-  if (input.pollError) {
+  if (input.pollError && !input.liveBookFresh) {
     return {
       isStale: true,
       headline: "Live prices updating",
@@ -60,7 +61,7 @@ export function resolveTodayDataFreshness(input: {
     };
   }
 
-  if (input.portfolioStale) {
+  if (input.portfolioStale && !input.liveBookFresh) {
     return {
       isStale: true,
       headline: "Portfolio data is stale",
@@ -114,5 +115,29 @@ export function runTodayDataFreshnessSelfCheck(): void {
 
   if (fresh.isStale) {
     throw new Error("Today data freshness self-check failed: fresh state");
+  }
+
+  const liveOverridesSnapshot = resolveTodayDataFreshness({
+    connectionStatus: "CONNECTED",
+    portfolioStale: true,
+    liveBookFresh: true,
+  });
+
+  if (liveOverridesSnapshot.isStale) {
+    throw new Error(
+      "Today data freshness self-check failed: live book must clear snapshot stale",
+    );
+  }
+
+  const liveOverridesPoll = resolveTodayDataFreshness({
+    connectionStatus: "CONNECTED",
+    pollError: "Live P&L sync failed — showing last known values.",
+    liveBookFresh: true,
+  });
+
+  if (liveOverridesPoll.isStale) {
+    throw new Error(
+      "Today data freshness self-check failed: live book must clear poll error",
+    );
   }
 }

@@ -500,6 +500,11 @@ export default function HomeDecisionScreen({
     () => displayPortfolioHoldings.filter((row) => row.quantity > 0),
     [displayPortfolioHoldings],
   );
+  const liveBookFresh =
+    liveHoldings.length > 0 ||
+    liveLastSyncedAt !== null ||
+    liveHoldingsTotalValue !== null;
+  const snapshotStale = portfolioStale && !liveBookFresh;
   const dataFreshness = useMemo(
     () =>
       resolveTodayDataFreshness({
@@ -507,8 +512,15 @@ export default function HomeDecisionScreen({
         portfolioStale,
         pollError: livePollError,
         fundsSyncError,
+        liveBookFresh,
       }),
-    [connectionStatus, fundsSyncError, livePollError, portfolioStale],
+    [
+      connectionStatus,
+      fundsSyncError,
+      liveBookFresh,
+      livePollError,
+      portfolioStale,
+    ],
   );
   const collapsePlanByDefault = disciplineDays.length >= 7;
   const heroHoldingQty = useMemo(() => {
@@ -838,7 +850,7 @@ export default function HomeDecisionScreen({
           decision.message ??
           undefined,
       confidence: decision.confidence,
-      portfolioStale,
+      portfolioStale: snapshotStale,
       pollError: morningBriefError ?? livePollError,
       connectionStatus,
       brokerStepCompleted,
@@ -846,7 +858,7 @@ export default function HomeDecisionScreen({
       doneForToday: verdictPresentation.doneForToday,
       ctaLabel: verdictPresentation.ctaLabel,
       tradingLocked: verdictPresentation.tradingLocked,
-      hideStaleRibbon: dataFreshness.isStale,
+      hideStaleRibbon: dataFreshness.isStale || liveBookFresh,
       suppressTrustScore: dataFreshness.suppressTrustScore,
       trustFootnote: dataFreshness.trustFootnote || undefined,
       hideSetupConfidence: true,
@@ -864,10 +876,11 @@ export default function HomeDecisionScreen({
       decision.message,
       decision.reason,
       displayHero.executionKind,
+      liveBookFresh,
       livePollError,
       morningBrief,
       morningBriefError,
-      portfolioStale,
+      snapshotStale,
       trustDelta,
       trustMessage,
       trustScore,
@@ -906,7 +919,7 @@ export default function HomeDecisionScreen({
         portfolioDayPnl: liveDayPnl,
         positionsBreakdown: livePositionsBreakdown,
         lastSyncedAt: liveLastSyncedAt,
-        portfolioStale,
+        portfolioStale: snapshotStale,
         pollError: livePollError,
         breakdownLoading,
         isPolling: livePnlPolling,
@@ -914,15 +927,15 @@ export default function HomeDecisionScreen({
         fundsSynced,
         fundsSyncError,
         proofHref,
-        suppressStaleWarnings: dataFreshness.isStale,
+        suppressStaleWarnings: dataFreshness.isStale || liveBookFresh,
       },
       holdings: {
         holdings: displayPortfolioHoldings,
         totalValue: displayPortfolioValue,
         totalPnl: displayPortfolioTotalPnl,
         deployableCash: availableCash,
-        stale: portfolioStale,
-        suppressStaleLabel: dataFreshness.isStale,
+        stale: snapshotStale,
+        suppressStaleLabel: dataFreshness.isStale || liveBookFresh,
         loading:
           portfolioLoading &&
           displayPortfolioHoldings.length === 0 &&
@@ -942,6 +955,7 @@ export default function HomeDecisionScreen({
       collateral,
       connectionStatus,
       dataFreshness.isStale,
+      liveBookFresh,
       displayPortfolioHoldings,
       displayPortfolioTotalPnl,
       displayPortfolioValue,
@@ -956,7 +970,7 @@ export default function HomeDecisionScreen({
       livePositionsBreakdown,
       openPortfolioHoldings.length,
       portfolioLoading,
-      portfolioStale,
+      snapshotStale,
       portfolioValue,
       proofHref,
       resolvedOpenPnl,
@@ -988,8 +1002,7 @@ export default function HomeDecisionScreen({
     )?.quantity;
   }, [openPortfolioHoldings, primarySymbol]);
 
-  const journeyBlockedByStale =
-    portfolioStale || dataFreshness.isStale || dataFreshness.suppressTrustScore;
+  const journeyBlockedByStale = dataFreshness.isStale;
 
   const journeyExploreSetup = capitalDecision.exploreSetups[0];
   const journeySymbol = useMemo(() => {
