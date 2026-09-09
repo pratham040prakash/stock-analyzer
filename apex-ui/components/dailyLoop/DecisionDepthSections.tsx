@@ -756,17 +756,17 @@ export function ExecutionStatusBlock({
           </p>
         ) : null}
         {committedToday ? (
-          <p className="text-sm leading-snug text-apex-text/90">
-            [✓] Followed today
+          <p className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-center text-sm font-medium text-emerald-100">
+            Followed today — that counts
           </p>
         ) : (
           <button
             type="button"
             onClick={onMarkFollowed}
             disabled={committedToday}
-            className="text-left text-sm leading-snug text-apex-text/85 transition-opacity hover:text-apex-text disabled:cursor-default disabled:opacity-60"
+            className="w-full rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3.5 text-sm font-semibold text-apex-text transition-all hover:bg-white/[0.1] disabled:cursor-default disabled:opacity-60"
           >
-            [ ] Followed today
+            I followed the plan
           </button>
         )}
         {trustReinforcement ? (
@@ -826,16 +826,16 @@ export function ExecutionStatusBlock({
             [ ] Not acted
           </p>
           {committedToday ? (
-            <p className="text-sm font-medium leading-snug text-emerald-300/90">
-              [✓] Followed today
+            <p className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-center text-sm font-medium text-emerald-100">
+              Followed today — that counts
             </p>
           ) : (
             <button
               type="button"
               onClick={onMarkFollowed}
-              className="text-left text-sm leading-snug text-apex-text/85 transition-transform duration-150 hover:text-apex-text active:scale-[0.98]"
+              className="w-full rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3.5 text-sm font-semibold text-apex-text transition-all hover:bg-white/[0.1]"
             >
-              [ ] Followed today
+              I followed the plan
             </button>
           )}
         </div>

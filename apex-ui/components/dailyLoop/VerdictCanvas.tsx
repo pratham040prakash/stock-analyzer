@@ -4,7 +4,6 @@ import type { DailyVerdict } from "@/lib/dailyLoop/dailyVerdict";
 import { OPERATING_MANUAL } from "@/lib/dailyLoop/operatingManualCopy";
 import type { TodayExecutionKind } from "@/lib/dailyLoop/todaySurface";
 import type { ConnectionStatus } from "@/lib/broker/zerodha";
-import { ApexButton } from "@/components/ui/apex";
 
 export type VerdictCanvasProps = {
   verdictWord: string;
@@ -32,68 +31,45 @@ export type VerdictCanvasProps = {
   compactWaitCopy?: boolean;
 };
 
-function resolveVerdictTone(
-  dailyVerdict: DailyVerdict,
-  executionKind: TodayExecutionKind,
-): string {
-  if (dailyVerdict === "pause") {
-    return "text-amber-200";
-  }
-
-  if (dailyVerdict === "wait") {
-    return "text-apex-text";
-  }
-
-  switch (executionKind) {
-    case "BUY":
-      return "text-emerald-200";
-    case "SELL":
-      return "text-amber-200";
-    case "OBSERVE":
-      return "text-blue-200";
-    default:
-      return "text-apex-text";
-  }
-}
-
-function TrustDelta({ delta }: { delta: number }) {
-  if (delta > 0) {
-    return <span className="text-emerald-300/90">↑ {delta}</span>;
-  }
-
-  if (delta < 0) {
-    return <span className="text-amber-200/90">↓ {Math.abs(delta)}</span>;
-  }
-
-  return <span className="text-apex-muted/70">—</span>;
-}
+const VERDICT_THEME: Record<
+  DailyVerdict,
+  { word: string; glow: string; wash: string; chip: string }
+> = {
+  wait: {
+    word: "text-white",
+    glow: "bg-[radial-gradient(circle_at_50%_0%,rgba(148,163,184,0.22),transparent_58%)]",
+    wash: "from-slate-400/[0.08]",
+    chip: "border-white/10 bg-white/[0.06] text-slate-200",
+  },
+  trade: {
+    word: "text-emerald-200",
+    glow: "bg-[radial-gradient(circle_at_50%_0%,rgba(52,211,153,0.24),transparent_58%)]",
+    wash: "from-emerald-400/[0.12]",
+    chip: "border-emerald-400/20 bg-emerald-400/10 text-emerald-100",
+  },
+  pause: {
+    word: "text-amber-200",
+    glow: "bg-[radial-gradient(circle_at_50%_0%,rgba(251,191,36,0.22),transparent_58%)]",
+    wash: "from-amber-400/[0.12]",
+    chip: "border-amber-400/20 bg-amber-400/10 text-amber-100",
+  },
+};
 
 export default function VerdictCanvas({
   verdictWord,
   dailyVerdict,
   headline,
   subline,
-  executionKind,
-  trustScore,
-  trustDelta,
-  trustMessage,
-  evidenceTeaser,
-  confidence,
   portfolioStale = false,
   pollError = null,
   connectionStatus = "NOT_CONNECTED",
   brokerStepCompleted = false,
   brokerStepSkipped = false,
   doneForToday = false,
-  ctaLabel = "You're done for today",
-  tradingLocked = false,
   hideStaleRibbon = false,
-  suppressTrustScore = false,
-  trustFootnote,
-  hideSetupConfidence = false,
   compactWaitCopy = false,
 }: VerdictCanvasProps) {
-  const resolvedTrustFootnote = hideStaleRibbon ? undefined : trustFootnote;
+  const theme = VERDICT_THEME[dailyVerdict];
   const showStaleRibbon =
     !hideStaleRibbon &&
     (portfolioStale ||
@@ -107,70 +83,43 @@ export default function VerdictCanvas({
   return (
     <section
       aria-label="Today's verdict"
-      className="relative overflow-hidden rounded-2xl border border-apex-border/20 bg-gradient-to-b from-white/[0.04] to-transparent px-4 py-4 sm:px-5 sm:py-5"
+      className={`relative overflow-hidden rounded-[28px] border border-white/[0.08] bg-gradient-to-b ${theme.wash} to-transparent px-5 py-7 sm:px-8 sm:py-9`}
     >
+      <div className={`pointer-events-none absolute inset-0 ${theme.glow}`} />
+
       {showStaleRibbon ? (
-        <div className="mb-3 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2">
+        <div className="relative mb-5 rounded-2xl border border-amber-500/25 bg-amber-500/10 px-3 py-2">
           <p className="text-xs font-medium text-amber-100/90">Live data stale</p>
           <p className="text-xs text-amber-100/70">{staleDetail}</p>
         </div>
       ) : null}
 
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-2">
-          <p className="text-xs font-medium tracking-[0.04em] text-apex-muted/70">
-            Today&apos;s decision
-          </p>
-          <p
-            className={`text-3xl font-semibold tracking-tight sm:text-4xl ${resolveVerdictTone(dailyVerdict, executionKind)}`}
-          >
-            {verdictWord}
-          </p>
-        </div>
-
-        <div className="rounded-xl border border-apex-border/15 bg-white/[0.03] px-3 py-2 text-right">
-          <p className="text-[11px] uppercase tracking-wide text-apex-muted/70">
-            {suppressTrustScore ? "Discipline" : "Trust"}
-          </p>
-          {suppressTrustScore ? (
-            <p className="text-sm font-medium text-apex-text/85">Following plan</p>
-          ) : (
-            <p className="text-lg font-semibold text-apex-text">
-              {trustScore}{" "}
-              <span className="text-sm font-normal text-apex-muted/80">
-                <TrustDelta delta={trustDelta} />
-              </span>
-            </p>
-          )}
-          {resolvedTrustFootnote ? (
-            <p className="mt-1 max-w-[12rem] text-[11px] text-apex-muted/75">
-              {resolvedTrustFootnote}
-            </p>
-          ) : trustMessage ? (
-            <p className="mt-1 max-w-[12rem] text-[11px] text-apex-muted/75">
-              {trustMessage}
-            </p>
-          ) : null}
-        </div>
+      <div className="relative text-center">
+        <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-apex-muted/70">
+          Today
+        </p>
+        <p
+          className={`mt-3 text-6xl font-semibold tracking-tight sm:text-7xl ${theme.word}`}
+        >
+          {verdictWord}
+        </p>
+        <p
+          className={`mx-auto mt-3 inline-flex rounded-full border px-3 py-1 text-[11px] font-medium ${theme.chip}`}
+        >
+          {dailyVerdict === "wait"
+            ? "Doing nothing is the plan"
+            : dailyVerdict === "pause"
+              ? "Capital stays protected"
+              : "One action in Kite"}
+        </p>
       </div>
 
-      <div className="mt-4 space-y-2">
-        <h2 className="text-xl font-semibold leading-snug text-apex-text">
+      <div className="relative mx-auto mt-6 max-w-[28rem] space-y-2 text-center">
+        <h2 className="text-xl font-semibold leading-snug text-apex-text sm:text-2xl">
           {headline}
         </h2>
-        {!compactWaitCopy ? (
-          <p className="text-sm text-apex-muted/85">{subline}</p>
-        ) : null}
-        {evidenceTeaser ? (
-          <p className="text-xs text-apex-muted/70">
-            <span className="font-medium text-apex-muted/85">Why · </span>
-            {evidenceTeaser}
-          </p>
-        ) : null}
-        {typeof confidence === "number" && !hideSetupConfidence ? (
-          <p className="text-xs text-apex-muted/60">
-            Setup confidence {Math.round(confidence)}%
-          </p>
+        {!compactWaitCopy && subline ? (
+          <p className="text-[15px] leading-relaxed text-apex-muted/90">{subline}</p>
         ) : null}
         {brokerStepCompleted ? (
           <p className="text-xs font-medium text-emerald-200/85">
@@ -179,27 +128,15 @@ export default function VerdictCanvas({
         ) : null}
         {brokerStepSkipped ? (
           <p className="text-xs font-medium text-apex-text/75">
-            Trim skipped — holding position today.
-          </p>
-        ) : null}
-        {dailyVerdict === "pause" ? (
-          <p className="text-xs text-amber-100/80">
-            Capital protection mode — tactical trades are locked.
-          </p>
-        ) : null}
-        {!compactWaitCopy && tradingLocked && dailyVerdict === "wait" ? (
-          <p className="text-xs text-apex-muted/70">
-            Long-term holdings do not need action today.
+            Trim skipped — holding the position today.
           </p>
         ) : null}
       </div>
 
       {doneForToday ? (
-        <div className="mt-5">
-          <ApexButton variant="secondary" className="w-full" disabled>
-            {ctaLabel}
-          </ApexButton>
-          <p className="mt-2 text-center text-[11px] text-apex-muted/60">
+        <div className="relative mx-auto mt-7 max-w-[22rem] rounded-2xl border border-white/[0.08] bg-black/20 px-4 py-4 text-center">
+          <p className="text-sm font-medium text-apex-text">You&apos;re done for today</p>
+          <p className="mt-1 text-xs leading-relaxed text-apex-muted/70">
             {OPERATING_MANUAL.verdictDone}
           </p>
         </div>

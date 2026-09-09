@@ -6,21 +6,21 @@ export const INTENT_UI_LABELS: Record<
   { label: string; hint: string; tagline: string; lens: string }
 > = {
   grow: {
-    label: "Trade",
-    hint: "When a setup confirms",
-    tagline: "Today's trade decision",
+    label: "Deploy",
+    hint: "New buys when a setup confirms",
+    tagline: "Today's deploy view",
     lens: "See what blocks your next entry",
   },
   protect: {
-    label: "Protect",
-    hint: "Trim risk before new buys",
-    tagline: "Today's risk decision",
+    label: "Risk",
+    hint: "Trims and guards first",
+    tagline: "Today's risk view",
     lens: "See guards and trim alerts",
   },
   explore: {
-    label: "Watch",
-    hint: "Track ideas — stay in cash",
-    tagline: "Today's watchlist",
+    label: "Ideas",
+    hint: "Watchlist — cash stays put",
+    tagline: "Today's ideas view",
     lens: "See what's building without deploying",
   },
 };

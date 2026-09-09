@@ -458,9 +458,7 @@ export default function HomeDecisionScreen({
       ?.portfolioWeight;
 
   const isExplore = renderIntent === "explore";
-  const isGrow = renderIntent === "grow";
-  const isProtect = renderIntent === "protect";
-  const isCapitalDeployment = isGrow || isProtect;
+  const isCapitalDeployment = renderIntent === "grow" || renderIntent === "protect";
   const morningBriefEnabled = isCapitalDeployment && connectionStatus === "CONNECTED";
   const {
     brief: morningBrief,
@@ -850,9 +848,8 @@ export default function HomeDecisionScreen({
       hideStaleRibbon: dataFreshness.isStale,
       suppressTrustScore: dataFreshness.suppressTrustScore,
       trustFootnote: dataFreshness.trustFootnote || undefined,
-      hideSetupConfidence: dataFreshness.isStale || Boolean(waitInsight),
-      compactWaitCopy:
-        Boolean(waitInsight) || (isExplore && !isExploreEmpty),
+      hideSetupConfidence: true,
+      compactWaitCopy: false,
     }),
     [
       brokerStepCompleted,
@@ -1044,14 +1041,14 @@ export default function HomeDecisionScreen({
     (journeyExploreSetup?.stage === "Close to readiness" ||
       journeyExploreSetup?.stage === "Developing setup");
 
-  const showTodayVerdict = isCapitalDeployment || (isExplore && !isExploreEmpty);
+  const showTodayVerdict = isCapitalDeployment || isExplore;
 
   return (
     <div className={`mx-auto w-full max-w-[600px] ${className}`.trim()}>
       <ApexCard
         hover={false}
         padding="none"
-        className="relative overflow-hidden border-apex-border/20 shadow-none animate-apex-rise-in"
+        className="relative overflow-hidden border-transparent bg-transparent shadow-none animate-apex-rise-in"
       >
         <div
           className={[
@@ -1087,78 +1084,7 @@ export default function HomeDecisionScreen({
                   autoRetryDetail={autoSyncRetryDetail}
                 />
                 <VerdictCanvas {...verdictCanvasProps} />
-                {isExplore ? (
-                  <TodayWatchlistPanel
-                    setups={capitalDecision.exploreSetups}
-                    summary={watchlistSummary}
-                    liveTriggers={exploreTriggerBySymbol}
-                  />
-                ) : null}
-                {showPortfolioSummary ? (
-                  <TodayPortfolioSummary {...portfolioSummaryProps} />
-                ) : null}
-                {openPortfolioHoldings.length > 0 ? (
-                  <SectorCapStrip summary={sectorCapSummary} compact />
-                ) : null}
-                {(isGrow || isProtect) && waitInsight ? (
-                  <TodayWaitInsightCard insight={waitInsight} />
-                ) : null}
-                {isProtect && openPortfolioHoldings.length > 0 ? (
-                  <CapitalDamsStrip
-                    portfolioValue={displayPortfolioValue}
-                    portfolioDayPnl={liveDayPnl}
-                    consecutiveLossDays={consecutiveLossDays}
-                    compact
-                  />
-                ) : null}
-                {journeySymbol ? (
-                  <InvestmentJourneyPanel
-                    symbol={journeySymbol}
-                    currentPriceInr={journeySymbolPrice}
-                    quantity={primarySymbolQty}
-                    dailyVerdict={verdictPresentation.verdict}
-                    brokerStepCompleted={brokerStepCompleted}
-                    compact={verdictPresentation.verdict === "wait"}
-                    portfolioDataStale={journeyBlockedByStale}
-                    apexSuggested={journeyApexSuggested}
-                    preferSwing={journeyPreferSwing}
-                    activationLevelInr={
-                      decision.picks?.find(
-                        (pick) =>
-                          pick.stock.trim().toUpperCase() ===
-                          journeySymbol.trim().toUpperCase(),
-                      )?.activationLevel
-                    }
-                    onTakeProfit={() => {
-                      document
-                        .getElementById("today-execution")
-                        ?.scrollIntoView({ behavior: "smooth", block: "start" });
-                    }}
-                  />
-                ) : null}
               </>
-            ) : null}
-
-            {isExploreEmpty ? (
-              <section className="rounded-xl border border-apex-border/20 bg-white/[0.02] px-4 py-4">
-                <p className="text-sm font-medium text-apex-text">
-                  APEX is scanning for ideas
-                </p>
-                <p className="mt-1 text-sm leading-snug text-apex-muted">
-                  No watchlist yet. Open Research to study symbols, or check back after
-                  the next market scan.
-                </p>
-                <Link
-                  href="/app/research"
-                  className="mt-3 inline-block text-sm font-medium text-sky-200 underline underline-offset-2 hover:text-white"
-                >
-                  Open Research →
-                </Link>
-              </section>
-            ) : null}
-
-            {!showTodayVerdict && showPortfolioSummary ? (
-              <TodayPortfolioSummary {...portfolioSummaryProps} />
             ) : null}
 
             {isRefreshing ? (
@@ -1204,6 +1130,58 @@ export default function HomeDecisionScreen({
                 </div>
               ) : null}
               <TodayDetailsAccordion>
+                {isExplore && !isExploreEmpty ? (
+                  <TodayWatchlistPanel
+                    setups={capitalDecision.exploreSetups}
+                    summary={watchlistSummary}
+                    liveTriggers={exploreTriggerBySymbol}
+                  />
+                ) : null}
+                {isExploreEmpty ? (
+                  <section className="rounded-xl border border-apex-border/15 bg-white/[0.02] px-4 py-3">
+                    <p className="text-sm text-apex-text/90">No ideas on the watchlist yet.</p>
+                    <Link
+                      href="/app/research"
+                      className="mt-2 inline-block text-sm font-medium text-sky-200 underline underline-offset-2 hover:text-white"
+                    >
+                      Open Research →
+                    </Link>
+                  </section>
+                ) : null}
+                {showPortfolioSummary ? (
+                  <TodayPortfolioSummary {...portfolioSummaryProps} />
+                ) : null}
+                {openPortfolioHoldings.length > 0 ? (
+                  <SectorCapStrip summary={sectorCapSummary} compact />
+                ) : null}
+                {waitInsight ? (
+                  <TodayWaitInsightCard insight={waitInsight} />
+                ) : null}
+                {journeySymbol ? (
+                  <InvestmentJourneyPanel
+                    symbol={journeySymbol}
+                    currentPriceInr={journeySymbolPrice}
+                    quantity={primarySymbolQty}
+                    dailyVerdict={verdictPresentation.verdict}
+                    brokerStepCompleted={brokerStepCompleted}
+                    compact={verdictPresentation.verdict === "wait"}
+                    portfolioDataStale={journeyBlockedByStale}
+                    apexSuggested={journeyApexSuggested}
+                    preferSwing={journeyPreferSwing}
+                    activationLevelInr={
+                      decision.picks?.find(
+                        (pick) =>
+                          pick.stock.trim().toUpperCase() ===
+                          journeySymbol.trim().toUpperCase(),
+                      )?.activationLevel
+                    }
+                    onTakeProfit={() => {
+                      document
+                        .getElementById("today-execution")
+                        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    }}
+                  />
+                ) : null}
                 <OperatingManualStrip
                   dailyVerdict={verdictPresentation.verdict}
                   tacticalPoolInr={decision.amount ?? morningBrief?.portfolio.tactical_pool_inr}
@@ -1300,11 +1278,57 @@ export default function HomeDecisionScreen({
                 </details>
               </TodayDetailsAccordion>
             </div>
-          ) : null}
-
-          {isExplore && !isExploreEmpty ? (
+          ) : isExplore ? (
             <div className="mb-6">
               <TodayDetailsAccordion>
+                {!isExploreEmpty ? (
+                  <TodayWatchlistPanel
+                    setups={capitalDecision.exploreSetups}
+                    summary={watchlistSummary}
+                    liveTriggers={exploreTriggerBySymbol}
+                  />
+                ) : (
+                  <section className="rounded-xl border border-apex-border/15 bg-white/[0.02] px-4 py-3">
+                    <p className="text-sm text-apex-text/90">No ideas on the watchlist yet.</p>
+                    <Link
+                      href="/app/research"
+                      className="mt-2 inline-block text-sm font-medium text-sky-200 underline underline-offset-2 hover:text-white"
+                    >
+                      Open Research →
+                    </Link>
+                  </section>
+                )}
+                {showPortfolioSummary ? (
+                  <TodayPortfolioSummary {...portfolioSummaryProps} />
+                ) : null}
+                {waitInsight ? (
+                  <TodayWaitInsightCard insight={waitInsight} />
+                ) : null}
+                {journeySymbol ? (
+                  <InvestmentJourneyPanel
+                    symbol={journeySymbol}
+                    currentPriceInr={journeySymbolPrice}
+                    quantity={primarySymbolQty}
+                    dailyVerdict={verdictPresentation.verdict}
+                    brokerStepCompleted={brokerStepCompleted}
+                    compact={verdictPresentation.verdict === "wait"}
+                    portfolioDataStale={journeyBlockedByStale}
+                    apexSuggested={journeyApexSuggested}
+                    preferSwing={journeyPreferSwing}
+                    activationLevelInr={
+                      decision.picks?.find(
+                        (pick) =>
+                          pick.stock.trim().toUpperCase() ===
+                          journeySymbol.trim().toUpperCase(),
+                      )?.activationLevel
+                    }
+                    onTakeProfit={() => {
+                      document
+                        .getElementById("today-execution")
+                        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    }}
+                  />
+                ) : null}
                 <OperatingManualStrip
                   dailyVerdict={verdictPresentation.verdict}
                   tacticalPoolInr={decision.amount ?? morningBrief?.portfolio.tactical_pool_inr}

@@ -85,7 +85,7 @@ export default function HowApexWorksClient() {
         </ApexCard>
 
         <ApexCard hover={false}>
-          <h2 className="text-lg font-semibold text-apex-text">Today modes</h2>
+          <h2 className="text-lg font-semibold text-apex-text">Today views</h2>
           <ul className="mt-3 space-y-2 text-sm text-apex-muted/85">
             {(["grow", "protect", "explore"] as const).map((intent) => (
               <li key={intent}>
