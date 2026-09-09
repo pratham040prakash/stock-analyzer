@@ -49,7 +49,13 @@ import { usePremiumTier } from "@/lib/usePremiumTier";
 import PremiumFeatureGate from "@/components/dailyLoop/PremiumFeatureGate";
 import PremiumTrialOfferCard from "@/components/subscription/PremiumTrialOfferCard";
 import FirstRunStrip from "@/components/dailyLoop/FirstRunStrip";
+import { KITE_NOT_ENABLED_MESSAGE } from "@/lib/broker/kiteConnectErrors";
 import { KITE_CONNECT_DISCIPLINE } from "@/lib/gtm/kiteConnectDisciplineCopy";
+import {
+  consumeKiteConnectAttempt,
+  readBrokerConnectSkipped,
+  writeBrokerConnectSkipped,
+} from "@/lib/onboarding/brokerConnectPreference";
 import { buildFirstRunProgress } from "@/lib/onboarding/firstRun";
 import type { PortfolioApiResponse } from "@/types/portfolioApi";
 import { recordVisit, saveCachedPortfolio } from "@/lib/portfolioCache";
@@ -187,6 +193,9 @@ export default function HomeClient({
     () => initialOperatingProfile ?? readLocalOperatingProfile(),
   );
   const operatingProfileComplete = isOperatingProfileComplete(operatingProfile);
+  const [brokerConnectSkipped, setBrokerConnectSkipped] = useState(
+    readBrokerConnectSkipped,
+  );
 
   const [connectionStatus, setConnectionStatus] = useState(
     initialConnectionStatus,
@@ -233,19 +242,24 @@ export default function HomeClient({
   useEffect(() => {
     const notice = searchParams.get("zerodha");
     const error = searchParams.get("zerodha_error");
+    const pendingAttempt = consumeKiteConnectAttempt();
 
     if (notice === "connected") {
       setConnectionStatus("CONNECTED");
       setBrokerMessage(KITE_CONNECT_DISCIPLINE.successSyncing);
       setPortfolioError(null);
+      writeBrokerConnectSkipped(false);
+      setBrokerConnectSkipped(false);
     } else if (error) {
       setBrokerMessage(decodeURIComponent(error));
+    } else if (pendingAttempt && initialConnectionStatus !== "CONNECTED") {
+      setBrokerMessage(KITE_NOT_ENABLED_MESSAGE);
     }
 
     if (notice || error) {
       router.replace("/app", { scroll: false });
     }
-  }, [router, searchParams]);
+  }, [initialConnectionStatus, router, searchParams]);
 
   useEffect(() => {
     if (
@@ -585,7 +599,7 @@ export default function HomeClient({
 
       if (data.status === "NOT_CONNECTED") {
         setFundsSynced(false);
-        setFundsSyncError("Connect Zerodha to sync available balance.");
+        setFundsSyncError(null);
         return;
       }
 
@@ -681,7 +695,8 @@ export default function HomeClient({
     Boolean(user) &&
     !authLoading &&
     !isCompletingOAuth &&
-    connectionStatus !== "NOT_CONNECTED";
+    (connectionStatus !== "NOT_CONNECTED" ||
+      (profileComplete && operatingProfileComplete));
 
   const recommendationPortfolio = useMemo(
     () => ({
@@ -904,13 +919,8 @@ export default function HomeClient({
     [premiumFeatures.marginMode, refreshDecision],
   );
 
-  const brokerSessionActive = connectionStatus === "CONNECTED";
-
   const showHomeDecision =
-    Boolean(dailyDecision) &&
-    brokerSessionActive &&
-    profileComplete &&
-    operatingProfileComplete;
+    Boolean(dailyDecision) && profileComplete && operatingProfileComplete;
 
   const livePortfolioPollEnabled =
     shouldFetchPortfolio &&
@@ -1073,14 +1083,15 @@ export default function HomeClient({
         profileComplete,
         operatingProfileComplete,
         todayReady: showHomeDecision,
+        brokerConnectSkipped,
         decisionLoading:
-          connectionStatus === "CONNECTED" &&
           profileComplete &&
           operatingProfileComplete &&
           !dailyDecision &&
           (decisionRefreshing || isRefreshing),
       }),
     [
+      brokerConnectSkipped,
       connectionStatus,
       dailyDecision,
       decisionRefreshing,
@@ -1113,8 +1124,12 @@ export default function HomeClient({
     );
   }
 
-  const isOnboarding = connectionStatus === "NOT_CONNECTED";
-  const showGuidance = !isOnboarding && !isCompletingOAuth;
+  const needsBrokerConnect =
+    connectionStatus === "NOT_CONNECTED" &&
+    profileComplete &&
+    operatingProfileComplete &&
+    !brokerConnectSkipped;
+  const showGuidance = !isCompletingOAuth;
   const hasPortfolioData = visiblePortfolioHoldings.length > 0;
   const showPortfolioError = Boolean(portfolioError) && !hasPortfolioData;
   const showBrokerError =
@@ -1130,7 +1145,10 @@ export default function HomeClient({
       brokerMessage?.includes("connected"));
 
   const pullToRefreshEnabled =
-    showGuidance && !isOnboarding && !isCompletingOAuth && Boolean(user);
+    showGuidance &&
+    connectionStatus === "CONNECTED" &&
+    !isCompletingOAuth &&
+    Boolean(user);
 
   const handlePullRefresh = useCallback(async () => {
     if (portfolioStaleRef.current && connectionStatus === "CONNECTED") {
@@ -1168,7 +1186,7 @@ export default function HomeClient({
         <div className="flex items-center justify-between gap-4">
           <ApexBody>APEX</ApexBody>
           <div className="flex items-center gap-3">
-            {!isOnboarding && isRefreshing && !isCompletingOAuth ? (
+            {connectionStatus === "CONNECTED" && isRefreshing && !isCompletingOAuth ? (
               <ApexBody className="italic">Updating…</ApexBody>
             ) : null}
             {isCompletingOAuth ? (
@@ -1188,18 +1206,18 @@ export default function HomeClient({
 
         {showFirstRunStrip ? (
           <FirstRunStrip progress={firstRunProgress} userName={userName} />
-        ) : isOnboarding ? (
+        ) : connectionStatus === "NOT_CONNECTED" && !profileComplete ? (
           <ApexBody>{VALUE_STATEMENT}</ApexBody>
         ) : null}
 
-        {showGuidance ? (
+        {showGuidance && profileComplete && operatingProfileComplete ? (
           <>
             <IntentSelector
               intent={userIntent}
               onIntentChange={setUserIntent}
               previews={todayFocusPreviews}
             />
-            {portfolioLoading && !hasPortfolioData ? (
+            {portfolioLoading && !hasPortfolioData && connectionStatus === "CONNECTED" ? (
               <PortfolioSummarySkeleton />
             ) : null}
             {hasPortfolioData &&
@@ -1247,7 +1265,15 @@ export default function HomeClient({
         </ApexCard>
       ) : null}
 
-      {isOnboarding && !isCompletingOAuth ? <ConnectZerodhaCard /> : null}
+      {needsBrokerConnect && !isCompletingOAuth ? (
+        <ConnectZerodhaCard
+          onSkip={() => {
+            writeBrokerConnectSkipped(true);
+            setBrokerConnectSkipped(true);
+            setBrokerMessage(null);
+          }}
+        />
+      ) : null}
 
       {connectionStatus === "TOKEN_EXPIRED" && !isCompletingOAuth ? (
         <ConnectZerodhaCard

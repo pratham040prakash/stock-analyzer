@@ -1,7 +1,7 @@
 import type { ConnectionStatus } from "@/lib/broker/zerodha";
 import { KITE_CONNECT_DISCIPLINE } from "@/lib/gtm/kiteConnectDisciplineCopy";
 
-export type FirstRunStepId = "connect" | "profile" | "style" | "today";
+export type FirstRunStepId = "profile" | "style" | "connect" | "today";
 
 export type FirstRunStepStatus = "done" | "current" | "pending";
 
@@ -29,10 +29,12 @@ export function buildFirstRunProgress(input: {
   operatingProfileComplete: boolean;
   todayReady: boolean;
   decisionLoading?: boolean;
+  brokerConnectSkipped?: boolean;
 }): FirstRunProgress {
-  const connectDone = isBrokerConnected(input.connectionStatus);
   const profileDone = input.profileComplete;
   const styleDone = input.operatingProfileComplete;
+  const connectDone =
+    isBrokerConnected(input.connectionStatus) || Boolean(input.brokerConnectSkipped);
   const todayDone = input.todayReady;
 
   const rawSteps: Array<{
@@ -41,12 +43,6 @@ export function buildFirstRunProgress(input: {
     detail: string;
     done: boolean;
   }> = [
-    {
-      id: "connect",
-      label: "Connect Zerodha",
-      detail: KITE_CONNECT_DISCIPLINE.firstRunConnectDetail,
-      done: connectDone,
-    },
     {
       id: "profile",
       label: "Set capital context",
@@ -58,6 +54,16 @@ export function buildFirstRunProgress(input: {
       label: "Choose investment style",
       detail: "Long-term vs tactical — and confirm APEX is not for intraday.",
       done: styleDone,
+    },
+    {
+      id: "connect",
+      label: input.brokerConnectSkipped && !isBrokerConnected(input.connectionStatus)
+        ? "Connect Zerodha later"
+        : "Connect Zerodha",
+      detail: input.brokerConnectSkipped && !isBrokerConnected(input.connectionStatus)
+        ? KITE_CONNECT_DISCIPLINE.skipDetail
+        : KITE_CONNECT_DISCIPLINE.firstRunConnectDetail,
+      done: connectDone,
     },
     {
       id: "today",
@@ -87,7 +93,7 @@ export function buildFirstRunProgress(input: {
     return { ...step, status: "pending" };
   });
 
-  const complete = connectDone && profileDone && styleDone && todayDone;
+  const complete = profileDone && styleDone && todayDone;
   const stepNumber = Math.min(currentIndex + 1, rawSteps.length);
 
   return {
@@ -108,15 +114,43 @@ export function runFirstRunSelfCheck(): void {
   };
 
   const blocked = buildFirstRunProgress({
-    connectionStatus: "CONNECTED",
+    connectionStatus: "NOT_CONNECTED",
     profileComplete: true,
     operatingProfileComplete: false,
     todayReady: false,
   });
 
   assert(blocked.steps.length === 4, "First run must have four steps");
-  assert(blocked.steps[2]?.id === "style", "Style step must be third");
-  assert(blocked.steps[2]?.status === "current", "Style must be current when pending");
+  assert(blocked.steps[0]?.id === "profile", "Profile must be first");
+  assert(blocked.steps[1]?.id === "style", "Style step must be second");
+  assert(blocked.steps[1]?.status === "current", "Style must be current when pending");
+  assert(blocked.steps[2]?.id === "connect", "Connect must be third and skippable");
+
+  const skipped = buildFirstRunProgress({
+    connectionStatus: "NOT_CONNECTED",
+    profileComplete: true,
+    operatingProfileComplete: true,
+    brokerConnectSkipped: true,
+    todayReady: true,
+  });
+
+  assert(skipped.complete, "Skip + setup must complete first-run");
+  assert(
+    skipped.steps[2]?.status === "done",
+    "Skipped connect must count as done",
+  );
+
+  const todayWithoutKite = buildFirstRunProgress({
+    connectionStatus: "NOT_CONNECTED",
+    profileComplete: true,
+    operatingProfileComplete: true,
+    todayReady: true,
+  });
+
+  assert(
+    todayWithoutKite.complete,
+    "Today after setup must finish first-run even if Kite waits",
+  );
 
   const complete = buildFirstRunProgress({
     connectionStatus: "CONNECTED",

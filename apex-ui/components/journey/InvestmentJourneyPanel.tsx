@@ -6,8 +6,7 @@ import JourneyTargetTrack from "@/components/journey/JourneyTargetTrack";
 import JourneyTimeTargetPicker from "@/components/journey/JourneyTimeTargetPicker";
 import { apiFetchJson } from "@/lib/api/clientFetch";
 import { buildJourneyProgress } from "@/lib/journey/buildJourneyProgress";
-import { isValidJourneyPlan } from "@/lib/journey/journeyPlanSanitize";
-import { sanitizeChartBackedJourneyPlan } from "@/lib/journey/journeyPlanSanitize";
+import { isValidJourneyPlan, resolveJourneyDisplayLevels, sanitizeChartBackedJourneyPlan } from "@/lib/journey/journeyPlanSanitize";
 import type { ChartBackedJourneyPlan } from "@/lib/journey/buildChartBackedJourneyPlan";
 import { JOURNEY_COPY } from "@/lib/journey/journeyCopy";
 import { formatTimeTargetLabel, suggestTimeTarget } from "@/lib/journey/journeyTimeTarget";
@@ -288,6 +287,10 @@ export default function InvestmentJourneyPanel({
         suggestedWaitDays: displayChartPlan.suggestedTime.totalDays,
         timeSuggestionRationale: displayChartPlan.suggestedTime.rationale,
         timeWaitLabel: displayChartPlan.suggestedTime.waitLabel,
+        buyAboveInr:
+          activationLevelInr && activationLevelInr > displayChartPlan.entryPriceInr
+            ? Math.round(activationLevelInr)
+            : undefined,
       },
     });
 
@@ -576,6 +579,16 @@ export default function InvestmentJourneyPanel({
   }
 
   const entryForTrack = progress.entryPriceInr ?? progress.targetPriceInr * 0.92;
+  const savedBuyAbove =
+    progress.journey.chartBasis?.buyAboveInr ?? activationLevelInr ?? null;
+  const trackLevels = resolveJourneyDisplayLevels({
+    entryPriceInr: entryForTrack,
+    targetPriceInr: progress.targetPriceInr,
+    currentPriceInr: progress.currentPriceInr,
+    buyAboveInr: savedBuyAbove,
+  });
+  const waitingForEntryTrack =
+    progress.milestone === "waiting_entry" || progress.milestone === "planning";
 
   return (
     <section
@@ -598,14 +611,12 @@ export default function InvestmentJourneyPanel({
       <JourneyTargetTrack
         className={progress.patienceUntilLabel ? "mt-3" : undefined}
         symbol={progress.symbol}
-        entryPriceInr={entryForTrack}
-        targetPriceInr={progress.targetPriceInr}
+        entryPriceInr={trackLevels.entryPriceInr}
+        targetPriceInr={trackLevels.targetPriceInr}
         currentPriceInr={progress.currentPriceInr}
         progressPct={progress.progressPct}
-        waitingForEntry={
-          progress.milestone === "waiting_entry" || progress.milestone === "planning"
-        }
-        buyAboveInr={activationLevelInr}
+        waitingForEntry={waitingForEntryTrack}
+        buyAboveInr={trackLevels.buyAboveInr}
         targetReached={progress.targetReached}
         thesisBroken={progress.thesisBroken}
         timeTargetLabel={progress.timeTargetLabel}

@@ -222,6 +222,7 @@ This roadmap is the **only active execution track** until:
 | **T13** | Journey actions on You | Pause, complete, and take-profit links on active paths | ✅ Shipped |
 | **T14** | Watch-path LTP on You | Live quotes for paths not yet in portfolio | ✅ Shipped |
 | **T15** | Wait-path target clarity | Live-price plan sanitize + at-target callout before entry | ✅ Shipped |
+| **T16** | Journey buy/exit on You | Persist buyAbove on path start; same labels on You | ✅ Shipped |
 
 **Valuation narrative (ESTIMATE):** Retention SaaS on broker-connected cohort + trust moat (receipts, broker truth).
 
@@ -324,3 +325,4 @@ This roadmap is the **only active execution track** until:
 | 1.9 | 2026-08-13 | T13 shipped: pause/complete/take-profit actions on You journey paths |
 | 2.0 | 2026-08-13 | T14 shipped: watch-path LTP via explore triggers on You journeys |
 | 2.1 | 2026-08-13 | T15 shipped: wait-path at-target callout + live-price journey plan sanitize |
+| 2.2 | 2026-08-13 | T16 shipped: buyAbove on chartBasis + You journey support/buy/exit parity |

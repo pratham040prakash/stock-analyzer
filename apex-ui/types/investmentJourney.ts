@@ -14,6 +14,8 @@ export type JourneyChartBasis = {
   suggestedWaitDays?: number;
   timeSuggestionRationale?: string;
   timeWaitLabel?: string;
+  /** Today breakout trigger when path started from Wait mode. */
+  buyAboveInr?: number;
 };
 
 export type StoredInvestmentJourney = {

@@ -76,6 +76,8 @@ function parseChartBasis(value: Json | null): JourneyChartBasis | undefined {
         : undefined,
     timeWaitLabel:
       typeof record.timeWaitLabel === "string" ? record.timeWaitLabel : undefined,
+    buyAboveInr:
+      typeof record.buyAboveInr === "number" ? Math.round(record.buyAboveInr) : undefined,
   };
 }
 

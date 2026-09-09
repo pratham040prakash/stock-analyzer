@@ -312,7 +312,8 @@ export default function LoginForm() {
       <div>
         <ApexTitle>Welcome to APEX</ApexTitle>
         <ApexBody className="mt-2">
-          Get one clear investment decision every day.
+          Get one clear investment decision every day. Email or Google is enough
+          to start — Zerodha can wait.
         </ApexBody>
       </div>
 

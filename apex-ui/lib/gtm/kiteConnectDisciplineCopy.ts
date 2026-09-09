@@ -5,14 +5,17 @@ export const KITE_CONNECT_DISCIPLINE = {
   connectDescription:
     "Read-only Kite link. APEX reads holdings and cash, then gives one Wait · Trade · Pause verdict per day.",
   connectButton: "Connect Zerodha",
-  connectSubtext: "Takes less than 10 seconds · read-only",
+  connectSubtext: "Takes less than 10 seconds · read-only · optional to start",
   connectBullets: [
     "Read-only — APEX never places trades without you.",
     "One daily verdict on tactical capital — most days are Wait.",
     "Sacred core holdings stay off Today.",
   ],
+  skipButton: "Continue without Zerodha",
+  skipDetail:
+    "You can connect later for live holdings, cash, and broker-verified receipts.",
   firstRunConnectDetail:
-    "Read-only Kite link — then APEX applies Wait · Trade · Pause to your real portfolio.",
+    "Optional now — link Kite when you want Wait · Trade · Pause on your real portfolio.",
   successEyebrow: "Discipline unlocked",
   successHeadline: "Zerodha linked — discipline starts on Today",
   successBody:
@@ -34,6 +37,7 @@ export function runKiteConnectDisciplineCopySelfCheck(): void {
     "successHeadline",
     "successBody",
     "firstRunConnectDetail",
+    "skipDetail",
   ] as const;
 
   for (const key of requiredKeys) {

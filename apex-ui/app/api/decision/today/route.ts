@@ -35,6 +35,7 @@ import {
   getLatestMentorOutput,
   getLatestPortfolioSnapshotWithMetrics,
 } from "@/services/portfolio/repository";
+import { buildUnconnectedWaitDecision } from "@/lib/onboarding/unconnectedTodayDecision";
 import { createClient } from "@/lib/supabase/server";
 import type { DailyDecisionOutput } from "@/types/decision";
 import type { Intent } from "@/types/intent";
@@ -221,14 +222,12 @@ export async function GET(request: Request) {
       );
     }
 
-    return NextResponse.json({
-      decision: null,
-      intent: null,
-      action: null,
-      message: null,
-      opportunities: null,
-      allocation: [],
-    });
+    const onboardingDecision = buildUnconnectedWaitDecision(intent);
+    return NextResponse.json(
+      decisionResponsePayload(onboardingDecision, intent, {
+        source: "onboarding",
+      }),
+    );
   }
 
   const financialProfile = await getFinancialProfileFromDb(supabase, user.id);

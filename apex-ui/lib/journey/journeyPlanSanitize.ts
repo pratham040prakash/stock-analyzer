@@ -37,6 +37,38 @@ export function normalizeJourneyPrices(input: {
   return { entryPriceInr: entry, targetPriceInr: target };
 }
 
+export function resolveJourneyDisplayLevels(input: {
+  entryPriceInr: number;
+  targetPriceInr: number;
+  currentPriceInr?: number | null;
+  buyAboveInr?: number | null;
+}): {
+  entryPriceInr: number;
+  targetPriceInr: number;
+  buyAboveInr: number | null;
+} {
+  const normalized = normalizeJourneyPrices({
+    entryPriceInr: input.entryPriceInr,
+    targetPriceInr: input.targetPriceInr,
+    currentPriceInr: input.currentPriceInr,
+    buyAboveInr: input.buyAboveInr,
+  });
+
+  const buyAbove =
+    input.buyAboveInr !== null &&
+    input.buyAboveInr !== undefined &&
+    Number.isFinite(input.buyAboveInr) &&
+    input.buyAboveInr > normalized.entryPriceInr
+      ? Math.round(input.buyAboveInr)
+      : null;
+
+  return {
+    entryPriceInr: normalized.entryPriceInr,
+    targetPriceInr: normalized.targetPriceInr,
+    buyAboveInr: buyAbove,
+  };
+}
+
 export function isValidJourneyPlan(plan: {
   entryPriceInr: number;
   targetPriceInr: number;
@@ -73,6 +105,7 @@ export function repairStoredJourney(journey: StoredInvestmentJourney): StoredInv
   const normalized = normalizeJourneyPrices({
     entryPriceInr: journey.entryPriceInr ?? journey.targetPriceInr * 0.94,
     targetPriceInr: journey.targetPriceInr,
+    buyAboveInr: journey.chartBasis?.buyAboveInr,
   });
 
   let startedAt = journey.startedAt;
@@ -118,6 +151,17 @@ export function runJourneyPlanSanitizeSelfCheck(): void {
 
   if (aboveBuy.targetPriceInr <= 1978) {
     throw new Error("Journey plan sanitize self-check failed: exit below buy");
+  }
+
+  const display = resolveJourneyDisplayLevels({
+    entryPriceInr: 1902,
+    targetPriceInr: 1966,
+    currentPriceInr: 1963,
+    buyAboveInr: 1978,
+  });
+
+  if (display.buyAboveInr !== 1978 || display.targetPriceInr <= 1978) {
+    throw new Error("Journey plan sanitize self-check failed: display levels");
   }
 
   const repaired = repairStoredJourney({

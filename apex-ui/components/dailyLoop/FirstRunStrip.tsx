@@ -57,7 +57,7 @@ export default function FirstRunStrip({ progress, userName }: Props) {
           {progress.headline}
         </p>
         <p className="text-sm text-apex-text/85">
-          {greeting} — {progress.steps.length} quick steps before your first capital decision.
+          {greeting} — a few quick steps. Zerodha can wait.
         </p>
       </div>
 

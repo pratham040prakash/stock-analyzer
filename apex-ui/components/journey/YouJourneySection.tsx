@@ -6,6 +6,7 @@ import JourneyTargetTrack from "@/components/journey/JourneyTargetTrack";
 import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
 import { buildJourneyProgress } from "@/lib/journey/buildJourneyProgress";
 import { JOURNEY_COPY } from "@/lib/journey/journeyCopy";
+import { resolveJourneyDisplayLevels } from "@/lib/journey/journeyPlanSanitize";
 import {
   buildJourneyPriceMap,
   lookupJourneyLiveQuote,
@@ -70,7 +71,13 @@ export default function YouJourneySection() {
           entryConfirmed: (quote?.quantity ?? 0) > 0,
         });
         const entry = progress.entryPriceInr ?? progress.targetPriceInr * 0.92;
-        return { journey, progress, entry };
+        const levels = resolveJourneyDisplayLevels({
+          entryPriceInr: entry,
+          targetPriceInr: progress.targetPriceInr,
+          currentPriceInr: progress.currentPriceInr,
+          buyAboveInr: journey.chartBasis?.buyAboveInr ?? null,
+        });
+        return { journey, progress, levels };
       }),
     [activeJourneys, priceMap],
   );
@@ -110,17 +117,18 @@ export default function YouJourneySection() {
         Active paths
       </p>
       <div className="mt-4 space-y-6">
-        {rows.map(({ journey, progress, entry }) => (
+        {rows.map(({ journey, progress, levels }) => (
           <div key={journey.id} className="space-y-3">
             <JourneyTargetTrack
               symbol={progress.symbol}
-              entryPriceInr={entry}
-              targetPriceInr={progress.targetPriceInr}
+              entryPriceInr={levels.entryPriceInr}
+              targetPriceInr={levels.targetPriceInr}
               currentPriceInr={progress.currentPriceInr}
               progressPct={progress.progressPct}
               waitingForEntry={
                 progress.milestone === "waiting_entry" || progress.milestone === "planning"
               }
+              buyAboveInr={levels.buyAboveInr}
               targetReached={progress.targetReached}
               thesisBroken={progress.thesisBroken}
               timeTargetLabel={progress.timeTargetLabel}

@@ -40,7 +40,7 @@ export default async function PortfolioPage() {
         <header className="mb-6">
           <ApexSurfaceNav />
         </header>
-        <ConnectZerodhaCard />
+        <ConnectZerodhaCard skipHref="/app" />
       </ApexShell>
     );
   }

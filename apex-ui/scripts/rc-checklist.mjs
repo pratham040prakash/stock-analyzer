@@ -187,4 +187,14 @@ console.log("--- T15 (Wait-path target clarity) ---");
 console.log("Insight: lib/journey/journeyWaitPathInsight.ts — callout when live price at/near target without entry");
 console.log("Live plan: GET /api/journey/plan?currentPrice= + client sanitize with effectiveLivePrice\n");
 
+console.log("--- T16 (Journey buy/exit on You) ---");
+console.log("Persist buyAboveInr on chartBasis when starting path from Today");
+console.log("You + active journey bars: resolveJourneyDisplayLevels (support / buy above / exit)\n");
+
+console.log("--- T17 (First-run without Kite) ---");
+console.log("First-run order: profile → style → optional Connect Zerodha → Today");
+console.log("Skip persist: lib/onboarding/brokerConnectPreference.ts");
+console.log("Kite not-enabled map: lib/broker/kiteConnectErrors.ts");
+console.log("Unconnected Wait: lib/onboarding/unconnectedTodayDecision.ts → GET /api/decision/today\n");
+
 process.exit(0);

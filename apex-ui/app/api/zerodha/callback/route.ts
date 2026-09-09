@@ -12,6 +12,7 @@ import {
   upsertBrokerConnection,
 } from "@/services/broker/connections";
 import { syncUserPortfolio } from "@/services/portfolio/sync";
+import { mapKiteConnectError } from "@/lib/broker/kiteConnectErrors";
 import { createClient } from "@/lib/supabase/server";
 
 function redirectHome(baseUrl: string, params?: Record<string, string>) {
@@ -28,25 +29,30 @@ function mapZerodhaError(message: string): string {
   const mapped = mapBrokerDbError(message);
   if (mapped !== message) return mapped;
 
-  const lower = message.toLowerCase();
-  if (lower.includes("checksum") || lower.includes("api_secret")) {
-    return "Broker credentials mismatch. Check ZERODHA_API_KEY and ZERODHA_API_SECRET on Vercel.";
-  }
-  if (lower.includes("token") && lower.includes("invalid")) {
-    return "Login link expired. Click Connect Zerodha again.";
-  }
-  return message;
+  return mapKiteConnectError(message);
 }
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const requestToken = url.searchParams.get("request_token");
+  const kiteStatus = url.searchParams.get("status");
+  const kiteMessage =
+    url.searchParams.get("message") ?? url.searchParams.get("error");
   const baseUrl = resolveAppBaseUrl(url.origin) || url.origin;
 
   brokerLog("Zerodha callback hit", {
     has_request_token: Boolean(requestToken),
     origin: url.origin,
+    kite_status: kiteStatus,
   });
+
+  if (kiteStatus === "error" || (kiteMessage && !requestToken)) {
+    return redirectHome(baseUrl, {
+      zerodha_error: mapZerodhaError(
+        kiteMessage ?? "The user is not enabled for the app.",
+      ),
+    });
+  }
 
   if (!requestToken) {
     return redirectHome(baseUrl, {
