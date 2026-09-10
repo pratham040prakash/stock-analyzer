@@ -55,7 +55,13 @@ export async function writeServerContract(
     .select("payload")
     .maybeSingle();
 
-  if (error || !data) {
+  if (error) {
+    console.error("today_contracts upsert failed", error.code, error.message);
+    return null;
+  }
+
+  if (!data) {
+    console.error("today_contracts upsert returned no row");
     return null;
   }
 

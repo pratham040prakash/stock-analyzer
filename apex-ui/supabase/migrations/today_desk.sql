@@ -44,3 +44,10 @@ DROP POLICY IF EXISTS desk_alerts_insert_own ON desk_alerts;
 CREATE POLICY desk_alerts_insert_own ON desk_alerts
   FOR INSERT
   WITH CHECK (auth.uid() = user_id);
+
+GRANT SELECT, INSERT, UPDATE ON TABLE public.today_contracts TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE public.today_contracts TO service_role;
+GRANT SELECT, INSERT ON TABLE public.desk_alerts TO authenticated;
+GRANT SELECT, INSERT ON TABLE public.desk_alerts TO service_role;
+
+NOTIFY pgrst, 'reload schema';

@@ -2,6 +2,7 @@ import { apiError, apiOk } from "@/lib/api/response";
 import { shiftIstDateKey, tradingDateKey } from "@/lib/dailyLoop/disciplineDates";
 import { campaignDay } from "@/lib/dailyLoop/deskNight";
 import type { TodayContract } from "@/lib/dailyLoop/todayContract";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import {
   listContractHistory,
@@ -26,9 +27,10 @@ export async function GET(request: Request) {
     requested && /^\d{4}-\d{2}-\d{2}$/.test(requested)
       ? requested
       : tradingDateKey();
-  const contract = await readServerContract(supabase, user.id, dateKey);
+  const desk = createAdminClient();
+  const contract = await readServerContract(desk, user.id, dateKey);
   const history = await listContractHistory(
-    supabase,
+    desk,
     user.id,
     shiftIstDateKey(dateKey, -14),
   );
@@ -74,7 +76,7 @@ export async function PUT(request: Request) {
     return apiError("kiteLine, rule, and dateKey are required", 400);
   }
 
-  const saved = await writeServerContract(supabase, user.id, body);
+  const saved = await writeServerContract(createAdminClient(), user.id, body);
   if (!saved) {
     return apiError("Could not save contract", 500);
   }

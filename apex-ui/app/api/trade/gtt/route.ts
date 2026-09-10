@@ -1,4 +1,5 @@
 import { apiError, apiOk } from "@/lib/api/response";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getActiveBrokerConnection } from "@/services/broker/connections";
 import { fetchZerodhaGtts, placeZerodhaGtt } from "@/services/brokers/zerodha";
@@ -27,7 +28,7 @@ export async function GET() {
     return apiError(result.status === "TOKEN_EXPIRED" ? "Token expired" : result.message, 502);
   }
 
-  const contract = await readServerContract(supabase, user.id, tradingDateKey());
+  const contract = await readServerContract(createAdminClient(), user.id, tradingDateKey());
   const watch = contract?.watchSymbol?.trim().toUpperCase();
   const match = watch
     ? result.data.find((row) => row.tradingsymbol?.trim().toUpperCase() === watch)
@@ -102,9 +103,9 @@ export async function POST(request: Request) {
   }
 
   const dateKey = tradingDateKey();
-  const contract = await readServerContract(supabase, user.id, dateKey);
+  const contract = await readServerContract(createAdminClient(), user.id, dateKey);
   if (contract) {
-    await writeServerContract(supabase, user.id, {
+    await writeServerContract(createAdminClient(), user.id, {
       ...contract,
       gttId: placed.triggerId,
       gttStatus: "active",
