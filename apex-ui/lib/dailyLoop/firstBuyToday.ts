@@ -626,6 +626,21 @@ export function runFirstBuyTodaySelfCheck(): void {
   assert(holdCard.lastLabel !== null, "Hold card must show last price");
   assert(Boolean(holdCard.vsBuyLabel), "Hold card must show vs-buy");
   assert(Boolean(holdCard.plan?.includes("390")), "Hold card must show the stop");
+
+  const holdCardNoHorizon = buildStarterBookHoldLines({
+    symbol: "COALINDIA",
+    quantity: 4,
+    averagePriceInr: 432,
+    lastPriceInr: 433,
+    cashInr: 12_489,
+  });
+  if (!holdCardNoHorizon) {
+    throw new Error("First-buy today self-check failed: Hold card without horizon");
+  }
+  assert(
+    holdCardNoHorizon.holdLabel === null,
+    "Starter hold card must not invent a 2–8 week path",
+  );
   assert(
     Boolean(holdCard.next?.includes("second name")),
     "Hold card must say what leftover cash is for",

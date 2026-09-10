@@ -13,6 +13,7 @@ import ReceiptProofPanel from "@/components/receipts/ReceiptProofPanel";
 import FinancialProfileSetup from "./FinancialProfileSetup";
 import InvestmentStyleSetup from "@/components/onboarding/InvestmentStyleSetup";
 import IntentSelector from "./IntentSelector";
+import { isEmptyBook, isStarterBook } from "@/lib/dailyLoop/firstBuyToday";
 import ApexSurfaceNav from "@/components/nav/ApexSurfaceNav";
 import LoginCTA from "./LoginCTA";
 import PortfolioSummary, {
@@ -1039,6 +1040,9 @@ export default function HomeClient({
     () => filterRealPortfolioHoldings(portfolioData?.holdings ?? []),
     [portfolioData?.holdings],
   );
+  const openHoldingsCount = visiblePortfolioHoldings.filter(
+    (row) => row.quantity > 0,
+  ).length;
 
   const resolvedPortfolioValue = useMemo(
     () =>
@@ -1214,8 +1218,14 @@ export default function HomeClient({
         {showGuidance && profileComplete && operatingProfileComplete ? (
           <>
             {connectionStatus === "CONNECTED" &&
-            visiblePortfolioHoldings.filter((row) => row.quantity > 0).length === 0 &&
-            (resolvedPortfolioValue ?? 0) <= 0 ? null : (
+            (isEmptyBook({
+              openHoldingsCount,
+              portfolioValue: resolvedPortfolioValue,
+            }) ||
+              isStarterBook({
+                openHoldingsCount,
+                portfolioValue: resolvedPortfolioValue,
+              })) ? null : (
             <IntentSelector
               intent={userIntent}
               onIntentChange={setUserIntent}

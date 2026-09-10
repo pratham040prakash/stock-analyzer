@@ -951,7 +951,6 @@ export default function HomeDecisionScreen({
           lastPriceInr: openPortfolioHoldings[0]?.last_price,
           dayPnlInr: liveDayPnl ?? openPortfolioHoldings[0]?.pnl,
           stopInr: firstBuyPlanLines.stopInr,
-          holdLabel: FIRST_BUY_HOLD_LABEL,
           cashInr: availableCash ?? null,
         })
       : null;
@@ -1593,6 +1592,7 @@ export default function HomeDecisionScreen({
             </div>
           ) : null}
 
+          {starterBook ? null : (
           <ExecutionStatusBlock
             committedToday={retention.committedToday}
             onMarkFollowed={retention.commitFollowed}
@@ -1610,6 +1610,7 @@ export default function HomeDecisionScreen({
             followCtaLabel={firstBuyCommitLabel ?? undefined}
             quiet={hideTodayDump}
           />
+          )}
 
         </div>
       </ApexCard>
