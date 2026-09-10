@@ -66,6 +66,7 @@ import {
   isYoungBook,
   buildYoungBookHoldLines,
   buildYoungBookWaitCopy,
+  buildYoungBookCashCopy,
   orderYoungBookHoldings,
   resolveEmptyBookCommitLabel,
 } from "@/lib/dailyLoop/firstBuyToday";
@@ -1034,6 +1035,10 @@ export default function HomeDecisionScreen({
     youngBook && !starterBook && !isExplore
       ? buildYoungBookHoldLines({ holdings: youngBookHoldings })
       : [];
+  const youngCashCopy =
+    youngBook && !starterBook && !isExplore
+      ? buildYoungBookCashCopy(availableCash)
+      : null;
   const firstBuyCommitLabel = resolveEmptyBookCommitLabel({
     emptyBook,
     firstBuy: firstBuyCandidate,
@@ -1381,6 +1386,19 @@ export default function HomeDecisionScreen({
                         compact
                       />
                     ))}
+                    {youngCashCopy ? (
+                      <div className="rounded-2xl border border-sky-300/15 bg-sky-400/[0.08] px-4 py-3">
+                        <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-sky-100/70">
+                          Leftover cash
+                        </p>
+                        <p className="mt-1 text-xl font-semibold tracking-tight text-apex-text">
+                          {youngCashCopy.amountLabel}
+                        </p>
+                        <p className="mt-1 text-sm leading-relaxed text-apex-muted/85">
+                          {youngCashCopy.line}
+                        </p>
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
                 {secondNameWatch ? (

@@ -120,6 +120,20 @@ export function buildYoungBookWaitCopy(input: {
   };
 }
 
+export function buildYoungBookCashCopy(cashInr?: number | null): {
+  amountLabel: string;
+  line: string;
+} | null {
+  if (cashInr === null || cashInr === undefined || !Number.isFinite(cashInr) || cashInr <= 0) {
+    return null;
+  }
+
+  return {
+    amountLabel: formatInr(cashInr),
+    line: "Stays in cash. No third name today.",
+  };
+}
+
 export function isFirstBuyCandidate(input: {
   emptyBook: boolean;
   executionKind: TodayExecutionKind;
@@ -613,6 +627,16 @@ export function runFirstBuyTodaySelfCheck(): void {
   assert(
     twoNameHold.subline.includes("No trim"),
     "Young-book Wait must not be a skipped trim",
+  );
+  const youngCash = buildYoungBookCashCopy(10_722);
+  assert(
+    youngCash?.amountLabel.includes("10,722") &&
+      Boolean(youngCash.line.includes("No third name")),
+    "Young-book Wait must place leftover cash",
+  );
+  assert(
+    buildYoungBookCashCopy(0) === null,
+    "No cash line when leftover cash is empty",
   );
   assert(
     !twoNameHold.headline.toLowerCase().includes("trim") &&
