@@ -1,12 +1,13 @@
 type Props = {
-  heartbeat: string;
-  interrupt: string;
+  line: string;
 };
 
-export default function TodayDeskStatus({ heartbeat, interrupt }: Props) {
+export default function TodayDeskStatus({ line }: Props) {
+  if (!line.trim()) {
+    return null;
+  }
+
   return (
-    <p className="text-center text-[11px] font-medium uppercase tracking-[0.16em] text-apex-muted/65">
-      {heartbeat} · {interrupt}
-    </p>
+    <p className="text-center text-sm leading-relaxed text-apex-muted/75">{line}</p>
   );
 }

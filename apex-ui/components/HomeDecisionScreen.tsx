@@ -67,20 +67,15 @@ import {
 } from "@/lib/dailyLoop/deskNight";
 import {
   appendNameDiary,
-  deskHeartbeatLine,
-  interruptHealthLine,
   latestDiaryLine,
 } from "@/lib/dailyLoop/deskOs";
 import {
-  assembleHorizonLines,
+  buildTodayDeskLine,
   freezeNewWatch,
-  markDeskSat,
   morningBookLocked,
-  sessionClockLine,
 } from "@/lib/dailyLoop/deskHorizon";
 import { isDeskClosedForNewPicks, isNseCashSessionOpen } from "@/lib/broker/marketSession";
 import TodayDeskStatus from "@/components/dailyLoop/TodayDeskStatus";
-import TodayDeskHorizon from "@/components/dailyLoop/TodayDeskHorizon";
 import TodayNameDiary from "@/components/dailyLoop/TodayNameDiary";
 import { buildDeskFlip, normalizeSymbols, resolveTodayLoop } from "@/lib/dailyLoop/todayLoop";
 import { shiftIstDateKey, tradingDateKey } from "@/lib/dailyLoop/disciplineDates";
@@ -419,14 +414,10 @@ export default function HomeDecisionScreen({
   const [gttStatus, setGttStatus] = useState<string | null>(null);
   const [gttBusy, setGttBusy] = useState(false);
   const [bannedSymbols, setBannedSymbols] = useState<string[]>([]);
-  const [interruptReady, setInterruptReady] = useState(false);
   const [lastWatchAt, setLastWatchAt] = useState<string | null>(null);
   const [nameDiary, setNameDiary] = useState<
     Array<{ dateKey: string; symbol: string; line: string }>
   >([]);
-  const [deskSatLine, setDeskSatLine] = useState<string | null>(null);
-  const [satBusy, setSatBusy] = useState(false);
-  const [horizonLines, setHorizonLines] = useState<string[]>([]);
   const [circuitBreaker, setCircuitBreaker] = useState(false);
   const [stillTrue, setStillTrue] = useState<{
     symbol: string;
@@ -1202,10 +1193,8 @@ export default function HomeDecisionScreen({
           } | null;
           campaignDay?: number;
           bannedSymbols?: string[];
-          interrupt?: { ready?: boolean };
           lastWatchAt?: string | null;
           horizon?: {
-            lines?: string[];
             circuitBreaker?: boolean;
           };
         }>(response, "Contract");
@@ -1224,9 +1213,6 @@ export default function HomeDecisionScreen({
         if (payload?.bannedSymbols) {
           setBannedSymbols(payload.bannedSymbols);
         }
-        if (payload?.interrupt) {
-          setInterruptReady(payload.interrupt.ready === true);
-        }
         if (payload?.lastWatchAt) {
           setLastWatchAt(payload.lastWatchAt);
         }
@@ -1244,17 +1230,8 @@ export default function HomeDecisionScreen({
         if (payload?.contract?.gttStatus) {
           setGttStatus(normalizeGttStatus(payload.contract.gttStatus));
         }
-        if (payload?.horizon?.lines) {
-          setHorizonLines(payload.horizon.lines);
-        }
         if (payload?.horizon?.circuitBreaker) {
           setCircuitBreaker(true);
-        }
-        if (payload?.contract && "deskSatAt" in payload.contract) {
-          const sat = (payload.contract as { deskSatAt?: string }).deskSatAt;
-          if (sat) {
-            setDeskSatLine(markDeskSat(new Date(sat)).line);
-          }
         }
       } catch {
         // Same-browser localStorage remains.
@@ -2088,47 +2065,12 @@ export default function HomeDecisionScreen({
                 />
                 {youngBook || starterBook ? (
                   <TodayDeskStatus
-                    heartbeat={deskHeartbeatLine({
-                      lastWatchAt,
+                    line={buildTodayDeskLine({
+                      held: todayContract.heldSymbols,
+                      watchSymbol: todayContract.watchSymbol,
                       marketOpen: isNseCashSessionOpen(),
+                      lastWatchAt,
                     })}
-                    interrupt={`${sessionClockLine()} · ${interruptHealthLine(interruptReady)}`}
-                  />
-                ) : null}
-                {youngBook || starterBook ? (
-                  <TodayDeskHorizon
-                    lines={
-                      horizonLines.length > 0
-                        ? horizonLines
-                        : assembleHorizonLines({
-                            contract: todayContract,
-                            leftoverInr: availableCash ?? 0,
-                            ticketInr: nextNameWatch?.size.ticketInr,
-                            bookValueInr: youngBookHoldings.reduce(
-                              (sum, row) => sum + (row.value ?? 0),
-                              0,
-                            ),
-                            kiteDown: connectionStatus !== "CONNECTED",
-                            pickCount: decision.picks?.length ?? 0,
-                            defaultCuts: Object.keys(holdCuts).length === 0,
-                          })
-                    }
-                    deskSatLine={deskSatLine}
-                    satBusy={satBusy}
-                    onDeskSat={() => {
-                      setSatBusy(true);
-                      void apiFetch("/api/today/desk-sat", { method: "POST" })
-                        .then(async (response) => {
-                          const payload = await parseApiJson<{ line?: string }>(
-                            response,
-                            "Desk sat",
-                          );
-                          if (response.ok && payload?.line) {
-                            setDeskSatLine(payload.line);
-                          }
-                        })
-                        .finally(() => setSatBusy(false));
-                    }}
                   />
                 ) : null}
                 {yesterdayLine && (youngBook || starterBook) ? (

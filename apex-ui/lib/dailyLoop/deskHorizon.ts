@@ -3,6 +3,7 @@ import {
   getMarketSessionPhase,
   isDeskClosedForNewPicks,
 } from "@/lib/broker/marketSession";
+import { deskHeartbeatLine } from "@/lib/dailyLoop/deskOs";
 import { tradingDateKey } from "@/lib/dailyLoop/disciplineDates";
 import type { TodayContract } from "@/lib/dailyLoop/todayContract";
 
@@ -63,6 +64,43 @@ export function buildRuleTapeLine(input: {
 
 export function sessionClockLine(now = new Date()): string {
   return getMarketSessionPhase(now);
+}
+
+/** One sentence for Today. Review keeps the year book. */
+export function buildTodayDeskLine(input: {
+  held?: Array<string | null | undefined>;
+  watchSymbol?: string | null;
+  marketOpen?: boolean;
+  lastWatchAt?: string | null;
+  now?: Date;
+}): string {
+  const names = [
+    ...new Set(
+      (input.held ?? [])
+        .map((symbol) => symbol?.trim().toUpperCase())
+        .filter((symbol): symbol is string => Boolean(symbol)),
+    ),
+  ];
+  const book =
+    names.length === 2
+      ? `Hold ${names[0]} and ${names[1]}.`
+      : names.length === 1
+        ? `Hold ${names[0]}.`
+        : "Hold the book.";
+  const watch = input.watchSymbol?.trim().toUpperCase();
+  const cash = watch
+    ? `Cash waits on ${watch}.`
+    : "Cash idle until a line exists.";
+
+  if (input.marketOpen) {
+    return `${deskHeartbeatLine({
+      lastWatchAt: input.lastWatchAt,
+      marketOpen: true,
+      now: input.now,
+    })} ${book} ${cash}`;
+  }
+
+  return `${sessionClockLine(input.now)}. ${book} ${cash}`;
 }
 
 export function dualLineGttPlan(input: {
@@ -975,6 +1013,22 @@ export function runDeskHorizonSelfCheck(): void {
       "does not shop",
     ),
     "Research cannot outrank the contract",
+  );
+  assert(
+    buildTodayDeskLine({
+      held: ["COALINDIA", "ADANIPORTS"],
+      marketOpen: false,
+      now: new Date("2026-09-10T20:18:00+05:30"),
+    }) === "After hours. Hold COALINDIA and ADANIPORTS. Cash idle until a line exists.",
+    "Today must be one after-hours sentence",
+  );
+  assert(
+    !buildTodayDeskLine({
+      held: ["COALINDIA", "ADANIPORTS"],
+      marketOpen: false,
+      now: new Date("2026-09-10T20:18:00+05:30"),
+    }).includes("Telegram"),
+    "Today must not nag Vercel",
   );
   assert(
     assembleHorizonLines({
