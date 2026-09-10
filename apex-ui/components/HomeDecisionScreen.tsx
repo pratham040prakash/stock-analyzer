@@ -1400,7 +1400,8 @@ export default function HomeDecisionScreen({
             updated_at?: string;
           }>;
         }>(response, "Thesis");
-        if (!response.ok || !payload?.theses) {
+        const theses = payload?.theses;
+        if (!response.ok || !theses) {
           return;
         }
 
@@ -1412,7 +1413,7 @@ export default function HomeDecisionScreen({
           invalidation: string | null;
           line: string;
         } | null = null;
-        for (const row of payload.theses) {
+        for (const row of theses) {
           const symbol = row.symbol?.trim().toUpperCase();
           const cut = cutInrFromInvalidation(row.invalidation);
           if (symbol && cut) {
@@ -1440,7 +1441,7 @@ export default function HomeDecisionScreen({
         setStillTrue(checkIn);
         setNameDiary((current) => {
           let diary = current;
-          for (const row of payload.theses) {
+          for (const row of theses) {
             const symbol = row.symbol?.trim().toUpperCase();
             const line = row.invalidation?.trim() || row.thesis?.trim();
             if (!symbol || !line) {
@@ -2104,7 +2105,6 @@ export default function HomeDecisionScreen({
                   <TodayStarterHoldCard
                     lines={starterHoldLines}
                     hideCashFork={Boolean(nextNameWatch)}
-                    diary={latestDiaryLine(nameDiary, starterHoldLines.symbol)}
                     yourCutInr={
                       holdCuts[starterHoldLines.symbol.trim().toUpperCase()] ?? null
                     }
