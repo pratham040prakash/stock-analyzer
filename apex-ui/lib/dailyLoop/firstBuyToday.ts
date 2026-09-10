@@ -299,18 +299,31 @@ export function buildEmptyBookWaitCopy(input: {
 export function buildBookHoldRule(input: {
   averagePriceInr?: number | null;
   lastPriceInr?: number | null;
+  cutInr?: number | null;
 }): { holdRule: string; cutLabel: string | null; ruleBroken: boolean } {
   const avg = input.averagePriceInr;
   const last = input.lastPriceInr;
   const hasAvg = avg !== null && avg !== undefined && Number.isFinite(avg) && avg > 0;
   const hasLast = last !== null && last !== undefined && Number.isFinite(last) && last > 0;
-  const cutInr = hasAvg ? Math.round(avg * 0.97) : null;
+  const custom =
+    input.cutInr !== null &&
+    input.cutInr !== undefined &&
+    Number.isFinite(input.cutInr) &&
+    input.cutInr > 0
+      ? Math.round(input.cutInr)
+      : null;
+  const cutInr = custom ?? (hasAvg ? Math.round(avg * 0.97) : null);
+  const owned = custom !== null;
   const ruleBroken = hasLast && cutInr !== null && last < cutInr;
   const holdRule = !cutInr
     ? "Hold the position."
     : ruleBroken
-      ? "Below your line. Review in Kite."
-      : `Hold unless below ${formatInr(cutInr)}.`;
+      ? owned
+        ? "Your line broke. Review in Kite."
+        : "Below your line. Review in Kite."
+      : owned
+        ? `Hold unless below ${formatInr(cutInr)} — your line.`
+        : `Hold unless below ${formatInr(cutInr)}.`;
 
   return {
     holdRule,
@@ -351,6 +364,7 @@ export function buildStarterBookHoldLines(input: {
   stopInr?: number | null;
   holdLabel?: string | null;
   cashInr?: number | null;
+  cutInr?: number | null;
 }): StarterBookHoldLines | null {
   const symbol = input.symbol?.trim().toUpperCase();
   const quantity = input.quantity;
@@ -417,6 +431,7 @@ export function buildStarterBookHoldLines(input: {
   const { holdRule, cutLabel, ruleBroken } = buildBookHoldRule({
     averagePriceInr: avg,
     lastPriceInr: last,
+    cutInr: input.cutInr,
   });
 
   return {
@@ -445,15 +460,18 @@ export function buildStarterBookHoldLines(input: {
 
 export function buildYoungBookHoldLines(input: {
   holdings: YoungBookHolding[];
+  cuts?: Record<string, number>;
 }): StarterBookHoldLines[] {
   const tickets: StarterBookHoldLines[] = [];
 
   for (const holding of orderYoungBookHoldings(input.holdings)) {
+    const symbol = holding.tradingsymbol?.trim().toUpperCase();
     const lines = buildStarterBookHoldLines({
       symbol: holding.tradingsymbol,
       quantity: holding.quantity,
       averagePriceInr: holding.average_price,
       lastPriceInr: holding.last_price,
+      cutInr: symbol ? input.cuts?.[symbol] : null,
     });
     if (!lines) {
       continue;
@@ -896,6 +914,14 @@ export function runFirstBuyTodaySelfCheck(): void {
   assert(Boolean(holdCard.vsBuyLabel), "Hold card must show vs-buy");
   assert(Boolean(holdCard.holdRule?.includes("Hold unless")), "Hold card must name a cut line");
   assert(holdCard.ruleBroken === false, "A 1-rupee dip is not a broken hold");
+  assert(
+    buildBookHoldRule({
+      averagePriceInr: 1767,
+      lastPriceInr: 1758,
+      cutInr: 1714,
+    }).holdRule.includes("your line"),
+    "A written cut must beat the default 3%",
+  );
   assert(Boolean(holdCard.plan?.includes("390")), "Hold card must show the stop");
 
   const holdCardNoHorizon = buildStarterBookHoldLines({

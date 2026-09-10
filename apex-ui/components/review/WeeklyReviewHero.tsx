@@ -11,6 +11,7 @@ type Props = {
   processScore: ScoreModel;
   reconcileMessage?: string | null;
   proofHref?: string | null;
+  loopLine?: string | null;
 };
 
 export default function WeeklyReviewHero({
@@ -19,6 +20,7 @@ export default function WeeklyReviewHero({
   processScore,
   reconcileMessage,
   proofHref = null,
+  loopLine = null,
 }: Props) {
   const headline = buildWeeklyReviewHeadline(summary);
 
@@ -35,6 +37,11 @@ export default function WeeklyReviewHero({
       </div>
 
       <section className="rounded-xl border border-blue-500/15 bg-blue-500/5 px-4 py-4 space-y-2">
+        {loopLine ? (
+          <p className="text-xs font-medium uppercase tracking-[0.16em] text-apex-muted/75">
+            {loopLine}
+          </p>
+        ) : null}
         <p className="text-lg font-medium text-apex-text/95">{headline}</p>
         <p className="text-sm text-apex-muted/85">
           Wins {summary.wins} · Losses {summary.losses} · Followed{" "}

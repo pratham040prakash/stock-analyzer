@@ -6,6 +6,7 @@ import type { SecondNameWatch } from "@/lib/dailyLoop/secondNameToday";
 type Props = {
   watch: SecondNameWatch;
   kiteLine?: string;
+  thesis?: string | null;
 };
 
 function statusTone(watch: SecondNameWatch): string {
@@ -20,7 +21,7 @@ function statusTone(watch: SecondNameWatch): string {
   return "text-white";
 }
 
-export default function TodaySecondNameCard({ watch, kiteLine }: Props) {
+export default function TodaySecondNameCard({ watch, kiteLine, thesis }: Props) {
   const status = watch.dead ? "Lost" : watch.through ? "Through" : "Live";
 
   return (
@@ -95,8 +96,10 @@ export default function TodaySecondNameCard({ watch, kiteLine }: Props) {
           {watch.ticketLabel} → {watch.leftoverLabel}
         </p>
       )}
-      {watch.whyLine ? (
-        <p className="mt-3 text-sm leading-relaxed text-apex-text/85">{watch.whyLine}</p>
+      {thesis || watch.whyLine ? (
+        <p className="mt-3 text-sm leading-relaxed text-apex-text/85">
+          {thesis || watch.whyLine}
+        </p>
       ) : null}
       <Link
         href={`/app/research?symbol=${encodeURIComponent(watch.symbol)}`}

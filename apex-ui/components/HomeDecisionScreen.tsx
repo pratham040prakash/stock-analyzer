@@ -52,6 +52,19 @@ import {
   readTodayContract,
 } from "@/lib/dailyLoop/todayContract";
 import { buildDeskFlip, resolveTodayLoop } from "@/lib/dailyLoop/todayLoop";
+import {
+  buildHumanThesis,
+  buildLoopReceiptBody,
+  buildWatchInterruptCopy,
+  cutInrFromInvalidation,
+  fireWatchInterrupt,
+  persistWatchNotifyKey,
+  pickYesterdayLoopLine,
+  readWatchNotifyKey,
+  readYesterdayLoopLine,
+  shouldNotifyWatch,
+  watchNotifyKey,
+} from "@/lib/dailyLoop/todayMemory";
 import TodayWatchlistPanel from "@/components/dailyLoop/TodayWatchlistPanel";
 import TodaySyncStatusBanner from "@/components/dailyLoop/TodaySyncStatusBanner";
 import InvestmentJourneyPanel from "@/components/journey/InvestmentJourneyPanel";
@@ -357,6 +370,9 @@ export default function HomeDecisionScreen({
   const [processingHoldTrim, setProcessingHoldTrim] = useState(false);
   const [liveTapeHardWait, setLiveTapeHardWait] = useState(tapeHardWaitProp);
   const [watchFilledToday, setWatchFilledToday] = useState(false);
+  const [yesterdayLine, setYesterdayLine] = useState<string | null>(null);
+  const [humanThesis, setHumanThesis] = useState<string | null>(null);
+  const [holdCuts, setHoldCuts] = useState<Record<string, number>>({});
   const [brokerFillStatusLoading, setBrokerFillStatusLoading] = useState(() => {
     const symbol = todayHero.symbol?.trim().toUpperCase();
     if (!symbol || typeof window === "undefined") {
@@ -955,6 +971,145 @@ export default function HomeDecisionScreen({
       cancelled = true;
     };
   }, [nextNameWatch?.symbol, starterBook, youngBook]);
+
+  useEffect(() => {
+    setYesterdayLine(readYesterdayLoopLine());
+
+    void (async () => {
+      try {
+        const response = await apiFetch("/api/receipts?days=7", { cache: "no-store" });
+        const payload = await parseApiJson<{
+          receipts?: Array<{
+            receipt_date?: string;
+            headline?: string | null;
+            order_id?: string | null;
+          }>;
+        }>(response, "Receipts");
+        if (response.ok && payload?.receipts) {
+          setYesterdayLine(pickYesterdayLoopLine(payload.receipts));
+        }
+      } catch {
+        // Local yesterday line remains the fallback.
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    const body = buildLoopReceiptBody({ loop: todayLoop, contract: todayContract });
+    if (!body || !(youngBook || starterBook)) {
+      return;
+    }
+
+    const stamp = `apex_loop_receipt:${todayContract.dateKey}:${todayLoop.state}`;
+    if (typeof window !== "undefined" && window.localStorage.getItem(stamp)) {
+      return;
+    }
+
+    void (async () => {
+      try {
+        const response = await apiFetch("/api/receipts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (response.ok && typeof window !== "undefined") {
+          window.localStorage.setItem(stamp, "1");
+        }
+      } catch {
+        // Review still reads yesterday from the local contract.
+      }
+    })();
+  }, [starterBook, todayContract, todayLoop, youngBook]);
+
+  useEffect(() => {
+    if (!nextNameWatch || liveTapeHardWait || !(youngBook || starterBook)) {
+      return;
+    }
+
+    const nextKey = watchNotifyKey(nextNameWatch);
+    if (!shouldNotifyWatch(readWatchNotifyKey(), nextKey)) {
+      return;
+    }
+
+    persistWatchNotifyKey(nextKey);
+    void fireWatchInterrupt(buildWatchInterruptCopy(nextNameWatch));
+  }, [liveTapeHardWait, nextNameWatch, starterBook, youngBook]);
+
+  useEffect(() => {
+    const symbol = nextNameWatch?.symbol;
+    if (!symbol || !(youngBook || starterBook)) {
+      setHumanThesis(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const response = await apiFetch(
+          `/api/research/summary?symbol=${encodeURIComponent(symbol)}`,
+          { cache: "no-store" },
+        );
+        const payload = await parseApiJson<{
+          summary?: {
+            summary?: string | null;
+            questions?: Array<{ id?: string; answer?: string | null }>;
+          };
+        }>(response, "Research");
+        if (cancelled || !response.ok) {
+          return;
+        }
+
+        setHumanThesis(
+          buildHumanThesis({
+            symbol,
+            triggerInr: nextNameWatch.triggerInr,
+            fallback: nextNameWatch.whyLine ?? "",
+            research: payload?.summary ?? null,
+          }),
+        );
+      } catch {
+        if (!cancelled) {
+          setHumanThesis(nextNameWatch.whyLine);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [nextNameWatch, starterBook, youngBook]);
+
+  useEffect(() => {
+    if (!(youngBook || starterBook)) {
+      return;
+    }
+
+    void (async () => {
+      try {
+        const response = await apiFetch("/api/thesis", { cache: "no-store" });
+        const payload = await parseApiJson<{
+          theses?: Array<{ symbol?: string; invalidation?: string | null }>;
+        }>(response, "Thesis");
+        if (!response.ok || !payload?.theses) {
+          return;
+        }
+
+        const next: Record<string, number> = {};
+        for (const row of payload.theses) {
+          const symbol = row.symbol?.trim().toUpperCase();
+          const cut = cutInrFromInvalidation(row.invalidation);
+          if (symbol && cut) {
+            next[symbol] = cut;
+          }
+        }
+        setHoldCuts(next);
+      } catch {
+        // Default 3% hold line remains.
+      }
+    })();
+  }, [starterBook, youngBook]);
+
   const isExploreEmpty =
     isExplore &&
     capitalDecision.exploreSetups.length === 0 &&
@@ -1183,11 +1338,22 @@ export default function HomeDecisionScreen({
           dayPnlInr: liveDayPnl ?? youngBookHoldings[0]?.pnl,
           stopInr: firstBuyPlanLines.stopInr,
           cashInr: availableCash ?? null,
+          cutInr:
+            holdCuts[
+              (
+                starterHoldingSymbol ||
+                youngBookHoldings[0]?.tradingsymbol ||
+                todayHero.symbol ||
+                ""
+              )
+                .trim()
+                .toUpperCase()
+            ] ?? null,
         })
       : null;
   const youngHoldLines =
     youngBook && !starterBook && !isExplore
-      ? buildYoungBookHoldLines({ holdings: youngBookHoldings })
+      ? buildYoungBookHoldLines({ holdings: youngBookHoldings, cuts: holdCuts })
       : [];
   const youngCashCopy =
     youngBook && !starterBook && !isExplore
@@ -1522,6 +1688,11 @@ export default function HomeDecisionScreen({
                   autoRetryInProgress={autoSyncRetrying}
                   autoRetryDetail={autoSyncRetryDetail}
                 />
+                {yesterdayLine && (youngBook || starterBook) ? (
+                  <p className="text-center text-xs font-medium uppercase tracking-[0.18em] text-apex-muted/70">
+                    {yesterdayLine}
+                  </p>
+                ) : null}
                 <VerdictCanvas {...verdictCanvasProps} />
                 {(youngBook || starterBook) &&
                 verdictPresentation.verdict === "wait" &&
@@ -1569,6 +1740,7 @@ export default function HomeDecisionScreen({
                   <TodaySecondNameCard
                     watch={nextNameWatch}
                     kiteLine={todayContract.kiteLine}
+                    thesis={humanThesis}
                   />
                 ) : null}
                 {(youngBook || starterBook) && todayLoop.line ? (

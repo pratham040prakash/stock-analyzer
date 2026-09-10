@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { formatInr } from "@/lib/funds";
 import type { PortfolioHoldingRow } from "@/types/portfolioApi";
@@ -12,6 +13,8 @@ type Props = {
   health?: HoldingHealthChip;
   bucket?: AllocationBucket;
   quiet?: boolean;
+  cutInr?: number | null;
+  onSetCut?: (cutInr: number) => Promise<void> | void;
 };
 
 function formatLast(value: number): string {
@@ -51,6 +54,8 @@ export default function PortfolioHoldingCard({
   health,
   bucket,
   quiet = false,
+  cutInr = null,
+  onSetCut,
 }: Props) {
   const shares =
     holding.quantity === 1 ? "1 share" : `${Math.round(holding.quantity)} shares`;
@@ -69,8 +74,21 @@ export default function PortfolioHoldingCard({
     ? buildBookHoldRule({
         averagePriceInr: holding.average_price,
         lastPriceInr: holding.last_price,
+        cutInr,
       })
     : null;
+  const defaultCut =
+    cutInr && cutInr > 0
+      ? String(Math.round(cutInr))
+      : Number.isFinite(holding.average_price) && holding.average_price > 0
+        ? String(Math.round(holding.average_price * 0.97))
+        : "";
+  const [cutDraft, setCutDraft] = useState(defaultCut);
+  const [savingCut, setSavingCut] = useState(false);
+
+  useEffect(() => {
+    setCutDraft(defaultCut);
+  }, [defaultCut]);
 
   return (
     <article className="relative overflow-hidden rounded-[28px] border border-white/[0.08] bg-gradient-to-b from-sky-400/[0.08] to-transparent px-5 py-5">
@@ -118,6 +136,41 @@ export default function PortfolioHoldingCard({
             >
               {hold.holdRule}
             </p>
+          ) : null}
+          {quiet && onSetCut ? (
+            <form
+              className="mt-3 flex items-center justify-end gap-2"
+              onSubmit={(event) => {
+                event.preventDefault();
+                const next = Number(cutDraft.replace(/,/g, ""));
+                if (!Number.isFinite(next) || next <= 0 || savingCut) {
+                  return;
+                }
+
+                setSavingCut(true);
+                void Promise.resolve(onSetCut(Math.round(next))).finally(() => {
+                  setSavingCut(false);
+                });
+              }}
+            >
+              <label className="sr-only" htmlFor={`cut-${holding.tradingsymbol}`}>
+                Your line for {holding.tradingsymbol}
+              </label>
+              <input
+                id={`cut-${holding.tradingsymbol}`}
+                inputMode="numeric"
+                value={cutDraft}
+                onChange={(event) => setCutDraft(event.target.value)}
+                className="w-24 rounded-lg border border-white/10 bg-black/30 px-2 py-1 text-right text-xs tabular-nums text-apex-text outline-none focus:border-sky-300/40"
+              />
+              <button
+                type="submit"
+                disabled={savingCut}
+                className="rounded-lg border border-white/15 px-2 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-apex-muted/80 disabled:opacity-50"
+              >
+                {cutInr ? "Update" : "Set line"}
+              </button>
+            </form>
           ) : null}
           {quiet ? null : (
             <Link

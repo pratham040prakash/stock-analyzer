@@ -12,6 +12,8 @@ import { buildPortfolioHealthSummary } from "@/services/portfolio/buildPortfolio
 import { buildSectorCapSummary } from "@/services/portfolio/sectorCapPolicy";
 import type { HoldingHealthChip } from "@/services/portfolio/holdingHealth";
 import { isYoungBook, orderYoungBookHoldings } from "@/lib/dailyLoop/firstBuyToday";
+import { cutInrFromInvalidation } from "@/lib/dailyLoop/todayMemory";
+import type { InvestmentThesisRow } from "@/types/investmentThesis";
 import { readTodayContract, type TodayContract } from "@/lib/dailyLoop/todayContract";
 import TodayKiteContract from "@/components/dailyLoop/TodayKiteContract";
 import ApexErrorBoundary from "@/components/ui/ApexErrorBoundary";
@@ -75,6 +77,7 @@ export default function PortfolioPageClient({
   const [thesisWarnings, setThesisWarnings] = useState<ThesisInvalidationWarning[]>([]);
   const [portfolioProofHref, setPortfolioProofHref] = useState<string | null>(null);
   const [todayContract, setTodayContract] = useState<TodayContract | null>(null);
+  const [theses, setTheses] = useState<InvestmentThesisRow[]>([]);
 
   const loadFunds = useCallback(async (options?: { silent?: boolean }) => {
     setFundsSyncError(null);
@@ -135,6 +138,40 @@ export default function PortfolioPageClient({
     }
   }, []);
 
+  const loadTheses = useCallback(async () => {
+    const response = await apiFetch("/api/thesis", { cache: "no-store" });
+    const data = await parseApiJson<{ theses?: InvestmentThesisRow[] }>(
+      response,
+      "Thesis",
+    );
+
+    if (response.ok && data?.theses) {
+      setTheses(data.theses);
+    }
+  }, []);
+
+  const saveHoldCut = useCallback(
+    async (symbol: string, cutInr: number) => {
+      const existing = theses.find(
+        (row) => row.symbol.trim().toUpperCase() === symbol.trim().toUpperCase(),
+      );
+      const response = await apiFetch("/api/thesis", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          symbol,
+          thesis: existing?.thesis?.trim() || `Hold ${symbol.trim().toUpperCase()}.`,
+          invalidation: `Break below ₹${Math.round(cutInr)}`,
+        }),
+      });
+
+      if (response.ok) {
+        await loadTheses();
+      }
+    },
+    [loadTheses, theses],
+  );
+
   const loadThesisWatch = useCallback(async () => {
     const response = await apiFetch("/api/thesis/watch", { cache: "no-store" });
     const data = await parseApiJson<ThesisWatchResponse>(response, "Thesis watch");
@@ -164,6 +201,7 @@ export default function PortfolioPageClient({
       loadFunds({ silent: silent || fundsSynced }),
       loadNewCapital({ silent }),
       loadThesisWatch(),
+      loadTheses(),
       loadPortfolioProof(),
     ]);
   }, [
@@ -172,6 +210,7 @@ export default function PortfolioPageClient({
     loadNewCapital,
     loadOverview,
     loadPortfolioProof,
+    loadTheses,
     loadThesisWatch,
   ]);
 
@@ -233,6 +272,16 @@ export default function PortfolioPageClient({
     }
     return map;
   }, [overview?.health]);
+  const cutBySymbol = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const row of theses) {
+      const cut = cutInrFromInvalidation(row.invalidation);
+      if (cut) {
+        map[row.symbol.trim().toUpperCase()] = cut;
+      }
+    }
+    return map;
+  }, [theses]);
   const bucketBySymbol = useMemo(() => {
     const map: Record<string, "core" | "tactical" | "cash"> = {};
 
@@ -306,6 +355,12 @@ export default function PortfolioPageClient({
                   : bucketBySymbol[holding.tradingsymbol.toUpperCase()]
               }
               quiet={youngBook}
+              cutInr={cutBySymbol[holding.tradingsymbol.toUpperCase()] ?? null}
+              onSetCut={
+                youngBook
+                  ? (cut) => saveHoldCut(holding.tradingsymbol, cut)
+                  : undefined
+              }
             />
           ))}
 

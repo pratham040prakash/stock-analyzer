@@ -24,6 +24,7 @@ import ApexErrorBoundary from "@/components/ui/ApexErrorBoundary";
 import { ApexShell } from "@/components/ui/apex";
 import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
 import { buildLastNIstDays } from "@/lib/dailyLoop/disciplineHistoryMerge";
+import { pickReviewLoopLine } from "@/lib/dailyLoop/todayMemory";
 import { buildDisciplineProcessScore } from "@/services/review/disciplineScore";
 import { buildDisciplineDigestView } from "@/services/review/disciplineDigest";
 import type {
@@ -312,6 +313,18 @@ export default function ReviewPageClient({ userName }: Props) {
     [highlightReceiptId, receipts],
   );
 
+  const loopLine = useMemo(
+    () =>
+      pickReviewLoopLine(
+        receipts.map((row) => ({
+          receipt_date: row.receipt_date,
+          headline: row.headline,
+          order_id: row.order_id,
+        })),
+      ),
+    [receipts],
+  );
+
   const latestProofHref = useMemo(() => {
     const latest = receipts[0];
 
@@ -352,6 +365,7 @@ export default function ReviewPageClient({ userName }: Props) {
         processScore={processScore}
         reconcileMessage={reconcileMessage}
         proofHref={latestProofHref}
+        loopLine={loopLine}
       />
 
       <ContextualLessonPanel lesson={contextualLesson} loading={lessonLoading} />
