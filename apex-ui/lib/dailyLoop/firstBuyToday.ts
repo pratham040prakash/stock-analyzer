@@ -380,26 +380,28 @@ export function buildStarterBookHoldLines(input: {
 export function buildYoungBookHoldLines(input: {
   holdings: YoungBookHolding[];
 }): StarterBookHoldLines[] {
-  return orderYoungBookHoldings(input.holdings)
-    .map((holding) => {
-      const lines = buildStarterBookHoldLines({
-        symbol: holding.tradingsymbol,
-        quantity: holding.quantity,
-        averagePriceInr: holding.average_price,
-        lastPriceInr: holding.last_price,
-      });
-      if (!lines) {
-        return null;
-      }
+  const tickets: StarterBookHoldLines[] = [];
 
-      return {
-        ...lines,
-        cashLabel: null,
-        next: null,
-        nextEyebrow: null,
-      };
-    })
-    .filter((lines): lines is StarterBookHoldLines => lines !== null);
+  for (const holding of orderYoungBookHoldings(input.holdings)) {
+    const lines = buildStarterBookHoldLines({
+      symbol: holding.tradingsymbol,
+      quantity: holding.quantity,
+      averagePriceInr: holding.average_price,
+      lastPriceInr: holding.last_price,
+    });
+    if (!lines) {
+      continue;
+    }
+
+    tickets.push({
+      ...lines,
+      cashLabel: null,
+      next: null,
+      nextEyebrow: null,
+    });
+  }
+
+  return tickets;
 }
 
 export function buildStarterBookWaitCopy(input: {
