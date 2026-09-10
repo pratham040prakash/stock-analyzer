@@ -14,12 +14,8 @@
       "schedule": "0 11 * * 0"
     },
     {
-      "path": "/api/cron/session-watch",
-      "schedule": "*/5 * * * *"
-    },
-    {
       "path": "/api/cron/close-letter",
-      "schedule": "1 10 * * 1-5"
+      "schedule": "0 10 * * *"
     }
   ]
 }
