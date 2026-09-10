@@ -25,6 +25,9 @@ export default function TodayKiteContract({ contract, compact = false }: Props) 
         <p className="mt-1 text-base font-semibold tabular-nums leading-snug tracking-tight text-white">
           {headline}
         </p>
+        {contract.outcomeLine ? (
+          <p className="mt-1 text-sm text-apex-muted/80">{contract.outcomeLine}</p>
+        ) : null}
       </section>
     );
   }

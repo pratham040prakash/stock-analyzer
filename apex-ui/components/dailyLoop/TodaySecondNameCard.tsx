@@ -96,7 +96,7 @@ export default function TodaySecondNameCard({ watch, kiteLine }: Props) {
         </p>
       )}
       {watch.whyLine ? (
-        <p className="mt-1 text-sm text-apex-muted/70">{watch.whyLine}</p>
+        <p className="mt-3 text-sm leading-relaxed text-apex-text/85">{watch.whyLine}</p>
       ) : null}
       <Link
         href={`/app/research?symbol=${encodeURIComponent(watch.symbol)}`}

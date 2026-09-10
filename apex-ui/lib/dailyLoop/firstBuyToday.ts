@@ -296,6 +296,29 @@ export function buildEmptyBookWaitCopy(input: {
   };
 }
 
+export function buildBookHoldRule(input: {
+  averagePriceInr?: number | null;
+  lastPriceInr?: number | null;
+}): { holdRule: string; cutLabel: string | null; ruleBroken: boolean } {
+  const avg = input.averagePriceInr;
+  const last = input.lastPriceInr;
+  const hasAvg = avg !== null && avg !== undefined && Number.isFinite(avg) && avg > 0;
+  const hasLast = last !== null && last !== undefined && Number.isFinite(last) && last > 0;
+  const cutInr = hasAvg ? Math.round(avg * 0.97) : null;
+  const ruleBroken = hasLast && cutInr !== null && last < cutInr;
+  const holdRule = !cutInr
+    ? "Hold the position."
+    : ruleBroken
+      ? "Below your line. Review in Kite."
+      : `Hold unless below ${formatInr(cutInr)}.`;
+
+  return {
+    holdRule,
+    cutLabel: cutInr ? formatInr(cutInr) : null,
+    ruleBroken,
+  };
+}
+
 export type StarterBookHoldLines = {
   symbol: string;
   sharesLabel: string;
@@ -314,6 +337,9 @@ export type StarterBookHoldLines = {
   cashLabel: string | null;
   next: string | null;
   nextEyebrow: string | null;
+  holdRule: string | null;
+  cutLabel: string | null;
+  ruleBroken: boolean;
 };
 
 export function buildStarterBookHoldLines(input: {
@@ -388,6 +414,10 @@ export function buildStarterBookHoldLines(input: {
   const next = hasCash
     ? `Waits for a second name — not more ${symbol} today.`
     : "No cash to add. The work today is to hold.";
+  const { holdRule, cutLabel, ruleBroken } = buildBookHoldRule({
+    averagePriceInr: avg,
+    lastPriceInr: last,
+  });
 
   return {
     symbol,
@@ -407,6 +437,9 @@ export function buildStarterBookHoldLines(input: {
     cashLabel,
     next,
     nextEyebrow: hasCash ? "Ready for the next name" : "Hold the book",
+    holdRule,
+    cutLabel,
+    ruleBroken,
   };
 }
 
@@ -861,6 +894,8 @@ export function runFirstBuyTodaySelfCheck(): void {
   assert(holdCard.marks.includes("Avg"), "Hold card must show average");
   assert(holdCard.lastLabel !== null, "Hold card must show last price");
   assert(Boolean(holdCard.vsBuyLabel), "Hold card must show vs-buy");
+  assert(Boolean(holdCard.holdRule?.includes("Hold unless")), "Hold card must name a cut line");
+  assert(holdCard.ruleBroken === false, "A 1-rupee dip is not a broken hold");
   assert(Boolean(holdCard.plan?.includes("390")), "Hold card must show the stop");
 
   const holdCardNoHorizon = buildStarterBookHoldLines({

@@ -78,6 +78,15 @@ export default function TodayStarterHoldCard({
             ) : null}
           </div>
         </div>
+        {lines.holdRule ? (
+          <p
+            className={`mt-3 text-xs ${
+              lines.ruleBroken ? "text-rose-200" : "text-apex-muted/75"
+            }`}
+          >
+            {lines.holdRule}
+          </p>
+        ) : null}
       </section>
     );
   }

@@ -51,6 +51,7 @@ import {
   persistTodayContract,
   readTodayContract,
 } from "@/lib/dailyLoop/todayContract";
+import { buildDeskFlip, resolveTodayLoop } from "@/lib/dailyLoop/todayLoop";
 import TodayWatchlistPanel from "@/components/dailyLoop/TodayWatchlistPanel";
 import TodaySyncStatusBanner from "@/components/dailyLoop/TodaySyncStatusBanner";
 import InvestmentJourneyPanel from "@/components/journey/InvestmentJourneyPanel";
@@ -355,6 +356,7 @@ export default function HomeDecisionScreen({
   const [receiptDismissed, setReceiptDismissed] = useState(false);
   const [processingHoldTrim, setProcessingHoldTrim] = useState(false);
   const [liveTapeHardWait, setLiveTapeHardWait] = useState(tapeHardWaitProp);
+  const [watchFilledToday, setWatchFilledToday] = useState(false);
   const [brokerFillStatusLoading, setBrokerFillStatusLoading] = useState(() => {
     const symbol = todayHero.symbol?.trim().toUpperCase();
     if (!symbol || typeof window === "undefined") {
@@ -878,36 +880,81 @@ export default function HomeDecisionScreen({
           eyebrow: starterBook ? "Next name" : "Third name",
         })
       : null;
-  const todayContract = useMemo(
-    () =>
-      buildTodayContract({
-        heldSymbols:
-          youngBookHoldings.length > 0
-            ? youngBookHoldings.map((holding) => holding.tradingsymbol)
-            : [starterHoldingSymbol],
-        watch: nextNameWatch
-          ? {
-              symbol: nextNameWatch.symbol,
-              through: nextNameWatch.through,
-              dead: nextNameWatch.dead,
-              triggerInr: nextNameWatch.triggerInr,
-              killInr: nextNameWatch.killInr,
-              ticketInr: nextNameWatch.size.ticketInr,
-              gapLabel: nextNameWatch.gapLabel,
-            }
-          : null,
-        tapeHardWait: liveTapeHardWait,
-      }),
-    [liveTapeHardWait, nextNameWatch, starterHoldingSymbol, youngBookHoldings],
-  );
+  const todayContract = useMemo(() => {
+    const morningBook = readTodayContract()?.heldSymbols;
+    const liveBook =
+      youngBookHoldings.length > 0
+        ? youngBookHoldings.map((holding) => holding.tradingsymbol)
+        : [starterHoldingSymbol];
+
+    return buildTodayContract({
+      heldSymbols: morningBook && morningBook.length > 0 ? morningBook : liveBook,
+      watch: nextNameWatch
+        ? {
+            symbol: nextNameWatch.symbol,
+            through: nextNameWatch.through,
+            dead: nextNameWatch.dead,
+            triggerInr: nextNameWatch.triggerInr,
+            killInr: nextNameWatch.killInr,
+            ticketInr: nextNameWatch.size.ticketInr,
+            gapLabel: nextNameWatch.gapLabel,
+          }
+        : null,
+      tapeHardWait: liveTapeHardWait,
+    });
+  }, [liveTapeHardWait, nextNameWatch, starterHoldingSymbol, youngBookHoldings]);
+
+  const todayLoop = resolveTodayLoop({
+    contract: todayContract,
+    liveHeldSymbols: youngBookHoldings.map((holding) => holding.tradingsymbol),
+    watchFilledToday,
+    committedWait: retention.committedToday,
+  });
 
   useEffect(() => {
     if (!(youngBook || starterBook)) {
       return;
     }
 
-    persistTodayContract(todayContract);
-  }, [starterBook, todayContract, youngBook]);
+    persistTodayContract({
+      ...todayContract,
+      outcome: todayLoop.state === "open" ? todayContract.outcome : todayLoop.state,
+      outcomeLine:
+        todayLoop.state === "open" ? todayContract.outcomeLine : todayLoop.line,
+    });
+  }, [starterBook, todayContract, todayLoop, youngBook]);
+
+  useEffect(() => {
+    const symbol = nextNameWatch?.symbol;
+    if (!symbol || !(youngBook || starterBook)) {
+      setWatchFilledToday(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const response = await apiFetch(
+          `/api/trade/status?stock=${encodeURIComponent(symbol)}`,
+          { cache: "no-store" },
+        );
+        const payload = await parseApiJson<{ filledToday?: boolean }>(
+          response,
+          "Watch fill",
+        );
+        if (!cancelled && response.ok && payload?.filledToday) {
+          setWatchFilledToday(true);
+        }
+      } catch {
+        // Live holdings remain the fallback when fill status is unavailable.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [nextNameWatch?.symbol, starterBook, youngBook]);
   const isExploreEmpty =
     isExplore &&
     capitalDecision.exploreSetups.length === 0 &&
@@ -1022,27 +1069,56 @@ export default function HomeDecisionScreen({
         : starterBook &&
             renderIntent === "grow" &&
             firstBuyApplied.verdict === "wait"
-          ? {
-              ...firstBuyApplied,
-              ...buildStarterBookWaitCopy({
+          ? (() => {
+              const starterWait = buildStarterBookWaitCopy({
                 symbol: starterHoldingSymbol || todayHero.symbol,
-              }),
-            }
+              });
+              const flip = buildDeskFlip({
+                through: nextNameWatch?.through,
+                dead: nextNameWatch?.dead,
+                tapeHardWait: liveTapeHardWait,
+                watchSymbol: nextNameWatch?.symbol,
+                ticketInr: nextNameWatch?.size.ticketInr,
+                triggerInr: nextNameWatch?.triggerInr,
+                waitHeadline: starterWait.headline,
+                waitSubline: starterWait.subline,
+              });
+
+              return {
+                ...firstBuyApplied,
+                ...flip,
+              };
+            })()
           : youngBook &&
               renderIntent === "grow" &&
               firstBuyApplied.verdict !== "pause"
-            ? {
-                ...firstBuyApplied,
-                verdict: "wait" as const,
-                displayWord: "Wait",
-                ...buildYoungBookWaitCopy({
+            ? (() => {
+                const youngWait = buildYoungBookWaitCopy({
                   symbols: youngBookHoldings.map(
                     (holding) => holding.tradingsymbol,
                   ),
                   nextSymbol: nextNamePick?.stock,
                   tapeHardWait: liveTapeHardWait,
-                }),
-              }
+                });
+                const flip = buildDeskFlip({
+                  through: nextNameWatch?.through,
+                  dead: nextNameWatch?.dead,
+                  tapeHardWait: liveTapeHardWait,
+                  watchSymbol: nextNameWatch?.symbol,
+                  ticketInr: nextNameWatch?.size.ticketInr,
+                  triggerInr: nextNameWatch?.triggerInr,
+                  waitHeadline: youngWait.headline,
+                  waitSubline: youngWait.subline,
+                });
+
+                return {
+                  ...firstBuyApplied,
+                  verdict: "wait" as const,
+                  displayWord: flip.displayWord,
+                  headline: flip.headline,
+                  subline: flip.subline,
+                };
+              })()
             : firstBuyApplied;
 
     return applyStarterBookPresentation({
@@ -1081,6 +1157,7 @@ export default function HomeDecisionScreen({
     renderIntent,
     liveTapeHardWait,
     nextNamePick,
+    nextNameWatch,
     targetIsSacredCore,
     todayHero.symbol,
   ]);
@@ -1494,8 +1571,15 @@ export default function HomeDecisionScreen({
                     kiteLine={todayContract.kiteLine}
                   />
                 ) : null}
+                {(youngBook || starterBook) && todayLoop.line ? (
+                  <p className="text-center text-sm font-medium text-apex-text/90">
+                    {todayLoop.line}
+                  </p>
+                ) : null}
                 {(youngBook || starterBook) &&
-                verdictPresentation.verdict === "wait" ? (
+                verdictPresentation.verdict === "wait" &&
+                todayLoop.state !== "placed_watch" ? (
+                  todayLoop.state === "followed_wait" ||
                   retention.committedToday ? (
                     <p className="text-center text-xs font-semibold uppercase tracking-[0.22em] text-apex-muted/70">
                       Waited · day closed
@@ -1504,7 +1588,13 @@ export default function HomeDecisionScreen({
                     <button
                       type="button"
                       onClick={() => {
-                        persistTodayContract(todayContract);
+                        persistTodayContract({
+                          ...todayContract,
+                          outcome: "followed_wait",
+                          outcomeLine: todayLoop.watchSymbol
+                            ? `Followed. No ${todayLoop.watchSymbol} fill.`
+                            : "Followed. Day closed.",
+                        });
                         retention.commitFollowed();
                       }}
                       className="w-full rounded-2xl border border-white/15 bg-white px-4 py-3.5 text-sm font-semibold text-black transition-colors hover:bg-white/90"

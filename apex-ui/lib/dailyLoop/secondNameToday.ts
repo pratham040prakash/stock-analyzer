@@ -107,7 +107,8 @@ function killInrOf(trigger: number): number {
   return Math.round(trigger * (1 - WATCH_BAND_PCT));
 }
 
-export function buildWatchWhy(pick: SecondNamePick): string {
+export function buildWatchThesis(pick: SecondNamePick): string {
+  const trigger = triggerInrOf(pick);
   const trend = pick.signals?.trend ?? 0;
   const momentum = pick.signals?.momentum ?? 0;
   const volume = pick.signals?.volume ?? 0;
@@ -123,15 +124,15 @@ export function buildWatchWhy(pick: SecondNamePick): string {
     parts.push("volume");
   }
 
-  if (parts.length >= 2) {
-    return `${parts[0]} and ${parts[1]} aligned.`;
+  if (trigger && parts.length >= 2) {
+    return `Break ${formatInr(trigger)} — the recent range high — only if ${parts[0]} and ${parts[1]} hold. Otherwise cash.`;
   }
 
-  if (parts.length === 1) {
-    return `${parts[0]} is supporting.`;
+  if (trigger) {
+    return `Break ${formatInr(trigger)} — the recent range high — or stand aside.`;
   }
 
-  return "Closest unused breakout.";
+  return `${pick.stock.trim().toUpperCase()} has no line yet. Cash stays put.`;
 }
 
 function buildWatchFromPick<T extends SecondNamePick>(
@@ -192,7 +193,7 @@ function buildWatchFromPick<T extends SecondNamePick>(
     ticketLabel: `${formatInr(size.ticketInr)} ticket`,
     leftoverLabel: `${formatInr(size.leftoverInr)} stays in cash`,
     statusLine,
-    whyLine: buildWatchWhy(pick),
+    whyLine: buildWatchThesis(pick),
     eyebrow: input.eyebrow?.trim() || "Next name",
     gapInr,
     gapLabel,
@@ -313,12 +314,15 @@ export function runSecondNameTodaySelfCheck(): void {
   assert(deadLocked?.dead === true, "Today's name stays locked if it loses the line");
   assert(deadLocked?.gapLabel === "Lost the line", "Dead watch must say the line is lost");
 
-  const why = buildWatchWhy({
+  const thesis = buildWatchThesis({
     stock: "DIVISLAB",
     score: 72,
+    price: 9500,
+    activationLevel: 9575,
     signals: { trend: 70, momentum: 62, volume: 40 },
   });
-  assert(why.includes("trend") && why.includes("momentum"), "Why-line must use live signals");
+  assert(thesis.includes("9,575"), "Thesis must name the range high");
+  assert(thesis.includes("trend") && thesis.includes("momentum"), "Thesis must use live signals");
 
   const third = pickSecondName({
     heldSymbols: ["COALINDIA", "ADANIPORTS"],

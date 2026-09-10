@@ -17,6 +17,9 @@ export type TodayContract = {
   rule: string;
   watchSymbol?: string;
   gapLabel?: string | null;
+  heldSymbols?: string[];
+  outcome?: string;
+  outcomeLine?: string;
 };
 
 const STORAGE_PREFIX = "apex_today_contract";
@@ -52,6 +55,7 @@ export function buildTodayContract(input: {
       rule: book,
       watchSymbol: watch?.symbol,
       gapLabel: watch?.gapLabel ?? null,
+      heldSymbols: names,
     };
   }
 
@@ -62,6 +66,7 @@ export function buildTodayContract(input: {
       rule: "Cash stays put.",
       watchSymbol: watch.symbol,
       gapLabel: watch.gapLabel ?? "Lost the line",
+      heldSymbols: names,
     };
   }
 
@@ -72,6 +77,7 @@ export function buildTodayContract(input: {
       rule: `Today stays Wait until you place it.`,
       watchSymbol: watch.symbol,
       gapLabel: watch.gapLabel ?? "At the line",
+      heldSymbols: names,
     };
   }
 
@@ -86,6 +92,7 @@ export function buildTodayContract(input: {
       rule: watch.gapLabel ?? `Cash waits on ${watch.symbol}.`,
       watchSymbol: watch.symbol,
       gapLabel: watch.gapLabel ?? null,
+      heldSymbols: names,
     };
   }
 
@@ -96,6 +103,7 @@ export function buildTodayContract(input: {
       rule: book,
       watchSymbol: watch.symbol,
       gapLabel: watch.gapLabel ?? null,
+      heldSymbols: names,
     };
   }
 
@@ -103,6 +111,7 @@ export function buildTodayContract(input: {
     dateKey,
     kiteLine: "Do nothing in Kite today.",
     rule: book,
+    heldSymbols: names,
   };
 }
 
@@ -158,6 +167,10 @@ export function runTodayContractSelfCheck(): void {
     "Wait contract must name the Kite trigger",
   );
   assert(waiting.watchSymbol === "DIVISLAB", "Wait contract must name the watch");
+  assert(
+    waiting.heldSymbols?.includes("COALINDIA") === true,
+    "Contract must remember the morning book",
+  );
   assert(!waiting.rule.includes("COALINDIA"), "Watch contract must not restate the book");
 
   const through = buildTodayContract({

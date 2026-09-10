@@ -5,6 +5,7 @@ import { formatInr } from "@/lib/funds";
 import type { PortfolioHoldingRow } from "@/types/portfolioApi";
 import type { HoldingHealthChip } from "@/services/portfolio/holdingHealth";
 import type { AllocationBucket } from "@/services/portfolio/allocationPolicy";
+import { buildBookHoldRule } from "@/lib/dailyLoop/firstBuyToday";
 
 type Props = {
   holding: PortfolioHoldingRow;
@@ -64,6 +65,12 @@ export default function PortfolioHoldingCard({
         : vsBuyInr > 0
           ? `${formatInr(vsBuyInr)} above your buy`
           : `${formatInr(Math.abs(vsBuyInr))} below your buy`;
+  const hold = quiet
+    ? buildBookHoldRule({
+        averagePriceInr: holding.average_price,
+        lastPriceInr: holding.last_price,
+      })
+    : null;
 
   return (
     <article className="relative overflow-hidden rounded-[28px] border border-white/[0.08] bg-gradient-to-b from-sky-400/[0.08] to-transparent px-5 py-5">
@@ -102,6 +109,15 @@ export default function PortfolioHoldingCard({
           )}
           {vsBuyLabel ? (
             <p className={`mt-1 text-sm ${toneClass(vsBuyInr)}`}>{vsBuyLabel}</p>
+          ) : null}
+          {hold ? (
+            <p
+              className={`mt-2 text-xs ${
+                hold.ruleBroken ? "text-rose-200" : "text-apex-muted/75"
+              }`}
+            >
+              {hold.holdRule}
+            </p>
           ) : null}
           {quiet ? null : (
             <Link

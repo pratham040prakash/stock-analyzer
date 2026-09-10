@@ -99,6 +99,7 @@ import { runTodayDataFreshnessSelfCheck } from "../lib/dailyLoop/todayDataFreshn
 import { runFirstBuyTodaySelfCheck } from "../lib/dailyLoop/firstBuyToday";
 import { runSecondNameTodaySelfCheck } from "../lib/dailyLoop/secondNameToday";
 import { runTodayContractSelfCheck } from "../lib/dailyLoop/todayContract";
+import { runTodayLoopSelfCheck } from "../lib/dailyLoop/todayLoop";
 import { runTodayPrimaryFocusSelfCheck } from "../lib/dailyLoop/todayPrimaryFocus";
 import { runTodaySyncRecoveryCopySelfCheck } from "../lib/dailyLoop/todaySyncRecoveryCopy";
 import { runTodaySyncAutoRetrySelfCheck } from "../lib/dailyLoop/todaySyncAutoRetry";
@@ -216,6 +217,7 @@ runTodayDataFreshnessSelfCheck();
 runFirstBuyTodaySelfCheck();
 runSecondNameTodaySelfCheck();
 runTodayContractSelfCheck();
+runTodayLoopSelfCheck();
 runTodayPrimaryFocusSelfCheck();
 runTodaySyncRecoveryCopySelfCheck();
 runTodaySyncAutoRetrySelfCheck();
