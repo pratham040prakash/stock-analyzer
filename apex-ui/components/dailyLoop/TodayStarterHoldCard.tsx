@@ -5,6 +5,7 @@ import type { StarterBookHoldLines } from "@/lib/dailyLoop/firstBuyToday";
 type Props = {
   lines: StarterBookHoldLines;
   hideCashFork?: boolean;
+  compact?: boolean;
 };
 
 function toneClass(value: number | null): string {
@@ -36,11 +37,16 @@ function lastMarkPercent(pct: number | null): number {
 export default function TodayStarterHoldCard({
   lines,
   hideCashFork = false,
+  compact = false,
 }: Props) {
   const mark = lastMarkPercent(lines.vsBuyPct);
 
   return (
-    <section className="relative overflow-hidden rounded-[28px] border border-white/[0.08] bg-gradient-to-b from-sky-400/[0.08] to-transparent px-5 py-5 sm:px-6">
+    <section
+      className={`relative overflow-hidden border border-white/[0.08] bg-gradient-to-b from-sky-400/[0.08] to-transparent ${
+        compact ? "rounded-2xl px-4 py-4" : "rounded-[28px] px-5 py-5 sm:px-6"
+      }`}
+    >
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_80%_0%,rgba(52,211,153,0.12),transparent_42%)]" />
 
       <div className="relative flex items-start justify-between gap-3">
@@ -59,9 +65,13 @@ export default function TodayStarterHoldCard({
         ) : null}
       </div>
 
-      <div className="relative mt-6 text-center">
+      <div className={`relative text-center ${compact ? "mt-4" : "mt-6"}`}>
         {lines.lastLabel ? (
-          <p className={`text-4xl font-semibold tracking-tight sm:text-5xl ${toneClass(lines.vsBuyInr)}`}>
+          <p
+            className={`font-semibold tracking-tight ${
+              compact ? "text-3xl" : "text-4xl sm:text-5xl"
+            } ${toneClass(lines.vsBuyInr)}`}
+          >
             {lines.lastLabel}
           </p>
         ) : (
@@ -72,7 +82,7 @@ export default function TodayStarterHoldCard({
         ) : null}
       </div>
 
-      <div className="relative mt-6">
+      <div className={`relative ${compact ? "mt-4" : "mt-6"}`}>
         <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.08]">
           <div
             className="h-full w-1.5 rounded-full bg-white shadow-[0_0_10px_rgba(255,255,255,0.35)]"

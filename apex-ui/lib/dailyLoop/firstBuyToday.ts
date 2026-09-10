@@ -47,6 +47,45 @@ export function isYoungBook(input: {
   return hasValue && input.openHoldingsCount >= 1 && input.openHoldingsCount <= 2;
 }
 
+export type YoungBookHolding = {
+  tradingsymbol?: string | null;
+  quantity?: number | null;
+  last_price?: number | null;
+  average_price?: number | null;
+  value?: number | null;
+};
+
+export function youngBookHoldingValue(holding: YoungBookHolding): number {
+  const marked = holding.value;
+  if (marked !== null && marked !== undefined && Number.isFinite(marked) && marked > 0) {
+    return marked;
+  }
+
+  const quantity = holding.quantity ?? 0;
+  const last = holding.last_price ?? 0;
+  if (!Number.isFinite(quantity) || !Number.isFinite(last) || quantity <= 0 || last <= 0) {
+    return 0;
+  }
+
+  return quantity * last;
+}
+
+export function orderYoungBookHoldings<T extends YoungBookHolding>(holdings: T[]): T[] {
+  return [...holdings].sort((left, right) => {
+    const quantityDelta = (right.quantity ?? 0) - (left.quantity ?? 0);
+    if (quantityDelta !== 0) {
+      return quantityDelta;
+    }
+
+    const valueDelta = youngBookHoldingValue(right) - youngBookHoldingValue(left);
+    if (valueDelta !== 0) {
+      return valueDelta;
+    }
+
+    return (left.tradingsymbol ?? "").localeCompare(right.tradingsymbol ?? "");
+  });
+}
+
 export function buildYoungBookWaitCopy(input: {
   symbols?: Array<string | null | undefined>;
 }): { headline: string; subline: string } {
@@ -338,6 +377,31 @@ export function buildStarterBookHoldLines(input: {
   };
 }
 
+export function buildYoungBookHoldLines(input: {
+  holdings: YoungBookHolding[];
+}): StarterBookHoldLines[] {
+  return orderYoungBookHoldings(input.holdings)
+    .map((holding) => {
+      const lines = buildStarterBookHoldLines({
+        symbol: holding.tradingsymbol,
+        quantity: holding.quantity,
+        averagePriceInr: holding.average_price,
+        lastPriceInr: holding.last_price,
+      });
+      if (!lines) {
+        return null;
+      }
+
+      return {
+        ...lines,
+        cashLabel: null,
+        next: null,
+        nextEyebrow: null,
+      };
+    })
+    .filter((lines): lines is StarterBookHoldLines => lines !== null);
+}
+
 export function buildStarterBookWaitCopy(input: {
   symbol?: string | null;
 }): { headline: string; subline: string } {
@@ -494,9 +558,43 @@ export function runFirstBuyTodaySelfCheck(): void {
     !isYoungBook({ openHoldingsCount: 3, portfolioValue: 50_000 }),
     "Three holdings are not a young book",
   );
+  const orderedYoung = orderYoungBookHoldings([
+    {
+      tradingsymbol: "ADANIPORTS",
+      quantity: 1,
+      last_price: 1760,
+      value: 1760,
+    },
+    {
+      tradingsymbol: "COALINDIA",
+      quantity: 4,
+      last_price: 433,
+      value: 1732,
+    },
+  ]);
+  assert(
+    orderedYoung[0]?.tradingsymbol === "COALINDIA" &&
+      orderedYoung[1]?.tradingsymbol === "ADANIPORTS",
+    "Young-book order is the larger stake first",
+  );
+  const youngTickets = buildYoungBookHoldLines({ holdings: orderedYoung });
+  assert(youngTickets.length === 2, "Young-book tickets cover both names");
+  assert(
+    youngTickets[0]?.symbol === "COALINDIA" &&
+      youngTickets[0]?.lastLabel !== null,
+    "Young-book first ticket is the live first position",
+  );
+  assert(
+    youngTickets.every((ticket) => !ticket.next && !ticket.cashLabel),
+    "Young-book tickets are positions, not a cash fork",
+  );
   const twoNameHold = buildYoungBookWaitCopy({
-    symbols: ["COALINDIA", "ADANIPORTS"],
+    symbols: orderedYoung.map((holding) => holding.tradingsymbol),
   });
+  assert(
+    twoNameHold.headline === "Hold COALINDIA and ADANIPORTS",
+    "Young-book Wait names the first position first",
+  );
   assert(
     twoNameHold.headline.includes("COALINDIA") &&
       twoNameHold.headline.includes("ADANIPORTS"),

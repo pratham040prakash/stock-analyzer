@@ -2,21 +2,18 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import ApexSurfaceNav from "@/components/nav/ApexSurfaceNav";
-import TodayPortfolioHoldings from "@/components/dailyLoop/TodayPortfolioHoldings";
-import TodayTrustStrip from "@/components/dailyLoop/TodayTrustStrip";
-import AllocationVsPolicy from "@/components/portfolio/AllocationVsPolicy";
-import AllocationHoldingsDrift from "@/components/portfolio/AllocationHoldingsDrift";
-import { HoldingHealthList } from "@/components/portfolio/HoldingHealthChip";
 import PositionsView from "@/components/portfolio/PositionsView";
-import ResearchHandoffLink from "@/components/portfolio/ResearchHandoffLink";
 import NewCapitalPanel from "@/components/capital/NewCapitalPanel";
 import ThesisInvalidationBanner from "@/components/thesis/ThesisInvalidationBanner";
-import PortfolioHealthSummary from "@/components/portfolio/PortfolioHealthSummary";
-import SectorCapStrip from "@/components/portfolio/SectorCapStrip";
+import PortfolioBookHero from "@/components/portfolio/PortfolioBookHero";
+import PortfolioHoldingCard from "@/components/portfolio/PortfolioHoldingCard";
+import PortfolioPolicyPanel from "@/components/portfolio/PortfolioPolicyPanel";
 import { buildPortfolioHealthSummary } from "@/services/portfolio/buildPortfolioHealthSummary";
 import { buildSectorCapSummary } from "@/services/portfolio/sectorCapPolicy";
+import type { HoldingHealthChip } from "@/services/portfolio/holdingHealth";
+import { isYoungBook, orderYoungBookHoldings } from "@/lib/dailyLoop/firstBuyToday";
 import ApexErrorBoundary from "@/components/ui/ApexErrorBoundary";
-import { ApexCard, ApexShell, ApexTitle } from "@/components/ui/apex";
+import { ApexShell, ApexTitle } from "@/components/ui/apex";
 import { useDayPnlPoll } from "@/lib/useDayPnlPoll";
 import { usePortfolioPoll } from "@/lib/usePortfolioPoll";
 import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
@@ -63,28 +60,20 @@ type Props = {
 
 export default function PortfolioPageClient({
   connectionStatus,
-  userName,
 }: Props) {
   const [overview, setOverview] = useState<PortfolioOverviewViewModel | null>(
     null,
   );
   const [overviewLoading, setOverviewLoading] = useState(true);
-  const [fundsLoading, setFundsLoading] = useState(false);
   const [fundsSynced, setFundsSynced] = useState(false);
   const [fundsSyncError, setFundsSyncError] = useState<string | null>(null);
-  const [ledgerCash, setLedgerCash] = useState<number | undefined>();
-  const [collateral, setCollateral] = useState<number | undefined>();
   const [availableCash, setAvailableCash] = useState<number | undefined>();
-  const [totalCapital, setTotalCapital] = useState<number | undefined>();
   const [newCapital, setNewCapital] = useState<NewCapitalViewModel | null>(null);
   const [newCapitalLoading, setNewCapitalLoading] = useState(true);
   const [thesisWarnings, setThesisWarnings] = useState<ThesisInvalidationWarning[]>([]);
   const [portfolioProofHref, setPortfolioProofHref] = useState<string | null>(null);
 
   const loadFunds = useCallback(async (options?: { silent?: boolean }) => {
-    if (!options?.silent) {
-      setFundsLoading(true);
-    }
     setFundsSyncError(null);
 
     try {
@@ -96,15 +85,10 @@ export default function PortfolioPageClient({
         return;
       }
 
-      setLedgerCash(data.ledger_cash);
-      setCollateral(data.collateral);
       setAvailableCash(data.available_cash);
-      setTotalCapital(data.total_capital ?? undefined);
       setFundsSynced(data.status === "OK" || data.status === "PARTIAL");
     } catch {
       setFundsSyncError("Could not sync funds.");
-    } finally {
-      setFundsLoading(false);
     }
   }, []);
 
@@ -201,31 +185,17 @@ export default function PortfolioPageClient({
   });
 
   const {
-    positionsPnl: livePositionsPnl,
-    positionsBreakdown: livePositionsBreakdown,
     portfolioDayPnl: liveDayPnl,
     liveHoldings,
     liveHoldingsTotalValue,
-    liveHoldingsTotalPnl,
     lastSyncedAt: liveLastSyncedAt,
-    pollError: livePollError,
-    isPolling: livePnlPolling,
   } = useDayPnlPoll({ enabled: pollEnabled });
 
   const portfolio = overview?.portfolio;
-  const liveBookFresh =
-    liveHoldings.length > 0 ||
-    liveLastSyncedAt !== null ||
-    liveHoldingsTotalValue !== null;
-  const snapshotStale = portfolio?.stale === true && !liveBookFresh;
   const displayHoldings =
     liveHoldings.length > 0 ? liveHoldings : (portfolio?.holdings ?? []);
   const displayValue =
     liveHoldingsTotalValue ?? portfolio?.total_value ?? null;
-  const displayTotalPnl =
-    liveHoldingsTotalPnl ?? portfolio?.total_pnl ?? null;
-  const resolvedOpenPnl =
-    livePositionsPnl ?? portfolio?.positions_pnl ?? null;
 
   const healthSummary = useMemo(
     () => buildPortfolioHealthSummary(overview?.health ?? []),
@@ -241,126 +211,108 @@ export default function PortfolioPageClient({
     [displayHoldings, displayValue],
   );
 
+  const openHoldings = useMemo(
+    () => orderYoungBookHoldings(displayHoldings.filter((row) => row.quantity > 0)),
+    [displayHoldings],
+  );
+  const youngBook = isYoungBook({
+    openHoldingsCount: openHoldings.length,
+    portfolioValue: displayValue,
+  });
+  const healthBySymbol = useMemo(() => {
+    const map: Record<string, HoldingHealthChip> = {};
+    for (const chip of overview?.health ?? []) {
+      map[chip.symbol.toUpperCase()] = chip;
+    }
+    return map;
+  }, [overview?.health]);
   const bucketBySymbol = useMemo(() => {
-    const map: Record<string, { bucket: "core" | "tactical" | "cash"; drift_pct: number }> =
-      {};
+    const map: Record<string, "core" | "tactical" | "cash"> = {};
 
     for (const row of overview?.allocation?.holdings ?? []) {
-      map[row.tradingsymbol.toUpperCase()] = {
-        bucket: row.bucket,
-        drift_pct: row.drift_pct,
-      };
+      map[row.tradingsymbol.toUpperCase()] = row.bucket;
     }
 
     return map;
   }, [overview?.allocation?.holdings]);
+  const showNewCapital = Boolean(newCapital?.available);
+  const openPositions = overview?.positions ?? [];
 
   return (
     <ApexShell>
-      <header className="mb-6 space-y-4">
+      <header className="space-y-4">
         <ApexSurfaceNav />
-        <div className="space-y-2">
-          <ApexTitle>Portfolio</ApexTitle>
-          <p className="text-sm text-apex-muted">
-            Live holdings, allocation policy, and health for {userName}.
-          </p>
-        </div>
+        <ApexTitle className="sr-only">Portfolio</ApexTitle>
       </header>
 
-      <ApexCard hover={false} padding="none" className="overflow-hidden">
-        <ApexErrorBoundary fallbackTitle="Portfolio data could not render.">
-        <div className="p-6 space-y-4">
-          <TodayTrustStrip
+      <ApexErrorBoundary fallbackTitle="Portfolio data could not render.">
+        <div className="space-y-4">
+          <PortfolioBookHero
             connectionStatus={connectionStatus}
-            marginAvailable={availableCash}
-            ledgerCash={ledgerCash}
-            collateral={collateral}
-            portfolioValue={displayValue ?? undefined}
-            totalCapital={totalCapital}
-            openPnl={resolvedOpenPnl}
-            portfolioDayPnl={liveDayPnl ?? portfolio?.day_pnl ?? null}
-            positionsBreakdown={livePositionsBreakdown}
+            bookValue={displayValue}
+            dayPnl={liveDayPnl ?? portfolio?.day_pnl ?? null}
+            cashInr={availableCash}
             lastSyncedAt={liveLastSyncedAt}
-            portfolioStale={snapshotStale}
-            pollError={livePollError}
-            suppressStaleWarnings={liveBookFresh}
-            breakdownLoading={false}
-            isPolling={livePnlPolling}
-            fundsLoading={fundsLoading}
-            fundsSynced={fundsSynced}
-            fundsSyncError={fundsSyncError}
             proofHref={portfolioProofHref}
           />
 
+          {fundsSyncError ? (
+            <p className="text-sm text-amber-100/85">{fundsSyncError}</p>
+          ) : null}
+
           <ThesisInvalidationBanner warnings={thesisWarnings} />
 
-          {overview?.health?.length ? (
-            <PortfolioHealthSummary summary={healthSummary} />
-          ) : null}
-
-          {displayHoldings.length > 0 ? (
-            <SectorCapStrip summary={sectorCapSummary} />
-          ) : null}
-
-          {overviewLoading ? (
-            <p className="text-sm text-apex-muted/70">Loading overview…</p>
-          ) : connectionStatus === "TOKEN_EXPIRED" ? (
-            <section className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-4">
+          {connectionStatus === "TOKEN_EXPIRED" ? (
+            <section className="rounded-2xl border border-amber-500/20 bg-amber-500/5 px-4 py-4">
               <p className="text-sm text-amber-100/90">
-                Zerodha session expired. Reconnect to refresh holdings, allocation,
-                and health data.
+                Zerodha session expired. Reconnect to refresh the book.
               </p>
             </section>
           ) : connectionStatus === "NOT_CONNECTED" ? (
-            <section className="rounded-xl border border-apex-border/15 bg-white/[0.02] px-4 py-4">
+            <section className="rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 py-4">
               <p className="text-sm text-apex-text/90">
-                Connect Zerodha to see allocation policy, health chips, and live
-                positions.
+                Connect Zerodha to see live holdings.
               </p>
             </section>
           ) : null}
 
-          {overview?.allocation ? (
-            <>
-              <AllocationVsPolicy allocation={overview.allocation} />
-              <AllocationHoldingsDrift allocation={overview.allocation} />
-            </>
+          {overviewLoading && openHoldings.length === 0 ? (
+            <p className="text-sm text-apex-muted/70">Loading your book…</p>
           ) : null}
 
-          {overview?.health?.length ? (
-            <HoldingHealthList chips={overview.health} linkResearch />
+          {openHoldings.map((holding) => (
+            <PortfolioHoldingCard
+              key={holding.tradingsymbol}
+              holding={holding}
+              health={
+                youngBook
+                  ? undefined
+                  : healthBySymbol[holding.tradingsymbol.toUpperCase()]
+              }
+              bucket={
+                youngBook
+                  ? undefined
+                  : bucketBySymbol[holding.tradingsymbol.toUpperCase()]
+              }
+            />
+          ))}
+
+          <PortfolioPolicyPanel
+            allocation={overview?.allocation}
+            health={overview?.health?.length ? healthSummary : null}
+            sector={openHoldings.length > 0 ? sectorCapSummary : null}
+            youngBook={youngBook}
+          />
+
+          {showNewCapital ? (
+            <NewCapitalPanel workflow={newCapital} loading={newCapitalLoading} />
           ) : null}
 
-          <ResearchHandoffLink symbol={overview?.research_symbol ?? null} />
-
-          <NewCapitalPanel workflow={newCapital} loading={newCapitalLoading} />
-
-          <TodayPortfolioHoldings
-            holdings={displayHoldings}
-            totalValue={displayValue}
-            totalPnl={displayTotalPnl}
-            stale={snapshotStale}
-            suppressStaleLabel={liveBookFresh}
-            bucketBySymbol={bucketBySymbol}
-            loading={
-              overviewLoading &&
-              displayHoldings.length === 0 &&
-              connectionStatus === "CONNECTED"
-            }
-            showEmptyWhenSynced={
-              !overviewLoading &&
-              displayHoldings.length === 0 &&
-              connectionStatus === "CONNECTED"
-            }
-          />
-
-          <PositionsView
-            positions={overview?.positions ?? []}
-            loading={overviewLoading}
-          />
+          {openPositions.length > 0 ? (
+            <PositionsView positions={openPositions} loading={overviewLoading} />
+          ) : null}
         </div>
-        </ApexErrorBoundary>
-      </ApexCard>
+      </ApexErrorBoundary>
     </ApexShell>
   );
 }

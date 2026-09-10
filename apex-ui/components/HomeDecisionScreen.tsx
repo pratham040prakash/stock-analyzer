@@ -64,7 +64,9 @@ import {
   isFirstBuyCandidate,
   isStarterBook,
   isYoungBook,
+  buildYoungBookHoldLines,
   buildYoungBookWaitCopy,
+  orderYoungBookHoldings,
   resolveEmptyBookCommitLabel,
 } from "@/lib/dailyLoop/firstBuyToday";
 import { useMarketSession } from "@/lib/broker/useMarketSession";
@@ -613,8 +615,12 @@ export default function HomeDecisionScreen({
     openHoldingsCount: openPortfolioHoldings.length,
     portfolioValue: displayPortfolioValue,
   });
+  const youngBookHoldings = useMemo(
+    () => orderYoungBookHoldings(openPortfolioHoldings),
+    [openPortfolioHoldings],
+  );
   const starterHoldingSymbol =
-    openPortfolioHoldings[0]?.tradingsymbol ?? todayHero.symbol ?? "";
+    youngBookHoldings[0]?.tradingsymbol ?? todayHero.symbol ?? "";
   const firstBuyTicket = ticketOverride ?? todayHero.deployAmount ?? 0;
   const firstBuyCandidate = isFirstBuyCandidate({
     emptyBook,
@@ -955,7 +961,7 @@ export default function HomeDecisionScreen({
                 verdict: "wait" as const,
                 displayWord: "Wait",
                 ...buildYoungBookWaitCopy({
-                  symbols: openPortfolioHoldings.map(
+                  symbols: youngBookHoldings.map(
                     (holding) => holding.tradingsymbol,
                   ),
                 }),
@@ -984,7 +990,7 @@ export default function HomeDecisionScreen({
     emptyBook,
     starterBook,
     youngBook,
-    openPortfolioHoldings,
+    youngBookHoldings,
     starterHoldingSymbol,
     entryTiming.enter,
     firstBuyCandidate,
@@ -1014,16 +1020,20 @@ export default function HomeDecisionScreen({
       ? buildStarterBookHoldLines({
           symbol:
             starterHoldingSymbol ||
-            openPortfolioHoldings[0]?.tradingsymbol ||
+            youngBookHoldings[0]?.tradingsymbol ||
             todayHero.symbol,
-          quantity: openPortfolioHoldings[0]?.quantity,
-          averagePriceInr: openPortfolioHoldings[0]?.average_price,
-          lastPriceInr: openPortfolioHoldings[0]?.last_price,
-          dayPnlInr: liveDayPnl ?? openPortfolioHoldings[0]?.pnl,
+          quantity: youngBookHoldings[0]?.quantity,
+          averagePriceInr: youngBookHoldings[0]?.average_price,
+          lastPriceInr: youngBookHoldings[0]?.last_price,
+          dayPnlInr: liveDayPnl ?? youngBookHoldings[0]?.pnl,
           stopInr: firstBuyPlanLines.stopInr,
           cashInr: availableCash ?? null,
         })
       : null;
+  const youngHoldLines =
+    youngBook && !starterBook && !isExplore
+      ? buildYoungBookHoldLines({ holdings: youngBookHoldings })
+      : [];
   const firstBuyCommitLabel = resolveEmptyBookCommitLabel({
     emptyBook,
     firstBuy: firstBuyCandidate,
@@ -1360,6 +1370,18 @@ export default function HomeDecisionScreen({
                     lines={starterHoldLines}
                     hideCashFork={Boolean(secondNameWatch)}
                   />
+                ) : null}
+                {youngHoldLines.length > 0 ? (
+                  <div className="space-y-3">
+                    {youngHoldLines.map((lines) => (
+                      <TodayStarterHoldCard
+                        key={lines.symbol}
+                        lines={lines}
+                        hideCashFork
+                        compact
+                      />
+                    ))}
+                  </div>
                 ) : null}
                 {secondNameWatch ? (
                   <TodaySecondNameCard watch={secondNameWatch} />
