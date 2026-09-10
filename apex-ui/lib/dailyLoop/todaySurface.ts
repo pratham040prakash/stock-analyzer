@@ -325,11 +325,34 @@ export function runTodaySurfaceSelfCheck(): void {
     action: "wait",
     stock: "JIOFIN",
     availableCash: 9_631,
-    portfolioValue: 257,
-    topAllocationPct: 100,
+    portfolioValue: 400_000,
+    topAllocationPct: 42,
+    holdings: [
+      { symbol: "JIOFIN", weight: 42 },
+      { symbol: "INFY", weight: 20 },
+    ],
     suggested_sell_percent: 25,
     entryTiming: { enter: false },
   });
+
+  const starterDecision = buildCapitalDecision({
+    intent: "grow",
+    action: "wait",
+    stock: "COALINDIA",
+    availableCash: 14_000,
+    portfolioValue: 1_730,
+    topAllocationPct: 100,
+    holdings: [{ symbol: "COALINDIA", weight: 100 }],
+    suggested_sell_percent: 25,
+    entryTiming: { enter: false },
+  });
+  const starterHero = resolveTodayHero(starterDecision, {
+    suggestedSellPercent: 25,
+  });
+  assert(
+    starterHero.executionKind === "WAIT",
+    "A one-name starter book must Hold, not Trim",
+  );
 
   const trimHero = resolveTodayHero(trimDecision, { suggestedSellPercent: 25 });
 
@@ -342,7 +365,7 @@ export function runTodaySurfaceSelfCheck(): void {
     "Today hero headline must name the trim action",
   );
   assert(
-    trimHero.targetWeightAfter === 75,
+    trimHero.targetWeightAfter === 32,
     "Post-trim weight must reflect shares sold, not trim percent",
   );
   assert(

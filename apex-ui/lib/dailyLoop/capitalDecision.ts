@@ -165,12 +165,28 @@ function resolveCapitalStructure(input: CapitalDecisionInput): CapitalStructure 
   };
 }
 
+function isSingleNameBook(input: CapitalDecisionInput): boolean {
+  if (input.holdings?.length === 1) {
+    return true;
+  }
+
+  if ((input.holdings?.length ?? 0) > 1) {
+    return false;
+  }
+
+  return normalizePercent(input.topAllocationPct) >= 100;
+}
+
 function resolveOverweightHoldings(
   input: CapitalDecisionInput,
 ): CapitalHoldingWeight[] {
   const capital = resolveCapitalStructure(input);
 
   if (capital.portfolioValue <= 0) {
+    return [];
+  }
+
+  if (isSingleNameBook(input)) {
     return [];
   }
 
@@ -1513,8 +1529,12 @@ function runCapitalDecisionSelfCheck(): void {
     action: "wait",
     stock: "JIOFIN",
     availableCash: 9_631,
-    portfolioValue: 257,
-    topAllocationPct: 100,
+    portfolioValue: 400_000,
+    topAllocationPct: 42,
+    holdings: [
+      { symbol: "JIOFIN", weight: 42 },
+      { symbol: "INFY", weight: 20 },
+    ],
     entryTiming: { enter: false },
   });
 
@@ -1525,6 +1545,22 @@ function runCapitalDecisionSelfCheck(): void {
   assert(
     trimBeforeWait.primaryAction.includes("JIOFIN"),
     "Wait + concentration must name the trim symbol in primary action",
+  );
+
+  const starterBook = buildCapitalDecision({
+    intent: "grow",
+    action: "wait",
+    stock: "COALINDIA",
+    availableCash: 14_000,
+    portfolioValue: 1_730,
+    topAllocationPct: 100,
+    holdings: [{ symbol: "COALINDIA", weight: 100 }],
+    entryTiming: { enter: false },
+  });
+
+  assert(
+    !starterBook.actions.some((item) => item.action === "SELL"),
+    "A one-name starter book must not trim",
   );
 
   const validBuy = buildCapitalDecision({
