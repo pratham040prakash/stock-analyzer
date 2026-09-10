@@ -41,6 +41,9 @@ import TodayBookLine from "@/components/dailyLoop/TodayBookLine";
 import TodayStarterHoldCard from "@/components/dailyLoop/TodayStarterHoldCard";
 import TodaySecondNameCard from "@/components/dailyLoop/TodaySecondNameCard";
 import TodayKiteContract from "@/components/dailyLoop/TodayKiteContract";
+import TodayPrefillCard from "@/components/dailyLoop/TodayPrefillCard";
+import TodayCloseLetter from "@/components/dailyLoop/TodayCloseLetter";
+import TodayStillTrue from "@/components/dailyLoop/TodayStillTrue";
 import {
   buildSecondNameWatch,
   pickSecondName,
@@ -50,7 +53,14 @@ import {
   buildTodayContract,
   persistTodayContract,
   readTodayContract,
+  rememberDeskFields,
 } from "@/lib/dailyLoop/todayContract";
+import {
+  buildCampaignLine,
+  buildPrefillPreview,
+  buildStillTrueLine,
+  thesisNeedsCheckIn,
+} from "@/lib/dailyLoop/deskNight";
 import { buildDeskFlip, normalizeSymbols, resolveTodayLoop } from "@/lib/dailyLoop/todayLoop";
 import { shiftIstDateKey, tradingDateKey } from "@/lib/dailyLoop/disciplineDates";
 import {
@@ -381,6 +391,17 @@ export default function HomeDecisionScreen({
   const [yesterdayLine, setYesterdayLine] = useState<string | null>(null);
   const [humanThesis, setHumanThesis] = useState<string | null>(null);
   const [holdCuts, setHoldCuts] = useState<Record<string, number>>({});
+  const [campaignDay, setCampaignDay] = useState(0);
+  const [closeLetter, setCloseLetter] = useState<string | null>(null);
+  const [gttStatus, setGttStatus] = useState<string | null>(null);
+  const [gttBusy, setGttBusy] = useState(false);
+  const [stillTrue, setStillTrue] = useState<{
+    symbol: string;
+    thesis: string;
+    invalidation: string | null;
+    line: string;
+  } | null>(null);
+  const [stillTrueSaving, setStillTrueSaving] = useState(false);
   const [brokerFillStatusLoading, setBrokerFillStatusLoading] = useState(() => {
     const symbol = todayHero.symbol?.trim().toUpperCase();
     if (!symbol || typeof window === "undefined") {
@@ -1008,13 +1029,25 @@ export default function HomeDecisionScreen({
       return;
     }
 
-    persistTodayContract({
-      ...todayContract,
-      outcome: todayLoop.state === "open" ? todayContract.outcome : todayLoop.state,
-      outcomeLine:
-        todayLoop.state === "open" ? todayContract.outcomeLine : todayLoop.line,
+    const merged = rememberDeskFields(
+      {
+        ...todayContract,
+        outcome: todayLoop.state === "open" ? todayContract.outcome : todayLoop.state,
+        outcomeLine:
+          todayLoop.state === "open" ? todayContract.outcomeLine : todayLoop.line,
+        campaignDay: campaignDay || todayContract.campaignDay,
+      },
+      readTodayContract(),
+    );
+    persistTodayContract(merged);
+    void apiFetch("/api/today/contract", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(merged),
+    }).catch(() => {
+      // Local contract remains the same-device fallback.
     });
-  }, [starterBook, todayContract, todayLoop, youngBook]);
+  }, [campaignDay, starterBook, todayContract, todayLoop, youngBook]);
 
   useEffect(() => {
     const symbol = nextNameWatch?.symbol;
@@ -1069,6 +1102,81 @@ export default function HomeDecisionScreen({
       }
     })();
   }, []);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const response = await apiFetch("/api/today/contract", { cache: "no-store" });
+        const payload = await parseApiJson<{
+          contract?: {
+            kiteLine?: string;
+            rule?: string;
+            dateKey?: string;
+            campaignDay?: number;
+            closeLetter?: string;
+            gttStatus?: string;
+          } | null;
+          campaignDay?: number;
+        }>(response, "Contract");
+        if (!response.ok) {
+          return;
+        }
+
+        if (payload?.contract?.kiteLine && payload.contract.rule && payload.contract.dateKey) {
+          persistTodayContract(payload.contract as Parameters<typeof persistTodayContract>[0]);
+        }
+        if (payload?.campaignDay) {
+          setCampaignDay(payload.campaignDay);
+        } else if (payload?.contract?.campaignDay) {
+          setCampaignDay(payload.contract.campaignDay);
+        }
+        if (payload?.contract?.closeLetter) {
+          setCloseLetter(payload.contract.closeLetter);
+        }
+        if (payload?.contract?.gttStatus) {
+          setGttStatus(payload.contract.gttStatus);
+        }
+      } catch {
+        // Same-browser localStorage remains.
+      }
+
+      try {
+        const yday = shiftIstDateKey(tradingDateKey(), -1);
+        const ydayResponse = await apiFetch(
+          `/api/today/contract?date=${encodeURIComponent(yday)}`,
+          { cache: "no-store" },
+        );
+        const ydayPayload = await parseApiJson<{
+          contract?: Parameters<typeof persistTodayContract>[0] | null;
+        }>(ydayResponse, "Yesterday contract");
+        if (ydayResponse.ok && ydayPayload?.contract?.kiteLine) {
+          persistTodayContract(ydayPayload.contract);
+        }
+      } catch {
+        // Watch carry still reads the local yesterday contract.
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!(youngBook || starterBook)) {
+      return;
+    }
+
+    void (async () => {
+      try {
+        const response = await apiFetch("/api/trade/gtt", { cache: "no-store" });
+        const payload = await parseApiJson<{
+          watchStatus?: string | null;
+        }>(response, "GTT");
+        if (response.ok && payload?.watchStatus) {
+          setGttStatus(payload.watchStatus);
+        }
+      } catch {
+        // GTT status is optional until Kite answers.
+      }
+    })();
+  }, [starterBook, youngBook]);
 
   useEffect(() => {
     const body = buildLoopReceiptBody({ loop: todayLoop, contract: todayContract });
@@ -1199,21 +1307,46 @@ export default function HomeDecisionScreen({
       try {
         const response = await apiFetch("/api/thesis", { cache: "no-store" });
         const payload = await parseApiJson<{
-          theses?: Array<{ symbol?: string; invalidation?: string | null }>;
+          theses?: Array<{
+            symbol?: string;
+            thesis?: string;
+            invalidation?: string | null;
+            updated_at?: string;
+          }>;
         }>(response, "Thesis");
         if (!response.ok || !payload?.theses) {
           return;
         }
 
         const next: Record<string, number> = {};
+        let checkIn: {
+          symbol: string;
+          thesis: string;
+          invalidation: string | null;
+          line: string;
+        } | null = null;
         for (const row of payload.theses) {
           const symbol = row.symbol?.trim().toUpperCase();
           const cut = cutInrFromInvalidation(row.invalidation);
           if (symbol && cut) {
             next[symbol] = cut;
           }
+          if (
+            !checkIn &&
+            symbol &&
+            row.thesis &&
+            thesisNeedsCheckIn(row.updated_at)
+          ) {
+            checkIn = {
+              symbol,
+              thesis: row.thesis,
+              invalidation: row.invalidation ?? null,
+              line: buildStillTrueLine(symbol, row.thesis),
+            };
+          }
         }
         setHoldCuts(next);
+        setStillTrue(checkIn);
       } catch {
         // Default 3% hold line remains.
       }
@@ -1472,6 +1605,19 @@ export default function HomeDecisionScreen({
           heldCount: deskHeldCount,
         })
       : null;
+  const prefillPreview =
+    nextNameWatch && !nextNameWatch.dead && !liveTapeHardWait
+      ? buildPrefillPreview({
+          heldSymbols: deskHeldSymbols,
+          watchSymbol: nextNameWatch.symbol,
+          ticketInr: nextNameWatch.size.ticketInr,
+          leftoverInr: nextNameWatch.size.leftoverInr,
+        })
+      : null;
+  const campaignLine = buildCampaignLine({
+    watchSymbol: nextNameWatch?.symbol ?? todayContract.watchSymbol,
+    day: campaignDay,
+  });
   const firstBuyCommitLabel = resolveEmptyBookCommitLabel({
     emptyBook,
     firstBuy: firstBuyCandidate,
@@ -1803,6 +1949,29 @@ export default function HomeDecisionScreen({
                     {yesterdayLine}
                   </p>
                 ) : null}
+                {closeLetter && (youngBook || starterBook) ? (
+                  <TodayCloseLetter letter={closeLetter} />
+                ) : null}
+                {stillTrue && (youngBook || starterBook) ? (
+                  <TodayStillTrue
+                    line={stillTrue.line}
+                    saving={stillTrueSaving}
+                    onConfirm={() => {
+                      setStillTrueSaving(true);
+                      void apiFetch("/api/thesis", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          symbol: stillTrue.symbol,
+                          thesis: stillTrue.thesis,
+                          invalidation: stillTrue.invalidation,
+                        }),
+                      })
+                        .then(() => setStillTrue(null))
+                        .finally(() => setStillTrueSaving(false));
+                    }}
+                  />
+                ) : null}
                 <VerdictCanvas {...verdictCanvasProps} />
                 {(youngBook || starterBook) &&
                 verdictPresentation.verdict === "wait" &&
@@ -1846,11 +2015,47 @@ export default function HomeDecisionScreen({
                     ) : null}
                   </div>
                 ) : null}
+                {prefillPreview && (youngBook || starterBook) ? (
+                  <TodayPrefillCard
+                    headline={prefillPreview.headline}
+                    bookLine={prefillPreview.bookLine}
+                    leftoverLine={prefillPreview.leftoverLine}
+                  />
+                ) : null}
                 {nextNameWatch && !liveTapeHardWait ? (
                   <TodaySecondNameCard
                     watch={nextNameWatch}
                     kiteLine={todayContract.kiteLine}
                     thesis={humanThesis}
+                    campaignLine={campaignLine}
+                    gttStatus={gttStatus}
+                    gttBusy={gttBusy}
+                    onSetGtt={
+                      nextNameWatch.triggerInr && nextNameWatch.livePriceInr
+                        ? () => {
+                            setGttBusy(true);
+                            void apiFetch("/api/trade/gtt", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                tradingsymbol: nextNameWatch.symbol,
+                                triggerPrice: nextNameWatch.triggerInr,
+                                lastPrice: nextNameWatch.livePriceInr,
+                                ticketInr: nextNameWatch.size.ticketInr,
+                              }),
+                            })
+                              .then(async (response) => {
+                                const payload = await parseApiJson<{
+                                  status?: string;
+                                }>(response, "GTT");
+                                if (response.ok) {
+                                  setGttStatus(payload?.status ?? "active");
+                                }
+                              })
+                              .finally(() => setGttBusy(false));
+                          }
+                        : undefined
+                    }
                   />
                 ) : null}
                 {(youngBook || starterBook) && todayLoop.line ? (

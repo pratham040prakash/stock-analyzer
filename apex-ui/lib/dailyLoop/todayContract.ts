@@ -23,6 +23,13 @@ export type TodayContract = {
   watchThrough?: boolean;
   watchDead?: boolean;
   triggerInr?: number | null;
+  sessionHighBySymbol?: Record<string, number>;
+  sessionLowBySymbol?: Record<string, number>;
+  campaignDay?: number;
+  campaignStartedOn?: string;
+  gttId?: string;
+  gttStatus?: string;
+  closeLetter?: string;
 };
 
 const STORAGE_PREFIX = "apex_today_contract";
@@ -125,6 +132,26 @@ export function buildTodayContract(input: {
     kiteLine: "Do nothing in Kite today.",
     rule: book,
     heldSymbols: names,
+  };
+}
+
+export function rememberDeskFields(
+  next: TodayContract,
+  previous?: TodayContract | null,
+): TodayContract {
+  if (!previous) {
+    return next;
+  }
+
+  return {
+    ...next,
+    sessionHighBySymbol: previous.sessionHighBySymbol ?? next.sessionHighBySymbol,
+    sessionLowBySymbol: previous.sessionLowBySymbol ?? next.sessionLowBySymbol,
+    campaignDay: next.campaignDay ?? previous.campaignDay,
+    campaignStartedOn: previous.campaignStartedOn ?? next.campaignStartedOn,
+    gttId: previous.gttId ?? next.gttId,
+    gttStatus: previous.gttStatus ?? next.gttStatus,
+    closeLetter: previous.closeLetter ?? next.closeLetter,
   };
 }
 

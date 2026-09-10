@@ -67,6 +67,27 @@ async function sendTelegram(payload: ReviewDigestPayload): Promise<DigestSendRes
   };
 }
 
+export async function sendImmediateAlert(input: {
+  subject: string;
+  body: string;
+}): Promise<DigestSendResult> {
+  const webhook = process.env.APEX_DIGEST_WEBHOOK_URL?.trim();
+  const payload: ReviewDigestPayload = {
+    built_at: new Date().toISOString(),
+    channel: webhook ? "email" : "telegram",
+    subject: input.subject,
+    body: input.body,
+    discipline_line: input.subject,
+    enabled: true,
+  };
+
+  if (webhook) {
+    return postWebhook(webhook, payload);
+  }
+
+  return sendTelegram(payload);
+}
+
 export async function sendReviewDigest(
   payload: ReviewDigestPayload,
 ): Promise<DigestSendResult> {

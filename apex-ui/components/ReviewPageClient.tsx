@@ -326,6 +326,31 @@ export default function ReviewPageClient({ userName }: Props) {
       ),
     [receipts],
   );
+  const [yesterdayContract, setYesterdayContract] = useState(
+    () => readTodayContract(shiftIstDateKey(tradingDateKey(), -1)),
+  );
+
+  useEffect(() => {
+    const yday = shiftIstDateKey(tradingDateKey(), -1);
+    void (async () => {
+      try {
+        const response = await apiFetch(
+          `/api/today/contract?date=${encodeURIComponent(yday)}`,
+          { cache: "no-store" },
+        );
+        const payload = await parseApiJson<{ contract?: typeof yesterdayContract }>(
+          response,
+          "Yesterday contract",
+        );
+        if (response.ok && payload?.contract) {
+          setYesterdayContract(payload.contract);
+        }
+      } catch {
+        // Local yesterday contract remains.
+      }
+    })();
+  }, []);
+
   const ruleGrade = useMemo(
     () =>
       pickReviewRuleGrade(
@@ -336,9 +361,9 @@ export default function ReviewPageClient({ userName }: Props) {
           order_id: row.order_id,
           symbol: row.symbol,
         })),
-        readTodayContract(shiftIstDateKey(tradingDateKey(), -1)),
-      ),
-    [receipts],
+        yesterdayContract,
+      ) ?? yesterdayContract?.closeLetter ?? null,
+    [receipts, yesterdayContract],
   );
 
   const latestProofHref = useMemo(() => {

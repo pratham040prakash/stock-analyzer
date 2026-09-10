@@ -7,6 +7,10 @@ type Props = {
   watch: SecondNameWatch;
   kiteLine?: string;
   thesis?: string | null;
+  campaignLine?: string | null;
+  gttStatus?: string | null;
+  onSetGtt?: () => void;
+  gttBusy?: boolean;
 };
 
 function statusTone(watch: SecondNameWatch): string {
@@ -21,14 +25,22 @@ function statusTone(watch: SecondNameWatch): string {
   return "text-white";
 }
 
-export default function TodaySecondNameCard({ watch, kiteLine, thesis }: Props) {
+export default function TodaySecondNameCard({
+  watch,
+  kiteLine,
+  thesis,
+  campaignLine,
+  gttStatus,
+  onSetGtt,
+  gttBusy = false,
+}: Props) {
   const status = watch.dead ? "Lost" : watch.through ? "Through" : "Live";
 
   return (
     <section className="overflow-hidden rounded-[28px] border border-white/[0.12] bg-black/40 px-5 py-6 sm:px-6">
       <div className="flex items-center justify-between gap-3">
         <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-apex-muted/70">
-          {watch.eyebrow}
+          {campaignLine || watch.eyebrow}
         </p>
         <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-apex-text/85">
           <span
@@ -100,6 +112,20 @@ export default function TodaySecondNameCard({ watch, kiteLine, thesis }: Props) 
         <p className="mt-3 text-sm leading-relaxed text-apex-text/85">
           {thesis || watch.whyLine}
         </p>
+      ) : null}
+      {gttStatus ? (
+        <p className="mt-3 text-xs uppercase tracking-[0.16em] text-apex-muted/75">
+          GTT · {gttStatus}
+        </p>
+      ) : onSetGtt && !watch.dead ? (
+        <button
+          type="button"
+          disabled={gttBusy}
+          onClick={onSetGtt}
+          className="mt-4 w-full rounded-2xl border border-white/15 bg-white px-4 py-3 text-sm font-semibold text-black disabled:opacity-50"
+        >
+          Set GTT in Kite
+        </button>
       ) : null}
       <Link
         href={`/app/research?symbol=${encodeURIComponent(watch.symbol)}`}

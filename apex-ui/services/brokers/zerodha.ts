@@ -1088,6 +1088,8 @@ export type FetchQuoteResult =
 export type ZerodhaLiveQuote = {
   lastPrice: number;
   previousClose: number | null;
+  high?: number | null;
+  low?: number | null;
 };
 
 function parseKiteQuotePayload(payload: unknown): ZerodhaLiveQuote | null {
@@ -1097,7 +1099,7 @@ function parseKiteQuotePayload(payload: unknown): ZerodhaLiveQuote | null {
 
   const record = payload as {
     last_price?: number;
-    ohlc?: { close?: number };
+    ohlc?: { close?: number; high?: number; low?: number };
   };
   const lastPrice = record.last_price;
 
@@ -1106,6 +1108,8 @@ function parseKiteQuotePayload(payload: unknown): ZerodhaLiveQuote | null {
   }
 
   const previousClose = record.ohlc?.close;
+  const high = record.ohlc?.high;
+  const low = record.ohlc?.low;
   return {
     lastPrice,
     previousClose:
@@ -1114,6 +1118,9 @@ function parseKiteQuotePayload(payload: unknown): ZerodhaLiveQuote | null {
       previousClose > 0
         ? previousClose
         : null,
+    high:
+      typeof high === "number" && Number.isFinite(high) && high > 0 ? high : null,
+    low: typeof low === "number" && Number.isFinite(low) && low > 0 ? low : null,
   };
 }
 
@@ -1199,9 +1206,14 @@ async function fetchZerodhaLtpBatch(
     const lastPrice = (
       ltpData[instrument] as { last_price?: number } | undefined
     )?.last_price;
-    const previousClose = (
-      ohlcData?.[instrument] as { ohlc?: { close?: number } } | undefined
-    )?.ohlc?.close;
+    const ohlc = (
+      ohlcData?.[instrument] as
+        | { ohlc?: { close?: number; high?: number; low?: number } }
+        | undefined
+    )?.ohlc;
+    const previousClose = ohlc?.close;
+    const high = ohlc?.high;
+    const low = ohlc?.low;
 
     if (
       typeof lastPrice !== "number" ||
@@ -1219,6 +1231,9 @@ async function fetchZerodhaLtpBatch(
         previousClose > 0
           ? previousClose
           : null,
+      high:
+        typeof high === "number" && Number.isFinite(high) && high > 0 ? high : null,
+      low: typeof low === "number" && Number.isFinite(low) && low > 0 ? low : null,
     });
   }
 }
@@ -1611,6 +1626,137 @@ export async function placeZerodhaOrder(
         (err instanceof Error ? err.message : "Failed to place Zerodha order"),
     );
     return { status: "ERROR", message };
+  }
+}
+
+export type KiteGttTrigger = {
+  id: number | string;
+  status?: string;
+  tradingsymbol?: string;
+  trigger_values?: number[];
+};
+
+export type PlaceGttResult =
+  | { status: "OK"; triggerId: string }
+  | { status: "TOKEN_EXPIRED" }
+  | { status: "ERROR"; message: string };
+
+export type FetchGttResult =
+  | { status: "OK"; data: KiteGttTrigger[] }
+  | { status: "TOKEN_EXPIRED" }
+  | { status: "ERROR"; message: string };
+
+export async function placeZerodhaGtt(
+  accessToken: string,
+  params: {
+    tradingsymbol: string;
+    exchange?: string;
+    transaction_type: "BUY" | "SELL";
+    quantity: number;
+    triggerPrice: number;
+    lastPrice: number;
+    limitPrice?: number;
+  },
+): Promise<PlaceGttResult> {
+  const config = getZerodhaConfig();
+  if (!config.configured) {
+    return { status: "ERROR", message: "Zerodha is not configured" };
+  }
+
+  if (params.quantity < 1) {
+    return { status: "ERROR", message: "GTT quantity must be at least 1" };
+  }
+
+  const exchange = params.exchange ?? "NSE";
+  const limitPrice = params.limitPrice ?? params.triggerPrice;
+  const form = new URLSearchParams({
+    type: "single",
+    condition: JSON.stringify({
+      exchange,
+      tradingsymbol: params.tradingsymbol,
+      trigger_values: [params.triggerPrice],
+      last_price: params.lastPrice,
+    }),
+    orders: JSON.stringify([
+      {
+        exchange,
+        tradingsymbol: params.tradingsymbol,
+        product: "CNC",
+        order_type: "LIMIT",
+        transaction_type: params.transaction_type,
+        quantity: params.quantity,
+        price: limitPrice,
+      },
+    ]),
+  });
+
+  try {
+    const res = await axios.post(
+      "https://api.kite.trade/gtt/triggers",
+      form.toString(),
+      {
+        headers: {
+          ...kiteAuthHeaders(config.apiKey, accessToken),
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        ...buildKiteOrderProxyAxiosConfig(),
+      },
+    );
+    const triggerId = res.data?.data?.trigger_id ?? res.data?.data?.id;
+    if (triggerId === undefined || triggerId === null || triggerId === "") {
+      return { status: "ERROR", message: "Invalid GTT response from Zerodha" };
+    }
+
+    return { status: "OK", triggerId: String(triggerId) };
+  } catch (err) {
+    if (axios.isAxiosError(err) && err.response?.status === 401) {
+      return { status: "TOKEN_EXPIRED" };
+    }
+
+    return { status: "ERROR", message: kiteErrorMessage(err) };
+  }
+}
+
+export async function fetchZerodhaGtts(accessToken: string): Promise<FetchGttResult> {
+  const config = getZerodhaConfig();
+  if (!config.configured) {
+    return { status: "ERROR", message: "Zerodha is not configured" };
+  }
+
+  try {
+    const res = await axios.get("https://api.kite.trade/gtt/triggers", {
+      headers: kiteAuthHeaders(config.apiKey, accessToken),
+    });
+    const data = res.data?.data;
+    if (!Array.isArray(data)) {
+      return { status: "ERROR", message: "Invalid GTT response from Zerodha" };
+    }
+
+    const rows: KiteGttTrigger[] = [];
+    for (const item of data) {
+      const record = item as {
+        id?: number | string;
+        status?: string;
+        condition?: { tradingsymbol?: string; trigger_values?: number[] };
+      };
+      if (record.id === undefined || record.id === null) {
+        continue;
+      }
+      rows.push({
+        id: record.id,
+        status: record.status,
+        tradingsymbol: record.condition?.tradingsymbol,
+        trigger_values: record.condition?.trigger_values,
+      });
+    }
+
+    return { status: "OK", data: rows };
+  } catch (err) {
+    if (axios.isAxiosError(err) && err.response?.status === 401) {
+      return { status: "TOKEN_EXPIRED" };
+    }
+
+    return { status: "ERROR", message: kiteErrorMessage(err) };
   }
 }
 

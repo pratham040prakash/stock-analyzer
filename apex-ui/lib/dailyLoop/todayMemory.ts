@@ -3,6 +3,7 @@ import { readTodayContract } from "@/lib/dailyLoop/todayContract";
 import type { TodayContract } from "@/lib/dailyLoop/todayContract";
 import type { TodayLoop } from "@/lib/dailyLoop/todayLoop";
 import { formatInr } from "@/lib/funds";
+import { gradeFromTape } from "@/lib/dailyLoop/deskNight";
 import { parseInvalidationRule } from "@/services/thesis/parseInvalidationRule";
 
 export function buildLoopReceiptBody(input: {
@@ -304,6 +305,26 @@ export function pickReviewRuleGrade(
   dateKey = tradingDateKey(),
 ): string | null {
   const yday = shiftIstDateKey(dateKey, -1);
+  const tape = yesterday
+    ? gradeFromTape({
+        watchSymbol: yesterday.watchSymbol,
+        triggerInr: yesterday.triggerInr,
+        sessionHigh: yesterday.watchSymbol
+          ? yesterday.sessionHighBySymbol?.[yesterday.watchSymbol]
+          : null,
+        sessionLow: yesterday.watchSymbol
+          ? yesterday.sessionLowBySymbol?.[yesterday.watchSymbol]
+          : null,
+        killInr: yesterday.triggerInr
+          ? Math.round(yesterday.triggerInr * 0.97)
+          : null,
+        outcome: yesterday.outcome,
+      })
+    : null;
+  if (tape) {
+    return tape;
+  }
+
   const row = receipts.find(
     (receipt) =>
       receipt.receipt_date === yday && Boolean(receipt.order_id?.startsWith("loop:")),

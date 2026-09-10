@@ -1,0 +1,115 @@
+import { apiError, apiOk } from "@/lib/api/response";
+import { createClient } from "@/lib/supabase/server";
+import { getActiveBrokerConnection } from "@/services/broker/connections";
+import { fetchZerodhaGtts, placeZerodhaGtt } from "@/services/brokers/zerodha";
+import { readServerContract, writeServerContract } from "@/services/desk/contractStore";
+import { tradingDateKey } from "@/lib/dailyLoop/disciplineDates";
+
+export const dynamic = "force-dynamic";
+
+export async function GET() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return apiError("Unauthorized", 401);
+  }
+
+  const connection = await getActiveBrokerConnection(supabase, user.id);
+  if (!connection?.accessToken || connection.status !== "active") {
+    return apiError("Zerodha is not connected", 409);
+  }
+
+  const result = await fetchZerodhaGtts(connection.accessToken);
+  if (result.status !== "OK") {
+    return apiError(result.status === "TOKEN_EXPIRED" ? "Token expired" : result.message, 502);
+  }
+
+  const contract = await readServerContract(supabase, user.id, tradingDateKey());
+  const watch = contract?.watchSymbol?.trim().toUpperCase();
+  const match = watch
+    ? result.data.find((row) => row.tradingsymbol?.trim().toUpperCase() === watch)
+    : null;
+
+  return apiOk({
+    triggers: result.data,
+    watchStatus: match?.status ?? contract?.gttStatus ?? null,
+    watchTriggerId: match ? String(match.id) : contract?.gttId ?? null,
+  });
+}
+
+export async function POST(request: Request) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return apiError("Unauthorized", 401);
+  }
+
+  let body: {
+    tradingsymbol?: string;
+    triggerPrice?: number;
+    lastPrice?: number;
+    quantity?: number;
+    ticketInr?: number;
+  };
+  try {
+    body = (await request.json()) as typeof body;
+  } catch {
+    return apiError("Invalid JSON body", 400);
+  }
+
+  const symbol = body.tradingsymbol?.trim().toUpperCase();
+  const trigger = body.triggerPrice;
+  const last = body.lastPrice;
+  if (!symbol || !trigger || !last || trigger <= 0 || last <= 0) {
+    return apiError("tradingsymbol, triggerPrice, and lastPrice are required", 400);
+  }
+
+  const quantity =
+    body.quantity && body.quantity >= 1
+      ? Math.floor(body.quantity)
+      : body.ticketInr && body.ticketInr > 0
+        ? Math.max(1, Math.floor(body.ticketInr / trigger))
+        : 0;
+
+  if (quantity < 1) {
+    return apiError("quantity or ticketInr is required", 400);
+  }
+
+  const connection = await getActiveBrokerConnection(supabase, user.id);
+  if (!connection?.accessToken || connection.status !== "active") {
+    return apiError("Zerodha is not connected", 409);
+  }
+
+  const placed = await placeZerodhaGtt(connection.accessToken, {
+    tradingsymbol: symbol,
+    transaction_type: "BUY",
+    quantity,
+    triggerPrice: trigger,
+    lastPrice: last,
+  });
+
+  if (placed.status !== "OK") {
+    return apiError(
+      placed.status === "TOKEN_EXPIRED" ? "Token expired" : placed.message,
+      502,
+    );
+  }
+
+  const dateKey = tradingDateKey();
+  const contract = await readServerContract(supabase, user.id, dateKey);
+  if (contract) {
+    await writeServerContract(supabase, user.id, {
+      ...contract,
+      gttId: placed.triggerId,
+      gttStatus: "active",
+    });
+  }
+
+  return apiOk({ triggerId: placed.triggerId, status: "active" });
+}

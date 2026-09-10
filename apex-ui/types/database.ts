@@ -331,6 +331,45 @@ export type Database = {
         };
         Relationships: [];
       };
+      today_contracts: {
+        Row: {
+          id: string;
+          user_id: string;
+          contract_date: string;
+          payload: Json;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          contract_date: string;
+          payload: Json;
+          updated_at?: string;
+        };
+        Update: {
+          payload?: Json;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      desk_alerts: {
+        Row: {
+          user_id: string;
+          date_key: string;
+          alert_key: string;
+          sent_at: string;
+        };
+        Insert: {
+          user_id: string;
+          date_key: string;
+          alert_key: string;
+          sent_at?: string;
+        };
+        Update: {
+          sent_at?: string;
+        };
+        Relationships: [];
+      };
       decision_memory: {
         Row: {
           id: string;
