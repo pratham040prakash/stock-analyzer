@@ -5,6 +5,14 @@ import {
   assembleSundayLetter,
   describeInterruptChannel,
 } from "@/lib/dailyLoop/deskOs";
+import {
+  assembleHorizonLines,
+  assembleYearBook,
+  circuitBreakerTripped,
+  firstWrongName,
+  waitStreak,
+  watchFaceState,
+} from "@/lib/dailyLoop/deskHorizon";
 import type { TodayContract } from "@/lib/dailyLoop/todayContract";
 import { bannedWatchSymbols } from "@/lib/dailyLoop/todayMemory";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -68,6 +76,14 @@ export async function GET(request: Request) {
     interrupt: describeInterruptChannel(),
     lastWatchAt: contract?.lastWatchAt ?? null,
     sundayLetter,
+    horizon: {
+      lines: assembleHorizonLines({ contract, history }),
+      watchFace: watchFaceState(contract),
+      yearBook: assembleYearBook(history),
+      waitStreak: waitStreak(history),
+      firstWrongName: firstWrongName(history),
+      circuitBreaker: circuitBreakerTripped(history),
+    },
   });
 }
 

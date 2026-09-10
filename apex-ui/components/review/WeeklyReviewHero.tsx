@@ -14,6 +14,8 @@ type Props = {
   loopLine?: string | null;
   ruleGrade?: string | null;
   sundayLetter?: string | null;
+  yearBook?: string | null;
+  calendarHref?: string | null;
 };
 
 export default function WeeklyReviewHero({
@@ -25,6 +27,8 @@ export default function WeeklyReviewHero({
   loopLine = null,
   ruleGrade = null,
   sundayLetter = null,
+  yearBook = null,
+  calendarHref = null,
 }: Props) {
   const headline = buildWeeklyReviewHeadline(summary);
 
@@ -61,6 +65,17 @@ export default function WeeklyReviewHero({
         ) : null}
         {sundayLetter ? (
           <p className="text-sm leading-relaxed text-apex-text/90">{sundayLetter}</p>
+        ) : null}
+        {yearBook ? (
+          <p className="text-sm leading-relaxed text-apex-muted/85">{yearBook}</p>
+        ) : null}
+        {calendarHref ? (
+          <a
+            href={calendarHref}
+            className="inline-flex text-sm text-blue-200/90 hover:text-blue-100"
+          >
+            15:31 IST close letter →
+          </a>
         ) : null}
         <p className="text-sm text-apex-muted/85">
           Wins {summary.wins} · Losses {summary.losses} · Followed{" "}

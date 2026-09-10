@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { apiError } from "@/lib/api/response";
 import { assembleResearchSummary } from "@/services/research/assembleResearchSummary";
+import { researchYieldsToContract } from "@/lib/dailyLoop/deskHorizon";
+import { tradingDateKey } from "@/lib/dailyLoop/disciplineDates";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { readServerContract } from "@/services/desk/contractStore";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +27,19 @@ export async function GET(request: Request) {
   }
 
   const summary = await assembleResearchSummary(symbol);
+  const contract = await readServerContract(
+    createAdminClient(),
+    user.id,
+    tradingDateKey(),
+  );
+  const yieldLine = researchYieldsToContract({
+    watch: contract?.watchSymbol,
+    researchSymbol: symbol,
+  });
+  if (yieldLine) {
+    summary.headline = yieldLine;
+    summary.summary = `${yieldLine} ${summary.summary}`;
+  }
 
   return NextResponse.json({ status: "ok", summary });
 }

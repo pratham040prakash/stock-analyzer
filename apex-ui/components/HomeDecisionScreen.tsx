@@ -71,8 +71,16 @@ import {
   interruptHealthLine,
   latestDiaryLine,
 } from "@/lib/dailyLoop/deskOs";
-import { isNseCashSessionOpen } from "@/lib/broker/marketSession";
+import {
+  assembleHorizonLines,
+  freezeNewWatch,
+  markDeskSat,
+  morningBookLocked,
+  sessionClockLine,
+} from "@/lib/dailyLoop/deskHorizon";
+import { isDeskClosedForNewPicks, isNseCashSessionOpen } from "@/lib/broker/marketSession";
 import TodayDeskStatus from "@/components/dailyLoop/TodayDeskStatus";
+import TodayDeskHorizon from "@/components/dailyLoop/TodayDeskHorizon";
 import TodayNameDiary from "@/components/dailyLoop/TodayNameDiary";
 import { buildDeskFlip, normalizeSymbols, resolveTodayLoop } from "@/lib/dailyLoop/todayLoop";
 import { shiftIstDateKey, tradingDateKey } from "@/lib/dailyLoop/disciplineDates";
@@ -416,6 +424,10 @@ export default function HomeDecisionScreen({
   const [nameDiary, setNameDiary] = useState<
     Array<{ dateKey: string; symbol: string; line: string }>
   >([]);
+  const [deskSatLine, setDeskSatLine] = useState<string | null>(null);
+  const [satBusy, setSatBusy] = useState(false);
+  const [horizonLines, setHorizonLines] = useState<string[]>([]);
+  const [circuitBreaker, setCircuitBreaker] = useState(false);
   const [stillTrue, setStillTrue] = useState<{
     symbol: string;
     thesis: string;
@@ -993,7 +1005,7 @@ export default function HomeDecisionScreen({
     picks: explorePicks,
     refreshKey: decisionUpdatedAt,
   });
-  const nextNameWatch =
+  const nextNameWatch = freezeNewWatch(
     !isExplore && (starterBook || youngBook)
       ? buildSecondNameWatch({
           heldSymbol: starterBook ? starterHoldingSymbol : undefined,
@@ -1011,7 +1023,9 @@ export default function HomeDecisionScreen({
             }
             return prices;
           })(),
-          preferredSymbol: watchCarry.preferredSymbol,
+          preferredSymbol: isDeskClosedForNewPicks()
+            ? readTodayContract()?.watchSymbol ?? watchCarry.preferredSymbol
+            : watchCarry.preferredSymbol,
           bandPct: watchBandPct(campaignDay || 1),
           eyebrow: starterBook
             ? "Next name"
@@ -1019,7 +1033,9 @@ export default function HomeDecisionScreen({
               ? "Fourth name"
               : "Third name",
         })
-      : null;
+      : null,
+    readTodayContract(),
+  );
   const todayContract = useMemo(() => {
     const previous = readTodayContract();
     const morningBook = previous?.heldSymbols;
@@ -1041,7 +1057,7 @@ export default function HomeDecisionScreen({
             gapLabel: nextNameWatch.gapLabel,
           }
         : null,
-      tapeHardWait: liveTapeHardWait,
+      tapeHardWait: liveTapeHardWait || circuitBreaker,
     });
 
     let highs = previous?.sessionHighBySymbol;
@@ -1076,8 +1092,10 @@ export default function HomeDecisionScreen({
       holdCutsBySymbol: Object.keys(holdCuts).length > 0 ? holdCuts : previous?.holdCutsBySymbol,
       lastWatchAt: lastWatchAt ?? previous?.lastWatchAt,
       nameDiary: nameDiary.length > 0 ? nameDiary : previous?.nameDiary,
+      lockedMorningBook: morningBookLocked({ writtenAt: previous?.dateKey }),
     };
   }, [
+    circuitBreaker,
     holdCuts,
     lastWatchAt,
     liveTapeHardWait,
@@ -1186,6 +1204,10 @@ export default function HomeDecisionScreen({
           bannedSymbols?: string[];
           interrupt?: { ready?: boolean };
           lastWatchAt?: string | null;
+          horizon?: {
+            lines?: string[];
+            circuitBreaker?: boolean;
+          };
         }>(response, "Contract");
         if (!response.ok) {
           return;
@@ -1221,6 +1243,18 @@ export default function HomeDecisionScreen({
         }
         if (payload?.contract?.gttStatus) {
           setGttStatus(normalizeGttStatus(payload.contract.gttStatus));
+        }
+        if (payload?.horizon?.lines) {
+          setHorizonLines(payload.horizon.lines);
+        }
+        if (payload?.horizon?.circuitBreaker) {
+          setCircuitBreaker(true);
+        }
+        if (payload?.contract && "deskSatAt" in payload.contract) {
+          const sat = (payload.contract as { deskSatAt?: string }).deskSatAt;
+          if (sat) {
+            setDeskSatLine(markDeskSat(new Date(sat)).line);
+          }
         }
       } catch {
         // Same-browser localStorage remains.
@@ -2058,7 +2092,43 @@ export default function HomeDecisionScreen({
                       lastWatchAt,
                       marketOpen: isNseCashSessionOpen(),
                     })}
-                    interrupt={interruptHealthLine(interruptReady)}
+                    interrupt={`${sessionClockLine()} · ${interruptHealthLine(interruptReady)}`}
+                  />
+                ) : null}
+                {youngBook || starterBook ? (
+                  <TodayDeskHorizon
+                    lines={
+                      horizonLines.length > 0
+                        ? horizonLines
+                        : assembleHorizonLines({
+                            contract: todayContract,
+                            leftoverInr: availableCash ?? 0,
+                            ticketInr: nextNameWatch?.size.ticketInr,
+                            bookValueInr: youngBookHoldings.reduce(
+                              (sum, row) => sum + (row.value ?? 0),
+                              0,
+                            ),
+                            kiteDown: connectionStatus !== "CONNECTED",
+                            pickCount: decision.picks?.length ?? 0,
+                            defaultCuts: Object.keys(holdCuts).length === 0,
+                          })
+                    }
+                    deskSatLine={deskSatLine}
+                    satBusy={satBusy}
+                    onDeskSat={() => {
+                      setSatBusy(true);
+                      void apiFetch("/api/today/desk-sat", { method: "POST" })
+                        .then(async (response) => {
+                          const payload = await parseApiJson<{ line?: string }>(
+                            response,
+                            "Desk sat",
+                          );
+                          if (response.ok && payload?.line) {
+                            setDeskSatLine(payload.line);
+                          }
+                        })
+                        .finally(() => setSatBusy(false));
+                    }}
                   />
                 ) : null}
                 {yesterdayLine && (youngBook || starterBook) ? (
@@ -2222,6 +2292,22 @@ export default function HomeDecisionScreen({
                                 triggerPrice: nextNameWatch.triggerInr,
                                 lastPrice: nextNameWatch.livePriceInr,
                                 ticketInr: nextNameWatch.size.ticketInr,
+                                killPrice: nextNameWatch.killInr,
+                                bookCuts: youngBookHoldings
+                                  .map((holding) => {
+                                    const name = holding.tradingsymbol?.trim().toUpperCase();
+                                    const cut = name ? holdCuts[name] : null;
+                                    if (!name || !cut || !holding.last_price || !holding.quantity) {
+                                      return null;
+                                    }
+                                    return {
+                                      tradingsymbol: name,
+                                      triggerPrice: cut,
+                                      lastPrice: holding.last_price,
+                                      quantity: holding.quantity,
+                                    };
+                                  })
+                                  .filter((row): row is NonNullable<typeof row> => row !== null),
                               }),
                             })
                               .then(async (response) => {

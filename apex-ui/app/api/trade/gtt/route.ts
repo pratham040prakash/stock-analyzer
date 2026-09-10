@@ -72,6 +72,13 @@ export async function POST(request: Request) {
     lastPrice?: number;
     quantity?: number;
     ticketInr?: number;
+    killPrice?: number;
+    bookCuts?: Array<{
+      tradingsymbol?: string;
+      triggerPrice?: number;
+      lastPrice?: number;
+      quantity?: number;
+    }>;
   };
   try {
     body = (await request.json()) as typeof body;
@@ -117,6 +124,42 @@ export async function POST(request: Request) {
     );
   }
 
+  let killGttId: string | undefined;
+  if (body.killPrice && body.killPrice > 0 && body.killPrice < last) {
+    const kill = await placeZerodhaGtt(connection.accessToken, {
+      tradingsymbol: symbol,
+      transaction_type: "SELL",
+      quantity,
+      triggerPrice: body.killPrice,
+      lastPrice: last,
+    });
+    if (kill.status === "OK") {
+      killGttId = kill.triggerId;
+    }
+  }
+
+  const bookGttIds: string[] = [];
+  for (const cut of body.bookCuts ?? []) {
+    const cutSymbol = cut.tradingsymbol?.trim().toUpperCase();
+    const cutPrice = cut.triggerPrice;
+    const cutLast = cut.lastPrice;
+    const cutQty = cut.quantity;
+    if (!cutSymbol || !cutPrice || !cutLast || !cutQty || cutPrice <= 0 || cutQty < 1) {
+      continue;
+    }
+
+    const sell = await placeZerodhaGtt(connection.accessToken, {
+      tradingsymbol: cutSymbol,
+      transaction_type: "SELL",
+      quantity: Math.floor(cutQty),
+      triggerPrice: cutPrice,
+      lastPrice: cutLast,
+    });
+    if (sell.status === "OK") {
+      bookGttIds.push(sell.triggerId);
+    }
+  }
+
   const dateKey = tradingDateKey();
   const contract = await readServerContract(createAdminClient(), user.id, dateKey);
   if (contract) {
@@ -124,8 +167,15 @@ export async function POST(request: Request) {
       ...contract,
       gttId: placed.triggerId,
       gttStatus: normalizeGttStatus("active") ?? "active",
+      killGttId: killGttId ?? contract.killGttId,
+      bookGttIds: bookGttIds.length > 0 ? bookGttIds : contract.bookGttIds,
     });
   }
 
-  return apiOk({ triggerId: placed.triggerId, status: "active" });
+  return apiOk({
+    triggerId: placed.triggerId,
+    killGttId: killGttId ?? null,
+    bookGttIds,
+    status: "active",
+  });
 }

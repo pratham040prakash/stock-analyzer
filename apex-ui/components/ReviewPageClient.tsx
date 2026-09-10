@@ -330,6 +330,7 @@ export default function ReviewPageClient({ userName }: Props) {
     () => readTodayContract(shiftIstDateKey(tradingDateKey(), -1)),
   );
   const [sundayLetter, setSundayLetter] = useState<string | null>(null);
+  const [yearBook, setYearBook] = useState<string | null>(null);
 
   useEffect(() => {
     const yday = shiftIstDateKey(tradingDateKey(), -1);
@@ -362,6 +363,21 @@ export default function ReviewPageClient({ userName }: Props) {
         }
       } catch {
         // Review still grades from yesterday's contract.
+      }
+
+      try {
+        const yearResponse = await apiFetch("/api/review/year-book", {
+          cache: "no-store",
+        });
+        const yearPayload = await parseApiJson<{ yearBook?: string }>(
+          yearResponse,
+          "Year book",
+        );
+        if (yearResponse.ok && yearPayload?.yearBook) {
+          setYearBook(yearPayload.yearBook);
+        }
+      } catch {
+        // Weekly review still grades without the year blotter.
       }
     })();
   }, []);
@@ -424,6 +440,8 @@ export default function ReviewPageClient({ userName }: Props) {
         loopLine={loopLine}
         ruleGrade={ruleGrade}
         sundayLetter={sundayLetter}
+        yearBook={yearBook}
+        calendarHref="/api/review/close-letter.ics"
       />
 
       <ContextualLessonPanel lesson={contextualLesson} loading={lessonLoading} />

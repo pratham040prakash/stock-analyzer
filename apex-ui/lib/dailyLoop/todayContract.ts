@@ -35,6 +35,12 @@ export type TodayContract = {
   cashMandate?: string;
   nameDiary?: Array<{ dateKey: string; symbol: string; line: string }>;
   sundayLetter?: string;
+  deskSatAt?: string;
+  fillStampedAt?: string;
+  killGttId?: string;
+  bookGttIds?: string[];
+  firstWrongName?: string;
+  lockedMorningBook?: boolean;
 };
 
 const STORAGE_PREFIX = "apex_today_contract";
@@ -162,6 +168,12 @@ export function rememberDeskFields(
     cashMandate: next.cashMandate ?? previous.cashMandate,
     nameDiary: next.nameDiary ?? previous.nameDiary,
     sundayLetter: previous.sundayLetter ?? next.sundayLetter,
+    deskSatAt: next.deskSatAt ?? previous.deskSatAt,
+    fillStampedAt: next.fillStampedAt ?? previous.fillStampedAt,
+    killGttId: previous.killGttId ?? next.killGttId,
+    bookGttIds: previous.bookGttIds ?? next.bookGttIds,
+    firstWrongName: previous.firstWrongName ?? next.firstWrongName,
+    lockedMorningBook: next.lockedMorningBook ?? previous.lockedMorningBook,
   };
 }
 
