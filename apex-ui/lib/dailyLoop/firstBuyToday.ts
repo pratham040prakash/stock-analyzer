@@ -571,12 +571,14 @@ export function runFirstBuyTodaySelfCheck(): void {
     holdLabel: FIRST_BUY_HOLD_LABEL,
     cashInr: 14_213,
   });
-  assert(holdCard !== null, "Starter hold card must build");
+  if (!holdCard) {
+    throw new Error("First-buy today self-check failed: Starter hold card must build");
+  }
   assert(holdCard.position.includes("4 shares"), "Hold card must show size");
   assert(holdCard.marks.includes("Avg"), "Hold card must show average");
-  assert(holdCard.plan?.includes("390"), "Hold card must show the stop");
+  assert(Boolean(holdCard.plan?.includes("390")), "Hold card must show the stop");
   assert(
-    holdCard.next?.includes("second name"),
+    Boolean(holdCard.next?.includes("second name")),
     "Hold card must say what leftover cash is for",
   );
 
