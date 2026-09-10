@@ -39,6 +39,8 @@ import TodayDetailsAccordion from "@/components/dailyLoop/TodayDetailsAccordion"
 import TodayWaitInsightCard from "@/components/dailyLoop/TodayWaitInsightCard";
 import TodayBookLine from "@/components/dailyLoop/TodayBookLine";
 import TodayStarterHoldCard from "@/components/dailyLoop/TodayStarterHoldCard";
+import TodaySecondNameCard from "@/components/dailyLoop/TodaySecondNameCard";
+import { buildSecondNameWatch, pickSecondName } from "@/lib/dailyLoop/secondNameToday";
 import TodayWatchlistPanel from "@/components/dailyLoop/TodayWatchlistPanel";
 import TodaySyncStatusBanner from "@/components/dailyLoop/TodaySyncStatusBanner";
 import InvestmentJourneyPanel from "@/components/journey/InvestmentJourneyPanel";
@@ -758,7 +760,22 @@ export default function HomeDecisionScreen({
     onDisciplineCommitted?.();
   }, [brokerStepCompleted, onDisciplineCommitted]);
 
+  const secondNamePick = useMemo(() => {
+    if (!starterBook) {
+      return null;
+    }
+
+    return pickSecondName({
+      heldSymbol: starterHoldingSymbol,
+      picks: decision.picks,
+    });
+  }, [decision.picks, starterBook, starterHoldingSymbol]);
+
   const explorePicks = useMemo(() => {
+    if (starterBook && secondNamePick) {
+      return [secondNamePick];
+    }
+
     if (!isExplore || !decision.picks?.length) {
       return [];
     }
@@ -768,15 +785,36 @@ export default function HomeDecisionScreen({
     );
 
     return decision.picks.filter((pick) => symbols.has(pick.stock));
-  }, [capitalDecision.exploreSetups, decision.picks, isExplore]);
+  }, [
+    capitalDecision.exploreSetups,
+    decision.picks,
+    isExplore,
+    secondNamePick,
+    starterBook,
+  ]);
 
   const {
     triggerBySymbol: exploreTriggerBySymbol,
   } = useExploreTriggers({
-    enabled: isExplore && explorePicks.length > 0,
+    enabled: explorePicks.length > 0 && (isExplore || starterBook),
     picks: explorePicks,
     refreshKey: decisionUpdatedAt,
   });
+  const secondNameWatch =
+    starterBook && !isExplore
+      ? buildSecondNameWatch({
+          heldSymbol: starterHoldingSymbol,
+          picks: decision.picks,
+          cashInr: availableCash ?? 0,
+          livePriceInr: secondNamePick
+            ? exploreTriggerBySymbol.get(secondNamePick.stock.trim().toUpperCase())
+                ?.livePrice ??
+              exploreTriggerBySymbol.get(secondNamePick.stock)?.livePrice ??
+              secondNamePick.price ??
+              null
+            : null,
+        })
+      : null;
   const isExploreEmpty =
     isExplore &&
     capitalDecision.exploreSetups.length === 0 &&
@@ -1286,7 +1324,13 @@ export default function HomeDecisionScreen({
                   dayPnl={starterHoldLines ? null : liveDayPnl}
                 />
                 {starterHoldLines ? (
-                  <TodayStarterHoldCard lines={starterHoldLines} />
+                  <TodayStarterHoldCard
+                    lines={starterHoldLines}
+                    hideCashFork={Boolean(secondNameWatch)}
+                  />
+                ) : null}
+                {secondNameWatch ? (
+                  <TodaySecondNameCard watch={secondNameWatch} />
                 ) : null}
                 {emptyBook &&
                 onIntentChange &&

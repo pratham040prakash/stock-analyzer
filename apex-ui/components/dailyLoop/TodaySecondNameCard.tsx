@@ -1,0 +1,47 @@
+"use client";
+
+import type { SecondNameWatch } from "@/lib/dailyLoop/secondNameToday";
+
+type Props = {
+  watch: SecondNameWatch;
+};
+
+export default function TodaySecondNameCard({ watch }: Props) {
+  return (
+    <section className="relative overflow-hidden rounded-[28px] border border-white/[0.08] bg-gradient-to-b from-violet-400/[0.08] to-transparent px-5 py-5 sm:px-6">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(167,139,250,0.14),transparent_46%)]" />
+
+      <div className="relative flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-apex-muted/70">
+            {watch.eyebrow}
+          </p>
+          <p className="mt-1 text-lg font-semibold tracking-tight text-apex-text">
+            {watch.symbol}
+          </p>
+        </div>
+        <p className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-[11px] font-medium text-apex-text">
+          {watch.through ? "At the line" : "Not through it"}
+        </p>
+      </div>
+
+      <div className="relative mt-5 text-center">
+        {watch.lastLabel ? (
+          <p className="text-3xl font-semibold tracking-tight text-apex-text sm:text-4xl">
+            {watch.lastLabel}
+          </p>
+        ) : null}
+        {watch.triggerLabel ? (
+          <p className="mt-2 text-sm text-violet-100/85">{watch.triggerLabel}</p>
+        ) : null}
+      </div>
+
+      <p className="relative mt-5 text-sm text-apex-text/90">
+        {watch.ticketLabel} → {watch.leftoverLabel}
+      </p>
+      <p className="relative mt-1 text-sm leading-relaxed text-apex-muted/85">
+        {watch.statusLine}
+      </p>
+    </section>
+  );
+}

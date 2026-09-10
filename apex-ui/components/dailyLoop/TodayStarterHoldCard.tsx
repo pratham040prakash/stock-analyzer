@@ -4,6 +4,7 @@ import type { StarterBookHoldLines } from "@/lib/dailyLoop/firstBuyToday";
 
 type Props = {
   lines: StarterBookHoldLines;
+  hideCashFork?: boolean;
 };
 
 function toneClass(value: number | null): string {
@@ -32,7 +33,10 @@ function lastMarkPercent(pct: number | null): number {
   return Math.max(8, Math.min(92, 50 + pct * 8));
 }
 
-export default function TodayStarterHoldCard({ lines }: Props) {
+export default function TodayStarterHoldCard({
+  lines,
+  hideCashFork = false,
+}: Props) {
   const mark = lastMarkPercent(lines.vsBuyPct);
 
   return (
@@ -82,7 +86,7 @@ export default function TodayStarterHoldCard({ lines }: Props) {
         </div>
       </div>
 
-      {lines.cashLabel || lines.next ? (
+      {!hideCashFork && (lines.cashLabel || lines.next) ? (
         <div className="relative mt-5 rounded-2xl border border-sky-300/15 bg-sky-400/[0.08] px-4 py-3">
           {lines.nextEyebrow ? (
             <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-sky-100/70">
