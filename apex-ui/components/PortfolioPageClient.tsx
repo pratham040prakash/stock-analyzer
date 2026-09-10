@@ -253,7 +253,7 @@ export default function PortfolioPageClient({
             dayPnl={liveDayPnl ?? portfolio?.day_pnl ?? null}
             cashInr={availableCash}
             lastSyncedAt={liveLastSyncedAt}
-            proofHref={portfolioProofHref}
+            proofHref={youngBook ? null : portfolioProofHref}
           />
 
           {fundsSyncError ? (
@@ -294,6 +294,7 @@ export default function PortfolioPageClient({
                   ? undefined
                   : bucketBySymbol[holding.tradingsymbol.toUpperCase()]
               }
+              quiet={youngBook}
             />
           ))}
 

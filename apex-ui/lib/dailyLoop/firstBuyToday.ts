@@ -3,6 +3,14 @@ import type { TodayExecutionKind } from "@/lib/dailyLoop/todaySurface";
 import type { UserIntent } from "@/types/intent";
 import { formatInr } from "@/lib/funds";
 
+function formatMarkInr(value: number): string {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
 export const FIRST_BUY_HOLD_LABEL = "2–8 weeks";
 
 export type FirstBuySize = {
@@ -306,8 +314,8 @@ export function buildStarterBookHoldLines(input: {
   const hasAvg = avg !== null && avg !== undefined && Number.isFinite(avg) && avg > 0;
   const hasLast = last !== null && last !== undefined && Number.isFinite(last) && last > 0;
   const marks: string[] = [];
-  const avgLabel = hasAvg ? `Avg ${formatInr(avg)}` : null;
-  const lastLabel = hasLast ? formatInr(last) : null;
+  const avgLabel = hasAvg ? `Avg ${formatMarkInr(avg)}` : null;
+  const lastLabel = hasLast ? formatMarkInr(last) : null;
 
   if (avgLabel) {
     marks.push(avgLabel);

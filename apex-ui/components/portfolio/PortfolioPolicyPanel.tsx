@@ -26,7 +26,7 @@ export default function PortfolioPolicyPanel({
   sector,
   youngBook = false,
 }: Props) {
-  if (!allocation && !health && !sector) {
+  if (youngBook || (!allocation && !health && !sector)) {
     return null;
   }
 
@@ -66,14 +66,9 @@ export default function PortfolioPolicyPanel({
           </div>
         ) : null}
 
-        {sector && !youngBook ? (
+        {sector ? (
           <p className="text-xs leading-relaxed text-apex-muted/75">
             {sector.policy_note}
-          </p>
-        ) : youngBook ? (
-          <p className="text-xs leading-relaxed text-apex-muted/70">
-            Two names is a young book. Sector and allocation targets wait until the
-            book is larger.
           </p>
         ) : null}
       </div>

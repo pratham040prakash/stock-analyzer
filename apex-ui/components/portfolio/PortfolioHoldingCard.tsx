@@ -18,6 +18,7 @@ type Props = {
   holding: PortfolioHoldingRow;
   health?: HoldingHealthChip;
   bucket?: AllocationBucket;
+  quiet?: boolean;
 };
 
 function toneClass(value: number | null): string {
@@ -52,7 +53,12 @@ function lastMarkPercent(pct: number | null): number {
   return Math.max(8, Math.min(92, 50 + pct * 8));
 }
 
-export default function PortfolioHoldingCard({ holding, health, bucket }: Props) {
+export default function PortfolioHoldingCard({
+  holding,
+  health,
+  bucket,
+  quiet = false,
+}: Props) {
   const shares =
     holding.quantity === 1 ? "1 share" : `${Math.round(holding.quantity)} shares`;
   const hasAvg = Number.isFinite(holding.average_price) && holding.average_price > 0;
@@ -118,16 +124,18 @@ export default function PortfolioHoldingCard({ holding, health, bucket }: Props)
         <div className="mt-3 flex items-center justify-between gap-3 text-xs text-apex-muted/80">
           <span>{hasAvg ? `Avg ${formatLast(holding.average_price)}` : "Your buy"}</span>
           <span>{formatInr(holding.value)}</span>
-          <span>{Math.round(holding.allocation_pct)}%</span>
+          {quiet ? null : <span>{Math.round(holding.allocation_pct)}%</span>}
         </div>
       </div>
 
-      <Link
-        href={`/app/research?symbol=${encodeURIComponent(holding.tradingsymbol)}`}
-        className="relative mt-4 inline-flex text-xs text-apex-muted/70 underline-offset-2 hover:text-apex-text hover:underline"
-      >
-        Research →
-      </Link>
+      {quiet ? null : (
+        <Link
+          href={`/app/research?symbol=${encodeURIComponent(holding.tradingsymbol)}`}
+          className="relative mt-4 inline-flex text-xs text-apex-muted/70 underline-offset-2 hover:text-apex-text hover:underline"
+        >
+          Research →
+        </Link>
+      )}
     </article>
   );
 }
