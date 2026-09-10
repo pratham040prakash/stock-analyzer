@@ -779,20 +779,38 @@ export default function HomeDecisionScreen({
     onDisciplineCommitted?.();
   }, [brokerStepCompleted, onDisciplineCommitted]);
 
-  const secondNamePick = useMemo(() => {
-    if (!starterBook) {
+  const nextNamePick = useMemo(() => {
+    if (isExplore) {
       return null;
     }
 
-    return pickSecondName({
-      heldSymbol: starterHoldingSymbol,
-      picks: decision.picks,
-    });
-  }, [decision.picks, starterBook, starterHoldingSymbol]);
+    if (starterBook) {
+      return pickSecondName({
+        heldSymbol: starterHoldingSymbol,
+        picks: decision.picks,
+      });
+    }
+
+    if (youngBook) {
+      return pickSecondName({
+        heldSymbols: youngBookHoldings.map((holding) => holding.tradingsymbol),
+        picks: decision.picks,
+      });
+    }
+
+    return null;
+  }, [
+    decision.picks,
+    isExplore,
+    starterBook,
+    starterHoldingSymbol,
+    youngBook,
+    youngBookHoldings,
+  ]);
 
   const explorePicks = useMemo(() => {
-    if (starterBook && secondNamePick) {
-      return [secondNamePick];
+    if (nextNamePick && (starterBook || youngBook)) {
+      return [nextNamePick];
     }
 
     if (!isExplore || !decision.picks?.length) {
@@ -808,30 +826,34 @@ export default function HomeDecisionScreen({
     capitalDecision.exploreSetups,
     decision.picks,
     isExplore,
-    secondNamePick,
+    nextNamePick,
     starterBook,
+    youngBook,
   ]);
 
   const {
     triggerBySymbol: exploreTriggerBySymbol,
   } = useExploreTriggers({
-    enabled: explorePicks.length > 0 && (isExplore || starterBook),
+    enabled: explorePicks.length > 0 && (isExplore || starterBook || youngBook),
     picks: explorePicks,
     refreshKey: decisionUpdatedAt,
   });
-  const secondNameWatch =
-    starterBook && !isExplore
+  const nextNameWatch =
+    nextNamePick && !isExplore && (starterBook || youngBook)
       ? buildSecondNameWatch({
-          heldSymbol: starterHoldingSymbol,
+          heldSymbol: starterBook ? starterHoldingSymbol : undefined,
+          heldSymbols: youngBook
+            ? youngBookHoldings.map((holding) => holding.tradingsymbol)
+            : undefined,
           picks: decision.picks,
           cashInr: availableCash ?? 0,
-          livePriceInr: secondNamePick
-            ? exploreTriggerBySymbol.get(secondNamePick.stock.trim().toUpperCase())
-                ?.livePrice ??
-              exploreTriggerBySymbol.get(secondNamePick.stock)?.livePrice ??
-              secondNamePick.price ??
-              null
-            : null,
+          livePriceInr:
+            exploreTriggerBySymbol.get(nextNamePick.stock.trim().toUpperCase())
+              ?.livePrice ??
+            exploreTriggerBySymbol.get(nextNamePick.stock)?.livePrice ??
+            nextNamePick.price ??
+            null,
+          eyebrow: starterBook ? "Next name" : "Third name",
         })
       : null;
   const isExploreEmpty =
@@ -965,6 +987,8 @@ export default function HomeDecisionScreen({
                   symbols: youngBookHoldings.map(
                     (holding) => holding.tradingsymbol,
                   ),
+                  nextSymbol: nextNamePick?.stock,
+                  tapeHardWait: liveTapeHardWait,
                 }),
               }
             : firstBuyApplied;
@@ -1004,6 +1028,7 @@ export default function HomeDecisionScreen({
     liveDayPnl,
     renderIntent,
     liveTapeHardWait,
+    nextNamePick,
     targetIsSacredCore,
     todayHero.symbol,
   ]);
@@ -1037,7 +1062,10 @@ export default function HomeDecisionScreen({
       : [];
   const youngCashCopy =
     youngBook && !starterBook && !isExplore
-      ? buildYoungBookCashCopy(availableCash)
+      ? buildYoungBookCashCopy({
+          cashInr: availableCash,
+          nextSymbol: nextNameWatch?.symbol,
+        })
       : null;
   const firstBuyCommitLabel = resolveEmptyBookCommitLabel({
     emptyBook,
@@ -1373,7 +1401,7 @@ export default function HomeDecisionScreen({
                 {starterHoldLines ? (
                   <TodayStarterHoldCard
                     lines={starterHoldLines}
-                    hideCashFork={Boolean(secondNameWatch)}
+                    hideCashFork={Boolean(nextNameWatch)}
                   />
                 ) : null}
                 {youngHoldLines.length > 0 ? (
@@ -1386,7 +1414,7 @@ export default function HomeDecisionScreen({
                         compact
                       />
                     ))}
-                    {youngCashCopy ? (
+                    {youngCashCopy && !nextNameWatch ? (
                       <div className="rounded-2xl border border-sky-300/15 bg-sky-400/[0.08] px-4 py-3">
                         <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-sky-100/70">
                           Leftover cash
@@ -1416,8 +1444,8 @@ export default function HomeDecisionScreen({
                     ) : null}
                   </div>
                 ) : null}
-                {secondNameWatch ? (
-                  <TodaySecondNameCard watch={secondNameWatch} />
+                {nextNameWatch ? (
+                  <TodaySecondNameCard watch={nextNameWatch} />
                 ) : null}
                 {emptyBook &&
                 onIntentChange &&

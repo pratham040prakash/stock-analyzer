@@ -96,17 +96,24 @@ export function orderYoungBookHoldings<T extends YoungBookHolding>(holdings: T[]
 
 export function buildYoungBookWaitCopy(input: {
   symbols?: Array<string | null | undefined>;
+  nextSymbol?: string | null;
+  tapeHardWait?: boolean;
 }): { headline: string; subline: string } {
   const names = [...new Set(
     (input.symbols ?? [])
       .map((symbol) => symbol?.trim().toUpperCase())
       .filter((symbol): symbol is string => Boolean(symbol)),
   )];
+  const next = input.nextSymbol?.trim().toUpperCase();
 
   if (names.length === 2) {
     return {
       headline: `Hold ${names[0]} and ${names[1]}`,
-      subline: "Two names are the book. No trim today.",
+      subline: input.tapeHardWait
+        ? "Index is range-bound. No add, no trim."
+        : next
+          ? `Two names are the book. Cash waits on ${next}.`
+          : "Two names are the book. No trim today.",
     };
   }
 
@@ -120,17 +127,24 @@ export function buildYoungBookWaitCopy(input: {
   };
 }
 
-export function buildYoungBookCashCopy(cashInr?: number | null): {
+export function buildYoungBookCashCopy(input: {
+  cashInr?: number | null;
+  nextSymbol?: string | null;
+}): {
   amountLabel: string;
   line: string;
 } | null {
+  const cashInr = input.cashInr;
   if (cashInr === null || cashInr === undefined || !Number.isFinite(cashInr) || cashInr <= 0) {
     return null;
   }
 
+  const next = input.nextSymbol?.trim().toUpperCase();
   return {
     amountLabel: formatInr(cashInr),
-    line: "Stays in cash. No third name today.",
+    line: next
+      ? `Stays in cash until ${next} confirms.`
+      : "Stays in cash. No third name today.",
   };
 }
 
@@ -628,7 +642,7 @@ export function runFirstBuyTodaySelfCheck(): void {
     twoNameHold.subline.includes("No trim"),
     "Young-book Wait must not be a skipped trim",
   );
-  const youngCash = buildYoungBookCashCopy(10_722);
+  const youngCash = buildYoungBookCashCopy({ cashInr: 10_722 });
   assert(
     Boolean(
       youngCash &&
@@ -638,8 +652,22 @@ export function runFirstBuyTodaySelfCheck(): void {
     "Young-book Wait must place leftover cash",
   );
   assert(
-    buildYoungBookCashCopy(0) === null,
+    buildYoungBookCashCopy({
+      cashInr: 10_722,
+      nextSymbol: "DIVISLAB",
+    })?.line.includes("DIVISLAB") === true,
+    "Young-book cash must name the third-name watch",
+  );
+  assert(
+    buildYoungBookCashCopy({ cashInr: 0 }) === null,
     "No cash line when leftover cash is empty",
+  );
+  assert(
+    buildYoungBookWaitCopy({
+      symbols: ["COALINDIA", "ADANIPORTS"],
+      nextSymbol: "DIVISLAB",
+    }).subline.includes("DIVISLAB"),
+    "Young-book Wait must name where cash waits",
   );
   assert(
     !twoNameHold.headline.toLowerCase().includes("trim") &&

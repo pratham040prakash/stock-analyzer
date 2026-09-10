@@ -22,15 +22,27 @@ export type SecondNameWatch = {
   eyebrow: string;
 };
 
+function heldSymbolSet(input: {
+  heldSymbol?: string | null;
+  heldSymbols?: Array<string | null | undefined>;
+}): Set<string> {
+  return new Set(
+    [input.heldSymbol, ...(input.heldSymbols ?? [])]
+      .map((symbol) => symbol?.trim().toUpperCase())
+      .filter((symbol): symbol is string => Boolean(symbol)),
+  );
+}
+
 export function pickSecondName<T extends SecondNamePick>(input: {
   heldSymbol?: string | null;
+  heldSymbols?: Array<string | null | undefined>;
   picks?: T[] | null;
 }): T | null {
-  const held = input.heldSymbol?.trim().toUpperCase();
+  const held = heldSymbolSet(input);
   const ranked = [...(input.picks ?? [])]
     .filter((pick) => {
       const symbol = pick.stock.trim().toUpperCase();
-      return symbol.length > 0 && symbol !== held;
+      return symbol.length > 0 && !held.has(symbol);
     })
     .sort((left, right) => (right.score ?? 0) - (left.score ?? 0));
 
@@ -39,10 +51,12 @@ export function pickSecondName<T extends SecondNamePick>(input: {
 
 export function buildSecondNameWatch<T extends SecondNamePick>(input: {
   heldSymbol?: string | null;
+  heldSymbols?: Array<string | null | undefined>;
   picks?: T[] | null;
   cashInr: number;
   livePriceInr?: number | null;
   ticketInr?: number | null;
+  eyebrow?: string;
 }): SecondNameWatch | null {
   const cash = Math.max(0, Math.round(input.cashInr));
   if (cash <= 0) {
@@ -98,7 +112,7 @@ export function buildSecondNameWatch<T extends SecondNamePick>(input: {
     ticketLabel: `${formatInr(size.ticketInr)} ticket`,
     leftoverLabel: `${formatInr(size.leftoverInr)} stays in cash`,
     statusLine,
-    eyebrow: "Next name",
+    eyebrow: input.eyebrow?.trim() || "Next name",
   };
 }
 
@@ -150,4 +164,22 @@ export function runSecondNameTodaySelfCheck(): void {
   assert(watch.size.ticketInr > 0, "Watch must size a ticket from cash");
   assert(watch.size.leftoverInr >= 0, "Watch must leave leftover cash");
   assert(watch.statusLine.includes("confirms"), "Watch must wait for confirmation");
+
+  const third = pickSecondName({
+    heldSymbols: ["COALINDIA", "ADANIPORTS"],
+    picks: [
+      ...picks,
+      { stock: "ADANIPORTS", score: 80, price: 1760, activationLevel: 1780 },
+    ],
+  });
+  assert(third?.stock === "DIVISLAB", "Third name must skip both holdings");
+  const thirdWatch = buildSecondNameWatch({
+    heldSymbols: ["COALINDIA", "ADANIPORTS"],
+    picks,
+    cashInr: 10_722,
+    livePriceInr: 9500,
+    eyebrow: "Third name",
+  });
+  assert(thirdWatch?.eyebrow === "Third name", "Two-name leftover cash is a third-name watch");
+  assert(thirdWatch?.symbol === "DIVISLAB", "Third-name watch skips the book");
 }
