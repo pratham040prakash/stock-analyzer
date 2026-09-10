@@ -720,6 +720,7 @@ export function ExecutionStatusBlock({
   executionKind,
   brokerStepCompleted = false,
   followCtaLabel,
+  quiet = false,
 }: {
   committedToday: boolean;
   onMarkFollowed: () => void;
@@ -735,6 +736,7 @@ export function ExecutionStatusBlock({
   executionKind?: TodayExecutionKind;
   brokerStepCompleted?: boolean;
   followCtaLabel?: string;
+  quiet?: boolean;
 }) {
   const trustReinforcement =
     capitalDeployment && committedToday && decision
@@ -747,12 +749,12 @@ export function ExecutionStatusBlock({
         className="mt-8 space-y-2 animate-apex-fade-in"
         style={{ animationDelay: `${delayMs}ms` }}
       >
-        {commitmentHeadline ? (
+        {!quiet && commitmentHeadline ? (
           <p className="text-sm font-medium leading-snug text-apex-text/90">
             {commitmentHeadline}
           </p>
         ) : null}
-        {commitmentMicroReward ? (
+        {!quiet && commitmentMicroReward ? (
           <p className="text-xs leading-snug text-apex-muted/65">
             {commitmentMicroReward}
           </p>
@@ -771,7 +773,7 @@ export function ExecutionStatusBlock({
             {followCtaLabel ?? "I followed the plan"}
           </button>
         )}
-        {trustReinforcement ? (
+        {quiet ? null : trustReinforcement ? (
           <div className="space-y-1 pt-1">
             <p className="text-sm leading-snug text-apex-text/90">
               {trustReinforcement.confirmation}
@@ -815,10 +817,13 @@ export function ExecutionStatusBlock({
       style={{ animationDelay: `${delayMs}ms` }}
     >
       <div className="space-y-1">
-        <p className="text-xs font-medium uppercase tracking-[0.12em] text-apex-muted">
-          Execution status
-        </p>
+        {quiet ? null : (
+          <p className="text-xs font-medium uppercase tracking-[0.12em] text-apex-muted">
+            Execution status
+          </p>
+        )}
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-6">
+          {quiet ? null : (
           <p
             className={[
               "text-sm leading-snug",
@@ -827,6 +832,7 @@ export function ExecutionStatusBlock({
           >
             [ ] Not acted
           </p>
+          )}
           {committedToday ? (
             <p className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-center text-sm font-medium text-emerald-100">
               Followed today — that counts
@@ -843,9 +849,11 @@ export function ExecutionStatusBlock({
         </div>
       </div>
 
-      <p className="text-sm text-apex-text/80">{streakMessage}</p>
+      {quiet ? null : (
+        <p className="text-sm text-apex-text/80">{streakMessage}</p>
+      )}
 
-      {committedToday ? (
+      {quiet ? null : committedToday ? (
         <div className="space-y-2 rounded-lg border border-apex-border/15 bg-white/[0.02] px-4 py-3">
           <p className="text-sm font-medium leading-snug text-apex-text/90">
             {DAILY_CLOSURE_HEADLINE}

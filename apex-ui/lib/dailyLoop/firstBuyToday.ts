@@ -1,5 +1,6 @@
 import type { DailyVerdict, DailyVerdictPresentation } from "@/lib/dailyLoop/dailyVerdict";
 import type { TodayExecutionKind } from "@/lib/dailyLoop/todaySurface";
+import type { UserIntent } from "@/types/intent";
 import { formatInr } from "@/lib/funds";
 
 export const FIRST_BUY_HOLD_LABEL = "2–8 weeks";
@@ -113,8 +114,8 @@ export function applyFirstBuyPresentation(input: {
       headline: "Wait — first-buy plan is not ready",
       subline:
         "Need an entry, a stop, and a hold window before you start the book.",
-      ctaLabel: "You're done for today",
-      doneForToday: true,
+      ctaLabel: "I waited",
+      doneForToday: false,
       tradingLocked: true,
     };
   }
@@ -136,6 +137,98 @@ export function applyFirstBuyPresentation(input: {
     doneForToday: false,
     tradingLocked: false,
   };
+}
+
+export function buildEmptyBookWaitCopy(input: {
+  symbol?: string;
+  livePriceInr?: number | null;
+  triggerInr?: number | null;
+}): { headline: string; subline: string } {
+  const symbol = input.symbol?.trim().toUpperCase();
+  const live =
+    input.livePriceInr !== null &&
+    input.livePriceInr !== undefined &&
+    input.livePriceInr > 0
+      ? input.livePriceInr
+      : null;
+  const trigger =
+    input.triggerInr !== null &&
+    input.triggerInr !== undefined &&
+    input.triggerInr > 0
+      ? input.triggerInr
+      : null;
+
+  if (symbol && live && trigger) {
+    return {
+      headline: `Wait — ${symbol} is at ${formatInr(live)}, not through it`,
+      subline: `Buy above ${formatInr(trigger)}. Cash stays put until it confirms.`,
+    };
+  }
+
+  if (symbol && trigger) {
+    return {
+      headline: `Wait — ${symbol} has not confirmed`,
+      subline: `Buy above ${formatInr(trigger)}. Cash stays put.`,
+    };
+  }
+
+  return {
+    headline: "Wait — cash stays in the account",
+    subline: "No first position until a name confirms.",
+  };
+}
+
+export function applyEmptyBookPresentation(input: {
+  presentation: DailyVerdictPresentation;
+  emptyBook: boolean;
+  lens: UserIntent;
+}): DailyVerdictPresentation {
+  if (!input.emptyBook) {
+    return input.presentation;
+  }
+
+  if (input.presentation.verdict === "pause") {
+    return input.presentation;
+  }
+
+  if (input.lens === "protect") {
+    return {
+      ...input.presentation,
+      verdict: "wait",
+      displayWord: "Wait",
+      headline: "No book to protect",
+      subline: "Risk has no work until you hold a position.",
+      ctaLabel: "I waited",
+      doneForToday: false,
+      tradingLocked: true,
+    };
+  }
+
+  return {
+    ...input.presentation,
+    doneForToday: false,
+  };
+}
+
+export function resolveEmptyBookCommitLabel(input: {
+  emptyBook: boolean;
+  firstBuy: boolean;
+  planReady: boolean;
+  verdict: DailyVerdict;
+  marketOpen: boolean;
+  brokerDone: boolean;
+}): string | null {
+  if (!input.emptyBook && !input.firstBuy) {
+    return null;
+  }
+
+  return resolveFirstBuyCommitLabel({
+    firstBuy: input.emptyBook || input.firstBuy,
+    planReady: input.planReady,
+    verdict: input.verdict,
+    marketOpen: input.marketOpen,
+    brokerDone: input.brokerDone,
+  });
 }
 
 export function resolveFirstBuyCommitLabel(input: {
@@ -290,5 +383,35 @@ export function runFirstBuyTodaySelfCheck(): void {
       brokerDone: false,
     }) === "I started the book in Kite",
     "Open-market commit is started the book",
+  );
+
+  const namedWait = buildEmptyBookWaitCopy({
+    symbol: "COALINDIA",
+    livePriceInr: 431,
+    triggerInr: 431,
+  });
+  assert(
+    namedWait.headline.includes("COALINDIA") && namedWait.headline.includes("431"),
+    "Empty-book Wait must name the setup and price",
+  );
+
+  const risk = applyEmptyBookPresentation({
+    presentation: waitBase,
+    emptyBook: true,
+    lens: "protect",
+  });
+  assert(risk.headline === "No book to protect", "Empty Risk must not invent a name");
+  assert(!risk.doneForToday, "Empty-book Wait must not close the morning");
+
+  assert(
+    resolveEmptyBookCommitLabel({
+      emptyBook: true,
+      firstBuy: false,
+      planReady: false,
+      verdict: "wait",
+      marketOpen: true,
+      brokerDone: false,
+    }) === "I waited",
+    "Empty-book Wait commit is I waited",
   );
 }

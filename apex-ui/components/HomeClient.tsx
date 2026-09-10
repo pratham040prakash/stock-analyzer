@@ -1213,11 +1213,15 @@ export default function HomeClient({
 
         {showGuidance && profileComplete && operatingProfileComplete ? (
           <>
+            {connectionStatus === "CONNECTED" &&
+            visiblePortfolioHoldings.filter((row) => row.quantity > 0).length === 0 &&
+            (resolvedPortfolioValue ?? 0) <= 0 ? null : (
             <IntentSelector
               intent={userIntent}
               onIntentChange={setUserIntent}
               previews={todayFocusPreviews}
             />
+            )}
             {portfolioLoading && !hasPortfolioData && connectionStatus === "CONNECTED" ? (
               <PortfolioSummarySkeleton />
             ) : null}
@@ -1380,6 +1384,7 @@ export default function HomeClient({
                   : undefined
               }
               tapeHardWait={dailyInsight?.tape_hard_wait === true}
+              onIntentChange={setUserIntent}
             />
             </>
           ) : null}

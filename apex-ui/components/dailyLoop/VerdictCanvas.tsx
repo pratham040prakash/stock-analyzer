@@ -30,6 +30,7 @@ export type VerdictCanvasProps = {
   hideSetupConfidence?: boolean;
   compactWaitCopy?: boolean;
   chipLabel?: string;
+  hideChip?: boolean;
 };
 
 const VERDICT_THEME: Record<
@@ -70,6 +71,7 @@ export default function VerdictCanvas({
   hideStaleRibbon = false,
   compactWaitCopy = false,
   chipLabel,
+  hideChip = false,
 }: VerdictCanvasProps) {
   const theme = VERDICT_THEME[dailyVerdict];
   const showStaleRibbon =
@@ -105,16 +107,18 @@ export default function VerdictCanvas({
         >
           {verdictWord}
         </p>
-        <p
-          className={`mx-auto mt-3 inline-flex rounded-full border px-3 py-1 text-[11px] font-medium ${theme.chip}`}
-        >
-          {chipLabel ??
-            (dailyVerdict === "wait"
-              ? "Doing nothing is the plan"
-              : dailyVerdict === "pause"
-                ? "Capital stays protected"
-                : "One action in Kite")}
-        </p>
+        {hideChip ? null : (
+          <p
+            className={`mx-auto mt-3 inline-flex rounded-full border px-3 py-1 text-[11px] font-medium ${theme.chip}`}
+          >
+            {chipLabel ??
+              (dailyVerdict === "wait"
+                ? "Doing nothing is the plan"
+                : dailyVerdict === "pause"
+                  ? "Capital stays protected"
+                  : "One action in Kite")}
+          </p>
+        )}
       </div>
 
       <div className="relative mx-auto mt-6 max-w-[28rem] space-y-2 text-center">

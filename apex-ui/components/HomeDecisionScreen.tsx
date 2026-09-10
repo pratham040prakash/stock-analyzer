@@ -48,13 +48,15 @@ import {
 import { resolveTodayDataFreshness } from "@/lib/dailyLoop/todayDataFreshness";
 import {
   FIRST_BUY_HOLD_LABEL,
+  applyEmptyBookPresentation,
   applyFirstBuyPresentation,
+  buildEmptyBookWaitCopy,
   buildFirstBuySize,
   buildFirstBuyWhy,
   hasCompleteFirstBuyPlan,
   isEmptyBook,
   isFirstBuyCandidate,
-  resolveFirstBuyCommitLabel,
+  resolveEmptyBookCommitLabel,
 } from "@/lib/dailyLoop/firstBuyToday";
 import { useMarketSession } from "@/lib/broker/useMarketSession";
 import {
@@ -160,6 +162,7 @@ export type HomeDecisionScreenProps = {
     onDismiss: () => void;
   };
   tapeHardWait?: boolean;
+  onIntentChange?: (intent: UserIntent) => void;
   className?: string;
 };
 
@@ -203,6 +206,7 @@ export default function HomeDecisionScreen({
   proofHref = null,
   researchHandoff,
   tapeHardWait: tapeHardWaitProp = false,
+  onIntentChange,
   className = "",
 }: HomeDecisionScreenProps) {
   const features = premiumFeatures ?? {
@@ -830,24 +834,28 @@ export default function HomeDecisionScreen({
         (setup) => setup.stage === "Close to readiness",
       ).length;
 
-      return {
-        ...base,
-        verdict: "wait" as const,
-        displayWord: "Wait",
-        headline:
-          closeCount > 0
-            ? `${closeCount} almost ready — still no trade today`
-            : "Watch today — cash stays in your account",
-        subline: top
-          ? `Top watch: ${top.symbol}. ${formatExploreSetupSummary(top)}`
-          : capitalDecision.heroSubline,
-        ctaLabel: "You're done for today",
-        doneForToday: true,
-        tradingLocked: true,
-      };
+      return applyEmptyBookPresentation({
+        presentation: {
+          ...base,
+          verdict: "wait" as const,
+          displayWord: "Wait",
+          headline:
+            closeCount > 0
+              ? `${closeCount} almost ready — still no trade today`
+              : "Watch today — cash stays in your account",
+          subline: top
+            ? `Top watch: ${top.symbol}. ${formatExploreSetupSummary(top)}`
+            : capitalDecision.heroSubline,
+          ctaLabel: "You're done for today",
+          doneForToday: true,
+          tradingLocked: true,
+        },
+        emptyBook,
+        lens: renderIntent,
+      });
     }
 
-    return applyFirstBuyPresentation({
+    const firstBuyApplied = applyFirstBuyPresentation({
       presentation: base,
       firstBuy: firstBuyCandidate,
       planReady: firstBuyPlanReady,
@@ -855,6 +863,26 @@ export default function HomeDecisionScreen({
       ticketInr: firstBuyTicket,
       why: firstBuyWhy,
       brokerDone: brokerStepCompleted || brokerStepSkipped,
+    });
+
+    const namedWait =
+      emptyBook &&
+      renderIntent === "grow" &&
+      firstBuyApplied.verdict === "wait"
+        ? {
+            ...firstBuyApplied,
+            ...buildEmptyBookWaitCopy({
+              symbol: todayHero.symbol ?? firstBuyPick?.stock,
+              livePriceInr: firstBuyPick?.price ?? null,
+              triggerInr: firstBuyPick?.activationLevel ?? null,
+            }),
+          }
+        : firstBuyApplied;
+
+    return applyEmptyBookPresentation({
+      presentation: namedWait,
+      emptyBook,
+      lens: renderIntent,
     });
   }, [
     brokerStepCompleted,
@@ -867,19 +895,23 @@ export default function HomeDecisionScreen({
     displayHero.headline,
     displayHero.subline,
     displayPortfolioValue,
+    emptyBook,
     entryTiming.enter,
     firstBuyCandidate,
+    firstBuyPick,
     firstBuyPlanReady,
     firstBuyTicket,
     firstBuyWhy,
     isExplore,
     isExploreEmpty,
     liveDayPnl,
+    renderIntent,
     liveTapeHardWait,
     targetIsSacredCore,
     todayHero.symbol,
   ]);
-  const firstBuyCommitLabel = resolveFirstBuyCommitLabel({
+  const firstBuyCommitLabel = resolveEmptyBookCommitLabel({
+    emptyBook,
     firstBuy: firstBuyCandidate,
     planReady: firstBuyPlanReady,
     verdict: verdictPresentation.verdict,
@@ -960,6 +992,10 @@ export default function HomeDecisionScreen({
         firstBuyCandidate && verdictPresentation.displayWord === "Start"
           ? "First position in Kite"
           : undefined,
+      hideChip:
+        emptyBook &&
+        verdictPresentation.verdict === "wait" &&
+        verdictPresentation.displayWord !== "Start",
     }),
     [
       brokerStepCompleted,
@@ -973,6 +1009,7 @@ export default function HomeDecisionScreen({
       decision.message,
       decision.reason,
       displayHero.executionKind,
+      emptyBook,
       firstBuyCandidate,
       liveBookFresh,
       livePollError,
@@ -1203,6 +1240,27 @@ export default function HomeDecisionScreen({
                   cashInr={emptyBook ? availableCash ?? null : null}
                   dayPnl={liveDayPnl}
                 />
+                {emptyBook &&
+                onIntentChange &&
+                !isExplore &&
+                capitalDecision.exploreSetups.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => onIntentChange("explore")}
+                    className="text-xs font-medium text-apex-muted/70 underline underline-offset-2 hover:text-apex-text"
+                  >
+                    {capitalDecision.exploreSetups.length} names watching →
+                  </button>
+                ) : null}
+                {emptyBook && isExplore && onIntentChange ? (
+                  <button
+                    type="button"
+                    onClick={() => onIntentChange("grow")}
+                    className="text-xs font-medium text-apex-muted/70 underline underline-offset-2 hover:text-apex-text"
+                  >
+                    Today →
+                  </button>
+                ) : null}
               </>
             ) : null}
 
@@ -1256,33 +1314,7 @@ export default function HomeDecisionScreen({
                   onTicketChange={setTicketOverride}
                 />
               ) : null}
-              {emptyBook ? (
-                journeySymbol ? (
-                  <InvestmentJourneyPanel
-                    symbol={journeySymbol}
-                    currentPriceInr={journeySymbolPrice}
-                    quantity={primarySymbolQty}
-                    dailyVerdict={verdictPresentation.verdict}
-                    brokerStepCompleted={brokerStepCompleted}
-                    compact={verdictPresentation.verdict === "wait"}
-                    portfolioDataStale={false}
-                    apexSuggested={journeyApexSuggested}
-                    preferSwing={journeyPreferSwing}
-                    activationLevelInr={
-                      decision.picks?.find(
-                        (pick) =>
-                          pick.stock.trim().toUpperCase() ===
-                          journeySymbol.trim().toUpperCase(),
-                      )?.activationLevel
-                    }
-                    onTakeProfit={() => {
-                      document
-                        .getElementById("today-execution")
-                        ?.scrollIntoView({ behavior: "smooth", block: "start" });
-                    }}
-                  />
-                ) : null
-              ) : (
+              {emptyBook ? null : (
               <TodayDetailsAccordion>
                 {showPortfolioSummary ? (
                   <TodayPortfolioSummary {...portfolioSummaryProps} />
@@ -1417,6 +1449,25 @@ export default function HomeDecisionScreen({
             </div>
           ) : isExplore ? (
             <div className="mb-6">
+              {emptyBook ? (
+                !isExploreEmpty ? (
+                  <TodayWatchlistPanel
+                    setups={capitalDecision.exploreSetups}
+                    summary={watchlistSummary}
+                    liveTriggers={exploreTriggerBySymbol}
+                  />
+                ) : (
+                  <section className="rounded-xl border border-apex-border/15 bg-white/[0.02] px-4 py-3">
+                    <p className="text-sm text-apex-text/90">No ideas on the watchlist yet.</p>
+                    <Link
+                      href="/app/research"
+                      className="mt-2 inline-block text-sm font-medium text-sky-200 underline underline-offset-2 hover:text-white"
+                    >
+                      Open Research →
+                    </Link>
+                  </section>
+                )
+              ) : (
               <TodayDetailsAccordion>
                 {!isExploreEmpty ? (
                   <TodayWatchlistPanel
@@ -1489,6 +1540,7 @@ export default function HomeDecisionScreen({
                   days={disciplineDays}
                 />
               </TodayDetailsAccordion>
+              )}
             </div>
           ) : null}
 
@@ -1507,6 +1559,7 @@ export default function HomeDecisionScreen({
             executionKind={todayHero.executionKind}
             brokerStepCompleted={brokerStepCompleted}
             followCtaLabel={firstBuyCommitLabel ?? undefined}
+            quiet={emptyBook}
           />
 
         </div>
