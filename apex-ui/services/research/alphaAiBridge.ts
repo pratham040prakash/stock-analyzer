@@ -23,11 +23,20 @@ export type AlphaAiBridgePayload = {
 };
 
 function resolveAnalyzerRoot(): string | null {
+  const fromEnv = process.env.ANALYZER_REPO_ROOT?.trim();
+  if (fromEnv) {
+    return fromEnv;
+  }
+
+  // Vercel has no local analyzer tree. Walking cwd traces the whole deploy.
+  if (process.env.VERCEL) {
+    return null;
+  }
+
   const candidates = [
-    process.env.ANALYZER_REPO_ROOT,
-    join(process.cwd(), ".."),
-    join(process.cwd()),
-  ].filter(Boolean) as string[];
+    join(/* turbopackIgnore: true */ process.cwd(), ".."),
+    join(/* turbopackIgnore: true */ process.cwd()),
+  ];
 
   for (const root of candidates) {
     if (existsSync(join(root, "analyzer", "alpha_ai_report.py"))) {
