@@ -70,6 +70,7 @@ import { useIntentDecision } from "@/lib/useIntentDecision";
 import { usePortfolioPoll } from "@/lib/usePortfolioPoll";
 import { usePullToRefresh } from "@/lib/usePullToRefresh";
 import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
+import { hydrateAndSyncTodayContract } from "@/lib/dailyLoop/syncTodayContract";
 import { useGreeting } from "@/lib/useGreeting";
 import { useZerodhaOAuth } from "@/lib/useZerodhaOAuth";
 
@@ -279,6 +280,14 @@ export default function HomeClient({
       });
     }
   }, [connectionStatus, portfolioData?.stale]);
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+
+    hydrateAndSyncTodayContract();
+  }, [user]);
 
   const receiptQueryId = searchParams.get("receipt");
   const researchSymbolParam = searchParams.get("research_symbol");

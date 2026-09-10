@@ -55,6 +55,7 @@ import {
   readTodayContract,
   rememberDeskFields,
 } from "@/lib/dailyLoop/todayContract";
+import { syncTodayContractToServer } from "@/lib/dailyLoop/syncTodayContract";
 import {
   buildCampaignLine,
   buildPrefillPreview,
@@ -1025,7 +1026,7 @@ export default function HomeDecisionScreen({
   });
 
   useEffect(() => {
-    if (!(youngBook || starterBook)) {
+    if (!todayContract.kiteLine || !todayContract.rule || !todayContract.dateKey) {
       return;
     }
 
@@ -1039,15 +1040,8 @@ export default function HomeDecisionScreen({
       },
       readTodayContract(),
     );
-    persistTodayContract(merged);
-    void apiFetch("/api/today/contract", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(merged),
-    }).catch(() => {
-      // Local contract remains the same-device fallback.
-    });
-  }, [campaignDay, starterBook, todayContract, todayLoop, youngBook]);
+    syncTodayContractToServer(merged);
+  }, [campaignDay, todayContract, todayLoop]);
 
   useEffect(() => {
     const symbol = nextNameWatch?.symbol;
