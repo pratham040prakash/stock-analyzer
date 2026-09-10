@@ -486,8 +486,13 @@ export default function HomeDecisionScreen({
     capitalDecision.actions.find((action) => action.symbol === todayHero.symbol)
       ?.portfolioWeight;
 
-  const isExplore = renderIntent === "explore";
-  const isCapitalDeployment = renderIntent === "grow" || renderIntent === "protect";
+  const seedStarterBook = isStarterBook({
+    openHoldingsCount: portfolioHoldings.filter((row) => row.quantity > 0).length,
+    portfolioValue: portfolioValue ?? null,
+  });
+  const isExplore = renderIntent === "explore" && !seedStarterBook;
+  const isCapitalDeployment =
+    seedStarterBook || renderIntent === "grow" || renderIntent === "protect";
   const morningBriefEnabled = isCapitalDeployment && connectionStatus === "CONNECTED";
   const {
     brief: morningBrief,
@@ -496,7 +501,7 @@ export default function HomeDecisionScreen({
     refresh: refreshMorningBrief,
   } = useMorningBrief({
     enabled: morningBriefEnabled,
-    intent: renderIntent,
+    intent: seedStarterBook ? "grow" : renderIntent,
     refreshKey: decisionUpdatedAt,
   });
   const monitorEnabled =

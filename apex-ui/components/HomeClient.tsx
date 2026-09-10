@@ -1053,6 +1053,18 @@ export default function HomeClient({
     [brokerPortfolioValue, portfolioData?.total_value, visiblePortfolioHoldings],
   );
 
+  const starterBookToday = isStarterBook({
+    openHoldingsCount,
+    portfolioValue: resolvedPortfolioValue,
+  });
+  const todayIntent = starterBookToday ? "grow" : userIntent;
+
+  useEffect(() => {
+    if (starterBookToday && userIntent !== "grow") {
+      setUserIntent("grow");
+    }
+  }, [setUserIntent, starterBookToday, userIntent]);
+
   const todayFocusPreviews = useMemo(() => {
     if (!dailyDecision) {
       return undefined;
@@ -1336,7 +1348,7 @@ export default function HomeClient({
               <HomeDecisionScreen
               decision={dailyDecision}
               entryTiming={entryTiming}
-              intent={userIntent}
+              intent={todayIntent}
               availableCash={availableCash ?? (fundsSynced ? 0 : undefined)}
               ledgerCash={ledgerCash ?? (fundsSynced ? 0 : undefined)}
               topSymbol={portfolioData?.top_symbol}
