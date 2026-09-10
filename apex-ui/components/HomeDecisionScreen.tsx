@@ -1284,7 +1284,7 @@ export default function HomeDecisionScreen({
                   connectionStatus={connectionStatus}
                   portfolioValue={displayPortfolioValue}
                   cashInr={emptyBook ? availableCash ?? null : null}
-                  dayPnl={liveDayPnl}
+                  dayPnl={starterHoldLines ? null : liveDayPnl}
                 />
                 {starterHoldLines ? (
                   <TodayStarterHoldCard lines={starterHoldLines} />

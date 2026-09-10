@@ -189,10 +189,23 @@ export function buildEmptyBookWaitCopy(input: {
 }
 
 export type StarterBookHoldLines = {
+  symbol: string;
+  sharesLabel: string;
   position: string;
   marks: string;
+  lastLabel: string | null;
+  avgLabel: string | null;
+  dayPnlLabel: string | null;
+  dayPnlInr: number | null;
+  vsBuyLabel: string | null;
+  vsBuyInr: number | null;
+  vsBuyPct: number | null;
   plan: string | null;
+  holdLabel: string | null;
+  stopLabel: string | null;
+  cashLabel: string | null;
   next: string | null;
+  nextEyebrow: string | null;
 };
 
 export function buildStarterBookHoldLines(input: {
@@ -211,47 +224,81 @@ export function buildStarterBookHoldLines(input: {
     return null;
   }
 
-  const shares = quantity === 1 ? "1 share" : `${Math.round(quantity)} shares`;
+  const sharesLabel = quantity === 1 ? "1 share" : `${Math.round(quantity)} shares`;
   const avg = input.averagePriceInr;
   const last = input.lastPriceInr;
   const dayPnl = input.dayPnlInr;
+  const hasAvg = avg !== null && avg !== undefined && Number.isFinite(avg) && avg > 0;
+  const hasLast = last !== null && last !== undefined && Number.isFinite(last) && last > 0;
   const marks: string[] = [];
+  const avgLabel = hasAvg ? `Avg ${formatInr(avg)}` : null;
+  const lastLabel = hasLast ? formatInr(last) : null;
 
-  if (avg !== null && avg !== undefined && Number.isFinite(avg) && avg > 0) {
-    marks.push(`Avg ${formatInr(avg)}`);
+  if (avgLabel) {
+    marks.push(avgLabel);
   }
-  if (last !== null && last !== undefined && Number.isFinite(last) && last > 0) {
+  if (hasLast) {
     marks.push(`Last ${formatInr(last)}`);
   }
+
+  let dayPnlLabel: string | null = null;
+  let dayPnlInr: number | null = null;
   if (dayPnl !== null && dayPnl !== undefined && Number.isFinite(dayPnl)) {
-    marks.push(
+    dayPnlInr = dayPnl;
+    dayPnlLabel =
       dayPnl === 0
         ? "Flat today"
-        : `${dayPnl > 0 ? "+" : "−"}${formatInr(Math.abs(dayPnl))} today`,
-    );
+        : `${dayPnl > 0 ? "+" : "−"}${formatInr(Math.abs(dayPnl))} today`;
+    marks.push(dayPnlLabel);
+  }
+
+  let vsBuyInr: number | null = null;
+  let vsBuyPct: number | null = null;
+  let vsBuyLabel: string | null = null;
+  if (hasAvg && hasLast) {
+    vsBuyInr = last - avg;
+    vsBuyPct = (vsBuyInr / avg) * 100;
+    vsBuyLabel =
+      Math.abs(vsBuyInr) < 0.5
+        ? "At your buy"
+        : vsBuyInr > 0
+          ? `${formatInr(vsBuyInr)} above your buy`
+          : `${formatInr(Math.abs(vsBuyInr))} below your buy`;
   }
 
   const stop = input.stopInr;
-  const holdLabel = input.holdLabel?.trim();
-  const planParts: string[] = [];
-  if (stop !== null && stop !== undefined && Number.isFinite(stop) && stop > 0) {
-    planParts.push(`Stop ${formatInr(stop)}`);
-  }
-  if (holdLabel) {
-    planParts.push(`Hold ${holdLabel}`);
-  }
+  const holdLabel = input.holdLabel?.trim() || null;
+  const hasStop = stop !== null && stop !== undefined && Number.isFinite(stop) && stop > 0;
+  const stopLabel = hasStop ? `Stop ${formatInr(stop)}` : null;
+  const planParts = [stopLabel, holdLabel ? `Hold ${holdLabel}` : null].filter(
+    (part): part is string => Boolean(part),
+  );
 
   const cash = input.cashInr;
-  const next =
-    cash !== null && cash !== undefined && Number.isFinite(cash) && cash > 0
-      ? `${formatInr(cash)} cash waits for a second name — not more ${symbol} today.`
-      : "No cash to add. The work today is to hold.";
+  const hasCash = cash !== null && cash !== undefined && Number.isFinite(cash) && cash > 0;
+  const cashLabel = hasCash ? formatInr(cash) : null;
+  const next = hasCash
+    ? `Waits for a second name — not more ${symbol} today.`
+    : "No cash to add. The work today is to hold.";
 
   return {
-    position: `${symbol} · ${shares}`,
+    symbol,
+    sharesLabel,
+    position: `${symbol} · ${sharesLabel}`,
     marks: marks.join(" · ") || `${symbol} is live on Zerodha`,
+    lastLabel,
+    avgLabel,
+    dayPnlLabel,
+    dayPnlInr,
+    vsBuyLabel,
+    vsBuyInr,
+    vsBuyPct,
     plan: planParts.length > 0 ? planParts.join(" · ") : null,
+    holdLabel,
+    stopLabel,
+    cashLabel,
     next,
+    nextEyebrow: hasCash ? "Ready for the next name" : "Hold the book",
   };
 }
 
@@ -576,6 +623,8 @@ export function runFirstBuyTodaySelfCheck(): void {
   }
   assert(holdCard.position.includes("4 shares"), "Hold card must show size");
   assert(holdCard.marks.includes("Avg"), "Hold card must show average");
+  assert(holdCard.lastLabel !== null, "Hold card must show last price");
+  assert(Boolean(holdCard.vsBuyLabel), "Hold card must show vs-buy");
   assert(Boolean(holdCard.plan?.includes("390")), "Hold card must show the stop");
   assert(
     Boolean(holdCard.next?.includes("second name")),
