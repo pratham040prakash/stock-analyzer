@@ -138,7 +138,7 @@ export type HomeDecisionScreenProps = {
   capitalMode?: CapitalFundingMode;
   onCapitalModeChange?: (mode: CapitalFundingMode) => void;
   openPnlFromPortfolio?: number | null;
-  holdings?: { symbol: string; weight: number }[];
+  holdings?: { symbol: string; weight: number; quantity?: number }[];
   portfolioHoldings?: PortfolioHoldingRow[];
   portfolioTotalPnl?: number | null;
   portfolioLoading?: boolean;

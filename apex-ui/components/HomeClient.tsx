@@ -1362,6 +1362,7 @@ export default function HomeClient({
               holdings={visiblePortfolioHoldings.map((holding) => ({
                 symbol: holding.tradingsymbol,
                 weight: holding.allocation_pct,
+                quantity: holding.quantity,
               }))}
               portfolioHoldings={visiblePortfolioHoldings}
               portfolioTotalPnl={portfolioData?.total_pnl ?? null}

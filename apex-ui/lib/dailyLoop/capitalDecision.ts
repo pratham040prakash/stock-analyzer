@@ -54,6 +54,7 @@ export type CapitalAction = {
 export type CapitalHoldingWeight = {
   symbol: string;
   weight: number;
+  quantity?: number;
 };
 
 export type CapitalStructure = {
@@ -177,6 +178,31 @@ function isSingleNameBook(input: CapitalDecisionInput): boolean {
   return normalizePercent(input.topAllocationPct) >= 100;
 }
 
+function isEarlyTwoNameBook(input: CapitalDecisionInput): boolean {
+  const holdings = input.holdings;
+  if (!holdings || holdings.length !== 2) {
+    return false;
+  }
+
+  return holdings.every(
+    (holding) => normalizePercent(holding.weight) > CONCENTRATION_LIMIT,
+  );
+}
+
+function isOneShareHolding(
+  input: CapitalDecisionInput,
+  symbol?: string | null,
+): boolean {
+  if (!symbol) {
+    return false;
+  }
+
+  const match = input.holdings?.find(
+    (holding) => holding.symbol.trim().toUpperCase() === symbol.trim().toUpperCase(),
+  );
+  return match?.quantity === 1;
+}
+
 function resolveOverweightHoldings(
   input: CapitalDecisionInput,
 ): CapitalHoldingWeight[] {
@@ -186,13 +212,17 @@ function resolveOverweightHoldings(
     return [];
   }
 
-  if (isSingleNameBook(input)) {
+  if (isSingleNameBook(input) || isEarlyTwoNameBook(input)) {
     return [];
   }
 
   if (input.holdings?.length) {
     return input.holdings
-      .filter((holding) => holding.weight > CONCENTRATION_LIMIT)
+      .filter(
+        (holding) =>
+          holding.weight > CONCENTRATION_LIMIT &&
+          (holding.quantity === undefined || holding.quantity > 1),
+      )
       .sort((left, right) => right.weight - left.weight);
   }
 
@@ -1236,7 +1266,9 @@ function buildGrowActions(
     isExplicitSell &&
     input.stock &&
     !actionBySymbol.has(input.stock) &&
-    !hasConcentrationRisk
+    !hasConcentrationRisk &&
+    !isEarlyTwoNameBook(input) &&
+    !isOneShareHolding(input, input.stock)
   ) {
     const sellSymbol = input.stock;
     const trimPct = normalizePercent(input.suggested_sell_percent) || 25;
@@ -1561,6 +1593,25 @@ function runCapitalDecisionSelfCheck(): void {
   assert(
     !starterBook.actions.some((item) => item.action === "SELL"),
     "A one-name starter book must not trim",
+  );
+
+  const twoNameBook = buildCapitalDecision({
+    intent: "grow",
+    action: "sell",
+    stock: "ADANIPORTS",
+    availableCash: 4_000,
+    portfolioValue: 3_460,
+    topAllocationPct: 50,
+    holdings: [
+      { symbol: "ADANIPORTS", weight: 50, quantity: 1 },
+      { symbol: "COALINDIA", weight: 50, quantity: 4 },
+    ],
+    suggested_sell_percent: 25,
+    entryTiming: { enter: false },
+  });
+  assert(
+    !twoNameBook.actions.some((item) => item.action === "SELL"),
+    "A two-name starter book must not sell the only share of either name",
   );
 
   const validBuy = buildCapitalDecision({
