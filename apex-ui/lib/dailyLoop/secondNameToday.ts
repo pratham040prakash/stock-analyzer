@@ -20,6 +20,8 @@ export type SecondNameWatch = {
   leftoverLabel: string;
   statusLine: string;
   eyebrow: string;
+  gapInr: number | null;
+  gapLabel: string | null;
 };
 
 function heldSymbolSet(input: {
@@ -95,6 +97,15 @@ export function buildSecondNameWatch<T extends SecondNamePick>(input: {
   }
 
   const through = live !== null && trigger !== null && live >= trigger;
+  const gapInr =
+    live !== null && trigger !== null && !through
+      ? Math.round((trigger - live) * 100) / 100
+      : null;
+  const gapLabel = through
+    ? "At the line"
+    : gapInr !== null
+      ? `${formatInr(gapInr)} to the line`
+      : null;
   const statusLine = through
     ? `${symbol} is at the buy line. Place in Kite — Today stays Wait until you do.`
     : trigger
@@ -113,6 +124,8 @@ export function buildSecondNameWatch<T extends SecondNamePick>(input: {
     leftoverLabel: `${formatInr(size.leftoverInr)} stays in cash`,
     statusLine,
     eyebrow: input.eyebrow?.trim() || "Next name",
+    gapInr,
+    gapLabel,
   };
 }
 
@@ -164,6 +177,10 @@ export function runSecondNameTodaySelfCheck(): void {
   assert(watch.size.ticketInr > 0, "Watch must size a ticket from cash");
   assert(watch.size.leftoverInr >= 0, "Watch must leave leftover cash");
   assert(watch.statusLine.includes("confirms"), "Watch must wait for confirmation");
+  assert(
+    Boolean(watch.gapLabel?.includes("to the line")),
+    "Watch must show distance to the buy line",
+  );
 
   const third = pickSecondName({
     heldSymbols: ["COALINDIA", "ADANIPORTS"],

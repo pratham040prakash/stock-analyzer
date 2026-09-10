@@ -40,7 +40,9 @@ import TodayWaitInsightCard from "@/components/dailyLoop/TodayWaitInsightCard";
 import TodayBookLine from "@/components/dailyLoop/TodayBookLine";
 import TodayStarterHoldCard from "@/components/dailyLoop/TodayStarterHoldCard";
 import TodaySecondNameCard from "@/components/dailyLoop/TodaySecondNameCard";
+import TodayKiteContract from "@/components/dailyLoop/TodayKiteContract";
 import { buildSecondNameWatch, pickSecondName } from "@/lib/dailyLoop/secondNameToday";
+import { buildTodayContract, persistTodayContract } from "@/lib/dailyLoop/todayContract";
 import TodayWatchlistPanel from "@/components/dailyLoop/TodayWatchlistPanel";
 import TodaySyncStatusBanner from "@/components/dailyLoop/TodaySyncStatusBanner";
 import InvestmentJourneyPanel from "@/components/journey/InvestmentJourneyPanel";
@@ -856,6 +858,33 @@ export default function HomeDecisionScreen({
           eyebrow: starterBook ? "Next name" : "Third name",
         })
       : null;
+  const todayContract = useMemo(
+    () =>
+      buildTodayContract({
+        heldSymbols:
+          youngBookHoldings.length > 0
+            ? youngBookHoldings.map((holding) => holding.tradingsymbol)
+            : [starterHoldingSymbol],
+        watch: nextNameWatch
+          ? {
+              symbol: nextNameWatch.symbol,
+              through: nextNameWatch.through,
+              triggerInr: nextNameWatch.triggerInr,
+              ticketInr: nextNameWatch.size.ticketInr,
+            }
+          : null,
+        tapeHardWait: liveTapeHardWait,
+      }),
+    [liveTapeHardWait, nextNameWatch, starterHoldingSymbol, youngBookHoldings],
+  );
+
+  useEffect(() => {
+    if (!(youngBook || starterBook)) {
+      return;
+    }
+
+    persistTodayContract(todayContract);
+  }, [starterBook, todayContract, youngBook]);
   const isExploreEmpty =
     isExplore &&
     capitalDecision.exploreSetups.length === 0 &&
@@ -1392,6 +1421,10 @@ export default function HomeDecisionScreen({
                   autoRetryDetail={autoSyncRetryDetail}
                 />
                 <VerdictCanvas {...verdictCanvasProps} />
+                {(youngBook || starterBook) &&
+                verdictPresentation.verdict === "wait" ? (
+                  <TodayKiteContract contract={todayContract} />
+                ) : null}
                 <TodayBookLine
                   connectionStatus={connectionStatus}
                   portfolioValue={displayPortfolioValue}
@@ -1427,25 +1460,29 @@ export default function HomeDecisionScreen({
                         </p>
                       </div>
                     ) : null}
-                    {verdictPresentation.verdict === "wait" ? (
-                      retention.committedToday ? (
-                        <p className="pt-1 text-center text-sm text-apex-muted/75">
-                          Waited. That&apos;s the day.
-                        </p>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={retention.commitFollowed}
-                          className="w-full rounded-2xl border border-white/[0.10] bg-white/[0.04] px-4 py-3 text-sm font-medium text-apex-text transition-colors hover:bg-white/[0.07]"
-                        >
-                          I waited
-                        </button>
-                      )
-                    ) : null}
                   </div>
                 ) : null}
                 {nextNameWatch ? (
                   <TodaySecondNameCard watch={nextNameWatch} />
+                ) : null}
+                {(youngBook || starterBook) &&
+                verdictPresentation.verdict === "wait" ? (
+                  retention.committedToday ? (
+                    <p className="text-center text-sm text-apex-muted/75">
+                      Waited. That&apos;s the day.
+                    </p>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        persistTodayContract(todayContract);
+                        retention.commitFollowed();
+                      }}
+                      className="w-full rounded-2xl border border-white/[0.10] bg-white/[0.04] px-4 py-3 text-sm font-medium text-apex-text transition-colors hover:bg-white/[0.07]"
+                    >
+                      I waited
+                    </button>
+                  )
                 ) : null}
                 {emptyBook &&
                 onIntentChange &&

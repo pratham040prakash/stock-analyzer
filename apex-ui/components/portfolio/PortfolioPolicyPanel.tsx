@@ -9,6 +9,7 @@ type Props = {
   health?: PortfolioHealthSummaryViewModel | null;
   sector?: SectorCapSummary | null;
   youngBook?: boolean;
+  nextSymbol?: string | null;
 };
 
 const BUCKETS: Array<{
@@ -25,6 +26,7 @@ export default function PortfolioPolicyPanel({
   health,
   sector,
   youngBook = false,
+  nextSymbol,
 }: Props) {
   if (!allocation && !health && !sector) {
     return null;
@@ -76,7 +78,9 @@ export default function PortfolioPolicyPanel({
 
       {youngBook ? (
         <p className="mt-4 text-xs leading-relaxed text-apex-muted/75">
-          Cash is the third name until a setup confirms.
+          {nextSymbol
+            ? `Cash waits on ${nextSymbol} until it confirms.`
+            : "Cash is the third name until a setup confirms."}
         </p>
       ) : sector ? (
         <p className="mt-4 text-xs leading-relaxed text-apex-muted/75">

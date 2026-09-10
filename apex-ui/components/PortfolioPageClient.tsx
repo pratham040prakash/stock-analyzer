@@ -12,6 +12,8 @@ import { buildPortfolioHealthSummary } from "@/services/portfolio/buildPortfolio
 import { buildSectorCapSummary } from "@/services/portfolio/sectorCapPolicy";
 import type { HoldingHealthChip } from "@/services/portfolio/holdingHealth";
 import { isYoungBook, orderYoungBookHoldings } from "@/lib/dailyLoop/firstBuyToday";
+import { readTodayContract, type TodayContract } from "@/lib/dailyLoop/todayContract";
+import TodayKiteContract from "@/components/dailyLoop/TodayKiteContract";
 import ApexErrorBoundary from "@/components/ui/ApexErrorBoundary";
 import { ApexShell, ApexTitle } from "@/components/ui/apex";
 import { useDayPnlPoll } from "@/lib/useDayPnlPoll";
@@ -72,6 +74,7 @@ export default function PortfolioPageClient({
   const [newCapitalLoading, setNewCapitalLoading] = useState(true);
   const [thesisWarnings, setThesisWarnings] = useState<ThesisInvalidationWarning[]>([]);
   const [portfolioProofHref, setPortfolioProofHref] = useState<string | null>(null);
+  const [todayContract, setTodayContract] = useState<TodayContract | null>(null);
 
   const loadFunds = useCallback(async (options?: { silent?: boolean }) => {
     setFundsSyncError(null);
@@ -176,6 +179,10 @@ export default function PortfolioPageClient({
     void refreshAll();
   }, [refreshAll]);
 
+  useEffect(() => {
+    setTodayContract(readTodayContract());
+  }, []);
+
   const pollEnabled = connectionStatus === "CONNECTED";
   usePortfolioPoll({
     enabled: pollEnabled,
@@ -256,6 +263,10 @@ export default function PortfolioPageClient({
             proofHref={youngBook ? null : portfolioProofHref}
           />
 
+          {youngBook && todayContract ? (
+            <TodayKiteContract contract={todayContract} />
+          ) : null}
+
           {fundsSyncError ? (
             <p className="text-sm text-amber-100/85">{fundsSyncError}</p>
           ) : null}
@@ -303,6 +314,7 @@ export default function PortfolioPageClient({
             health={overview?.health?.length ? healthSummary : null}
             sector={openHoldings.length > 0 ? sectorCapSummary : null}
             youngBook={youngBook}
+            nextSymbol={todayContract?.watchSymbol}
           />
 
           {showNewCapital ? (

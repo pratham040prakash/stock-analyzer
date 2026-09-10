@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { SecondNameWatch } from "@/lib/dailyLoop/secondNameToday";
 
 type Props = {
@@ -26,13 +27,20 @@ export default function TodaySecondNameCard({ watch }: Props) {
       </div>
 
       <div className="relative mt-5 text-center">
-        {watch.lastLabel ? (
+        {watch.gapLabel ? (
+          <p className="text-3xl font-semibold tracking-tight text-apex-text sm:text-4xl">
+            {watch.gapLabel}
+          </p>
+        ) : watch.lastLabel ? (
           <p className="text-3xl font-semibold tracking-tight text-apex-text sm:text-4xl">
             {watch.lastLabel}
           </p>
         ) : null}
         {watch.triggerLabel ? (
           <p className="mt-2 text-sm text-violet-100/85">{watch.triggerLabel}</p>
+        ) : null}
+        {watch.lastLabel && watch.gapLabel ? (
+          <p className="mt-1 text-xs text-apex-muted/70">Last {watch.lastLabel}</p>
         ) : null}
       </div>
 
@@ -42,6 +50,12 @@ export default function TodaySecondNameCard({ watch }: Props) {
       <p className="relative mt-1 text-sm leading-relaxed text-apex-muted/85">
         {watch.statusLine}
       </p>
+      <Link
+        href={`/app/research?symbol=${encodeURIComponent(watch.symbol)}`}
+        className="relative mt-4 inline-flex text-xs text-apex-muted/70 underline-offset-2 hover:text-apex-text hover:underline"
+      >
+        Research {watch.symbol} →
+      </Link>
     </section>
   );
 }
