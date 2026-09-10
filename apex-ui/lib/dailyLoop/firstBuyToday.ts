@@ -27,6 +27,16 @@ export function isEmptyBook(input: {
   return input.openHoldingsCount === 0 && valueEmpty;
 }
 
+export function isStarterBook(input: {
+  openHoldingsCount: number;
+  portfolioValue?: number | null;
+}): boolean {
+  const value = input.portfolioValue;
+  const hasValue =
+    value !== null && value !== undefined && Number.isFinite(value) && value > 0;
+  return input.openHoldingsCount === 1 && hasValue;
+}
+
 export function isFirstBuyCandidate(input: {
   emptyBook: boolean;
   executionKind: TodayExecutionKind;
@@ -178,6 +188,39 @@ export function buildEmptyBookWaitCopy(input: {
   };
 }
 
+export function buildStarterBookWaitCopy(input: {
+  symbol?: string | null;
+}): { headline: string; subline: string } {
+  const symbol = input.symbol?.trim().toUpperCase();
+  if (symbol) {
+    return {
+      headline: `Hold ${symbol}`,
+      subline: "One name is the book. No add today.",
+    };
+  }
+
+  return {
+    headline: "Hold the book",
+    subline: "One name is enough. No add today.",
+  };
+}
+
+export function applyStarterBookPresentation(input: {
+  presentation: DailyVerdictPresentation;
+  starterBook: boolean;
+}): DailyVerdictPresentation {
+  if (!input.starterBook || input.presentation.verdict === "trade") {
+    return input.presentation;
+  }
+
+  return {
+    ...input.presentation,
+    ctaLabel: "I waited",
+    doneForToday: false,
+    tradingLocked: true,
+  };
+}
+
 export function applyEmptyBookPresentation(input: {
   presentation: DailyVerdictPresentation;
   emptyBook: boolean;
@@ -213,11 +256,16 @@ export function applyEmptyBookPresentation(input: {
 export function resolveEmptyBookCommitLabel(input: {
   emptyBook: boolean;
   firstBuy: boolean;
+  starterBook?: boolean;
   planReady: boolean;
   verdict: DailyVerdict;
   marketOpen: boolean;
   brokerDone: boolean;
 }): string | null {
+  if (input.starterBook && !input.firstBuy && !input.emptyBook) {
+    return input.verdict === "trade" ? null : "I waited";
+  }
+
   if (!input.emptyBook && !input.firstBuy) {
     return null;
   }
@@ -275,6 +323,18 @@ export function runFirstBuyTodaySelfCheck(): void {
   assert(
     !isEmptyBook({ openHoldingsCount: 1, portfolioValue: 0 }),
     "Open holding is not an empty book",
+  );
+  assert(
+    isStarterBook({ openHoldingsCount: 1, portfolioValue: 1730 }),
+    "One live holding is a starter book",
+  );
+  assert(
+    !isStarterBook({ openHoldingsCount: 0, portfolioValue: 0 }),
+    "Empty book is not a starter book",
+  );
+  assert(
+    !isStarterBook({ openHoldingsCount: 2, portfolioValue: 10_000 }),
+    "Two holdings are not a starter book",
   );
   assert(
     isFirstBuyCandidate({
@@ -413,5 +473,37 @@ export function runFirstBuyTodaySelfCheck(): void {
       brokerDone: false,
     }) === "I waited",
     "Empty-book Wait commit is I waited",
+  );
+
+  const starterWait = applyStarterBookPresentation({
+    presentation: {
+      ...waitBase,
+      verdict: "wait",
+      displayWord: "Wait",
+      headline: "100% of available cash stays idle.",
+      doneForToday: true,
+    },
+    starterBook: true,
+  });
+  assert(!starterWait.doneForToday, "Starter-book Wait must not close the morning");
+  assert(starterWait.ctaLabel === "I waited", "Starter-book commit is I waited");
+
+  const namedHold = buildStarterBookWaitCopy({ symbol: "COALINDIA" });
+  assert(
+    namedHold.headline === "Hold COALINDIA",
+    "Starter-book Wait must name the holding",
+  );
+
+  assert(
+    resolveEmptyBookCommitLabel({
+      emptyBook: false,
+      firstBuy: false,
+      starterBook: true,
+      planReady: false,
+      verdict: "wait",
+      marketOpen: true,
+      brokerDone: false,
+    }) === "I waited",
+    "Starter-book Wait commit is I waited",
   );
 }

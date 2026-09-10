@@ -12,6 +12,7 @@ export type DailyVerdictInput = {
   consecutiveLossDays?: number;
   portfolioDayPnl?: number | null;
   portfolioValue?: number | null;
+  /** False risk_ok blocks new buys as Wait. It must not Pause the day. */
   riskBlocked?: boolean;
   brokerStepCompleted?: boolean;
   brokerStepSkipped?: boolean;
@@ -95,10 +96,6 @@ export function resolvePauseReason(input: DailyVerdictInput): string | undefined
     return `Daily loss limit reached (${Math.round(MAX_DAILY_LOSS_PCT * 100)}% of portfolio).`;
   }
 
-  if (input.riskBlocked) {
-    return "Risk controls flagged today — no new trades.";
-  }
-
   return undefined;
 }
 
@@ -113,6 +110,10 @@ export function blocksTapeHardWaitBuy(input: DailyVerdictInput): boolean {
 export function resolveDailyVerdict(input: DailyVerdictInput): DailyVerdict {
   if (resolvePauseReason(input)) {
     return "pause";
+  }
+
+  if (input.riskBlocked && input.executionKind === "BUY") {
+    return "wait";
   }
 
   if (input.brokerStepCompleted || input.brokerStepSkipped) {
@@ -178,6 +179,9 @@ export function buildDailyVerdictPresentation(input: {
       input.verdictInput.executionKind === "BUY" && !input.verdictInput.entryConfirmed;
     const sacredCoreBlocked = blocksSacredCoreBuy(input.verdictInput);
     const tapeBlocked = blocksTapeHardWaitBuy(input.verdictInput);
+    const riskBlockedBuy =
+      input.verdictInput.riskBlocked === true &&
+      input.verdictInput.executionKind === "BUY";
 
     return {
       verdict,
@@ -186,14 +190,18 @@ export function buildDailyVerdictPresentation(input: {
         ? "Core holdings are not traded on Today"
         : tapeBlocked
           ? "Wait — index is range-bound"
-          : setupNotReady
+          : riskBlockedBuy
+            ? "Hold the book — no add today"
+            : setupNotReady
             ? "Wait for entry confirmation"
             : input.heroHeadline || "Wait today",
       subline: sacredCoreBlocked
         ? `${input.verdictInput.targetSymbol ?? "This holding"} is in your long-term core — Today is for tactical capital only.`
         : tapeBlocked
           ? "Mid-range chop has no edge. New buys wait until a trend or an oversold bounce."
-          : setupNotReady
+          : riskBlockedBuy
+            ? "New tickets wait until the book is less concentrated."
+            : setupNotReady
             ? "Breakout is not confirmed yet — price, volume, and momentum must align before risking capital."
             : input.heroSubline ||
               "Nothing worth risking capital on today. Staying in cash is an active decision.",
@@ -267,6 +275,31 @@ export function runDailyVerdictSelfCheck(): void {
     resolveDailyVerdict({
       executionKind: "BUY",
       entryConfirmed: true,
+      riskBlocked: true,
+    }) === "wait",
+    "Risk-ok false must Wait, not Pause or Trade",
+  );
+
+  assert(
+    resolveDailyVerdict({
+      executionKind: "WAIT",
+      riskBlocked: true,
+    }) === "wait",
+    "Idle cash plus concentration must stay Wait",
+  );
+
+  assert(
+    resolveDailyVerdict({
+      executionKind: "SELL",
+      riskBlocked: true,
+    }) === "trade",
+    "Required trim must still trade when risk-ok is false",
+  );
+
+  assert(
+    resolveDailyVerdict({
+      executionKind: "BUY",
+      entryConfirmed: true,
       consecutiveLossDays: 2,
     }) === "pause",
     "Loss streak must pause",
@@ -303,6 +336,21 @@ export function runDailyVerdictSelfCheck(): void {
   });
   assert(pausePresentation.verdict === "pause", "Pause presentation verdict");
   assert(pausePresentation.doneForToday, "Pause must be done for today");
+
+  const riskWaitPresentation = buildDailyVerdictPresentation({
+    verdictInput: {
+      executionKind: "BUY",
+      entryConfirmed: true,
+      riskBlocked: true,
+    },
+    heroHeadline: "Ignored",
+    heroSubline: "Ignored",
+  });
+  assert(riskWaitPresentation.verdict === "wait", "Risk-ok Wait presentation");
+  assert(
+    riskWaitPresentation.headline.includes("no add"),
+    "Risk-ok Wait must not say Pause",
+  );
 
   assert(
     resolveDailyVerdict({

@@ -50,12 +50,15 @@ import {
   FIRST_BUY_HOLD_LABEL,
   applyEmptyBookPresentation,
   applyFirstBuyPresentation,
+  applyStarterBookPresentation,
   buildEmptyBookWaitCopy,
   buildFirstBuySize,
   buildFirstBuyWhy,
+  buildStarterBookWaitCopy,
   hasCompleteFirstBuyPlan,
   isEmptyBook,
   isFirstBuyCandidate,
+  isStarterBook,
   resolveEmptyBookCommitLabel,
 } from "@/lib/dailyLoop/firstBuyToday";
 import { useMarketSession } from "@/lib/broker/useMarketSession";
@@ -590,6 +593,12 @@ export default function HomeDecisionScreen({
     openHoldingsCount: openPortfolioHoldings.length,
     portfolioValue: displayPortfolioValue,
   });
+  const starterBook = isStarterBook({
+    openHoldingsCount: openPortfolioHoldings.length,
+    portfolioValue: displayPortfolioValue,
+  });
+  const starterHoldingSymbol =
+    openPortfolioHoldings[0]?.tradingsymbol ?? todayHero.symbol ?? "";
   const firstBuyTicket = ticketOverride ?? todayHero.deployAmount ?? 0;
   const firstBuyCandidate = isFirstBuyCandidate({
     emptyBook,
@@ -877,12 +886,24 @@ export default function HomeDecisionScreen({
               triggerInr: firstBuyPick?.activationLevel ?? null,
             }),
           }
-        : firstBuyApplied;
+        : starterBook &&
+            renderIntent === "grow" &&
+            firstBuyApplied.verdict === "wait"
+          ? {
+              ...firstBuyApplied,
+              ...buildStarterBookWaitCopy({
+                symbol: starterHoldingSymbol || todayHero.symbol,
+              }),
+            }
+          : firstBuyApplied;
 
-    return applyEmptyBookPresentation({
-      presentation: namedWait,
-      emptyBook,
-      lens: renderIntent,
+    return applyStarterBookPresentation({
+      presentation: applyEmptyBookPresentation({
+        presentation: namedWait,
+        emptyBook,
+        lens: renderIntent,
+      }),
+      starterBook,
     });
   }, [
     brokerStepCompleted,
@@ -896,6 +917,8 @@ export default function HomeDecisionScreen({
     displayHero.subline,
     displayPortfolioValue,
     emptyBook,
+    starterBook,
+    starterHoldingSymbol,
     entryTiming.enter,
     firstBuyCandidate,
     firstBuyPick,
@@ -910,9 +933,14 @@ export default function HomeDecisionScreen({
     targetIsSacredCore,
     todayHero.symbol,
   ]);
+  const hideTodayDump =
+    emptyBook ||
+    starterBook ||
+    verdictPresentation.verdict === "pause";
   const firstBuyCommitLabel = resolveEmptyBookCommitLabel({
     emptyBook,
     firstBuy: firstBuyCandidate,
+    starterBook,
     planReady: firstBuyPlanReady,
     verdict: verdictPresentation.verdict,
     marketOpen: canPlaceMarketOrder,
@@ -993,8 +1021,7 @@ export default function HomeDecisionScreen({
           ? "First position in Kite"
           : undefined,
       hideChip:
-        emptyBook &&
-        verdictPresentation.verdict === "wait" &&
+        (emptyBook || starterBook || verdictPresentation.verdict === "pause") &&
         verdictPresentation.displayWord !== "Start",
     }),
     [
@@ -1010,6 +1037,7 @@ export default function HomeDecisionScreen({
       decision.reason,
       displayHero.executionKind,
       emptyBook,
+      starterBook,
       firstBuyCandidate,
       liveBookFresh,
       livePollError,
@@ -1314,7 +1342,7 @@ export default function HomeDecisionScreen({
                   onTicketChange={setTicketOverride}
                 />
               ) : null}
-              {emptyBook ? null : (
+              {hideTodayDump ? null : (
               <TodayDetailsAccordion>
                 {showPortfolioSummary ? (
                   <TodayPortfolioSummary {...portfolioSummaryProps} />
@@ -1559,7 +1587,7 @@ export default function HomeDecisionScreen({
             executionKind={todayHero.executionKind}
             brokerStepCompleted={brokerStepCompleted}
             followCtaLabel={firstBuyCommitLabel ?? undefined}
-            quiet={emptyBook}
+            quiet={hideTodayDump}
           />
 
         </div>
