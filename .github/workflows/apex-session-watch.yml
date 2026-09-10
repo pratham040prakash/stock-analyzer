@@ -1,0 +1,28 @@
+name: APEX Session Watch
+
+on:
+  schedule:
+    - cron: "*/5 3-10 * * 1-5"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sit the desk through the IST cash session
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          APEX_URL: https://apex-ten-kappa.vercel.app
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "CRON_SECRET is not set on this repo — skip"
+            exit 0
+          fi
+          curl -sS -f -H "Authorization: Bearer $CRON_SECRET" \
+            "$APEX_URL/api/cron/session-watch"
+          HOUR="$(date -u +%H)"
+          MIN="$(date -u +%M)"
+          if [ "$HOUR" = "10" ] && [ "$MIN" -lt 10 ]; then
+            curl -sS -f -H "Authorization: Bearer $CRON_SECRET" \
+              "$APEX_URL/api/cron/close-letter"
+          fi

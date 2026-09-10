@@ -60,7 +60,10 @@ import {
   buildCampaignLine,
   buildPrefillPreview,
   buildStillTrueLine,
+  mergeSessionExtrema,
+  normalizeGttStatus,
   thesisNeedsCheckIn,
+  watchBandPct,
 } from "@/lib/dailyLoop/deskNight";
 import { buildDeskFlip, normalizeSymbols, resolveTodayLoop } from "@/lib/dailyLoop/todayLoop";
 import { shiftIstDateKey, tradingDateKey } from "@/lib/dailyLoop/disciplineDates";
@@ -392,10 +395,13 @@ export default function HomeDecisionScreen({
   const [yesterdayLine, setYesterdayLine] = useState<string | null>(null);
   const [humanThesis, setHumanThesis] = useState<string | null>(null);
   const [holdCuts, setHoldCuts] = useState<Record<string, number>>({});
+  const [holdTheses, setHoldTheses] = useState<Record<string, string>>({});
+  const [cutSaving, setCutSaving] = useState<string | null>(null);
   const [campaignDay, setCampaignDay] = useState(0);
   const [closeLetter, setCloseLetter] = useState<string | null>(null);
   const [gttStatus, setGttStatus] = useState<string | null>(null);
   const [gttBusy, setGttBusy] = useState(false);
+  const [bannedSymbols, setBannedSymbols] = useState<string[]>([]);
   const [stillTrue, setStillTrue] = useState<{
     symbol: string;
     thesis: string;
@@ -838,12 +844,17 @@ export default function HomeDecisionScreen({
   }, [brokerStepCompleted, onDisciplineCommitted]);
 
   const watchCarry = useMemo(
-    () =>
-      resolveWatchCarry({
+    () => {
+      const local = resolveWatchCarry({
         today: readTodayContract(),
         yesterday: readTodayContract(shiftIstDateKey(tradingDateKey(), -1)),
-      }),
-    [watchFilledToday, youngBookHoldings],
+      });
+      return {
+        preferredSymbol: local.preferredSymbol,
+        bannedSymbols: [...new Set([...local.bannedSymbols, ...bannedSymbols])],
+      };
+    },
+    [bannedSymbols, watchFilledToday, youngBookHoldings],
   );
   const liveHeldSymbols = useMemo(
     () => youngBookHoldings.map((holding) => holding.tradingsymbol),
@@ -987,6 +998,7 @@ export default function HomeDecisionScreen({
             return prices;
           })(),
           preferredSymbol: watchCarry.preferredSymbol,
+          bandPct: watchBandPct(campaignDay || 1),
           eyebrow: starterBook
             ? "Next name"
             : deskHeldCount >= 3
@@ -995,13 +1007,14 @@ export default function HomeDecisionScreen({
         })
       : null;
   const todayContract = useMemo(() => {
-    const morningBook = readTodayContract()?.heldSymbols;
+    const previous = readTodayContract();
+    const morningBook = previous?.heldSymbols;
     const liveBook =
       youngBookHoldings.length > 0
         ? youngBookHoldings.map((holding) => holding.tradingsymbol)
         : [starterHoldingSymbol];
 
-    return buildTodayContract({
+    const built = buildTodayContract({
       heldSymbols: morningBook && morningBook.length > 0 ? morningBook : liveBook,
       watch: nextNameWatch
         ? {
@@ -1016,7 +1029,45 @@ export default function HomeDecisionScreen({
         : null,
       tapeHardWait: liveTapeHardWait,
     });
-  }, [liveTapeHardWait, nextNameWatch, starterHoldingSymbol, youngBookHoldings]);
+
+    let highs = previous?.sessionHighBySymbol;
+    let lows = previous?.sessionLowBySymbol;
+    if (nextNameWatch?.symbol && nextNameWatch.livePriceInr) {
+      highs = mergeSessionExtrema(
+        highs,
+        nextNameWatch.symbol,
+        nextNameWatch.livePriceInr,
+        "high",
+      );
+      lows = mergeSessionExtrema(
+        lows,
+        nextNameWatch.symbol,
+        nextNameWatch.livePriceInr,
+        "low",
+      );
+    }
+    for (const holding of youngBookHoldings) {
+      const symbol = holding.tradingsymbol?.trim().toUpperCase();
+      if (!symbol || !holding.last_price) {
+        continue;
+      }
+      highs = mergeSessionExtrema(highs, symbol, holding.last_price, "high");
+      lows = mergeSessionExtrema(lows, symbol, holding.last_price, "low");
+    }
+
+    return {
+      ...built,
+      sessionHighBySymbol: highs,
+      sessionLowBySymbol: lows,
+      holdCutsBySymbol: Object.keys(holdCuts).length > 0 ? holdCuts : previous?.holdCutsBySymbol,
+    };
+  }, [
+    holdCuts,
+    liveTapeHardWait,
+    nextNameWatch,
+    starterHoldingSymbol,
+    youngBookHoldings,
+  ]);
 
   const todayLoop = resolveTodayLoop({
     contract: todayContract,
@@ -1111,6 +1162,7 @@ export default function HomeDecisionScreen({
             gttStatus?: string;
           } | null;
           campaignDay?: number;
+          bannedSymbols?: string[];
         }>(response, "Contract");
         if (!response.ok) {
           return;
@@ -1124,11 +1176,14 @@ export default function HomeDecisionScreen({
         } else if (payload?.contract?.campaignDay) {
           setCampaignDay(payload.contract.campaignDay);
         }
+        if (payload?.bannedSymbols) {
+          setBannedSymbols(payload.bannedSymbols);
+        }
         if (payload?.contract?.closeLetter) {
           setCloseLetter(payload.contract.closeLetter);
         }
         if (payload?.contract?.gttStatus) {
-          setGttStatus(payload.contract.gttStatus);
+          setGttStatus(normalizeGttStatus(payload.contract.gttStatus));
         }
       } catch {
         // Same-browser localStorage remains.
@@ -1164,7 +1219,7 @@ export default function HomeDecisionScreen({
           watchStatus?: string | null;
         }>(response, "GTT");
         if (response.ok && payload?.watchStatus) {
-          setGttStatus(payload.watchStatus);
+          setGttStatus(normalizeGttStatus(payload.watchStatus));
         }
       } catch {
         // GTT status is optional until Kite answers.
@@ -1313,6 +1368,7 @@ export default function HomeDecisionScreen({
         }
 
         const next: Record<string, number> = {};
+        const lines: Record<string, string> = {};
         let checkIn: {
           symbol: string;
           thesis: string;
@@ -1324,6 +1380,9 @@ export default function HomeDecisionScreen({
           const cut = cutInrFromInvalidation(row.invalidation);
           if (symbol && cut) {
             next[symbol] = cut;
+          }
+          if (symbol && row.thesis) {
+            lines[symbol] = row.thesis;
           }
           if (
             !checkIn &&
@@ -1340,6 +1399,7 @@ export default function HomeDecisionScreen({
           }
         }
         setHoldCuts(next);
+        setHoldTheses(lines);
         setStillTrue(checkIn);
       } catch {
         // Default 3% hold line remains.
@@ -1610,7 +1670,7 @@ export default function HomeDecisionScreen({
       : null;
   const campaignLine = buildCampaignLine({
     watchSymbol: nextNameWatch?.symbol ?? todayContract.watchSymbol,
-    day: campaignDay,
+    day: campaignDay || (nextNameWatch ? 1 : 0),
   });
   const firstBuyCommitLabel = resolveEmptyBookCommitLabel({
     emptyBook,
@@ -1982,6 +2042,24 @@ export default function HomeDecisionScreen({
                   <TodayStarterHoldCard
                     lines={starterHoldLines}
                     hideCashFork={Boolean(nextNameWatch)}
+                    yourCutInr={
+                      holdCuts[starterHoldLines.symbol.trim().toUpperCase()] ?? null
+                    }
+                    cutSaving={cutSaving === starterHoldLines.symbol.trim().toUpperCase()}
+                    onSaveCut={(cut) => {
+                      const name = starterHoldLines.symbol.trim().toUpperCase();
+                      setCutSaving(name);
+                      setHoldCuts((current) => ({ ...current, [name]: cut }));
+                      void apiFetch("/api/thesis", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          symbol: name,
+                          thesis: holdTheses[name] || `Hold ${name}.`,
+                          invalidation: `Break below ₹${Math.round(cut)}`,
+                        }),
+                      }).finally(() => setCutSaving(null));
+                    }}
                   />
                 ) : null}
                 {youngHoldLines.length > 0 ? (
@@ -1992,6 +2070,22 @@ export default function HomeDecisionScreen({
                         lines={lines}
                         hideCashFork
                         compact
+                        yourCutInr={holdCuts[lines.symbol.trim().toUpperCase()] ?? null}
+                        cutSaving={cutSaving === lines.symbol.trim().toUpperCase()}
+                        onSaveCut={(cut) => {
+                          const name = lines.symbol.trim().toUpperCase();
+                          setCutSaving(name);
+                          setHoldCuts((current) => ({ ...current, [name]: cut }));
+                          void apiFetch("/api/thesis", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              symbol: name,
+                              thesis: holdTheses[name] || `Hold ${name}.`,
+                              invalidation: `Break below ₹${Math.round(cut)}`,
+                            }),
+                          }).finally(() => setCutSaving(null));
+                        }}
                       />
                     ))}
                     {youngCashCopy && !nextNameWatch ? (
@@ -2043,7 +2137,9 @@ export default function HomeDecisionScreen({
                                   status?: string;
                                 }>(response, "GTT");
                                 if (response.ok) {
-                                  setGttStatus(payload?.status ?? "active");
+                                  setGttStatus(
+                                    normalizeGttStatus(payload?.status) ?? "active",
+                                  );
                                 }
                               })
                               .finally(() => setGttBusy(false));

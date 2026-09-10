@@ -114,17 +114,26 @@ export default function TodaySecondNameCard({
         </p>
       ) : null}
       {gttStatus ? (
-        <p className="mt-3 text-xs uppercase tracking-[0.16em] text-apex-muted/75">
+        <p
+          className={`mt-3 text-xs uppercase tracking-[0.16em] ${
+            gttStatus === "triggered"
+              ? "text-emerald-200"
+              : gttStatus === "cancelled" || gttStatus === "expired"
+                ? "text-rose-200"
+                : "text-apex-muted/75"
+          }`}
+        >
           GTT · {gttStatus}
         </p>
-      ) : onSetGtt && !watch.dead ? (
+      ) : null}
+      {onSetGtt && !watch.dead && gttStatus !== "active" ? (
         <button
           type="button"
           disabled={gttBusy}
           onClick={onSetGtt}
           className="mt-4 w-full rounded-2xl border border-white/15 bg-white px-4 py-3 text-sm font-semibold text-black disabled:opacity-50"
         >
-          Set GTT in Kite
+          {gttStatus ? "Reset GTT in Kite" : "Set GTT in Kite"}
         </button>
       ) : null}
       <Link

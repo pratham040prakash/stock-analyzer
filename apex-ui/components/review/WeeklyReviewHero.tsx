@@ -45,7 +45,12 @@ export default function WeeklyReviewHero({
           </p>
         ) : null}
         {ruleGrade ? (
-          <p className="text-lg font-medium text-apex-text/95">{ruleGrade}</p>
+          <>
+            <p className="text-xs font-medium uppercase tracking-[0.16em] text-apex-muted/75">
+              The rule
+            </p>
+            <p className="text-lg font-medium text-apex-text/95">{ruleGrade}</p>
+          </>
         ) : (
           <p className="text-lg font-medium text-apex-text/95">{headline}</p>
         )}

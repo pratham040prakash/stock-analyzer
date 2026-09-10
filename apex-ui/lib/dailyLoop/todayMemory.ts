@@ -185,17 +185,41 @@ export function yesterdayWatchThrough(contract?: TodayContract | null): boolean 
   return gap.includes("at the line") || kite.toLowerCase().includes("place ");
 }
 
+export const WATCH_BAN_DAYS = 7;
+
+export function bannedWatchSymbols(
+  history: Array<TodayContract | null | undefined>,
+  dateKey: string,
+): string[] {
+  const banned = new Set<string>();
+  for (const row of history) {
+    const symbol = row?.watchSymbol?.trim().toUpperCase();
+    if (!row || !symbol || !yesterdayWatchDied(row)) {
+      continue;
+    }
+
+    const until = shiftIstDateKey(row.dateKey, WATCH_BAN_DAYS);
+    if (row.dateKey < dateKey && dateKey <= until) {
+      banned.add(symbol);
+    }
+  }
+
+  return [...banned];
+}
+
 export function resolveWatchCarry(input: {
   today?: TodayContract | null;
   yesterday?: TodayContract | null;
+  history?: Array<TodayContract | null | undefined>;
+  dateKey?: string;
 }): { preferredSymbol: string | null; bannedSymbols: string[] } {
+  const dateKey = input.dateKey ?? tradingDateKey();
   const todayWatch = input.today?.watchSymbol?.trim().toUpperCase() || null;
   const yWatch = input.yesterday?.watchSymbol?.trim().toUpperCase() || null;
-  const banned: string[] = [];
-
-  if (yWatch && yesterdayWatchDied(input.yesterday)) {
-    banned.push(yWatch);
-  }
+  const banned = bannedWatchSymbols(
+    [...(input.history ?? []), input.yesterday, input.today],
+    dateKey,
+  );
 
   if (todayWatch && !banned.includes(todayWatch)) {
     return { preferredSymbol: todayWatch, bannedSymbols: banned };
@@ -577,6 +601,35 @@ export function runTodayMemorySelfCheck(): void {
   });
   assert(carryDead.bannedSymbols.includes("GRASIM"), "A dead setup must not return tomorrow");
   assert(carryDead.preferredSymbol === null, "A dead setup must not stay preferred");
+
+  const weekBan = bannedWatchSymbols(
+    [
+      {
+        dateKey: "2026-09-03",
+        kiteLine: "Do nothing in Kite. GRASIM lost the setup.",
+        rule: "Cash stays put.",
+        watchSymbol: "GRASIM",
+        watchDead: true,
+      },
+    ],
+    "2026-09-10",
+  );
+  assert(weekBan.includes("GRASIM"), "A dead setup stays banned for a week");
+  assert(
+    !bannedWatchSymbols(
+      [
+        {
+          dateKey: "2026-09-03",
+          kiteLine: "Do nothing in Kite. GRASIM lost the setup.",
+          rule: "Cash stays put.",
+          watchSymbol: "GRASIM",
+          watchDead: true,
+        },
+      ],
+      "2026-09-11",
+    ).includes("GRASIM"),
+    "The ban must lift after a week",
+  );
 
   assert(
     buildRuleGrade({

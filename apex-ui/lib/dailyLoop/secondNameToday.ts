@@ -106,8 +106,8 @@ function liveInrOf(
   return null;
 }
 
-function killInrOf(trigger: number): number {
-  return Math.round(trigger * (1 - WATCH_BAND_PCT));
+function killInrOf(trigger: number, bandPct = WATCH_BAND_PCT): number {
+  return Math.round(trigger * (1 - bandPct));
 }
 
 export function buildWatchThesis(pick: SecondNamePick): string {
@@ -146,6 +146,7 @@ function buildWatchFromPick<T extends SecondNamePick>(
     livePriceBySymbol?: Map<string, number> | null;
     ticketInr?: number | null;
     eyebrow?: string;
+    bandPct?: number;
   },
 ): SecondNameWatch | null {
   const cash = Math.max(0, Math.round(input.cashInr));
@@ -165,7 +166,7 @@ function buildWatchFromPick<T extends SecondNamePick>(
     return null;
   }
 
-  const killInr = killInrOf(trigger);
+  const killInr = killInrOf(trigger, input.bandPct);
   const through = live >= trigger;
   const dead = live < killInr;
   const gapInr = !through && !dead ? Math.round((trigger - live) * 100) / 100 : null;
@@ -214,6 +215,7 @@ export function buildSecondNameWatch<T extends SecondNamePick>(input: {
   ticketInr?: number | null;
   eyebrow?: string;
   preferredSymbol?: string | null;
+  bandPct?: number;
 }): SecondNameWatch | null {
   const cash = Math.max(0, Math.round(input.cashInr));
   if (cash <= 0) {
@@ -359,4 +361,25 @@ export function runSecondNameTodaySelfCheck(): void {
   });
   assert(thirdWatch?.eyebrow === "Third name", "Two-name leftover cash is a third-name watch");
   assert(thirdWatch?.symbol === "DIVISLAB", "Third-name watch skips the book");
+
+  const day1 = buildSecondNameWatch({
+    heldSymbols: ["COALINDIA"],
+    picks: [{ stock: "GRASIM", score: 80, price: 3340, activationLevel: 3371 }],
+    cashInr: 10722,
+    livePriceInr: 3340,
+    preferredSymbol: "GRASIM",
+    bandPct: 0.03,
+  });
+  const day5 = buildSecondNameWatch({
+    heldSymbols: ["COALINDIA"],
+    picks: [{ stock: "GRASIM", score: 80, price: 3340, activationLevel: 3371 }],
+    cashInr: 10722,
+    livePriceInr: 3340,
+    preferredSymbol: "GRASIM",
+    bandPct: 0.015,
+  });
+  assert(
+    (day5?.killInr ?? 0) > (day1?.killInr ?? 0),
+    "A longer campaign must tighten the kill",
+  );
 }

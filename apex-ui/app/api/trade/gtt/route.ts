@@ -5,6 +5,7 @@ import { getActiveBrokerConnection } from "@/services/broker/connections";
 import { fetchZerodhaGtts, placeZerodhaGtt } from "@/services/brokers/zerodha";
 import { readServerContract, writeServerContract } from "@/services/desk/contractStore";
 import { tradingDateKey } from "@/lib/dailyLoop/disciplineDates";
+import { normalizeGttStatus } from "@/lib/dailyLoop/deskNight";
 
 export const dynamic = "force-dynamic";
 
@@ -28,15 +29,29 @@ export async function GET() {
     return apiError(result.status === "TOKEN_EXPIRED" ? "Token expired" : result.message, 502);
   }
 
-  const contract = await readServerContract(createAdminClient(), user.id, tradingDateKey());
+  const desk = createAdminClient();
+  const contract = await readServerContract(desk, user.id, tradingDateKey());
   const watch = contract?.watchSymbol?.trim().toUpperCase();
   const match = watch
     ? result.data.find((row) => row.tradingsymbol?.trim().toUpperCase() === watch)
-    : null;
+    : contract?.gttId
+      ? result.data.find((row) => String(row.id) === String(contract.gttId))
+      : null;
+  const watchStatus =
+    normalizeGttStatus(match?.status) ??
+    (contract?.gttId && !match ? "expired" : normalizeGttStatus(contract?.gttStatus));
+
+  if (contract && watchStatus && watchStatus !== contract.gttStatus) {
+    await writeServerContract(desk, user.id, {
+      ...contract,
+      gttStatus: watchStatus,
+      gttId: match ? String(match.id) : contract.gttId,
+    });
+  }
 
   return apiOk({
     triggers: result.data,
-    watchStatus: match?.status ?? contract?.gttStatus ?? null,
+    watchStatus,
     watchTriggerId: match ? String(match.id) : contract?.gttId ?? null,
   });
 }
@@ -108,7 +123,7 @@ export async function POST(request: Request) {
     await writeServerContract(createAdminClient(), user.id, {
       ...contract,
       gttId: placed.triggerId,
-      gttStatus: "active",
+      gttStatus: normalizeGttStatus("active") ?? "active",
     });
   }
 

@@ -2,6 +2,7 @@ import { apiError, apiOk } from "@/lib/api/response";
 import { shiftIstDateKey, tradingDateKey } from "@/lib/dailyLoop/disciplineDates";
 import { campaignDay } from "@/lib/dailyLoop/deskNight";
 import type { TodayContract } from "@/lib/dailyLoop/todayContract";
+import { bannedWatchSymbols } from "@/lib/dailyLoop/todayMemory";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -52,6 +53,7 @@ export async function GET(request: Request) {
         }
       : null,
     campaignDay: day,
+    bannedSymbols: bannedWatchSymbols(history, dateKey),
   });
 }
 

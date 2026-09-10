@@ -15,7 +15,7 @@ import {
   mergeSessionExtrema,
 } from "@/lib/dailyLoop/deskNight";
 import { getActiveBrokerConnection } from "@/services/broker/connections";
-import { fetchZerodhaQuotes } from "@/services/brokers/zerodha";
+import { fetchZerodhaHoldings, fetchZerodhaQuotes } from "@/services/brokers/zerodha";
 import { listInvestmentTheses } from "@/services/thesis/thesisRepository";
 import { sendDeskAlert } from "@/services/desk/interrupt";
 import {
@@ -70,6 +70,17 @@ async function watchOneUser(
   }
 
   const quotes = await fetchZerodhaQuotes(connection.accessToken, symbols);
+  const holdings = await fetchZerodhaHoldings(connection.accessToken);
+  const avgBySymbol = new Map<string, number>();
+  if (holdings.status === "OK") {
+    for (const holding of holdings.data) {
+      const name = holding.tradingsymbol?.trim().toUpperCase();
+      if (name && holding.average_price > 0) {
+        avgBySymbol.set(name, holding.average_price);
+      }
+    }
+  }
+
   let next = { ...contract };
   let alerts = 0;
 
@@ -123,13 +134,14 @@ async function watchOneUser(
   }
 
   const theses = await listInvestmentTheses(admin, userId);
-  const cuts: Record<string, number> = {};
+  const cuts: Record<string, number> = { ...(contract.holdCutsBySymbol ?? {}) };
   for (const thesis of theses) {
     const cut = cutInrFromInvalidation(thesis.invalidation);
     if (cut) {
       cuts[thesis.symbol.trim().toUpperCase()] = cut;
     }
   }
+  next.holdCutsBySymbol = cuts;
 
   for (const symbol of contract.heldSymbols ?? []) {
     const name = symbol.trim().toUpperCase();
@@ -141,9 +153,9 @@ async function watchOneUser(
     const hold = buildBookHoldRule({
       lastPriceInr: quote.lastPrice,
       cutInr: cuts[name],
-      averagePriceInr: quote.lastPrice,
+      averagePriceInr: avgBySymbol.get(name) ?? null,
     });
-    if (!hold.ruleBroken || !cuts[name]) {
+    if (!hold.ruleBroken) {
       continue;
     }
 

@@ -1,11 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import type { StarterBookHoldLines } from "@/lib/dailyLoop/firstBuyToday";
 
 type Props = {
   lines: StarterBookHoldLines;
   hideCashFork?: boolean;
   compact?: boolean;
+  yourCutInr?: number | null;
+  cutSaving?: boolean;
+  onSaveCut?: (cutInr: number) => void;
 };
 
 function toneClass(value: number | null): string {
@@ -26,6 +30,55 @@ function badgeClass(value: number | null): string {
     : "border-rose-400/25 bg-rose-400/10 text-rose-100";
 }
 
+function YourCutField({
+  yourCutInr,
+  cutSaving,
+  onSaveCut,
+}: {
+  yourCutInr?: number | null;
+  cutSaving?: boolean;
+  onSaveCut?: (cutInr: number) => void;
+}) {
+  const [draft, setDraft] = useState(
+    yourCutInr && yourCutInr > 0 ? String(yourCutInr) : "",
+  );
+
+  if (!onSaveCut) {
+    return null;
+  }
+
+  return (
+    <form
+      className="mt-3 flex items-center gap-2"
+      onSubmit={(event) => {
+        event.preventDefault();
+        const cut = Number(draft.replace(/,/g, ""));
+        if (!Number.isFinite(cut) || cut <= 0) {
+          return;
+        }
+        onSaveCut(Math.round(cut));
+      }}
+    >
+      <input
+        type="text"
+        inputMode="decimal"
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        placeholder="Your line ₹"
+        className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-xs text-apex-text outline-none placeholder:text-apex-muted/50"
+        aria-label="Your hold line"
+      />
+      <button
+        type="submit"
+        disabled={cutSaving}
+        className="shrink-0 rounded-xl border border-white/15 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-apex-text disabled:opacity-50"
+      >
+        {cutSaving ? "Saving" : "Set"}
+      </button>
+    </form>
+  );
+}
+
 function lastMarkPercent(pct: number | null): number {
   if (pct === null || !Number.isFinite(pct)) {
     return 50;
@@ -38,6 +91,9 @@ export default function TodayStarterHoldCard({
   lines,
   hideCashFork = false,
   compact = false,
+  yourCutInr = null,
+  cutSaving = false,
+  onSaveCut,
 }: Props) {
   const mark = lastMarkPercent(lines.vsBuyPct);
   const showMark =
@@ -87,6 +143,11 @@ export default function TodayStarterHoldCard({
             {lines.holdRule}
           </p>
         ) : null}
+        <YourCutField
+          yourCutInr={yourCutInr}
+          cutSaving={cutSaving}
+          onSaveCut={onSaveCut}
+        />
       </section>
     );
   }
@@ -138,6 +199,11 @@ export default function TodayStarterHoldCard({
           {lines.stopLabel ? <span>{lines.stopLabel}</span> : null}
           {lines.holdLabel ? <span>Hold {lines.holdLabel}</span> : null}
         </div>
+        <YourCutField
+          yourCutInr={yourCutInr}
+          cutSaving={cutSaving}
+          onSaveCut={onSaveCut}
+        />
       </div>
 
       {!hideCashFork && (lines.cashLabel || lines.next) ? (

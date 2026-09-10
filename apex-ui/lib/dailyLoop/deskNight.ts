@@ -23,6 +23,49 @@ export function mergeSessionExtrema(
   return next;
 }
 
+export function watchBandPct(day: number): number {
+  if (day >= 5) {
+    return 0.015;
+  }
+
+  if (day >= 3) {
+    return 0.02;
+  }
+
+  return 0.03;
+}
+
+export function normalizeGttStatus(raw?: string | null): string | null {
+  const status = raw?.trim().toLowerCase();
+  if (!status) {
+    return null;
+  }
+
+  if (status === "active" || status === "open" || status === "pending") {
+    return "active";
+  }
+
+  if (status === "triggered" || status === "triggered_pending") {
+    return "triggered";
+  }
+
+  if (
+    status === "cancelled" ||
+    status === "canceled" ||
+    status === "deleted" ||
+    status === "disabled" ||
+    status === "rejected"
+  ) {
+    return "cancelled";
+  }
+
+  if (status === "expired") {
+    return "expired";
+  }
+
+  return status;
+}
+
 export function campaignDay(input: {
   watchSymbol?: string | null;
   dateKey: string;
@@ -300,4 +343,8 @@ export function runDeskNightSelfCheck(): void {
   });
   assert(letter.includes("Day 3"), "Close letter must name the campaign");
   assert(letter.includes("never traded above"), "Close letter must carry the grade");
+  assert(watchBandPct(1) === 0.03, "Day 1 must keep the 3% band");
+  assert(watchBandPct(4) === 0.02, "A multi-day campaign must tighten");
+  assert(normalizeGttStatus("triggered") === "triggered", "GTT must name a fill");
+  assert(normalizeGttStatus("deleted") === "cancelled", "A deleted GTT is cancelled");
 }
