@@ -264,7 +264,7 @@ export default function PortfolioPageClient({
           />
 
           {youngBook && todayContract ? (
-            <TodayKiteContract contract={todayContract} />
+            <TodayKiteContract contract={todayContract} compact />
           ) : null}
 
           {fundsSyncError ? (
@@ -314,7 +314,6 @@ export default function PortfolioPageClient({
             health={overview?.health?.length ? healthSummary : null}
             sector={openHoldings.length > 0 ? sectorCapSummary : null}
             youngBook={youngBook}
-            nextSymbol={todayContract?.watchSymbol}
           />
 
           {showNewCapital ? (

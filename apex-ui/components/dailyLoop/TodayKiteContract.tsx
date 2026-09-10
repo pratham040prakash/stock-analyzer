@@ -4,9 +4,31 @@ import type { TodayContract } from "@/lib/dailyLoop/todayContract";
 
 type Props = {
   contract: TodayContract;
+  compact?: boolean;
 };
 
-export default function TodayKiteContract({ contract }: Props) {
+export default function TodayKiteContract({ contract, compact = false }: Props) {
+  const headline =
+    compact && contract.watchSymbol && contract.gapLabel
+      ? `${contract.watchSymbol} · ${contract.gapLabel}`
+      : contract.kiteLine;
+
+  if (compact) {
+    return (
+      <section
+        aria-label="Today's Kite rule"
+        className="rounded-2xl border border-emerald-400/15 bg-emerald-400/[0.06] px-4 py-3"
+      >
+        <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-emerald-100/70">
+          Today
+        </p>
+        <p className="mt-1 text-sm font-medium leading-snug text-apex-text">
+          {headline}
+        </p>
+      </section>
+    );
+  }
+
   return (
     <section
       aria-label="Today's Kite rule"
@@ -17,9 +39,6 @@ export default function TodayKiteContract({ contract }: Props) {
       </p>
       <p className="mt-2 text-lg font-semibold leading-snug tracking-tight text-apex-text">
         {contract.kiteLine}
-      </p>
-      <p className="mt-2 text-sm leading-relaxed text-apex-muted/85">
-        {contract.rule}
       </p>
     </section>
   );

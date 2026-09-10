@@ -871,6 +871,7 @@ export default function HomeDecisionScreen({
               through: nextNameWatch.through,
               triggerInr: nextNameWatch.triggerInr,
               ticketInr: nextNameWatch.size.ticketInr,
+              gapLabel: nextNameWatch.gapLabel,
             }
           : null,
         tapeHardWait: liveTapeHardWait,
@@ -1422,7 +1423,8 @@ export default function HomeDecisionScreen({
                 />
                 <VerdictCanvas {...verdictCanvasProps} />
                 {(youngBook || starterBook) &&
-                verdictPresentation.verdict === "wait" ? (
+                verdictPresentation.verdict === "wait" &&
+                (!nextNameWatch || liveTapeHardWait) ? (
                   <TodayKiteContract contract={todayContract} />
                 ) : null}
                 <TodayBookLine
@@ -1462,8 +1464,11 @@ export default function HomeDecisionScreen({
                     ) : null}
                   </div>
                 ) : null}
-                {nextNameWatch ? (
-                  <TodaySecondNameCard watch={nextNameWatch} />
+                {nextNameWatch && !liveTapeHardWait ? (
+                  <TodaySecondNameCard
+                    watch={nextNameWatch}
+                    kiteLine={todayContract.kiteLine}
+                  />
                 ) : null}
                 {(youngBook || starterBook) &&
                 verdictPresentation.verdict === "wait" ? (

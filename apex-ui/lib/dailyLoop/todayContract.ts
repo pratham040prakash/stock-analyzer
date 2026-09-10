@@ -6,6 +6,7 @@ export type TodayContractWatch = {
   through: boolean;
   triggerInr: number | null;
   ticketInr: number;
+  gapLabel?: string | null;
 };
 
 export type TodayContract = {
@@ -13,6 +14,7 @@ export type TodayContract = {
   kiteLine: string;
   rule: string;
   watchSymbol?: string;
+  gapLabel?: string | null;
 };
 
 const STORAGE_PREFIX = "apex_today_contract";
@@ -47,6 +49,7 @@ export function buildTodayContract(input: {
       kiteLine: "Do nothing in Kite. The index is range-bound.",
       rule: book,
       watchSymbol: watch?.symbol,
+      gapLabel: watch?.gapLabel ?? null,
     };
   }
 
@@ -54,8 +57,9 @@ export function buildTodayContract(input: {
     return {
       dateKey,
       kiteLine: `In Kite: place ${formatInr(watch.ticketInr)} of ${watch.symbol} above ${formatInr(watch.triggerInr)}.`,
-      rule: `${book} Today stays Wait until you place it.`,
+      rule: `Today stays Wait until you place it.`,
       watchSymbol: watch.symbol,
+      gapLabel: watch.gapLabel ?? "At the line",
     };
   }
 
@@ -63,8 +67,9 @@ export function buildTodayContract(input: {
     return {
       dateKey,
       kiteLine: `Do nothing in Kite unless ${watch.symbol} trades above ${formatInr(watch.triggerInr)}.`,
-      rule: `${book} Cash waits on ${watch.symbol}.`,
+      rule: watch.gapLabel ?? `Cash waits on ${watch.symbol}.`,
       watchSymbol: watch.symbol,
+      gapLabel: watch.gapLabel ?? null,
     };
   }
 
@@ -74,6 +79,7 @@ export function buildTodayContract(input: {
       kiteLine: `Do nothing in Kite. Watch ${watch.symbol} — no buy line yet.`,
       rule: book,
       watchSymbol: watch.symbol,
+      gapLabel: watch.gapLabel ?? null,
     };
   }
 
@@ -135,7 +141,8 @@ export function runTodayContractSelfCheck(): void {
     waiting.kiteLine.includes("DIVISLAB") && waiting.kiteLine.includes("9,575"),
     "Wait contract must name the Kite trigger",
   );
-  assert(waiting.rule.includes("COALINDIA"), "Wait contract must name the book");
+  assert(waiting.watchSymbol === "DIVISLAB", "Wait contract must name the watch");
+  assert(!waiting.rule.includes("COALINDIA"), "Watch contract must not restate the book");
 
   const through = buildTodayContract({
     heldSymbols: ["COALINDIA", "ADANIPORTS"],

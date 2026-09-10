@@ -104,16 +104,13 @@ export function buildYoungBookWaitCopy(input: {
       .map((symbol) => symbol?.trim().toUpperCase())
       .filter((symbol): symbol is string => Boolean(symbol)),
   )];
-  const next = input.nextSymbol?.trim().toUpperCase();
 
   if (names.length === 2) {
     return {
       headline: `Hold ${names[0]} and ${names[1]}`,
       subline: input.tapeHardWait
         ? "Index is range-bound. No add, no trim."
-        : next
-          ? `Two names are the book. Cash waits on ${next}.`
-          : "Two names are the book. No trim today.",
+        : "Two names are the book. No trim today.",
     };
   }
 
@@ -663,11 +660,11 @@ export function runFirstBuyTodaySelfCheck(): void {
     "No cash line when leftover cash is empty",
   );
   assert(
-    buildYoungBookWaitCopy({
+    !buildYoungBookWaitCopy({
       symbols: ["COALINDIA", "ADANIPORTS"],
       nextSymbol: "DIVISLAB",
     }).subline.includes("DIVISLAB"),
-    "Young-book Wait must name where cash waits",
+    "Young-book Wait must not repeat the third-name watch",
   );
   assert(
     !twoNameHold.headline.toLowerCase().includes("trim") &&
