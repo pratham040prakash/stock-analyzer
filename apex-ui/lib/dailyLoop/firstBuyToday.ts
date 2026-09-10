@@ -630,8 +630,11 @@ export function runFirstBuyTodaySelfCheck(): void {
   );
   const youngCash = buildYoungBookCashCopy(10_722);
   assert(
-    youngCash?.amountLabel.includes("10,722") &&
-      Boolean(youngCash.line.includes("No third name")),
+    Boolean(
+      youngCash &&
+        youngCash.amountLabel.includes("10,722") &&
+        youngCash.line.includes("No third name"),
+    ),
     "Young-book Wait must place leftover cash",
   );
   assert(
