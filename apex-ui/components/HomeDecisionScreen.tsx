@@ -38,6 +38,7 @@ import SectorCapStrip from "@/components/portfolio/SectorCapStrip";
 import TodayDetailsAccordion from "@/components/dailyLoop/TodayDetailsAccordion";
 import TodayWaitInsightCard from "@/components/dailyLoop/TodayWaitInsightCard";
 import TodayBookLine from "@/components/dailyLoop/TodayBookLine";
+import TodayStarterHoldCard from "@/components/dailyLoop/TodayStarterHoldCard";
 import TodayWatchlistPanel from "@/components/dailyLoop/TodayWatchlistPanel";
 import TodaySyncStatusBanner from "@/components/dailyLoop/TodaySyncStatusBanner";
 import InvestmentJourneyPanel from "@/components/journey/InvestmentJourneyPanel";
@@ -54,6 +55,7 @@ import {
   buildEmptyBookWaitCopy,
   buildFirstBuySize,
   buildFirstBuyWhy,
+  buildStarterBookHoldLines,
   buildStarterBookWaitCopy,
   hasCompleteFirstBuyPlan,
   isEmptyBook,
@@ -937,6 +939,22 @@ export default function HomeDecisionScreen({
     emptyBook ||
     starterBook ||
     verdictPresentation.verdict === "pause";
+  const starterHoldLines =
+    starterBook && !isExplore
+      ? buildStarterBookHoldLines({
+          symbol:
+            starterHoldingSymbol ||
+            openPortfolioHoldings[0]?.tradingsymbol ||
+            todayHero.symbol,
+          quantity: openPortfolioHoldings[0]?.quantity,
+          averagePriceInr: openPortfolioHoldings[0]?.average_price,
+          lastPriceInr: openPortfolioHoldings[0]?.last_price,
+          dayPnlInr: liveDayPnl ?? openPortfolioHoldings[0]?.pnl,
+          stopInr: firstBuyPlanLines.stopInr,
+          holdLabel: FIRST_BUY_HOLD_LABEL,
+          cashInr: availableCash ?? null,
+        })
+      : null;
   const firstBuyCommitLabel = resolveEmptyBookCommitLabel({
     emptyBook,
     firstBuy: firstBuyCandidate,
@@ -1268,6 +1286,9 @@ export default function HomeDecisionScreen({
                   cashInr={emptyBook ? availableCash ?? null : null}
                   dayPnl={liveDayPnl}
                 />
+                {starterHoldLines ? (
+                  <TodayStarterHoldCard lines={starterHoldLines} />
+                ) : null}
                 {emptyBook &&
                 onIntentChange &&
                 !isExplore &&

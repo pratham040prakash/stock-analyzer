@@ -188,6 +188,73 @@ export function buildEmptyBookWaitCopy(input: {
   };
 }
 
+export type StarterBookHoldLines = {
+  position: string;
+  marks: string;
+  plan: string | null;
+  next: string | null;
+};
+
+export function buildStarterBookHoldLines(input: {
+  symbol?: string | null;
+  quantity?: number | null;
+  averagePriceInr?: number | null;
+  lastPriceInr?: number | null;
+  dayPnlInr?: number | null;
+  stopInr?: number | null;
+  holdLabel?: string | null;
+  cashInr?: number | null;
+}): StarterBookHoldLines | null {
+  const symbol = input.symbol?.trim().toUpperCase();
+  const quantity = input.quantity;
+  if (!symbol || quantity === null || quantity === undefined || quantity <= 0) {
+    return null;
+  }
+
+  const shares = quantity === 1 ? "1 share" : `${Math.round(quantity)} shares`;
+  const avg = input.averagePriceInr;
+  const last = input.lastPriceInr;
+  const dayPnl = input.dayPnlInr;
+  const marks: string[] = [];
+
+  if (avg !== null && avg !== undefined && Number.isFinite(avg) && avg > 0) {
+    marks.push(`Avg ${formatInr(avg)}`);
+  }
+  if (last !== null && last !== undefined && Number.isFinite(last) && last > 0) {
+    marks.push(`Last ${formatInr(last)}`);
+  }
+  if (dayPnl !== null && dayPnl !== undefined && Number.isFinite(dayPnl)) {
+    marks.push(
+      dayPnl === 0
+        ? "Flat today"
+        : `${dayPnl > 0 ? "+" : "−"}${formatInr(Math.abs(dayPnl))} today`,
+    );
+  }
+
+  const stop = input.stopInr;
+  const holdLabel = input.holdLabel?.trim();
+  const planParts: string[] = [];
+  if (stop !== null && stop !== undefined && Number.isFinite(stop) && stop > 0) {
+    planParts.push(`Stop ${formatInr(stop)}`);
+  }
+  if (holdLabel) {
+    planParts.push(`Hold ${holdLabel}`);
+  }
+
+  const cash = input.cashInr;
+  const next =
+    cash !== null && cash !== undefined && Number.isFinite(cash) && cash > 0
+      ? `${formatInr(cash)} cash waits for a second name — not more ${symbol} today.`
+      : "No cash to add. The work today is to hold.";
+
+  return {
+    position: `${symbol} · ${shares}`,
+    marks: marks.join(" · ") || `${symbol} is live on Zerodha`,
+    plan: planParts.length > 0 ? planParts.join(" · ") : null,
+    next,
+  };
+}
+
 export function buildStarterBookWaitCopy(input: {
   symbol?: string | null;
 }): { headline: string; subline: string } {
@@ -492,6 +559,25 @@ export function runFirstBuyTodaySelfCheck(): void {
   assert(
     namedHold.headline === "Hold COALINDIA",
     "Starter-book Wait must name the holding",
+  );
+
+  const holdCard = buildStarterBookHoldLines({
+    symbol: "COALINDIA",
+    quantity: 4,
+    averagePriceInr: 432,
+    lastPriceInr: 431,
+    dayPnlInr: -1,
+    stopInr: 390,
+    holdLabel: FIRST_BUY_HOLD_LABEL,
+    cashInr: 14_213,
+  });
+  assert(holdCard !== null, "Starter hold card must build");
+  assert(holdCard.position.includes("4 shares"), "Hold card must show size");
+  assert(holdCard.marks.includes("Avg"), "Hold card must show average");
+  assert(holdCard.plan?.includes("390"), "Hold card must show the stop");
+  assert(
+    holdCard.next?.includes("second name"),
+    "Hold card must say what leftover cash is for",
   );
 
   assert(
