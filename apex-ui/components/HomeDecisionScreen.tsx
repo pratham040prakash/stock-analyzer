@@ -51,17 +51,24 @@ import {
   persistTodayContract,
   readTodayContract,
 } from "@/lib/dailyLoop/todayContract";
-import { buildDeskFlip, resolveTodayLoop } from "@/lib/dailyLoop/todayLoop";
+import { buildDeskFlip, normalizeSymbols, resolveTodayLoop } from "@/lib/dailyLoop/todayLoop";
+import { shiftIstDateKey, tradingDateKey } from "@/lib/dailyLoop/disciplineDates";
 import {
+  buildHoldInterruptCopy,
   buildHumanThesis,
   buildLoopReceiptBody,
   buildWatchInterruptCopy,
   cutInrFromInvalidation,
   fireWatchInterrupt,
+  holdNotifyKey,
+  persistHoldNotifyKey,
   persistWatchNotifyKey,
   pickYesterdayLoopLine,
+  readHoldNotifyKeys,
   readWatchNotifyKey,
   readYesterdayLoopLine,
+  resolveWatchCarry,
+  shouldNotifyHold,
   shouldNotifyWatch,
   watchNotifyKey,
 } from "@/lib/dailyLoop/todayMemory";
@@ -88,6 +95,7 @@ import {
   isFirstBuyCandidate,
   isStarterBook,
   isYoungBook,
+  buildBookHoldRule,
   buildYoungBookHoldLines,
   buildYoungBookWaitCopy,
   buildYoungBookCashCopy,
@@ -807,6 +815,45 @@ export default function HomeDecisionScreen({
     onDisciplineCommitted?.();
   }, [brokerStepCompleted, onDisciplineCommitted]);
 
+  const watchCarry = useMemo(
+    () =>
+      resolveWatchCarry({
+        today: readTodayContract(),
+        yesterday: readTodayContract(shiftIstDateKey(tradingDateKey(), -1)),
+      }),
+    [watchFilledToday, youngBookHoldings],
+  );
+  const liveHeldSymbols = useMemo(
+    () => youngBookHoldings.map((holding) => holding.tradingsymbol),
+    [youngBookHoldings],
+  );
+  const placedWatchSymbol = useMemo(() => {
+    const watch = watchCarry.preferredSymbol;
+    if (!watch) {
+      return null;
+    }
+
+    if (watchFilledToday) {
+      return watch;
+    }
+
+    const live = normalizeSymbols(liveHeldSymbols);
+    const morning = normalizeSymbols(readTodayContract()?.heldSymbols);
+    if (live.includes(watch) && morning.length > 0 && !morning.includes(watch)) {
+      return watch;
+    }
+
+    return null;
+  }, [liveHeldSymbols, watchCarry.preferredSymbol, watchFilledToday]);
+  const deskHeldSymbols = useMemo(
+    () => [
+      ...liveHeldSymbols,
+      ...(placedWatchSymbol ? [placedWatchSymbol] : []),
+    ],
+    [liveHeldSymbols, placedWatchSymbol],
+  );
+  const deskHeldCount = normalizeSymbols(deskHeldSymbols).length;
+
   const nextNamePick = useMemo(() => {
     if (isExplore) {
       return null;
@@ -815,13 +862,16 @@ export default function HomeDecisionScreen({
     if (starterBook) {
       return pickSecondName({
         heldSymbol: starterHoldingSymbol,
+        heldSymbols: deskHeldSymbols,
+        bannedSymbols: watchCarry.bannedSymbols,
         picks: decision.picks,
       });
     }
 
     if (youngBook) {
       return pickSecondName({
-        heldSymbols: youngBookHoldings.map((holding) => holding.tradingsymbol),
+        heldSymbols: deskHeldSymbols,
+        bannedSymbols: watchCarry.bannedSymbols,
         picks: decision.picks,
       });
     }
@@ -829,22 +879,43 @@ export default function HomeDecisionScreen({
     return null;
   }, [
     decision.picks,
+    deskHeldSymbols,
     isExplore,
     starterBook,
     starterHoldingSymbol,
+    watchCarry.bannedSymbols,
     youngBook,
-    youngBookHoldings,
   ]);
 
   const explorePicks = useMemo(() => {
     if (!isExplore && (starterBook || youngBook)) {
-      return rankSecondNames({
+      const ranked = rankSecondNames({
         heldSymbol: starterBook ? starterHoldingSymbol : undefined,
-        heldSymbols: youngBook
-          ? youngBookHoldings.map((holding) => holding.tradingsymbol)
-          : undefined,
+        heldSymbols: deskHeldSymbols,
+        bannedSymbols: watchCarry.bannedSymbols,
         picks: decision.picks,
-      }).slice(0, 3);
+      });
+      const preferred = watchCarry.preferredSymbol
+        ? decision.picks?.find(
+            (pick) =>
+              pick.stock.trim().toUpperCase() === watchCarry.preferredSymbol,
+          )
+        : null;
+      const merged = preferred ? [preferred, ...ranked] : ranked;
+      const seen = new Set<string>();
+      const unique: typeof ranked = [];
+      for (const pick of merged) {
+        const symbol = pick.stock.trim().toUpperCase();
+        if (seen.has(symbol)) {
+          continue;
+        }
+        seen.add(symbol);
+        unique.push(pick);
+        if (unique.length >= 3) {
+          break;
+        }
+      }
+      return unique;
     }
 
     if (!isExplore || !decision.picks?.length) {
@@ -860,10 +931,12 @@ export default function HomeDecisionScreen({
     capitalDecision.exploreSetups,
     decision.picks,
     isExplore,
+    deskHeldSymbols,
     starterBook,
     starterHoldingSymbol,
+    watchCarry.bannedSymbols,
+    watchCarry.preferredSymbol,
     youngBook,
-    youngBookHoldings,
   ]);
 
   const {
@@ -877,9 +950,8 @@ export default function HomeDecisionScreen({
     !isExplore && (starterBook || youngBook)
       ? buildSecondNameWatch({
           heldSymbol: starterBook ? starterHoldingSymbol : undefined,
-          heldSymbols: youngBook
-            ? youngBookHoldings.map((holding) => holding.tradingsymbol)
-            : undefined,
+          heldSymbols: deskHeldSymbols,
+          bannedSymbols: watchCarry.bannedSymbols,
           picks: decision.picks,
           cashInr: availableCash ?? 0,
           livePriceBySymbol: (() => {
@@ -892,8 +964,12 @@ export default function HomeDecisionScreen({
             }
             return prices;
           })(),
-          preferredSymbol: readTodayContract()?.watchSymbol,
-          eyebrow: starterBook ? "Next name" : "Third name",
+          preferredSymbol: watchCarry.preferredSymbol,
+          eyebrow: starterBook
+            ? "Next name"
+            : deskHeldCount >= 3
+              ? "Fourth name"
+              : "Third name",
         })
       : null;
   const todayContract = useMemo(() => {
@@ -1034,6 +1110,40 @@ export default function HomeDecisionScreen({
     persistWatchNotifyKey(nextKey);
     void fireWatchInterrupt(buildWatchInterruptCopy(nextNameWatch));
   }, [liveTapeHardWait, nextNameWatch, starterBook, youngBook]);
+
+  useEffect(() => {
+    if (!(youngBook || starterBook)) {
+      return;
+    }
+
+    const seen = readHoldNotifyKeys();
+    for (const holding of youngBookHoldings) {
+      const symbol = holding.tradingsymbol?.trim().toUpperCase();
+      if (!symbol) {
+        continue;
+      }
+
+      const hold = buildBookHoldRule({
+        averagePriceInr: holding.average_price,
+        lastPriceInr: holding.last_price,
+        cutInr: holdCuts[symbol],
+      });
+      if (!hold.ruleBroken) {
+        continue;
+      }
+
+      const nextKey = holdNotifyKey(symbol);
+      if (!shouldNotifyHold(seen, nextKey)) {
+        continue;
+      }
+
+      persistHoldNotifyKey(nextKey);
+      seen.push(nextKey);
+      void fireWatchInterrupt(
+        buildHoldInterruptCopy({ symbol, cutLabel: hold.cutLabel }),
+      );
+    }
+  }, [holdCuts, starterBook, youngBook, youngBookHoldings]);
 
   useEffect(() => {
     const symbol = nextNameWatch?.symbol;
@@ -1249,9 +1359,7 @@ export default function HomeDecisionScreen({
               firstBuyApplied.verdict !== "pause"
             ? (() => {
                 const youngWait = buildYoungBookWaitCopy({
-                  symbols: youngBookHoldings.map(
-                    (holding) => holding.tradingsymbol,
-                  ),
+                  symbols: deskHeldSymbols,
                   nextSymbol: nextNamePick?.stock,
                   tapeHardWait: liveTapeHardWait,
                 });
@@ -1313,6 +1421,7 @@ export default function HomeDecisionScreen({
     liveTapeHardWait,
     nextNamePick,
     nextNameWatch,
+    deskHeldSymbols,
     targetIsSacredCore,
     todayHero.symbol,
   ]);
@@ -1360,6 +1469,7 @@ export default function HomeDecisionScreen({
       ? buildYoungBookCashCopy({
           cashInr: availableCash,
           nextSymbol: nextNameWatch?.symbol,
+          heldCount: deskHeldCount,
         })
       : null;
   const firstBuyCommitLabel = resolveEmptyBookCommitLabel({

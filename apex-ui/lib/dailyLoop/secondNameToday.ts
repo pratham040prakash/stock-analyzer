@@ -38,9 +38,10 @@ export type SecondNameWatch = {
 function heldSymbolSet(input: {
   heldSymbol?: string | null;
   heldSymbols?: Array<string | null | undefined>;
+  bannedSymbols?: Array<string | null | undefined>;
 }): Set<string> {
   return new Set(
-    [input.heldSymbol, ...(input.heldSymbols ?? [])]
+    [input.heldSymbol, ...(input.heldSymbols ?? []), ...(input.bannedSymbols ?? [])]
       .map((symbol) => symbol?.trim().toUpperCase())
       .filter((symbol): symbol is string => Boolean(symbol)),
   );
@@ -49,6 +50,7 @@ function heldSymbolSet(input: {
 export function rankSecondNames<T extends SecondNamePick>(input: {
   heldSymbol?: string | null;
   heldSymbols?: Array<string | null | undefined>;
+  bannedSymbols?: Array<string | null | undefined>;
   picks?: T[] | null;
 }): T[] {
   const held = heldSymbolSet(input);
@@ -63,6 +65,7 @@ export function rankSecondNames<T extends SecondNamePick>(input: {
 export function pickSecondName<T extends SecondNamePick>(input: {
   heldSymbol?: string | null;
   heldSymbols?: Array<string | null | undefined>;
+  bannedSymbols?: Array<string | null | undefined>;
   picks?: T[] | null;
 }): T | null {
   return rankSecondNames(input)[0] ?? null;
@@ -203,6 +206,7 @@ function buildWatchFromPick<T extends SecondNamePick>(
 export function buildSecondNameWatch<T extends SecondNamePick>(input: {
   heldSymbol?: string | null;
   heldSymbols?: Array<string | null | undefined>;
+  bannedSymbols?: Array<string | null | undefined>;
   picks?: T[] | null;
   cashInr: number;
   livePriceInr?: number | null;
@@ -221,8 +225,9 @@ export function buildSecondNameWatch<T extends SecondNamePick>(input: {
     return null;
   }
 
+  const banned = heldSymbolSet({ bannedSymbols: input.bannedSymbols });
   const preferred = input.preferredSymbol?.trim().toUpperCase();
-  if (preferred) {
+  if (preferred && !banned.has(preferred)) {
     const locked = ranked.find((pick) => pick.stock.trim().toUpperCase() === preferred);
     if (locked) {
       return buildWatchFromPick(locked, input);
@@ -313,6 +318,19 @@ export function runSecondNameTodaySelfCheck(): void {
   });
   assert(deadLocked?.dead === true, "Today's name stays locked if it loses the line");
   assert(deadLocked?.gapLabel === "Lost the line", "Dead watch must say the line is lost");
+
+  const resurrected = buildSecondNameWatch({
+    heldSymbols: ["COALINDIA", "ADANIPORTS"],
+    bannedSymbols: ["DIVISLAB"],
+    preferredSymbol: "DIVISLAB",
+    picks,
+    cashInr: 10_722,
+    livePriceInr: 9500,
+  });
+  assert(
+    resurrected?.symbol !== "DIVISLAB",
+    "A name that died yesterday must not come back as today's watch",
+  );
 
   const thesis = buildWatchThesis({
     stock: "DIVISLAB",

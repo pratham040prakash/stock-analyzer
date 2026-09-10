@@ -12,6 +12,7 @@ type Props = {
   reconcileMessage?: string | null;
   proofHref?: string | null;
   loopLine?: string | null;
+  ruleGrade?: string | null;
 };
 
 export default function WeeklyReviewHero({
@@ -21,6 +22,7 @@ export default function WeeklyReviewHero({
   reconcileMessage,
   proofHref = null,
   loopLine = null,
+  ruleGrade = null,
 }: Props) {
   const headline = buildWeeklyReviewHeadline(summary);
 
@@ -37,12 +39,19 @@ export default function WeeklyReviewHero({
       </div>
 
       <section className="rounded-xl border border-blue-500/15 bg-blue-500/5 px-4 py-4 space-y-2">
-        {loopLine ? (
+        {loopLine && !ruleGrade ? (
           <p className="text-xs font-medium uppercase tracking-[0.16em] text-apex-muted/75">
             {loopLine}
           </p>
         ) : null}
-        <p className="text-lg font-medium text-apex-text/95">{headline}</p>
+        {ruleGrade ? (
+          <p className="text-lg font-medium text-apex-text/95">{ruleGrade}</p>
+        ) : (
+          <p className="text-lg font-medium text-apex-text/95">{headline}</p>
+        )}
+        {ruleGrade ? (
+          <p className="text-sm text-apex-muted/85">{headline}</p>
+        ) : null}
         <p className="text-sm text-apex-muted/85">
           Wins {summary.wins} · Losses {summary.losses} · Followed{" "}
           {summary.followedDays} · Wait {summary.waitDays}

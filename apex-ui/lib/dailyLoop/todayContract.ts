@@ -20,6 +20,9 @@ export type TodayContract = {
   heldSymbols?: string[];
   outcome?: string;
   outcomeLine?: string;
+  watchThrough?: boolean;
+  watchDead?: boolean;
+  triggerInr?: number | null;
 };
 
 const STORAGE_PREFIX = "apex_today_contract";
@@ -47,6 +50,11 @@ export function buildTodayContract(input: {
         ? `Hold ${names[0]}.`
         : "Hold the book.";
   const watch = input.watch;
+  const watchState = {
+    watchThrough: watch?.through,
+    watchDead: watch?.dead,
+    triggerInr: watch?.triggerInr ?? null,
+  };
 
   if (input.tapeHardWait) {
     return {
@@ -56,6 +64,7 @@ export function buildTodayContract(input: {
       watchSymbol: watch?.symbol,
       gapLabel: watch?.gapLabel ?? null,
       heldSymbols: names,
+      ...watchState,
     };
   }
 
@@ -67,6 +76,7 @@ export function buildTodayContract(input: {
       watchSymbol: watch.symbol,
       gapLabel: watch.gapLabel ?? "Lost the line",
       heldSymbols: names,
+      ...watchState,
     };
   }
 
@@ -78,6 +88,7 @@ export function buildTodayContract(input: {
       watchSymbol: watch.symbol,
       gapLabel: watch.gapLabel ?? "At the line",
       heldSymbols: names,
+      ...watchState,
     };
   }
 
@@ -93,6 +104,7 @@ export function buildTodayContract(input: {
       watchSymbol: watch.symbol,
       gapLabel: watch.gapLabel ?? null,
       heldSymbols: names,
+      ...watchState,
     };
   }
 
@@ -104,6 +116,7 @@ export function buildTodayContract(input: {
       watchSymbol: watch.symbol,
       gapLabel: watch.gapLabel ?? null,
       heldSymbols: names,
+      ...watchState,
     };
   }
 

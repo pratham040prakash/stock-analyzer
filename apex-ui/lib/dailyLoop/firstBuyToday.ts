@@ -52,7 +52,7 @@ export function isYoungBook(input: {
   const value = input.portfolioValue;
   const hasValue =
     value !== null && value !== undefined && Number.isFinite(value) && value > 0;
-  return hasValue && input.openHoldingsCount >= 1 && input.openHoldingsCount <= 2;
+  return hasValue && input.openHoldingsCount >= 1 && input.openHoldingsCount <= 3;
 }
 
 export type YoungBookHolding = {
@@ -105,6 +105,17 @@ export function buildYoungBookWaitCopy(input: {
       .filter((symbol): symbol is string => Boolean(symbol)),
   )];
 
+  if (names.length >= 3) {
+    const last = names[names.length - 1];
+    const head = names.slice(0, -1).join(", ");
+    return {
+      headline: `Hold ${head}, and ${last}`,
+      subline: input.tapeHardWait
+        ? "Index is range-bound. No add, no trim."
+        : "Three names are the book. No trim today.",
+    };
+  }
+
   if (names.length === 2) {
     return {
       headline: `Hold ${names[0]} and ${names[1]}`,
@@ -127,6 +138,7 @@ export function buildYoungBookWaitCopy(input: {
 export function buildYoungBookCashCopy(input: {
   cashInr?: number | null;
   nextSymbol?: string | null;
+  heldCount?: number;
 }): {
   amountLabel: string;
   line: string;
@@ -137,11 +149,14 @@ export function buildYoungBookCashCopy(input: {
   }
 
   const next = input.nextSymbol?.trim().toUpperCase();
+  const heldCount = input.heldCount ?? 2;
   return {
     amountLabel: formatInr(cashInr),
     line: next
       ? `Stays in cash until ${next} confirms.`
-      : "Stays in cash. No third name today.",
+      : heldCount >= 3
+        ? "Stays in cash. No fourth name today."
+        : "Stays in cash. No third name today.",
   };
 }
 
@@ -641,8 +656,18 @@ export function runFirstBuyTodaySelfCheck(): void {
     "Two live holdings are a young book",
   );
   assert(
-    !isYoungBook({ openHoldingsCount: 3, portfolioValue: 50_000 }),
-    "Three holdings are not a young book",
+    isYoungBook({ openHoldingsCount: 3, portfolioValue: 10_500 }),
+    "A placed third name is still a young book",
+  );
+  assert(
+    !isYoungBook({ openHoldingsCount: 4, portfolioValue: 50_000 }),
+    "Four holdings leave the young book",
+  );
+  assert(
+    buildYoungBookWaitCopy({
+      symbols: ["COALINDIA", "ADANIPORTS", "GRASIM"],
+    }).headline.includes("GRASIM"),
+    "Three-name Wait must name the new fill",
   );
   const orderedYoung = orderYoungBookHoldings([
     {

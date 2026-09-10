@@ -76,7 +76,7 @@ export default function PortfolioPolicyPanel({
 
       {youngBook ? (
         <p className="mt-4 text-xs leading-relaxed text-apex-muted/75">
-          Cash is the third name until a setup confirms.
+          Cash waits until a setup confirms.
         </p>
       ) : sector ? (
         <p className="mt-4 text-xs leading-relaxed text-apex-muted/75">

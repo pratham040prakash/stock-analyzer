@@ -180,7 +180,8 @@ function isSingleNameBook(input: CapitalDecisionInput): boolean {
 
 function isEarlyTwoNameBook(input: CapitalDecisionInput): boolean {
   const holdings = input.holdings;
-  if (!holdings || holdings.length !== 2) {
+  const count = holdings?.length ?? 0;
+  if (!holdings || count < 2 || count > 3) {
     return false;
   }
 
@@ -1612,6 +1613,26 @@ function runCapitalDecisionSelfCheck(): void {
   assert(
     !twoNameBook.actions.some((item) => item.action === "SELL"),
     "A two-name starter book must not sell the only share of either name",
+  );
+
+  const threeNameBook = buildCapitalDecision({
+    intent: "grow",
+    action: "sell",
+    stock: "GRASIM",
+    availableCash: 3_700,
+    portfolioValue: 10_500,
+    topAllocationPct: 40,
+    holdings: [
+      { symbol: "COALINDIA", weight: 33, quantity: 4 },
+      { symbol: "ADANIPORTS", weight: 33, quantity: 1 },
+      { symbol: "GRASIM", weight: 34, quantity: 2 },
+    ],
+    suggested_sell_percent: 25,
+    entryTiming: { enter: false },
+  });
+  assert(
+    !threeNameBook.actions.some((item) => item.action === "SELL"),
+    "A three-name young book must not trim the new fill",
   );
 
   const validBuy = buildCapitalDecision({

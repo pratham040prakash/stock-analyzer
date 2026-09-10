@@ -2,6 +2,7 @@ import { shiftIstDateKey, tradingDateKey } from "@/lib/dailyLoop/disciplineDates
 import { readTodayContract } from "@/lib/dailyLoop/todayContract";
 import type { TodayContract } from "@/lib/dailyLoop/todayContract";
 import type { TodayLoop } from "@/lib/dailyLoop/todayLoop";
+import { formatInr } from "@/lib/funds";
 import { parseInvalidationRule } from "@/services/thesis/parseInvalidationRule";
 
 export function buildLoopReceiptBody(input: {
@@ -155,6 +156,241 @@ export function buildWatchInterruptCopy(input: {
   };
 }
 
+export function yesterdayWatchDied(contract?: TodayContract | null): boolean {
+  if (!contract?.watchSymbol) {
+    return false;
+  }
+
+  if (contract.watchDead) {
+    return true;
+  }
+
+  const gap = (contract.gapLabel ?? "").toLowerCase();
+  const kite = (contract.kiteLine ?? "").toLowerCase();
+  return gap.includes("lost") || kite.includes("lost the setup");
+}
+
+export function yesterdayWatchThrough(contract?: TodayContract | null): boolean {
+  if (!contract?.watchSymbol) {
+    return false;
+  }
+
+  if (contract.watchThrough) {
+    return true;
+  }
+
+  const gap = (contract.gapLabel ?? "").toLowerCase();
+  const kite = (contract.kiteLine ?? "").toLowerCase();
+  return gap.includes("at the line") || kite.toLowerCase().includes("place ");
+}
+
+export function resolveWatchCarry(input: {
+  today?: TodayContract | null;
+  yesterday?: TodayContract | null;
+}): { preferredSymbol: string | null; bannedSymbols: string[] } {
+  const todayWatch = input.today?.watchSymbol?.trim().toUpperCase() || null;
+  const yWatch = input.yesterday?.watchSymbol?.trim().toUpperCase() || null;
+  const banned: string[] = [];
+
+  if (yWatch && yesterdayWatchDied(input.yesterday)) {
+    banned.push(yWatch);
+  }
+
+  if (todayWatch && !banned.includes(todayWatch)) {
+    return { preferredSymbol: todayWatch, bannedSymbols: banned };
+  }
+
+  if (
+    yWatch &&
+    !banned.includes(yWatch) &&
+    input.yesterday?.outcome !== "placed_watch"
+  ) {
+    return { preferredSymbol: yWatch, bannedSymbols: banned };
+  }
+
+  return { preferredSymbol: null, bannedSymbols: banned };
+}
+
+export function triggerInrFromKiteLine(kiteLine?: string | null): number | null {
+  const match = kiteLine?.match(/above\s*₹\s*([\d,]+)/i);
+  if (!match?.[1]) {
+    return null;
+  }
+
+  const value = Number(match[1].replace(/,/g, ""));
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+export function buildRuleGrade(input: {
+  watchSymbol?: string | null;
+  triggerInr?: number | null;
+  outcome?: string | null;
+  through?: boolean;
+  dead?: boolean;
+  kiteLine?: string | null;
+  gapLabel?: string | null;
+  headline?: string | null;
+}): string | null {
+  const watch = input.watchSymbol?.trim().toUpperCase() || null;
+  const headline = input.headline?.trim() || "";
+  const outcome = input.outcome ?? "";
+  const trigger =
+    input.triggerInr && input.triggerInr > 0
+      ? input.triggerInr
+      : triggerInrFromKiteLine(input.kiteLine);
+  const dead =
+    input.dead ||
+    yesterdayWatchDied({
+      dateKey: "",
+      kiteLine: input.kiteLine ?? "",
+      rule: "",
+      watchSymbol: watch ?? undefined,
+      gapLabel: input.gapLabel,
+      watchDead: input.dead,
+    });
+  const through =
+    input.through ||
+    yesterdayWatchThrough({
+      dateKey: "",
+      kiteLine: input.kiteLine ?? "",
+      rule: "",
+      watchSymbol: watch ?? undefined,
+      gapLabel: input.gapLabel,
+      watchThrough: input.through,
+    });
+
+  if (outcome === "placed_watch" || headline.toLowerCase().startsWith("placed")) {
+    return watch
+      ? `You placed ${watch}. The book added a name.`
+      : "You placed the watch. The book added a name.";
+  }
+
+  if (outcome === "broke_wait" || headline.toLowerCase().includes("off-plan")) {
+    return headline || "Off-plan. The book added a different name.";
+  }
+
+  const followed =
+    outcome === "followed_wait" || headline.toLowerCase().includes("followed");
+  if (!followed) {
+    return null;
+  }
+
+  if (dead && watch) {
+    return `You waited. ${watch} lost the setup.`;
+  }
+
+  if (through) {
+    return watch
+      ? `You waited. ${watch} went through and you didn't place.`
+      : "You waited. It went through and you didn't place.";
+  }
+
+  if (watch && trigger) {
+    return `You waited. ${watch} never traded above ${formatInr(trigger)}.`;
+  }
+
+  return watch ? `You waited. No ${watch} fill.` : "You waited.";
+}
+
+export function pickReviewRuleGrade(
+  receipts: Array<{
+    receipt_date?: string | null;
+    headline?: string | null;
+    subline?: string | null;
+    order_id?: string | null;
+    symbol?: string | null;
+  }>,
+  yesterday?: TodayContract | null,
+  dateKey = tradingDateKey(),
+): string | null {
+  const yday = shiftIstDateKey(dateKey, -1);
+  const row = receipts.find(
+    (receipt) =>
+      receipt.receipt_date === yday && Boolean(receipt.order_id?.startsWith("loop:")),
+  );
+  const fromReceipt = row
+    ? buildRuleGrade({
+        watchSymbol: yesterday?.watchSymbol || row.symbol,
+        outcome: row.order_id?.split(":")[2],
+        headline: row.headline,
+        kiteLine: row.subline ?? yesterday?.kiteLine,
+        gapLabel: yesterday?.gapLabel,
+        triggerInr: yesterday?.triggerInr,
+        through: yesterday?.watchThrough,
+        dead: yesterday?.watchDead,
+      })
+    : null;
+
+  if (fromReceipt) {
+    return fromReceipt;
+  }
+
+  if (!yesterday) {
+    return null;
+  }
+
+  return buildRuleGrade({
+    watchSymbol: yesterday.watchSymbol,
+    outcome: yesterday.outcome,
+    headline: yesterday.outcomeLine,
+    kiteLine: yesterday.kiteLine,
+    gapLabel: yesterday.gapLabel,
+    triggerInr: yesterday.triggerInr,
+    through: yesterday.watchThrough,
+    dead: yesterday.watchDead,
+  });
+}
+
+export function holdNotifyKey(symbol?: string | null): string {
+  return `${symbol?.trim().toUpperCase() || "BOOK"}:broke`;
+}
+
+export function readHoldNotifyKeys(dateKey = tradingDateKey()): string[] {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  const raw = window.localStorage.getItem(`apex_hold_notify:${dateKey}`);
+  if (!raw) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed)
+      ? parsed.filter((item): item is string => typeof item === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+export function persistHoldNotifyKey(key: string, dateKey = tradingDateKey()): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const next = [...new Set([...readHoldNotifyKeys(dateKey), key])];
+  window.localStorage.setItem(`apex_hold_notify:${dateKey}`, JSON.stringify(next));
+}
+
+export function shouldNotifyHold(seen: string[], key: string): boolean {
+  return key.endsWith(":broke") && !seen.includes(key);
+}
+
+export function buildHoldInterruptCopy(input: {
+  symbol: string;
+  cutLabel?: string | null;
+}): { title: string; body: string } {
+  const symbol = input.symbol.trim().toUpperCase();
+  return {
+    title: `${symbol} broke your line`,
+    body: input.cutLabel
+      ? `Below ${input.cutLabel}. Review in Kite.`
+      : "Your line broke. Review in Kite.",
+  };
+}
+
 export function cutInrFromInvalidation(text?: string | null): number | null {
   if (!text?.trim()) {
     return null;
@@ -295,4 +531,54 @@ export function runTodayMemorySelfCheck(): void {
   assert(thesis.includes("range high"), "Human thesis must come from research");
 
   assert(cutInrFromInvalidation("Break below ₹1,714") === 1714, "Your line must parse");
+
+  const carryLive = resolveWatchCarry({
+    yesterday: {
+      dateKey: "2026-09-09",
+      kiteLine: "Do nothing in Kite unless GRASIM trades above ₹3,371.",
+      rule: "₹52 to the line",
+      watchSymbol: "GRASIM",
+      outcome: "followed_wait",
+    },
+  });
+  assert(carryLive.preferredSymbol === "GRASIM", "A live wait must keep yesterday's name");
+
+  const carryDead = resolveWatchCarry({
+    yesterday: {
+      dateKey: "2026-09-09",
+      kiteLine: "Do nothing in Kite. GRASIM lost the setup.",
+      rule: "Cash stays put.",
+      watchSymbol: "GRASIM",
+      gapLabel: "Lost the line",
+      watchDead: true,
+      outcome: "followed_wait",
+    },
+  });
+  assert(carryDead.bannedSymbols.includes("GRASIM"), "A dead setup must not return tomorrow");
+  assert(carryDead.preferredSymbol === null, "A dead setup must not stay preferred");
+
+  assert(
+    buildRuleGrade({
+      watchSymbol: "GRASIM",
+      outcome: "followed_wait",
+      triggerInr: 3371,
+    })?.includes("never traded above") === true,
+    "Review must grade a wait that never confirmed",
+  );
+  assert(
+    buildRuleGrade({
+      watchSymbol: "GRASIM",
+      outcome: "followed_wait",
+      through: true,
+    })?.includes("didn't place") === true,
+    "Review must grade a wait that missed the through",
+  );
+  assert(
+    shouldNotifyHold([], "COALINDIA:broke"),
+    "A broken hold line must interrupt",
+  );
+  assert(
+    !shouldNotifyHold(["COALINDIA:broke"], "COALINDIA:broke"),
+    "The same broken line must not spam",
+  );
 }

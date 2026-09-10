@@ -24,7 +24,9 @@ import ApexErrorBoundary from "@/components/ui/ApexErrorBoundary";
 import { ApexShell } from "@/components/ui/apex";
 import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
 import { buildLastNIstDays } from "@/lib/dailyLoop/disciplineHistoryMerge";
-import { pickReviewLoopLine } from "@/lib/dailyLoop/todayMemory";
+import { shiftIstDateKey, tradingDateKey } from "@/lib/dailyLoop/disciplineDates";
+import { readTodayContract } from "@/lib/dailyLoop/todayContract";
+import { pickReviewLoopLine, pickReviewRuleGrade } from "@/lib/dailyLoop/todayMemory";
 import { buildDisciplineProcessScore } from "@/services/review/disciplineScore";
 import { buildDisciplineDigestView } from "@/services/review/disciplineDigest";
 import type {
@@ -324,6 +326,20 @@ export default function ReviewPageClient({ userName }: Props) {
       ),
     [receipts],
   );
+  const ruleGrade = useMemo(
+    () =>
+      pickReviewRuleGrade(
+        receipts.map((row) => ({
+          receipt_date: row.receipt_date,
+          headline: row.headline,
+          subline: row.subline,
+          order_id: row.order_id,
+          symbol: row.symbol,
+        })),
+        readTodayContract(shiftIstDateKey(tradingDateKey(), -1)),
+      ),
+    [receipts],
+  );
 
   const latestProofHref = useMemo(() => {
     const latest = receipts[0];
@@ -366,6 +382,7 @@ export default function ReviewPageClient({ userName }: Props) {
         reconcileMessage={reconcileMessage}
         proofHref={latestProofHref}
         loopLine={loopLine}
+        ruleGrade={ruleGrade}
       />
 
       <ContextualLessonPanel lesson={contextualLesson} loading={lessonLoading} />
