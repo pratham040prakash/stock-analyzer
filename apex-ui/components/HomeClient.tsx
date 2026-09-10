@@ -13,7 +13,7 @@ import ReceiptProofPanel from "@/components/receipts/ReceiptProofPanel";
 import FinancialProfileSetup from "./FinancialProfileSetup";
 import InvestmentStyleSetup from "@/components/onboarding/InvestmentStyleSetup";
 import IntentSelector from "./IntentSelector";
-import { isEmptyBook, isStarterBook } from "@/lib/dailyLoop/firstBuyToday";
+import { isEmptyBook, isYoungBook } from "@/lib/dailyLoop/firstBuyToday";
 import ApexSurfaceNav from "@/components/nav/ApexSurfaceNav";
 import LoginCTA from "./LoginCTA";
 import PortfolioSummary, {
@@ -1053,17 +1053,17 @@ export default function HomeClient({
     [brokerPortfolioValue, portfolioData?.total_value, visiblePortfolioHoldings],
   );
 
-  const starterBookToday = isStarterBook({
+  const youngBookToday = isYoungBook({
     openHoldingsCount,
     portfolioValue: resolvedPortfolioValue,
   });
-  const todayIntent = starterBookToday ? "grow" : userIntent;
+  const todayIntent = youngBookToday ? "grow" : userIntent;
 
   useEffect(() => {
-    if (starterBookToday && userIntent !== "grow") {
+    if (youngBookToday && userIntent !== "grow") {
       setUserIntent("grow");
     }
-  }, [setUserIntent, starterBookToday, userIntent]);
+  }, [setUserIntent, youngBookToday, userIntent]);
 
   const todayFocusPreviews = useMemo(() => {
     if (!dailyDecision) {
@@ -1234,7 +1234,7 @@ export default function HomeClient({
               openHoldingsCount,
               portfolioValue: resolvedPortfolioValue,
             }) ||
-              isStarterBook({
+              isYoungBook({
                 openHoldingsCount,
                 portfolioValue: resolvedPortfolioValue,
               })) ? null : (

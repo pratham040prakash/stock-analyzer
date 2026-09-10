@@ -37,6 +37,42 @@ export function isStarterBook(input: {
   return input.openHoldingsCount === 1 && hasValue;
 }
 
+export function isYoungBook(input: {
+  openHoldingsCount: number;
+  portfolioValue?: number | null;
+}): boolean {
+  const value = input.portfolioValue;
+  const hasValue =
+    value !== null && value !== undefined && Number.isFinite(value) && value > 0;
+  return hasValue && input.openHoldingsCount >= 1 && input.openHoldingsCount <= 2;
+}
+
+export function buildYoungBookWaitCopy(input: {
+  symbols?: Array<string | null | undefined>;
+}): { headline: string; subline: string } {
+  const names = [...new Set(
+    (input.symbols ?? [])
+      .map((symbol) => symbol?.trim().toUpperCase())
+      .filter((symbol): symbol is string => Boolean(symbol)),
+  )];
+
+  if (names.length === 2) {
+    return {
+      headline: `Hold ${names[0]} and ${names[1]}`,
+      subline: "Two names are the book. No trim today.",
+    };
+  }
+
+  if (names.length === 1) {
+    return buildStarterBookWaitCopy({ symbol: names[0] });
+  }
+
+  return {
+    headline: "Hold the book",
+    subline: "No add, no trim today.",
+  };
+}
+
 export function isFirstBuyCandidate(input: {
   emptyBook: boolean;
   executionKind: TodayExecutionKind;
@@ -450,6 +486,46 @@ export function runFirstBuyTodaySelfCheck(): void {
     !isStarterBook({ openHoldingsCount: 2, portfolioValue: 10_000 }),
     "Two holdings are not a starter book",
   );
+  assert(
+    isYoungBook({ openHoldingsCount: 2, portfolioValue: 3_455 }),
+    "Two live holdings are a young book",
+  );
+  assert(
+    !isYoungBook({ openHoldingsCount: 3, portfolioValue: 50_000 }),
+    "Three holdings are not a young book",
+  );
+  const twoNameHold = buildYoungBookWaitCopy({
+    symbols: ["COALINDIA", "ADANIPORTS"],
+  });
+  assert(
+    twoNameHold.headline.includes("COALINDIA") &&
+      twoNameHold.headline.includes("ADANIPORTS"),
+    "Young-book Wait must name both holdings",
+  );
+  assert(
+    twoNameHold.subline.includes("No trim"),
+    "Young-book Wait must not be a skipped trim",
+  );
+  assert(
+    !twoNameHold.headline.toLowerCase().includes("trim") &&
+      !twoNameHold.subline.toLowerCase().includes("skip"),
+    "Young-book Wait must not read as a skipped trim",
+  );
+
+  const youngWait = applyStarterBookPresentation({
+    presentation: {
+      verdict: "wait",
+      displayWord: "Wait",
+      headline: twoNameHold.headline,
+      subline: twoNameHold.subline,
+      ctaLabel: "You're done for today",
+      doneForToday: true,
+      tradingLocked: true,
+    },
+    starterBook: true,
+  });
+  assert(!youngWait.doneForToday, "Young-book Wait must not close the morning");
+  assert(youngWait.ctaLabel === "I waited", "Young-book commit is I waited");
   assert(
     isFirstBuyCandidate({
       emptyBook: true,
