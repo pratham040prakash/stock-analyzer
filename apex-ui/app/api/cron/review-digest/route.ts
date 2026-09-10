@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { apiError, apiOk } from "@/lib/api/response";
+import { runSundayLetters } from "@/services/desk/sundayLetter";
 import { runReviewDigestCron } from "@/services/review/runReviewDigestCron";
 
 export async function GET(req: Request) {
@@ -15,9 +16,10 @@ export async function GET(req: Request) {
 
   try {
     const admin = createAdminClient();
+    const sunday = await runSundayLetters(admin);
     const result = await runReviewDigestCron(admin);
 
-    return apiOk(result);
+    return apiOk({ ...result, sunday });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Review digest cron failed";
     return apiError(message, 500);

@@ -65,6 +65,15 @@ import {
   thesisNeedsCheckIn,
   watchBandPct,
 } from "@/lib/dailyLoop/deskNight";
+import {
+  appendNameDiary,
+  deskHeartbeatLine,
+  interruptHealthLine,
+  latestDiaryLine,
+} from "@/lib/dailyLoop/deskOs";
+import { isNseCashSessionOpen } from "@/lib/broker/marketSession";
+import TodayDeskStatus from "@/components/dailyLoop/TodayDeskStatus";
+import TodayNameDiary from "@/components/dailyLoop/TodayNameDiary";
 import { buildDeskFlip, normalizeSymbols, resolveTodayLoop } from "@/lib/dailyLoop/todayLoop";
 import { shiftIstDateKey, tradingDateKey } from "@/lib/dailyLoop/disciplineDates";
 import {
@@ -402,6 +411,11 @@ export default function HomeDecisionScreen({
   const [gttStatus, setGttStatus] = useState<string | null>(null);
   const [gttBusy, setGttBusy] = useState(false);
   const [bannedSymbols, setBannedSymbols] = useState<string[]>([]);
+  const [interruptReady, setInterruptReady] = useState(false);
+  const [lastWatchAt, setLastWatchAt] = useState<string | null>(null);
+  const [nameDiary, setNameDiary] = useState<
+    Array<{ dateKey: string; symbol: string; line: string }>
+  >([]);
   const [stillTrue, setStillTrue] = useState<{
     symbol: string;
     thesis: string;
@@ -1060,10 +1074,14 @@ export default function HomeDecisionScreen({
       sessionHighBySymbol: highs,
       sessionLowBySymbol: lows,
       holdCutsBySymbol: Object.keys(holdCuts).length > 0 ? holdCuts : previous?.holdCutsBySymbol,
+      lastWatchAt: lastWatchAt ?? previous?.lastWatchAt,
+      nameDiary: nameDiary.length > 0 ? nameDiary : previous?.nameDiary,
     };
   }, [
     holdCuts,
+    lastWatchAt,
     liveTapeHardWait,
+    nameDiary,
     nextNameWatch,
     starterHoldingSymbol,
     youngBookHoldings,
@@ -1088,11 +1106,14 @@ export default function HomeDecisionScreen({
         outcomeLine:
           todayLoop.state === "open" ? todayContract.outcomeLine : todayLoop.line,
         campaignDay: campaignDay || todayContract.campaignDay,
+        cashMandate: nextNameWatch
+          ? `Mandate: sit until ${nextNameWatch.symbol} confirms. Not a leftover.`
+          : "Idle on purpose. No third name until a line exists.",
       },
       readTodayContract(),
     );
     syncTodayContractToServer(merged);
-  }, [campaignDay, todayContract, todayLoop]);
+  }, [campaignDay, nextNameWatch, todayContract, todayLoop]);
 
   useEffect(() => {
     const symbol = nextNameWatch?.symbol;
@@ -1163,6 +1184,8 @@ export default function HomeDecisionScreen({
           } | null;
           campaignDay?: number;
           bannedSymbols?: string[];
+          interrupt?: { ready?: boolean };
+          lastWatchAt?: string | null;
         }>(response, "Contract");
         if (!response.ok) {
           return;
@@ -1178,6 +1201,20 @@ export default function HomeDecisionScreen({
         }
         if (payload?.bannedSymbols) {
           setBannedSymbols(payload.bannedSymbols);
+        }
+        if (payload?.interrupt) {
+          setInterruptReady(payload.interrupt.ready === true);
+        }
+        if (payload?.lastWatchAt) {
+          setLastWatchAt(payload.lastWatchAt);
+        }
+        if (payload?.contract && "nameDiary" in payload.contract) {
+          const diary = (
+            payload.contract as { nameDiary?: Array<{ dateKey: string; symbol: string; line: string }> }
+          ).nameDiary;
+          if (diary) {
+            setNameDiary(diary);
+          }
         }
         if (payload?.contract?.closeLetter) {
           setCloseLetter(payload.contract.closeLetter);
@@ -1401,6 +1438,22 @@ export default function HomeDecisionScreen({
         setHoldCuts(next);
         setHoldTheses(lines);
         setStillTrue(checkIn);
+        setNameDiary((current) => {
+          let diary = current;
+          for (const row of payload.theses) {
+            const symbol = row.symbol?.trim().toUpperCase();
+            const line = row.invalidation?.trim() || row.thesis?.trim();
+            if (!symbol || !line) {
+              continue;
+            }
+            diary = appendNameDiary(diary, {
+              dateKey: (row.updated_at ?? "").slice(0, 10) || tradingDateKey(),
+              symbol,
+              line,
+            });
+          }
+          return diary;
+        });
       } catch {
         // Default 3% hold line remains.
       }
@@ -1998,6 +2051,15 @@ export default function HomeDecisionScreen({
                   autoRetryInProgress={autoSyncRetrying}
                   autoRetryDetail={autoSyncRetryDetail}
                 />
+                {youngBook || starterBook ? (
+                  <TodayDeskStatus
+                    heartbeat={deskHeartbeatLine({
+                      lastWatchAt,
+                      marketOpen: isNseCashSessionOpen(),
+                    })}
+                    interrupt={interruptHealthLine(interruptReady)}
+                  />
+                ) : null}
                 {yesterdayLine && (youngBook || starterBook) ? (
                   <p className="text-center text-xs font-medium uppercase tracking-[0.18em] text-apex-muted/70">
                     {yesterdayLine}
@@ -2042,6 +2104,7 @@ export default function HomeDecisionScreen({
                   <TodayStarterHoldCard
                     lines={starterHoldLines}
                     hideCashFork={Boolean(nextNameWatch)}
+                    diary={latestDiaryLine(nameDiary, starterHoldLines.symbol)}
                     yourCutInr={
                       holdCuts[starterHoldLines.symbol.trim().toUpperCase()] ?? null
                     }
@@ -2050,6 +2113,13 @@ export default function HomeDecisionScreen({
                       const name = starterHoldLines.symbol.trim().toUpperCase();
                       setCutSaving(name);
                       setHoldCuts((current) => ({ ...current, [name]: cut }));
+                      setNameDiary((current) =>
+                        appendNameDiary(current, {
+                          dateKey: tradingDateKey(),
+                          symbol: name,
+                          line: `Break below ₹${Math.round(cut)}`,
+                        }),
+                      );
                       void apiFetch("/api/thesis", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
@@ -2060,6 +2130,13 @@ export default function HomeDecisionScreen({
                         }),
                       }).finally(() => setCutSaving(null));
                     }}
+                  />
+                ) : null}
+                {starterHoldLines ? (
+                  <TodayNameDiary
+                    symbol={starterHoldLines.symbol}
+                    dateKey={latestDiaryLine(nameDiary, starterHoldLines.symbol)?.dateKey}
+                    line={latestDiaryLine(nameDiary, starterHoldLines.symbol)?.line}
                   />
                 ) : null}
                 {youngHoldLines.length > 0 ? (
@@ -2076,6 +2153,13 @@ export default function HomeDecisionScreen({
                           const name = lines.symbol.trim().toUpperCase();
                           setCutSaving(name);
                           setHoldCuts((current) => ({ ...current, [name]: cut }));
+                          setNameDiary((current) =>
+                            appendNameDiary(current, {
+                              dateKey: tradingDateKey(),
+                              symbol: name,
+                              line: `Break below ₹${Math.round(cut)}`,
+                            }),
+                          );
                           void apiFetch("/api/thesis", {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
@@ -2088,10 +2172,18 @@ export default function HomeDecisionScreen({
                         }}
                       />
                     ))}
+                    {youngHoldLines.map((lines) => (
+                      <TodayNameDiary
+                        key={`diary-${lines.symbol}`}
+                        symbol={lines.symbol}
+                        dateKey={latestDiaryLine(nameDiary, lines.symbol)?.dateKey}
+                        line={latestDiaryLine(nameDiary, lines.symbol)?.line}
+                      />
+                    ))}
                     {youngCashCopy && !nextNameWatch ? (
                       <div className="rounded-2xl border border-sky-300/15 bg-sky-400/[0.08] px-4 py-3">
                         <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-sky-100/70">
-                          Leftover cash
+                          Cash mandate
                         </p>
                         <p className="mt-1 text-xl font-semibold tracking-tight text-apex-text">
                           {youngCashCopy.amountLabel}

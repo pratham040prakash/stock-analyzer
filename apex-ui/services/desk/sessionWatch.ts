@@ -179,6 +179,7 @@ async function watchOneUser(
     })),
   });
 
+  next.lastWatchAt = new Date().toISOString();
   await writeServerContract(admin, userId, next);
   return alerts;
 }

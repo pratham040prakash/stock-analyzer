@@ -13,6 +13,7 @@ type Props = {
   proofHref?: string | null;
   loopLine?: string | null;
   ruleGrade?: string | null;
+  sundayLetter?: string | null;
 };
 
 export default function WeeklyReviewHero({
@@ -23,6 +24,7 @@ export default function WeeklyReviewHero({
   proofHref = null,
   loopLine = null,
   ruleGrade = null,
+  sundayLetter = null,
 }: Props) {
   const headline = buildWeeklyReviewHeadline(summary);
 
@@ -56,6 +58,9 @@ export default function WeeklyReviewHero({
         )}
         {ruleGrade ? (
           <p className="text-sm text-apex-muted/85">{headline}</p>
+        ) : null}
+        {sundayLetter ? (
+          <p className="text-sm leading-relaxed text-apex-text/90">{sundayLetter}</p>
         ) : null}
         <p className="text-sm text-apex-muted/85">
           Wins {summary.wins} · Losses {summary.losses} · Followed{" "}

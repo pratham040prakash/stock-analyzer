@@ -329,6 +329,7 @@ export default function ReviewPageClient({ userName }: Props) {
   const [yesterdayContract, setYesterdayContract] = useState(
     () => readTodayContract(shiftIstDateKey(tradingDateKey(), -1)),
   );
+  const [sundayLetter, setSundayLetter] = useState<string | null>(null);
 
   useEffect(() => {
     const yday = shiftIstDateKey(tradingDateKey(), -1);
@@ -347,6 +348,20 @@ export default function ReviewPageClient({ userName }: Props) {
         }
       } catch {
         // Local yesterday contract remains.
+      }
+
+      try {
+        const todayResponse = await apiFetch("/api/today/contract", {
+          cache: "no-store",
+        });
+        const todayPayload = await parseApiJson<{
+          sundayLetter?: string | null;
+        }>(todayResponse, "Sunday letter");
+        if (todayResponse.ok && todayPayload?.sundayLetter) {
+          setSundayLetter(todayPayload.sundayLetter);
+        }
+      } catch {
+        // Review still grades from yesterday's contract.
       }
     })();
   }, []);
@@ -408,6 +423,7 @@ export default function ReviewPageClient({ userName }: Props) {
         proofHref={latestProofHref}
         loopLine={loopLine}
         ruleGrade={ruleGrade}
+        sundayLetter={sundayLetter}
       />
 
       <ContextualLessonPanel lesson={contextualLesson} loading={lessonLoading} />

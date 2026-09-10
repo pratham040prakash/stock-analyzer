@@ -1,6 +1,10 @@
 import { apiError, apiOk } from "@/lib/api/response";
 import { shiftIstDateKey, tradingDateKey } from "@/lib/dailyLoop/disciplineDates";
 import { campaignDay } from "@/lib/dailyLoop/deskNight";
+import {
+  assembleSundayLetter,
+  describeInterruptChannel,
+} from "@/lib/dailyLoop/deskOs";
 import type { TodayContract } from "@/lib/dailyLoop/todayContract";
 import { bannedWatchSymbols } from "@/lib/dailyLoop/todayMemory";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -45,6 +49,13 @@ export async function GET(request: Request) {
     })),
   });
 
+  const sundayLetter =
+    contract?.sundayLetter ??
+    assembleSundayLetter({
+      weekOf: dateKey,
+      history,
+    });
+
   return apiOk({
     contract: contract
       ? {
@@ -54,6 +65,9 @@ export async function GET(request: Request) {
       : null,
     campaignDay: day,
     bannedSymbols: bannedWatchSymbols(history, dateKey),
+    interrupt: describeInterruptChannel(),
+    lastWatchAt: contract?.lastWatchAt ?? null,
+    sundayLetter,
   });
 }
 

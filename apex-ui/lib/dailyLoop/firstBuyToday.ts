@@ -153,10 +153,10 @@ export function buildYoungBookCashCopy(input: {
   return {
     amountLabel: formatInr(cashInr),
     line: next
-      ? `Stays in cash until ${next} confirms.`
+      ? `Mandate: sit until ${next} confirms. Not a leftover.`
       : heldCount >= 3
-        ? "Stays in cash. No fourth name today."
-        : "Stays in cash. No third name today.",
+        ? "Idle on purpose. No fourth name."
+        : "Idle on purpose. No third name until a line exists.",
   };
 }
 
@@ -722,7 +722,7 @@ export function runFirstBuyTodaySelfCheck(): void {
         youngCash.amountLabel.includes("10,722") &&
         youngCash.line.includes("No third name"),
     ),
-    "Young-book Wait must place leftover cash",
+    "Young-book Wait must give leftover cash a mandate",
   );
   assert(
     buildYoungBookCashCopy({

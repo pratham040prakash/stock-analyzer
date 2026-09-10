@@ -31,6 +31,10 @@ export type TodayContract = {
   gttStatus?: string;
   closeLetter?: string;
   holdCutsBySymbol?: Record<string, number>;
+  lastWatchAt?: string;
+  cashMandate?: string;
+  nameDiary?: Array<{ dateKey: string; symbol: string; line: string }>;
+  sundayLetter?: string;
 };
 
 const STORAGE_PREFIX = "apex_today_contract";
@@ -154,6 +158,10 @@ export function rememberDeskFields(
     gttStatus: previous.gttStatus ?? next.gttStatus,
     closeLetter: previous.closeLetter ?? next.closeLetter,
     holdCutsBySymbol: next.holdCutsBySymbol ?? previous.holdCutsBySymbol,
+    lastWatchAt: next.lastWatchAt ?? previous.lastWatchAt,
+    cashMandate: next.cashMandate ?? previous.cashMandate,
+    nameDiary: next.nameDiary ?? previous.nameDiary,
+    sundayLetter: previous.sundayLetter ?? next.sundayLetter,
   };
 }
 
