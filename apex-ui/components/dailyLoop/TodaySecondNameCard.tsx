@@ -8,59 +8,99 @@ type Props = {
   kiteLine?: string;
 };
 
+function statusTone(watch: SecondNameWatch): string {
+  if (watch.dead) {
+    return "text-rose-200";
+  }
+
+  if (watch.through) {
+    return "text-emerald-200";
+  }
+
+  return "text-white";
+}
+
 export default function TodaySecondNameCard({ watch, kiteLine }: Props) {
-  const bandLine =
-    watch.triggerLabel && watch.killLabel
-      ? `${watch.triggerLabel} · Drop below ${watch.killLabel}`
-      : watch.triggerLabel;
+  const status = watch.dead ? "Lost" : watch.through ? "Through" : "Live";
 
   return (
-    <section className="relative overflow-hidden rounded-[28px] border border-white/[0.08] bg-gradient-to-b from-violet-400/[0.08] to-transparent px-5 py-5 sm:px-6">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(167,139,250,0.14),transparent_46%)]" />
-
-      <div className="relative">
-        <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-apex-muted/70">
-          In Kite · {watch.eyebrow}
+    <section className="overflow-hidden rounded-[28px] border border-white/[0.12] bg-black/40 px-5 py-6 sm:px-6">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-apex-muted/70">
+          {watch.eyebrow}
         </p>
-        <p className="mt-1 text-lg font-semibold tracking-tight text-apex-text">
-          {watch.symbol}
+        <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-apex-text/85">
+          <span
+            className={`h-1.5 w-1.5 rounded-full ${
+              watch.dead
+                ? "bg-rose-400"
+                : watch.through
+                  ? "bg-emerald-400"
+                  : "bg-emerald-300 shadow-[0_0_10px_rgba(110,231,183,0.8)]"
+            }`}
+          />
+          {status}
         </p>
       </div>
 
-      <div className="relative mt-5 text-center">
+      <p className="mt-3 text-sm font-semibold tracking-[0.18em] text-apex-muted/80">
+        {watch.symbol}
+      </p>
+
+      <div className="mt-6 text-center">
         {watch.gapLabel ? (
-          <p className="text-3xl font-semibold tracking-tight text-apex-text sm:text-4xl">
+          <p
+            className={`text-5xl font-semibold tabular-nums tracking-tight sm:text-6xl ${statusTone(watch)}`}
+          >
             {watch.gapLabel}
           </p>
         ) : watch.lastLabel ? (
-          <p className="text-3xl font-semibold tracking-tight text-apex-text sm:text-4xl">
+          <p className="text-5xl font-semibold tabular-nums tracking-tight text-white sm:text-6xl">
             {watch.lastLabel}
           </p>
         ) : null}
-        {bandLine ? (
-          <p className="mt-2 text-sm text-violet-100/85">{bandLine}</p>
-        ) : null}
         {watch.lastLabel && watch.gapLabel ? (
-          <p className="mt-1 text-xs text-apex-muted/70">Last {watch.lastLabel}</p>
+          <p className="mt-2 text-xs tabular-nums text-apex-muted/70">
+            Last {watch.lastLabel}
+          </p>
         ) : null}
       </div>
 
+      {watch.triggerLabel || watch.killLabel ? (
+        <div className="mt-6 grid grid-cols-2 gap-3 border-y border-white/[0.08] py-4 text-sm">
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.16em] text-apex-muted/65">
+              Buy above
+            </p>
+            <p className="mt-1 font-medium tabular-nums text-apex-text">
+              {watch.triggerLabel?.replace("Buy above ", "") ?? "—"}
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-[11px] uppercase tracking-[0.16em] text-apex-muted/65">
+              Drop below
+            </p>
+            <p className="mt-1 font-medium tabular-nums text-apex-text">
+              {watch.killLabel ?? "—"}
+            </p>
+          </div>
+        </div>
+      ) : null}
+
       {kiteLine && (watch.dead || watch.through) ? (
-        <p className="relative mt-5 text-sm leading-relaxed text-apex-text/90">
-          {kiteLine}
-        </p>
+        <p className="mt-4 text-sm leading-relaxed text-apex-text/90">{kiteLine}</p>
       ) : null}
       {watch.dead ? null : (
-        <p className="relative mt-5 text-sm text-apex-muted/85">
+        <p className="mt-4 text-sm tabular-nums text-apex-text/90">
           {watch.ticketLabel} → {watch.leftoverLabel}
         </p>
       )}
       {watch.whyLine ? (
-        <p className="relative mt-2 text-sm text-apex-muted/75">{watch.whyLine}</p>
+        <p className="mt-1 text-sm text-apex-muted/70">{watch.whyLine}</p>
       ) : null}
       <Link
         href={`/app/research?symbol=${encodeURIComponent(watch.symbol)}`}
-        className="relative mt-4 inline-flex text-xs text-apex-muted/70 underline-offset-2 hover:text-apex-text hover:underline"
+        className="mt-4 inline-flex text-xs text-apex-muted/70 underline-offset-2 hover:text-apex-text hover:underline"
       >
         Research {watch.symbol} →
       </Link>

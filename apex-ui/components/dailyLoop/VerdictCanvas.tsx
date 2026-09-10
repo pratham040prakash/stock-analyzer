@@ -31,6 +31,7 @@ export type VerdictCanvasProps = {
   compactWaitCopy?: boolean;
   chipLabel?: string;
   hideChip?: boolean;
+  desk?: boolean;
 };
 
 const VERDICT_THEME: Record<
@@ -72,6 +73,7 @@ export default function VerdictCanvas({
   compactWaitCopy = false,
   chipLabel,
   hideChip = false,
+  desk = false,
 }: VerdictCanvasProps) {
   const theme = VERDICT_THEME[dailyVerdict];
   const showStaleRibbon =
@@ -100,10 +102,14 @@ export default function VerdictCanvas({
 
       <div className="relative text-center">
         <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-apex-muted/70">
-          Today
+          {desk ? "Today · live" : "Today"}
         </p>
         <p
-          className={`mt-3 text-6xl font-semibold tracking-tight sm:text-7xl ${theme.word}`}
+          className={
+            desk
+              ? `mt-4 text-[13px] font-semibold uppercase tracking-[0.42em] ${theme.word}`
+              : `mt-3 text-6xl font-semibold tracking-tight sm:text-7xl ${theme.word}`
+          }
         >
           {verdictWord}
         </p>
@@ -122,7 +128,13 @@ export default function VerdictCanvas({
       </div>
 
       <div className="relative mx-auto mt-6 max-w-[28rem] space-y-2 text-center">
-        <h2 className="text-xl font-semibold leading-snug text-apex-text sm:text-2xl">
+        <h2
+          className={
+            desk
+              ? "text-3xl font-semibold leading-tight tracking-tight text-white sm:text-4xl"
+              : "text-xl font-semibold leading-snug text-apex-text sm:text-2xl"
+          }
+        >
           {headline}
         </h2>
         {!compactWaitCopy && subline ? (

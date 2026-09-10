@@ -22,7 +22,7 @@ export default function TodayKiteContract({ contract, compact = false }: Props) 
         <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-emerald-100/70">
           Today
         </p>
-        <p className="mt-1 text-sm font-medium leading-snug text-apex-text">
+        <p className="mt-1 text-base font-semibold tabular-nums leading-snug tracking-tight text-white">
           {headline}
         </p>
       </section>

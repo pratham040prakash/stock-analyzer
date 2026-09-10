@@ -48,7 +48,7 @@ export default function TodayBookLine({
             ? "Zerodha session expired"
             : "Your book"}
         </p>
-        <p className="mt-0.5 text-sm font-medium text-apex-text">
+        <p className="mt-0.5 text-base font-semibold tabular-nums tracking-tight text-white">
           {book ?? "Zerodha connected"}
           {cash ? ` · ${cash}` : ""}
           {pnl ? ` · ${pnl}` : ""}

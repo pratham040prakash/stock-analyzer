@@ -48,27 +48,31 @@ export default function TodayStarterHoldCard({
 
   if (compact) {
     return (
-      <section className="relative overflow-hidden rounded-2xl border border-white/[0.08] bg-gradient-to-b from-sky-400/[0.08] to-transparent px-4 py-4">
-        <div className="relative flex items-start justify-between gap-4">
+      <section className="rounded-2xl border border-white/[0.10] bg-black/30 px-4 py-3.5">
+        <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-apex-muted/70">
+            <p className="text-sm font-semibold tracking-[0.14em] text-white">
               {lines.symbol}
             </p>
-            <p className="mt-1 text-sm text-apex-muted/85">{lines.sharesLabel}</p>
-            <p className="mt-2 text-xs text-apex-muted/70">
+            <p className="mt-1 text-xs tabular-nums text-apex-muted/80">
+              {lines.sharesLabel}
+            </p>
+            <p className="mt-1 text-xs tabular-nums text-apex-muted/65">
               {lines.avgLabel ?? "Your buy"}
             </p>
           </div>
           <div className="text-right">
             {lines.lastLabel ? (
-              <p className={`text-2xl font-semibold tracking-tight ${toneClass(lines.vsBuyInr)}`}>
+              <p
+                className={`text-2xl font-semibold tabular-nums tracking-tight ${toneClass(lines.vsBuyInr)}`}
+              >
                 {lines.lastLabel}
               </p>
             ) : (
               <p className="text-sm font-medium text-apex-text">{lines.position}</p>
             )}
             {lines.vsBuyLabel ? (
-              <p className={`mt-1 text-xs ${toneClass(lines.vsBuyInr)}`}>
+              <p className={`mt-1 text-xs tabular-nums ${toneClass(lines.vsBuyInr)}`}>
                 {lines.vsBuyLabel}
               </p>
             ) : null}

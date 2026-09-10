@@ -1205,6 +1205,7 @@ export default function HomeDecisionScreen({
       hideChip:
         (emptyBook || youngBook || verdictPresentation.verdict === "pause") &&
         verdictPresentation.displayWord !== "Start",
+      desk: Boolean(youngBook || starterBook),
     }),
     [
       brokerStepCompleted,
@@ -1221,6 +1222,7 @@ export default function HomeDecisionScreen({
       emptyBook,
       youngBook,
       firstBuyCandidate,
+      starterBook,
       liveBookFresh,
       livePollError,
       morningBrief,
@@ -1495,8 +1497,8 @@ export default function HomeDecisionScreen({
                 {(youngBook || starterBook) &&
                 verdictPresentation.verdict === "wait" ? (
                   retention.committedToday ? (
-                    <p className="text-center text-sm text-apex-muted/75">
-                      Waited. That&apos;s the day.
+                    <p className="text-center text-xs font-semibold uppercase tracking-[0.22em] text-apex-muted/70">
+                      Waited · day closed
                     </p>
                   ) : (
                     <button
@@ -1505,7 +1507,7 @@ export default function HomeDecisionScreen({
                         persistTodayContract(todayContract);
                         retention.commitFollowed();
                       }}
-                      className="w-full rounded-2xl border border-white/[0.10] bg-white/[0.04] px-4 py-3 text-sm font-medium text-apex-text transition-colors hover:bg-white/[0.07]"
+                      className="w-full rounded-2xl border border-white/15 bg-white px-4 py-3.5 text-sm font-semibold text-black transition-colors hover:bg-white/90"
                     >
                       I waited
                     </button>
