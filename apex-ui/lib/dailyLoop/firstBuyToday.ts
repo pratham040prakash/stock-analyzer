@@ -1,0 +1,294 @@
+import type { DailyVerdict, DailyVerdictPresentation } from "@/lib/dailyLoop/dailyVerdict";
+import type { TodayExecutionKind } from "@/lib/dailyLoop/todaySurface";
+import { formatInr } from "@/lib/funds";
+
+export const FIRST_BUY_HOLD_LABEL = "2–8 weeks";
+
+export type FirstBuySize = {
+  cashInr: number;
+  ticketInr: number;
+  leftoverInr: number;
+};
+
+export type FirstBuyPlanLines = {
+  entryInr: number | null;
+  stopInr: number | null;
+  holdLabel: string | null;
+};
+
+export function isEmptyBook(input: {
+  openHoldingsCount: number;
+  portfolioValue?: number | null;
+}): boolean {
+  const value = input.portfolioValue;
+  const valueEmpty =
+    value === null || value === undefined || !Number.isFinite(value) || value <= 0;
+  return input.openHoldingsCount === 0 && valueEmpty;
+}
+
+export function isFirstBuyCandidate(input: {
+  emptyBook: boolean;
+  executionKind: TodayExecutionKind;
+  symbol?: string;
+  deployAmount?: number;
+}): boolean {
+  return (
+    input.emptyBook &&
+    input.executionKind === "BUY" &&
+    Boolean(input.symbol?.trim()) &&
+    (input.deployAmount ?? 0) > 0
+  );
+}
+
+export function buildFirstBuySize(cashInr: number, ticketInr: number): FirstBuySize {
+  const cash = Math.max(0, Math.round(cashInr));
+  const rawTicket = Math.max(0, Math.round(ticketInr));
+  const ticket = cash > 0 ? Math.min(rawTicket, cash) : rawTicket;
+  return {
+    cashInr: cash,
+    ticketInr: ticket,
+    leftoverInr: Math.max(0, cash - ticket),
+  };
+}
+
+export function formatFirstBuySizeLine(size: FirstBuySize): string {
+  return `${formatInr(size.cashInr)} cash → ${formatInr(size.ticketInr)} ticket → ${formatInr(size.leftoverInr)} stays in cash`;
+}
+
+export function clampFirstBuyTicket(ticketInr: number, cashInr: number): number {
+  const cash = Math.max(0, Math.round(cashInr));
+  const ticket = Math.max(0, Math.round(ticketInr));
+  if (cash <= 0) {
+    return ticket;
+  }
+
+  return Math.min(Math.max(1, ticket), cash);
+}
+
+export function hasCompleteFirstBuyPlan(plan: FirstBuyPlanLines): boolean {
+  return (
+    plan.entryInr !== null &&
+    plan.entryInr > 0 &&
+    plan.stopInr !== null &&
+    plan.stopInr > 0 &&
+    Boolean(plan.holdLabel)
+  );
+}
+
+export function buildFirstBuyWhy(input: {
+  symbol: string;
+  size: FirstBuySize;
+  holdLabel: string | null;
+}): string {
+  const hold = input.holdLabel ?? FIRST_BUY_HOLD_LABEL;
+  return `${input.symbol} is the first position — one ticket from cash, hold ${hold}.`;
+}
+
+export function buildFirstBuyHeadline(symbol: string, ticketInr: number): string {
+  return `Start your book with ${formatInr(ticketInr)} in ${symbol}`;
+}
+
+export function applyFirstBuyPresentation(input: {
+  presentation: DailyVerdictPresentation;
+  firstBuy: boolean;
+  planReady: boolean;
+  symbol: string;
+  ticketInr: number;
+  why: string;
+  brokerDone: boolean;
+}): DailyVerdictPresentation {
+  if (!input.firstBuy || input.brokerDone) {
+    return input.presentation;
+  }
+
+  if (input.presentation.verdict === "pause") {
+    return input.presentation;
+  }
+
+  if (!input.planReady) {
+    return {
+      ...input.presentation,
+      verdict: "wait",
+      displayWord: "Wait",
+      headline: "Wait — first-buy plan is not ready",
+      subline:
+        "Need an entry, a stop, and a hold window before you start the book.",
+      ctaLabel: "You're done for today",
+      doneForToday: true,
+      tradingLocked: true,
+    };
+  }
+
+  if (input.presentation.verdict === "wait") {
+    return {
+      ...input.presentation,
+      headline: input.presentation.headline,
+      subline: input.why,
+    };
+  }
+
+  return {
+    ...input.presentation,
+    displayWord: "Start",
+    headline: buildFirstBuyHeadline(input.symbol, input.ticketInr),
+    subline: input.why,
+    ctaLabel: "Review first position",
+    doneForToday: false,
+    tradingLocked: false,
+  };
+}
+
+export function resolveFirstBuyCommitLabel(input: {
+  firstBuy: boolean;
+  planReady: boolean;
+  verdict: DailyVerdict;
+  marketOpen: boolean;
+  brokerDone: boolean;
+}): string | null {
+  if (!input.firstBuy) {
+    return null;
+  }
+
+  if (input.brokerDone) {
+    return "I started the book in Kite";
+  }
+
+  if (
+    input.verdict === "wait" ||
+    input.verdict === "pause" ||
+    !input.planReady
+  ) {
+    return "I waited";
+  }
+
+  if (!input.marketOpen) {
+    return "I will place this at open";
+  }
+
+  return "I started the book in Kite";
+}
+
+export function runFirstBuyTodaySelfCheck(): void {
+  const assert = (condition: boolean, message: string) => {
+    if (!condition) {
+      throw new Error(`First-buy today self-check failed: ${message}`);
+    }
+  };
+
+  assert(
+    isEmptyBook({ openHoldingsCount: 0, portfolioValue: 0 }),
+    "Zero book must be empty",
+  );
+  assert(
+    !isEmptyBook({ openHoldingsCount: 1, portfolioValue: 0 }),
+    "Open holding is not an empty book",
+  );
+  assert(
+    isFirstBuyCandidate({
+      emptyBook: true,
+      executionKind: "BUY",
+      symbol: "COALINDIA",
+      deployAmount: 2844,
+    }),
+    "Cash-only BUY must be first-buy",
+  );
+  assert(
+    !isFirstBuyCandidate({
+      emptyBook: false,
+      executionKind: "BUY",
+      symbol: "COALINDIA",
+      deployAmount: 2844,
+    }),
+    "Existing book is not first-buy",
+  );
+
+  const size = buildFirstBuySize(14_213, 2_844);
+  assert(size.leftoverInr === 11_369, "Leftover cash must follow ticket");
+  assert(
+    formatFirstBuySizeLine(size).includes("ticket"),
+    "Size line must show ticket",
+  );
+
+  assert(
+    hasCompleteFirstBuyPlan({
+      entryInr: 415,
+      stopInr: 390,
+      holdLabel: FIRST_BUY_HOLD_LABEL,
+    }),
+    "Entry + stop + hold is a complete plan",
+  );
+  assert(
+    !hasCompleteFirstBuyPlan({
+      entryInr: 415,
+      stopInr: null,
+      holdLabel: FIRST_BUY_HOLD_LABEL,
+    }),
+    "Missing stop is not a complete plan",
+  );
+
+  const waitBase: DailyVerdictPresentation = {
+    verdict: "trade",
+    displayWord: "Trade",
+    headline: "Deploy ₹2,844 into COALINDIA today",
+    subline: "Exceeding allocation adds risk.",
+    ctaLabel: "Review entry plan",
+    doneForToday: false,
+    tradingLocked: false,
+  };
+
+  const blocked = applyFirstBuyPresentation({
+    presentation: waitBase,
+    firstBuy: true,
+    planReady: false,
+    symbol: "COALINDIA",
+    ticketInr: 2844,
+    why: "ignored",
+    brokerDone: false,
+  });
+  assert(blocked.verdict === "wait", "Incomplete plan must not Trade");
+  assert(blocked.displayWord === "Wait", "Incomplete plan word is Wait");
+
+  const start = applyFirstBuyPresentation({
+    presentation: waitBase,
+    firstBuy: true,
+    planReady: true,
+    symbol: "COALINDIA",
+    ticketInr: 2844,
+    why: "COALINDIA is the first position — one ticket from cash, hold 2–8 weeks.",
+    brokerDone: false,
+  });
+  assert(start.displayWord === "Start", "Ready first-buy word is Start");
+  assert(start.headline.includes("Start your book"), "Ready first-buy headline");
+  assert(!start.subline.includes("Exceeding allocation"), "Why must not be a warning");
+
+  assert(
+    resolveFirstBuyCommitLabel({
+      firstBuy: true,
+      planReady: false,
+      verdict: "wait",
+      marketOpen: true,
+      brokerDone: false,
+    }) === "I waited",
+    "No plan commit is wait",
+  );
+  assert(
+    resolveFirstBuyCommitLabel({
+      firstBuy: true,
+      planReady: true,
+      verdict: "trade",
+      marketOpen: false,
+      brokerDone: false,
+    }) === "I will place this at open",
+    "After-hours commit is place at open",
+  );
+  assert(
+    resolveFirstBuyCommitLabel({
+      firstBuy: true,
+      planReady: true,
+      verdict: "trade",
+      marketOpen: true,
+      brokerDone: false,
+    }) === "I started the book in Kite",
+    "Open-market commit is started the book",
+  );
+}

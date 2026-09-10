@@ -47,6 +47,17 @@ import {
 } from "@/lib/dailyLoop/todayPrimaryFocus";
 import { resolveTodayDataFreshness } from "@/lib/dailyLoop/todayDataFreshness";
 import {
+  FIRST_BUY_HOLD_LABEL,
+  applyFirstBuyPresentation,
+  buildFirstBuySize,
+  buildFirstBuyWhy,
+  hasCompleteFirstBuyPlan,
+  isEmptyBook,
+  isFirstBuyCandidate,
+  resolveFirstBuyCommitLabel,
+} from "@/lib/dailyLoop/firstBuyToday";
+import { useMarketSession } from "@/lib/broker/useMarketSession";
+import {
   formatExplorePipelineSummaryPlain,
   formatExploreSetupSummary,
 } from "@/lib/dailyLoop/exploreSetupPresentation";
@@ -290,6 +301,12 @@ export default function HomeDecisionScreen({
       }),
     [capitalDecision, decision.suggested_sell_percent],
   );
+  const [ticketOverride, setTicketOverride] = useState<number | null>(null);
+
+  useEffect(() => {
+    setTicketOverride(null);
+  }, [todayHero.deployAmount, todayHero.symbol]);
+  const { canPlaceMarketOrder } = useMarketSession();
 
   const [brokerStepCompleted, setBrokerStepCompleted] = useState(() => {
     const symbol = todayHero.symbol?.trim().toUpperCase();
@@ -513,13 +530,22 @@ export default function HomeDecisionScreen({
         pollError: livePollError,
         fundsSyncError,
         liveBookFresh,
+        emptyBookConnected:
+          connectionStatus === "CONNECTED" &&
+          isEmptyBook({
+            openHoldingsCount: openPortfolioHoldings.length,
+            portfolioValue: liveHoldingsTotalValue ?? portfolioValue ?? null,
+          }),
       }),
     [
       connectionStatus,
       fundsSyncError,
       liveBookFresh,
+      liveHoldingsTotalValue,
       livePollError,
+      openPortfolioHoldings.length,
       portfolioStale,
+      portfolioValue,
     ],
   );
   const collapsePlanByDefault = disciplineDays.length >= 7;
@@ -556,6 +582,47 @@ export default function HomeDecisionScreen({
   const brokerStepResolved = brokerStepCompleted || brokerStepSkipped;
   const displayPortfolioValue =
     liveHoldingsTotalValue ?? portfolioValue ?? null;
+  const emptyBook = isEmptyBook({
+    openHoldingsCount: openPortfolioHoldings.length,
+    portfolioValue: displayPortfolioValue,
+  });
+  const firstBuyTicket = ticketOverride ?? todayHero.deployAmount ?? 0;
+  const firstBuyCandidate = isFirstBuyCandidate({
+    emptyBook,
+    executionKind: todayHero.executionKind,
+    symbol: todayHero.symbol,
+    deployAmount: todayHero.deployAmount,
+  });
+  const firstBuyPick = useMemo(() => {
+    const symbol = todayHero.symbol?.trim().toUpperCase();
+    if (!symbol) {
+      return null;
+    }
+
+    return (
+      decision.picks?.find(
+        (pick) => pick.stock.trim().toUpperCase() === symbol,
+      ) ?? null
+    );
+  }, [decision.picks, todayHero.symbol]);
+  const firstBuyPlanLines = {
+    entryInr: firstBuyPick?.activationLevel ?? firstBuyPick?.price ?? null,
+    stopInr: plan?.stopLoss ?? null,
+    holdLabel: FIRST_BUY_HOLD_LABEL,
+  };
+  const firstBuyPlanReady =
+    firstBuyCandidate &&
+    !planLoading &&
+    hasCompleteFirstBuyPlan(firstBuyPlanLines);
+  const firstBuySize = buildFirstBuySize(availableCash ?? 0, firstBuyTicket);
+  const firstBuyWhy =
+    firstBuyCandidate && todayHero.symbol
+      ? buildFirstBuyWhy({
+          symbol: todayHero.symbol,
+          size: firstBuySize,
+          holdLabel: FIRST_BUY_HOLD_LABEL,
+        })
+      : "";
   const displayPortfolioTotalPnl =
     liveHoldingsTotalPnl ?? portfolioTotalPnl ?? null;
   const breakdownOpenPnl =
@@ -780,7 +847,15 @@ export default function HomeDecisionScreen({
       };
     }
 
-    return base;
+    return applyFirstBuyPresentation({
+      presentation: base,
+      firstBuy: firstBuyCandidate,
+      planReady: firstBuyPlanReady,
+      symbol: todayHero.symbol ?? "",
+      ticketInr: firstBuyTicket,
+      why: firstBuyWhy,
+      brokerDone: brokerStepCompleted || brokerStepSkipped,
+    });
   }, [
     brokerStepCompleted,
     brokerStepSkipped,
@@ -793,6 +868,10 @@ export default function HomeDecisionScreen({
     displayHero.subline,
     displayPortfolioValue,
     entryTiming.enter,
+    firstBuyCandidate,
+    firstBuyPlanReady,
+    firstBuyTicket,
+    firstBuyWhy,
     isExplore,
     isExploreEmpty,
     liveDayPnl,
@@ -800,6 +879,19 @@ export default function HomeDecisionScreen({
     targetIsSacredCore,
     todayHero.symbol,
   ]);
+  const firstBuyCommitLabel = resolveFirstBuyCommitLabel({
+    firstBuy: firstBuyCandidate,
+    planReady: firstBuyPlanReady,
+    verdict: verdictPresentation.verdict,
+    marketOpen: canPlaceMarketOrder,
+    brokerDone: brokerStepCompleted || brokerStepSkipped,
+  });
+  const executionHero = firstBuyCandidate
+    ? {
+        ...todayHeroResolved,
+        deployAmount: firstBuyTicket,
+      }
+    : todayHeroResolved;
 
   const primarySymbol = useMemo(
     () =>
@@ -842,13 +934,14 @@ export default function HomeDecisionScreen({
       trustScore: morningBrief?.trust.trust_score ?? trustScore,
       trustDelta: morningBrief?.trust.trust_delta ?? trustDelta,
       trustMessage: morningBrief?.trust.trust_message ?? trustMessage,
-      evidenceTeaser: waitInsight
-        ? undefined
-        : morningBrief?.evidence.key_reasons[0] ??
-          decision.reason ??
-          decision.confidence_factors?.[0] ??
-          decision.message ??
-          undefined,
+      evidenceTeaser:
+        firstBuyCandidate || waitInsight
+          ? undefined
+          : morningBrief?.evidence.key_reasons[0] ??
+            decision.reason ??
+            decision.confidence_factors?.[0] ??
+            decision.message ??
+            undefined,
       confidence: decision.confidence,
       portfolioStale: snapshotStale,
       pollError: morningBriefError ?? livePollError,
@@ -863,6 +956,10 @@ export default function HomeDecisionScreen({
       trustFootnote: dataFreshness.trustFootnote || undefined,
       hideSetupConfidence: true,
       compactWaitCopy: false,
+      chipLabel:
+        firstBuyCandidate && verdictPresentation.displayWord === "Start"
+          ? "First position in Kite"
+          : undefined,
     }),
     [
       brokerStepCompleted,
@@ -876,11 +973,13 @@ export default function HomeDecisionScreen({
       decision.message,
       decision.reason,
       displayHero.executionKind,
+      firstBuyCandidate,
       liveBookFresh,
       livePollError,
       morningBrief,
       morningBriefError,
       snapshotStale,
+      verdictPresentation.displayWord,
       trustDelta,
       trustMessage,
       trustScore,
@@ -1101,6 +1200,7 @@ export default function HomeDecisionScreen({
                 <TodayBookLine
                   connectionStatus={connectionStatus}
                   portfolioValue={displayPortfolioValue}
+                  cashInr={emptyBook ? availableCash ?? null : null}
                   dayPnl={liveDayPnl}
                 />
               </>
@@ -1127,9 +1227,11 @@ export default function HomeDecisionScreen({
                   onDismiss={() => setReceiptDismissed(true)}
                 />
               ) : null}
-              {!verdictPresentation.tradingLocked || brokerStepResolved ? (
+              {!verdictPresentation.tradingLocked ||
+              brokerStepResolved ||
+              firstBuyCandidate ? (
                 <TodayExecutionPanel
-                  hero={todayHeroResolved}
+                  hero={executionHero}
                   portfolioValue={displayPortfolioValue ?? portfolioValue ?? 0}
                   holdingAllocationPct={holdingAllocationPct}
                   entryTiming={entryTiming}
@@ -1146,8 +1248,41 @@ export default function HomeDecisionScreen({
                   onHoldTrim={() => void handleHoldTrim()}
                   holdTrimProcessing={processingHoldTrim}
                   onExecuted={handleExecuted}
+                  firstBuy={firstBuyCandidate}
+                  planReady={firstBuyPlanReady}
+                  availableCash={availableCash}
+                  entryInr={firstBuyPlanLines.entryInr}
+                  holdLabel={FIRST_BUY_HOLD_LABEL}
+                  onTicketChange={setTicketOverride}
                 />
               ) : null}
+              {emptyBook ? (
+                journeySymbol ? (
+                  <InvestmentJourneyPanel
+                    symbol={journeySymbol}
+                    currentPriceInr={journeySymbolPrice}
+                    quantity={primarySymbolQty}
+                    dailyVerdict={verdictPresentation.verdict}
+                    brokerStepCompleted={brokerStepCompleted}
+                    compact={verdictPresentation.verdict === "wait"}
+                    portfolioDataStale={false}
+                    apexSuggested={journeyApexSuggested}
+                    preferSwing={journeyPreferSwing}
+                    activationLevelInr={
+                      decision.picks?.find(
+                        (pick) =>
+                          pick.stock.trim().toUpperCase() ===
+                          journeySymbol.trim().toUpperCase(),
+                      )?.activationLevel
+                    }
+                    onTakeProfit={() => {
+                      document
+                        .getElementById("today-execution")
+                        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    }}
+                  />
+                ) : null
+              ) : (
               <TodayDetailsAccordion>
                 {showPortfolioSummary ? (
                   <TodayPortfolioSummary {...portfolioSummaryProps} />
@@ -1278,6 +1413,7 @@ export default function HomeDecisionScreen({
                   </div>
                 </details>
               </TodayDetailsAccordion>
+              )}
             </div>
           ) : isExplore ? (
             <div className="mb-6">
@@ -1370,6 +1506,7 @@ export default function HomeDecisionScreen({
             decision={capitalDecision}
             executionKind={todayHero.executionKind}
             brokerStepCompleted={brokerStepCompleted}
+            followCtaLabel={firstBuyCommitLabel ?? undefined}
           />
 
         </div>

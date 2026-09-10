@@ -7,6 +7,7 @@ import { formatInr } from "@/lib/funds";
 type Props = {
   connectionStatus: ConnectionStatus;
   portfolioValue?: number | null;
+  cashInr?: number | null;
   dayPnl?: number | null;
 };
 
@@ -17,6 +18,7 @@ function knownAmount(value?: number | null): value is number {
 export default function TodayBookLine({
   connectionStatus,
   portfolioValue,
+  cashInr,
   dayPnl,
 }: Props) {
   if (connectionStatus !== "CONNECTED" && connectionStatus !== "TOKEN_EXPIRED") {
@@ -30,6 +32,10 @@ export default function TodayBookLine({
         ? "Flat today"
         : null;
   const book = knownAmount(portfolioValue) ? formatInr(portfolioValue) : null;
+  const cash =
+    knownAmount(cashInr) && (portfolioValue === 0 || portfolioValue == null)
+      ? `${formatInr(cashInr)} cash`
+      : null;
 
   return (
     <Link
@@ -44,6 +50,7 @@ export default function TodayBookLine({
         </p>
         <p className="mt-0.5 text-sm font-medium text-apex-text">
           {book ?? "Zerodha connected"}
+          {cash ? ` · ${cash}` : ""}
           {pnl ? ` · ${pnl}` : ""}
         </p>
       </div>

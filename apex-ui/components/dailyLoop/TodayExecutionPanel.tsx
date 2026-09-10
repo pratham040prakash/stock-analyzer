@@ -5,6 +5,12 @@ import type { DailyVerdict } from "@/lib/dailyLoop/dailyVerdict";
 import type { EntryTimingState } from "@/components/decision/ExecutionPlanCard";
 import { apiFetch, parseApiJson, readTradeExecutionError } from "@/lib/api/clientFetch";
 import { formatInr } from "@/lib/funds";
+import {
+  FIRST_BUY_HOLD_LABEL,
+  clampFirstBuyTicket,
+  formatFirstBuySizeLine,
+  buildFirstBuySize,
+} from "@/lib/dailyLoop/firstBuyToday";
 import { useMarketSession } from "@/lib/broker/useMarketSession";
 import type { TodayHero } from "@/lib/dailyLoop/todaySurface";
 import { computeSellImpact } from "@/lib/sellImpact";
@@ -60,6 +66,12 @@ type Props = {
   dailyVerdict?: DailyVerdict;
   pauseReason?: string;
   onExecuted?: (fill?: BrokerFillSummary) => void;
+  firstBuy?: boolean;
+  planReady?: boolean;
+  availableCash?: number | null;
+  entryInr?: number | null;
+  holdLabel?: string | null;
+  onTicketChange?: (ticketInr: number) => void;
 };
 
 function BrokerFillStatusNotice() {
@@ -165,6 +177,12 @@ export default function TodayExecutionPanel({
   dailyVerdict = "wait",
   pauseReason,
   onExecuted,
+  firstBuy = false,
+  planReady = false,
+  availableCash = null,
+  entryInr = null,
+  holdLabel = FIRST_BUY_HOLD_LABEL,
+  onTicketChange,
 }: Props) {
   const [pendingSellPercent, setPendingSellPercent] = useState<number | null>(
     null,
@@ -364,19 +382,28 @@ export default function TodayExecutionPanel({
     return null;
   }
 
-  if (tradingLocked && !brokerStepCompleted && !brokerStepSkipped) {
+  if (
+    tradingLocked &&
+    !brokerStepCompleted &&
+    !brokerStepSkipped &&
+    !(firstBuy && planReady)
+  ) {
     return (
       <div className="rounded-xl border border-apex-border/15 bg-white/[0.02] px-4 py-4 space-y-2">
         <p className="text-sm font-medium text-apex-text/90">
-          {dailyVerdict === "pause"
-            ? "Tactical trades locked for today"
-            : "No broker action needed today"}
+          {firstBuy && !planReady
+            ? "First-buy plan is not ready"
+            : dailyVerdict === "pause"
+              ? "Tactical trades locked for today"
+              : "No broker action needed today"}
         </p>
         <p className="text-sm text-apex-text/70">
-          {pauseReason ??
-            (dailyVerdict === "pause"
-              ? "Protect capital before adding new risk."
-              : "Follow the Wait verdict above — staying in cash is success.")}
+          {firstBuy && !planReady
+            ? "Need an entry, a stop, and a hold window before you start the book."
+            : pauseReason ??
+              (dailyVerdict === "pause"
+                ? "Protect capital before adding new risk."
+                : "Follow the Wait verdict above — staying in cash is success.")}
         </p>
       </div>
     );
@@ -534,110 +561,193 @@ export default function TodayExecutionPanel({
       return <BrokerFillStatusNotice />;
     }
 
+    const size = buildFirstBuySize(availableCash ?? 0, hero.deployAmount);
+    const showFirstBuyPlan = firstBuy && planReady;
+    const stopInr =
+      plan?.stopLoss !== null && plan?.stopLoss !== undefined ? plan.stopLoss : null;
+
     return (
       <div className="rounded-xl border border-apex-border/20 bg-white/[0.03] px-4 py-4 space-y-4">
-        <div>
-          <p className="text-base font-semibold text-apex-text">
-            Deploy {formatInr(hero.deployAmount)} into {hero.symbol}
-          </p>
-          <p className="mt-1 text-sm text-apex-text/75">{hero.subline}</p>
-        </div>
-
-        {entryTiming ? (
-          <div
-            className={[
-              "rounded-lg border px-3 py-2.5 text-sm",
-              canEnter
-                ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-200/95"
-                : "border-amber-500/20 bg-amber-500/5 text-amber-100/95",
-            ].join(" ")}
-          >
-            {canEnter
-              ? "Entry conditions confirmed — you may proceed with the plan"
-              : entryTiming.reason || "Waiting for entry confirmation"}
-          </div>
-        ) : null}
-
-        <section className="space-y-2">
-          <p className="text-xs font-medium uppercase tracking-wide text-apex-muted">
-            Risk plan
-          </p>
-          <div className="grid gap-2 sm:grid-cols-2">
-            <div className="rounded-lg border border-apex-border/15 bg-white/[0.02] px-3 py-2.5">
-              <p className="text-[11px] uppercase tracking-wide text-apex-muted">
-                Stop loss
-              </p>
-              <p className="mt-1 text-sm font-medium text-apex-text">
-                {plan?.stopLoss !== null && plan?.stopLoss !== undefined
-                  ? formatInr(plan.stopLoss)
-                  : "Set after entry"}
-              </p>
-            </div>
-            <div className="rounded-lg border border-apex-border/15 bg-white/[0.02] px-3 py-2.5">
-              <p className="text-[11px] uppercase tracking-wide text-apex-muted">
-                Target zone
-              </p>
-              <p className="mt-1 text-sm font-medium text-apex-text">
-                {targetFromPlan ? `Breakout above ${targetFromPlan}` : "Staged in plan steps"}
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <section className="space-y-2">
-          <p className="text-xs font-medium uppercase tracking-wide text-apex-muted">
-            Execution plan
-          </p>
-          {planLoading ? (
-            <p className="text-sm text-apex-muted/70">Building your plan…</p>
-          ) : plan && plan.steps.length > 0 ? (
-            <>
-              {plan.stopLoss !== null ? (
-                <p className="text-sm text-apex-text/80">
-                  Stop loss: {formatInr(plan.stopLoss)} · Target: staged adds in
-                  plan steps below
+        {firstBuy ? (
+          <>
+            <p className="text-sm text-apex-text/80">{formatFirstBuySizeLine(size)}</p>
+            {typeof onTicketChange === "function" && availableCash && availableCash > 0 ? (
+              <label className="block space-y-1">
+                <span className="text-[11px] uppercase tracking-wide text-apex-muted">
+                  Ticket size
+                </span>
+                <input
+                  type="number"
+                  min={1}
+                  max={Math.round(availableCash)}
+                  step={1}
+                  value={hero.deployAmount}
+                  onChange={(event) => {
+                    const next = Number(event.target.value);
+                    if (!Number.isFinite(next)) {
+                      return;
+                    }
+                    onTicketChange(clampFirstBuyTicket(next, availableCash));
+                  }}
+                  className="w-full rounded-lg border border-apex-border/20 bg-black/30 px-3 py-2 text-sm text-apex-text"
+                />
+              </label>
+            ) : null}
+            <section className="grid gap-2 sm:grid-cols-3">
+              <div className="rounded-lg border border-apex-border/15 bg-white/[0.02] px-3 py-2.5">
+                <p className="text-[11px] uppercase tracking-wide text-apex-muted">
+                  Entry
                 </p>
-              ) : null}
-              <ol className="space-y-2">
-                {plan.steps.map((step, index) => (
-                  <PlanStepRow key={step} index={index + 1} text={step} />
-                ))}
-              </ol>
-              {plan.riskNote ? (
-                <p className="text-xs text-apex-muted/75">{plan.riskNote}</p>
-              ) : null}
-            </>
-          ) : (
-            <p className="text-sm text-apex-muted/70">
-              Plan unavailable — review entry rules before buying.
-            </p>
-          )}
-        </section>
+                <p className="mt-1 text-sm font-medium text-apex-text">
+                  {entryInr && entryInr > 0 ? formatInr(entryInr) : "—"}
+                </p>
+              </div>
+              <div className="rounded-lg border border-apex-border/15 bg-white/[0.02] px-3 py-2.5">
+                <p className="text-[11px] uppercase tracking-wide text-apex-muted">
+                  Stop
+                </p>
+                <p className="mt-1 text-sm font-medium text-apex-text">
+                  {stopInr && stopInr > 0 ? formatInr(stopInr) : "—"}
+                </p>
+              </div>
+              <div className="rounded-lg border border-apex-border/15 bg-white/[0.02] px-3 py-2.5">
+                <p className="text-[11px] uppercase tracking-wide text-apex-muted">
+                  Hold
+                </p>
+                <p className="mt-1 text-sm font-medium text-apex-text">
+                  {holdLabel ?? FIRST_BUY_HOLD_LABEL}
+                </p>
+              </div>
+            </section>
+          </>
+        ) : (
+          <>
+            <div>
+              <p className="text-base font-semibold text-apex-text">
+                Deploy {formatInr(hero.deployAmount)} into {hero.symbol}
+              </p>
+              <p className="mt-1 text-sm text-apex-text/75">{hero.subline}</p>
+            </div>
 
-        <p className="text-xs text-apex-muted/70">
-          Confirm buy places the entry on Zerodha and attempts a protective stop-loss
-          sell order. Staged targets stay in the plan below — verify all orders in
-          Zerodha.
-        </p>
+            {entryTiming ? (
+              <div
+                className={[
+                  "rounded-lg border px-3 py-2.5 text-sm",
+                  canEnter
+                    ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-200/95"
+                    : "border-amber-500/20 bg-amber-500/5 text-amber-100/95",
+                ].join(" ")}
+              >
+                {canEnter
+                  ? "Entry conditions confirmed — you may proceed with the plan"
+                  : entryTiming.reason || "Waiting for entry confirmation"}
+              </div>
+            ) : null}
+
+            <section className="space-y-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-apex-muted">
+                Risk plan
+              </p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div className="rounded-lg border border-apex-border/15 bg-white/[0.02] px-3 py-2.5">
+                  <p className="text-[11px] uppercase tracking-wide text-apex-muted">
+                    Stop loss
+                  </p>
+                  <p className="mt-1 text-sm font-medium text-apex-text">
+                    {stopInr && stopInr > 0 ? formatInr(stopInr) : "Set after entry"}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-apex-border/15 bg-white/[0.02] px-3 py-2.5">
+                  <p className="text-[11px] uppercase tracking-wide text-apex-muted">
+                    Target zone
+                  </p>
+                  <p className="mt-1 text-sm font-medium text-apex-text">
+                    {targetFromPlan ? `Breakout above ${targetFromPlan}` : "Staged in plan steps"}
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            <section className="space-y-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-apex-muted">
+                Execution plan
+              </p>
+              {planLoading ? (
+                <p className="text-sm text-apex-muted/70">Building your plan…</p>
+              ) : plan && plan.steps.length > 0 ? (
+                <>
+                  {stopInr && stopInr > 0 ? (
+                    <p className="text-sm text-apex-text/80">
+                      Stop loss: {formatInr(stopInr)} · Target: staged adds in
+                      plan steps below
+                    </p>
+                  ) : null}
+                  <ol className="space-y-2">
+                    {plan.steps.map((step, index) => (
+                      <PlanStepRow key={step} index={index + 1} text={step} />
+                    ))}
+                  </ol>
+                  {plan.riskNote ? (
+                    <p className="text-xs text-apex-muted/75">{plan.riskNote}</p>
+                  ) : null}
+                </>
+              ) : (
+                <p className="text-sm text-apex-muted/70">
+                  Plan unavailable — review entry rules before buying.
+                </p>
+              )}
+            </section>
+          </>
+        )}
+
+        {firstBuy ? (
+          <p className="text-xs text-apex-muted/70">
+            Place the entry in Kite. Set the stop there. APEX does not need to
+            fire the order from this screen.
+          </p>
+        ) : (
+          <p className="text-xs text-apex-muted/70">
+            Confirm buy places the entry on Zerodha and attempts a protective stop-loss
+            sell order. Staged targets stay in the plan below — verify all orders in
+            Zerodha.
+          </p>
+        )}
         {marketBlockReason ? (
-          <p className="text-sm text-amber-200/90">{marketBlockReason}</p>
+          <p className="text-sm text-amber-200/90">
+            {firstBuy
+              ? "Place this in Kite at 9:15 IST. Do not buy after hours."
+              : marketBlockReason}
+          </p>
         ) : (
           <p className="text-sm text-emerald-200/90">
             Market is open — entry and stop-loss orders execute on Zerodha now.
           </p>
         )}
-        <ApexButton
-          type="button"
-          disabled={processing || !canEnter || !canPlaceMarketOrder}
-          onClick={() => void runBuy()}
-          className="w-full sm:w-auto"
-        >
-          {processing
-            ? "Placing order…"
-            : canEnter
-              ? "Confirm buy on Zerodha"
-              : "Entry not confirmed yet"}
-        </ApexButton>
+        {firstBuy && !canPlaceMarketOrder ? (
+          <p className="text-sm font-medium text-apex-text/85">
+            Place in Kite at 9:15
+          </p>
+        ) : (
+          <ApexButton
+            type="button"
+            disabled={
+              processing ||
+              !canEnter ||
+              !canPlaceMarketOrder ||
+              (firstBuy && !showFirstBuyPlan)
+            }
+            onClick={() => void runBuy()}
+            className="w-full sm:w-auto"
+          >
+            {processing
+              ? "Placing order…"
+              : canEnter
+                ? firstBuy
+                  ? "Confirm first buy on Zerodha"
+                  : "Confirm buy on Zerodha"
+                : "Entry not confirmed yet"}
+          </ApexButton>
+        )}
 
         {feedback ? (
           <p className="text-sm text-emerald-200/90">{feedback}</p>

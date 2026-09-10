@@ -719,6 +719,7 @@ export function ExecutionStatusBlock({
   decision,
   executionKind,
   brokerStepCompleted = false,
+  followCtaLabel,
 }: {
   committedToday: boolean;
   onMarkFollowed: () => void;
@@ -733,6 +734,7 @@ export function ExecutionStatusBlock({
   decision?: CapitalDecision;
   executionKind?: TodayExecutionKind;
   brokerStepCompleted?: boolean;
+  followCtaLabel?: string;
 }) {
   const trustReinforcement =
     capitalDeployment && committedToday && decision
@@ -766,7 +768,7 @@ export function ExecutionStatusBlock({
             disabled={committedToday}
             className="w-full rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3.5 text-sm font-semibold text-apex-text transition-all hover:bg-white/[0.1] disabled:cursor-default disabled:opacity-60"
           >
-            I followed the plan
+            {followCtaLabel ?? "I followed the plan"}
           </button>
         )}
         {trustReinforcement ? (
@@ -835,7 +837,7 @@ export function ExecutionStatusBlock({
               onClick={onMarkFollowed}
               className="w-full rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3.5 text-sm font-semibold text-apex-text transition-all hover:bg-white/[0.1]"
             >
-              I followed the plan
+              {followCtaLabel ?? "I followed the plan"}
             </button>
           )}
         </div>

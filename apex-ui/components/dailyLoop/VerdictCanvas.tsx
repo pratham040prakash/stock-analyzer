@@ -29,6 +29,7 @@ export type VerdictCanvasProps = {
   trustFootnote?: string;
   hideSetupConfidence?: boolean;
   compactWaitCopy?: boolean;
+  chipLabel?: string;
 };
 
 const VERDICT_THEME: Record<
@@ -68,6 +69,7 @@ export default function VerdictCanvas({
   doneForToday = false,
   hideStaleRibbon = false,
   compactWaitCopy = false,
+  chipLabel,
 }: VerdictCanvasProps) {
   const theme = VERDICT_THEME[dailyVerdict];
   const showStaleRibbon =
@@ -106,11 +108,12 @@ export default function VerdictCanvas({
         <p
           className={`mx-auto mt-3 inline-flex rounded-full border px-3 py-1 text-[11px] font-medium ${theme.chip}`}
         >
-          {dailyVerdict === "wait"
-            ? "Doing nothing is the plan"
-            : dailyVerdict === "pause"
-              ? "Capital stays protected"
-              : "One action in Kite"}
+          {chipLabel ??
+            (dailyVerdict === "wait"
+              ? "Doing nothing is the plan"
+              : dailyVerdict === "pause"
+                ? "Capital stays protected"
+                : "One action in Kite")}
         </p>
       </div>
 
