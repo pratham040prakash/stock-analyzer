@@ -55,10 +55,17 @@ export default function PortfolioPolicyPanel({
                     {actual.toFixed(0)}% · {target}%
                   </span>
                 </div>
-                <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.08]">
+                <div className="relative h-1.5 rounded-full bg-white/[0.08]">
                   <div
                     className="h-full rounded-full bg-white/45"
                     style={{ width: `${Math.max(4, Math.min(100, actual))}%` }}
+                  />
+                  <span
+                    aria-hidden
+                    className="absolute top-1/2 h-3 w-px -translate-y-1/2 bg-white/80"
+                    style={{
+                      left: `${Math.max(2, Math.min(98, target))}%`,
+                    }}
                   />
                 </div>
               </div>

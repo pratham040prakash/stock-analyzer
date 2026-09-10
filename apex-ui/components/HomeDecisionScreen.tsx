@@ -1399,6 +1399,21 @@ export default function HomeDecisionScreen({
                         </p>
                       </div>
                     ) : null}
+                    {verdictPresentation.verdict === "wait" ? (
+                      retention.committedToday ? (
+                        <p className="pt-1 text-center text-sm text-apex-muted/75">
+                          Waited. That&apos;s the day.
+                        </p>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={retention.commitFollowed}
+                          className="w-full rounded-2xl border border-white/[0.10] bg-white/[0.04] px-4 py-3 text-sm font-medium text-apex-text transition-colors hover:bg-white/[0.07]"
+                        >
+                          I waited
+                        </button>
+                      )
+                    ) : null}
                   </div>
                 ) : null}
                 {secondNameWatch ? (
