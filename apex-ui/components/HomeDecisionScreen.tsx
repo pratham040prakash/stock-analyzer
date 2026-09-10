@@ -41,8 +41,16 @@ import TodayBookLine from "@/components/dailyLoop/TodayBookLine";
 import TodayStarterHoldCard from "@/components/dailyLoop/TodayStarterHoldCard";
 import TodaySecondNameCard from "@/components/dailyLoop/TodaySecondNameCard";
 import TodayKiteContract from "@/components/dailyLoop/TodayKiteContract";
-import { buildSecondNameWatch, pickSecondName } from "@/lib/dailyLoop/secondNameToday";
-import { buildTodayContract, persistTodayContract } from "@/lib/dailyLoop/todayContract";
+import {
+  buildSecondNameWatch,
+  pickSecondName,
+  rankSecondNames,
+} from "@/lib/dailyLoop/secondNameToday";
+import {
+  buildTodayContract,
+  persistTodayContract,
+  readTodayContract,
+} from "@/lib/dailyLoop/todayContract";
 import TodayWatchlistPanel from "@/components/dailyLoop/TodayWatchlistPanel";
 import TodaySyncStatusBanner from "@/components/dailyLoop/TodaySyncStatusBanner";
 import InvestmentJourneyPanel from "@/components/journey/InvestmentJourneyPanel";
@@ -811,8 +819,14 @@ export default function HomeDecisionScreen({
   ]);
 
   const explorePicks = useMemo(() => {
-    if (nextNamePick && (starterBook || youngBook)) {
-      return [nextNamePick];
+    if (!isExplore && (starterBook || youngBook)) {
+      return rankSecondNames({
+        heldSymbol: starterBook ? starterHoldingSymbol : undefined,
+        heldSymbols: youngBook
+          ? youngBookHoldings.map((holding) => holding.tradingsymbol)
+          : undefined,
+        picks: decision.picks,
+      }).slice(0, 3);
     }
 
     if (!isExplore || !decision.picks?.length) {
@@ -828,9 +842,10 @@ export default function HomeDecisionScreen({
     capitalDecision.exploreSetups,
     decision.picks,
     isExplore,
-    nextNamePick,
     starterBook,
+    starterHoldingSymbol,
     youngBook,
+    youngBookHoldings,
   ]);
 
   const {
@@ -841,7 +856,7 @@ export default function HomeDecisionScreen({
     refreshKey: decisionUpdatedAt,
   });
   const nextNameWatch =
-    nextNamePick && !isExplore && (starterBook || youngBook)
+    !isExplore && (starterBook || youngBook)
       ? buildSecondNameWatch({
           heldSymbol: starterBook ? starterHoldingSymbol : undefined,
           heldSymbols: youngBook
@@ -849,12 +864,17 @@ export default function HomeDecisionScreen({
             : undefined,
           picks: decision.picks,
           cashInr: availableCash ?? 0,
-          livePriceInr:
-            exploreTriggerBySymbol.get(nextNamePick.stock.trim().toUpperCase())
-              ?.livePrice ??
-            exploreTriggerBySymbol.get(nextNamePick.stock)?.livePrice ??
-            nextNamePick.price ??
-            null,
+          livePriceBySymbol: (() => {
+            const prices = new Map<string, number>();
+            for (const [symbol, trigger] of exploreTriggerBySymbol.entries()) {
+              const live = trigger.livePrice;
+              if (live !== null && live !== undefined && Number.isFinite(live) && live > 0) {
+                prices.set(symbol.trim().toUpperCase(), live);
+              }
+            }
+            return prices;
+          })(),
+          preferredSymbol: readTodayContract()?.watchSymbol,
           eyebrow: starterBook ? "Next name" : "Third name",
         })
       : null;
@@ -869,7 +889,9 @@ export default function HomeDecisionScreen({
           ? {
               symbol: nextNameWatch.symbol,
               through: nextNameWatch.through,
+              dead: nextNameWatch.dead,
               triggerInr: nextNameWatch.triggerInr,
+              killInr: nextNameWatch.killInr,
               ticketInr: nextNameWatch.size.ticketInr,
               gapLabel: nextNameWatch.gapLabel,
             }

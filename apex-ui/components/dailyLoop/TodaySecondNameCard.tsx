@@ -9,6 +9,11 @@ type Props = {
 };
 
 export default function TodaySecondNameCard({ watch, kiteLine }: Props) {
+  const bandLine =
+    watch.triggerLabel && watch.killLabel
+      ? `${watch.triggerLabel} · Drop below ${watch.killLabel}`
+      : watch.triggerLabel;
+
   return (
     <section className="relative overflow-hidden rounded-[28px] border border-white/[0.08] bg-gradient-to-b from-violet-400/[0.08] to-transparent px-5 py-5 sm:px-6">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(167,139,250,0.14),transparent_46%)]" />
@@ -32,22 +37,27 @@ export default function TodaySecondNameCard({ watch, kiteLine }: Props) {
             {watch.lastLabel}
           </p>
         ) : null}
-        {watch.triggerLabel ? (
-          <p className="mt-2 text-sm text-violet-100/85">{watch.triggerLabel}</p>
+        {bandLine ? (
+          <p className="mt-2 text-sm text-violet-100/85">{bandLine}</p>
         ) : null}
         {watch.lastLabel && watch.gapLabel ? (
           <p className="mt-1 text-xs text-apex-muted/70">Last {watch.lastLabel}</p>
         ) : null}
       </div>
 
-      {kiteLine ? (
+      {kiteLine && (watch.dead || watch.through) ? (
         <p className="relative mt-5 text-sm leading-relaxed text-apex-text/90">
           {kiteLine}
         </p>
       ) : null}
-      <p className="relative mt-2 text-sm text-apex-muted/85">
-        {watch.ticketLabel} → {watch.leftoverLabel}
-      </p>
+      {watch.dead ? null : (
+        <p className="relative mt-5 text-sm text-apex-muted/85">
+          {watch.ticketLabel} → {watch.leftoverLabel}
+        </p>
+      )}
+      {watch.whyLine ? (
+        <p className="relative mt-2 text-sm text-apex-muted/75">{watch.whyLine}</p>
+      ) : null}
       <Link
         href={`/app/research?symbol=${encodeURIComponent(watch.symbol)}`}
         className="relative mt-4 inline-flex text-xs text-apex-muted/70 underline-offset-2 hover:text-apex-text hover:underline"

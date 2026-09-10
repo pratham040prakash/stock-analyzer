@@ -4,7 +4,9 @@ import { tradingDateKey } from "@/lib/dailyLoop/disciplineDates";
 export type TodayContractWatch = {
   symbol: string;
   through: boolean;
+  dead?: boolean;
   triggerInr: number | null;
+  killInr?: number | null;
   ticketInr: number;
   gapLabel?: string | null;
 };
@@ -53,6 +55,16 @@ export function buildTodayContract(input: {
     };
   }
 
+  if (watch?.dead) {
+    return {
+      dateKey,
+      kiteLine: `Do nothing in Kite. ${watch.symbol} lost the setup.`,
+      rule: "Cash stays put.",
+      watchSymbol: watch.symbol,
+      gapLabel: watch.gapLabel ?? "Lost the line",
+    };
+  }
+
   if (watch?.through && watch.triggerInr) {
     return {
       dateKey,
@@ -64,9 +76,13 @@ export function buildTodayContract(input: {
   }
 
   if (watch?.triggerInr) {
+    const drop =
+      watch.killInr
+        ? ` Drop below ${formatInr(watch.killInr)}.`
+        : "";
     return {
       dateKey,
-      kiteLine: `Do nothing in Kite unless ${watch.symbol} trades above ${formatInr(watch.triggerInr)}.`,
+      kiteLine: `Do nothing in Kite unless ${watch.symbol} trades above ${formatInr(watch.triggerInr)}.${drop}`,
       rule: watch.gapLabel ?? `Cash waits on ${watch.symbol}.`,
       watchSymbol: watch.symbol,
       gapLabel: watch.gapLabel ?? null,
@@ -155,6 +171,32 @@ export function runTodayContractSelfCheck(): void {
     dateKey: "2026-09-10",
   });
   assert(through.kiteLine.includes("place"), "Through the line must name a Kite ticket");
+
+  const band = buildTodayContract({
+    heldSymbols: ["COALINDIA", "ADANIPORTS"],
+    watch: {
+      symbol: "DIVISLAB",
+      through: false,
+      triggerInr: 9575,
+      killInr: 9298,
+      ticketInr: 7000,
+    },
+    dateKey: "2026-09-10",
+  });
+  assert(band.kiteLine.includes("Drop below"), "Live watch must name the kill level");
+
+  const dead = buildTodayContract({
+    heldSymbols: ["COALINDIA", "ADANIPORTS"],
+    watch: {
+      symbol: "DIVISLAB",
+      through: false,
+      dead: true,
+      triggerInr: 9575,
+      ticketInr: 7000,
+    },
+    dateKey: "2026-09-10",
+  });
+  assert(dead.kiteLine.includes("lost the setup"), "Dead watch must keep cash idle");
 
   const chop = buildTodayContract({
     heldSymbols: ["COALINDIA", "ADANIPORTS"],
