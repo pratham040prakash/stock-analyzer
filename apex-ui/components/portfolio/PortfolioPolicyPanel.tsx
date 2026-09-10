@@ -26,7 +26,7 @@ export default function PortfolioPolicyPanel({
   sector,
   youngBook = false,
 }: Props) {
-  if (youngBook || (!allocation && !health && !sector)) {
+  if (!allocation && !health && !sector) {
     return null;
   }
 
@@ -66,7 +66,7 @@ export default function PortfolioPolicyPanel({
           </div>
         ) : null}
 
-        {sector ? (
+        {sector && !youngBook ? (
           <p className="text-xs leading-relaxed text-apex-muted/75">
             {sector.policy_note}
           </p>
