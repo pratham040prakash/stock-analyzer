@@ -1,7 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
+import {
+  bankFetchedNote,
+  rowsFromBankReview,
+  type BankConsentStatus,
+  type BankMonthReview,
+} from "@/lib/life/bankAggregator";
 import {
   assembleLifeFreedomPlan,
   ingestBankStatements,
@@ -14,23 +21,138 @@ import {
 } from "@/lib/life/financialFreedom";
 import { formatInr } from "@/lib/funds";
 
+type FreedomResponse = {
+  status?: string;
+  salaryInr?: number;
+  needsInr?: number;
+  kiteCashInr?: number;
+  note?: string;
+  bank?: {
+    configured?: boolean;
+    status?: BankConsentStatus;
+    hint?: string;
+    review?: BankMonthReview | null;
+  };
+};
+
 export default function YouLifeFreedom() {
   const stored = useMemo(() => readStoredLifeFreedom(), []);
   const [salaryInr, setSalaryInr] = useState(stored.salaryInr);
   const [loans, setLoans] = useState<LifeLoan[]>(stored.loans);
   const [statement, setStatement] = useState<StatementRow[]>([]);
   const [statementNote, setStatementNote] = useState<string | null>(null);
+  const [kiteCashInr, setKiteCashInr] = useState<number | null>(null);
+  const [needsInr, setNeedsInr] = useState<number | null>(null);
+  const [mobile, setMobile] = useState("");
+  const [bankHint, setBankHint] = useState("The bank sends the last 6 months after you approve.");
+  const [bankConfigured, setBankConfigured] = useState(false);
+  const [bankStatus, setBankStatus] = useState<BankConsentStatus>("off");
+  const [connecting, setConnecting] = useState(false);
+  const [connectError, setConnectError] = useState<string | null>(null);
+
+  const applyFreedom = (data: FreedomResponse | null) => {
+    if (!data) {
+      return;
+    }
+
+    if (typeof data.kiteCashInr === "number") {
+      setKiteCashInr(data.kiteCashInr);
+    }
+    if (typeof data.needsInr === "number" && data.needsInr > 0) {
+      setNeedsInr(data.needsInr);
+    }
+    if (data.bank?.hint) {
+      setBankHint(data.bank.hint);
+    }
+    setBankConfigured(Boolean(data.bank?.configured));
+    if (data.bank?.status) {
+      setBankStatus(data.bank.status);
+    }
+    if (data.bank?.review && data.bank.review.rowCount > 0) {
+      setStatement(rowsFromBankReview(data.bank.review));
+      setStatementNote(bankFetchedNote(data.bank.review.rowCount));
+      if (data.bank.review.salaryInr > 0) {
+        setSalaryInr(data.bank.review.salaryInr);
+        writeStoredLifeFreedom({ salaryInr: data.bank.review.salaryInr, loans });
+      }
+    } else if (typeof data.salaryInr === "number" && data.salaryInr > 0 && stored.salaryInr <= 0) {
+      setSalaryInr(data.salaryInr);
+      writeStoredLifeFreedom({ salaryInr: data.salaryInr, loans });
+    }
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      const response = await apiFetch("/api/life/freedom", { cache: "no-store" });
+      const data = await parseApiJson<FreedomResponse>(response, "life-freedom");
+      if (!cancelled) {
+        applyFreedom(data);
+      }
+    };
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+    // First paint only — later polls pass the latest loans themselves.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (bankStatus !== "pending" && bankStatus !== "active") {
+      return;
+    }
+
+    const started = Date.now();
+    const timer = window.setInterval(() => {
+      if (Date.now() - started > 90_000) {
+        window.clearInterval(timer);
+        return;
+      }
+      void apiFetch("/api/life/freedom", { cache: "no-store" }).then(async (response) => {
+        applyFreedom(await parseApiJson<FreedomResponse>(response, "life-freedom"));
+      });
+    }, 4000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bankStatus]);
 
   const plan = assembleLifeFreedomPlan({
     salaryInr,
     loans,
     statement: statement.length > 0 ? statement : undefined,
+    needsInr,
+    kiteCashInr,
   });
 
   const persist = (nextSalary: number, nextLoans: LifeLoan[]) => {
     setSalaryInr(nextSalary);
     setLoans(nextLoans);
     writeStoredLifeFreedom({ salaryInr: nextSalary, loans: nextLoans });
+  };
+
+  const connectBank = async () => {
+    setConnecting(true);
+    setConnectError(null);
+    const response = await apiFetch("/api/life/bank/connect", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mobile }),
+    });
+    const data = await parseApiJson<{ url?: string; message?: string }>(
+      response,
+      "bank-connect",
+    );
+    setConnecting(false);
+    if (!response.ok || !data?.url) {
+      setConnectError(data?.message ?? "The bank rail would not open.");
+      return;
+    }
+    window.location.assign(data.url);
   };
 
   return (
@@ -44,6 +166,34 @@ export default function YouLifeFreedom() {
         <p className="text-sm leading-relaxed text-apex-text/90">{plan.leftoverLine}</p>
         {plan.closeLoanFirst ? (
           <p className="text-sm leading-relaxed text-apex-muted/85">{plan.closeLoanFirst}</p>
+        ) : null}
+      </div>
+
+      <div className="space-y-2">
+        <p className="text-xs text-apex-muted/75">{bankHint}</p>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <input
+            value={mobile}
+            onChange={(event) => setMobile(event.target.value)}
+            inputMode="numeric"
+            autoComplete="tel"
+            placeholder="Mobile on the bank account"
+            className="w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm text-apex-text"
+          />
+          <button
+            type="button"
+            onClick={() => void connectBank()}
+            disabled={connecting || !bankConfigured}
+            className="rounded-lg border border-white/15 px-3 py-2 text-sm text-sky-100/90 disabled:opacity-50"
+          >
+            {connecting ? "Opening bank…" : "Connect bank"}
+          </button>
+        </div>
+        {connectError ? (
+          <p className="text-xs text-apex-muted/80">{connectError}</p>
+        ) : null}
+        {statementNote ? (
+          <p className="text-xs text-apex-muted/70">{statementNote}</p>
         ) : null}
       </div>
 
@@ -146,9 +296,6 @@ export default function YouLifeFreedom() {
           }}
           className="block w-full text-xs text-apex-muted/75"
         />
-        {statementNote ? (
-          <p className="text-xs text-apex-muted/70">{statementNote}</p>
-        ) : null}
       </label>
 
       {plan.investInr > 0 ? (

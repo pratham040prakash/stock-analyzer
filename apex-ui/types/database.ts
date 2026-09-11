@@ -103,6 +103,49 @@ export type Database = {
         };
         Relationships: [];
       };
+      life_bank_consents: {
+        Row: {
+          user_id: string;
+          consent_id: string;
+          status: "pending" | "active" | "fetched" | "failed" | "rejected";
+          mobile_last4: string;
+          salary_inr: number;
+          needs_inr: number;
+          leaks_inr: number;
+          emi_inr: number;
+          row_count: number;
+          fetched_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          consent_id: string;
+          status: "pending" | "active" | "fetched" | "failed" | "rejected";
+          mobile_last4?: string;
+          salary_inr?: number;
+          needs_inr?: number;
+          leaks_inr?: number;
+          emi_inr?: number;
+          row_count?: number;
+          fetched_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          consent_id?: string;
+          status?: "pending" | "active" | "fetched" | "failed" | "rejected";
+          mobile_last4?: string;
+          salary_inr?: number;
+          needs_inr?: number;
+          leaks_inr?: number;
+          emi_inr?: number;
+          row_count?: number;
+          fetched_at?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       operating_profiles: {
         Row: {
           user_id: string;

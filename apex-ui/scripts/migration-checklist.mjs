@@ -34,6 +34,7 @@ const ORDERED_MIGRATIONS = [
   "operating_profile.sql",
   "investment_journeys.sql",
   "today_desk.sql",
+  "life_bank_consents.sql",
 ];
 
 function listMigrations() {
