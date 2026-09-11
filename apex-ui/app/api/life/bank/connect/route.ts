@@ -39,12 +39,16 @@ export async function POST(request: Request) {
 
   try {
     const consent = await createBankConsent(mobile);
-    await upsertLifeBankConsent(supabase, {
-      userId: user.id,
-      consentId: consent.consentId,
-      status: "pending",
-      mobileLast4: mobileLast4(mobile),
-    });
+    try {
+      await upsertLifeBankConsent(supabase, {
+        userId: user.id,
+        consentId: consent.consentId,
+        status: "pending",
+        mobileLast4: mobileLast4(mobile),
+      });
+    } catch {
+      // Consent screen still opens if the month table is not applied yet.
+    }
     return apiOk({ url: consent.url, consentId: consent.consentId });
   } catch {
     return apiError("The bank rail would not open a consent screen.", 502);

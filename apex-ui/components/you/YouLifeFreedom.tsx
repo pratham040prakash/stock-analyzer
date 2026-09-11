@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
 import {
+  bankConnectHint,
   bankFetchedNote,
+  bankFileConnectNote,
   rowsFromBankReview,
   type BankConsentStatus,
   type BankMonthReview,
@@ -44,8 +46,9 @@ export default function YouLifeFreedom() {
   const [kiteCashInr, setKiteCashInr] = useState<number | null>(null);
   const [needsInr, setNeedsInr] = useState<number | null>(null);
   const [mobile, setMobile] = useState("");
-  const [bankHint, setBankHint] = useState("The bank sends the last 6 months after you approve.");
+  const [bankHint, setBankHint] = useState(bankConnectHint(false));
   const [bankConfigured, setBankConfigured] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [bankStatus, setBankStatus] = useState<BankConsentStatus>("off");
   const [connecting, setConnecting] = useState(false);
   const [connectError, setConnectError] = useState<string | null>(null);
@@ -135,6 +138,11 @@ export default function YouLifeFreedom() {
     writeStoredLifeFreedom({ salaryInr: nextSalary, loans: nextLoans });
   };
 
+  const openBankFile = (note: string) => {
+    setConnectError(note);
+    fileInputRef.current?.click();
+  };
+
   const connectBank = async () => {
     setConnecting(true);
     setConnectError(null);
@@ -148,11 +156,15 @@ export default function YouLifeFreedom() {
       "bank-connect",
     );
     setConnecting(false);
-    if (!response.ok || !data?.url) {
-      setConnectError(data?.message ?? "The bank rail would not open.");
+    if (response.ok && data?.url) {
+      window.location.assign(data.url);
       return;
     }
-    window.location.assign(data.url);
+    openBankFile(
+      response.status === 503 || !bankConfigured
+        ? bankFileConnectNote()
+        : (data?.message ?? bankFileConnectNote()),
+    );
   };
 
   return (
@@ -183,7 +195,7 @@ export default function YouLifeFreedom() {
           <button
             type="button"
             onClick={() => void connectBank()}
-            disabled={connecting || !bankConfigured}
+            disabled={connecting}
             className="rounded-lg border border-white/15 px-3 py-2 text-sm text-sky-100/90 disabled:opacity-50"
           >
             {connecting ? "Opening bank…" : "Connect bank"}
@@ -279,6 +291,7 @@ export default function YouLifeFreedom() {
       <label className="block space-y-1">
         <span className="text-xs text-apex-muted/75">{statementIngestHint()}</span>
         <input
+          ref={fileInputRef}
           type="file"
           accept=".csv,.txt,.tsv,.xls,text/csv,text/plain"
           multiple

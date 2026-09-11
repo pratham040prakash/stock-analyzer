@@ -172,7 +172,11 @@ export function rowsFromBankReview(review: BankMonthReview): StatementRow[] {
 export function bankConnectHint(configured: boolean): string {
   return configured
     ? "The bank sends the last 6 months after you approve on the next screen."
-    : "Bank rail is off until Setu keys sit on the server. Kite cash still loads.";
+    : "Connect bank reads the CSV your bank already emailed. Last 6 months.";
+}
+
+export function bankFileConnectNote(): string {
+  return "OTP rail is off. Pick the CSV your bank already emailed.";
 }
 
 export function bankFetchedNote(rowCount: number): string {
@@ -266,5 +270,13 @@ export function runBankAggregatorSelfCheck(): void {
   assert(
     readSetuConfig({}).configured === false,
     "Missing Setu keys must not pretend the rail is live",
+  );
+  assert(
+    bankConnectHint(false).includes("already emailed"),
+    "Without Setu, Connect bank must use the file the bank already sent",
+  );
+  assert(
+    bankFileConnectNote().includes("Pick the CSV"),
+    "A dead OTP rail must still open a file",
   );
 }
