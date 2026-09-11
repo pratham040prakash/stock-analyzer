@@ -7,6 +7,15 @@ import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
 import type { DailyDecisionOutput } from "@/types/decision";
 import { decisionTodayApiPath, resolveIntent, type Intent } from "@/types/intent";
 
+/**
+ * Wave 2 invariant: intent is a presentation lens over the frozen
+ * artifact. The client may switch intent locally, but the server never
+ * produces a per-intent replacement without an explicit refresh
+ * (?refresh=1). When the API returns an artifact whose intent differs
+ * from the requested one, the hook adopts the artifact's true intent
+ * so the UI stops pretending to hold a different one.
+ */
+
 export type EntryTimingState = {
   enter: boolean;
   reason: string;
@@ -16,6 +25,11 @@ type DecisionResponse = {
   decision: DailyDecisionOutput | null;
   entryTiming?: EntryTimingState;
   created_at?: string | null;
+  intent?: Intent | null;
+  daily_verdict?: "trade" | "wait" | "pause" | null;
+  trading_locked?: boolean | null;
+  entry_confirmed?: boolean | null;
+  blockers?: string[];
 };
 
 const DEFAULT_ENTRY_TIMING: EntryTimingState = {
@@ -117,7 +131,14 @@ export function useIntentDecision({
         }
 
         if (data?.decision) {
+          const artifactIntent = resolveIntent(data.intent ?? null);
           cacheRef.current[targetIntent] = data.decision;
+          if (artifactIntent !== targetIntent) {
+            cacheRef.current[artifactIntent] = data.decision;
+            setIntentState(artifactIntent);
+            storeUserIntent(artifactIntent);
+            intentRef.current = artifactIntent;
+          }
           setDecision(data.decision);
           setEntryTiming(data.entryTiming ?? DEFAULT_ENTRY_TIMING);
           setDecisionUpdatedAt(data.created_at ?? new Date().toISOString());

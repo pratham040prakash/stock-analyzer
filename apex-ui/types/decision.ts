@@ -296,20 +296,27 @@ export function projectArtifactDecision(
   const projection = artifact.projection;
   const symbol =
     artifact.symbol.status === "known" ? artifact.symbol.value : undefined;
+  const authorized =
+    !artifact.tradingLocked && artifact.daily_verdict === "trade";
   const amount =
-    artifact.approved_size.kind === "buy_amount"
+    authorized && artifact.approved_size.kind === "buy_amount"
       ? artifact.approved_size.amount_inr
       : undefined;
   const suggestedSellPercent =
-    artifact.approved_size.kind === "sell_percent"
+    authorized && artifact.approved_size.kind === "sell_percent"
       ? artifact.approved_size.percent
       : undefined;
+  const action: DecisionActionType = authorized ? artifact.action : "wait";
+  const decision: DailyDecisionType = authorized
+    ? projection.decision
+    : "WAIT";
 
   return {
     ...projection,
     intent: artifact.intent,
-    action: artifact.action,
-    stock: symbol,
+    decision,
+    action,
+    stock: authorized ? symbol : undefined,
     amount,
     suggested_sell_percent: suggestedSellPercent,
   };
@@ -387,6 +394,75 @@ export function runDecisionArtifactSelfCheck(): void {
   }
   if (chooseFrozenArtifact(artifact, true) !== null) {
     throw new Error("Decision artifact self-check failed: refresh did not recompute");
+  }
+
+  // Wave 2 fail-closed projection: a locked artifact must project to
+  // WAIT with no amount/sellPercent and no exposed symbol.
+  const lockedProjection = projectArtifactDecision(artifact);
+  if (
+    lockedProjection.action !== "wait" ||
+    lockedProjection.decision !== "WAIT" ||
+    lockedProjection.stock !== undefined ||
+    lockedProjection.amount !== undefined ||
+    lockedProjection.suggested_sell_percent !== undefined
+  ) {
+    throw new Error(
+      "Decision artifact self-check failed: locked artifact must project WAIT with no size",
+    );
+  }
+
+  const tradingArtifact: DailyDecisionArtifact = {
+    ...artifact,
+    intent: "grow",
+    action: "buy",
+    symbol: { status: "known", value: "HDFCBANK", observed_at: now },
+    approved_size: { kind: "buy_amount", amount_inr: 5000 },
+    daily_verdict: "trade",
+    tradingLocked: false,
+    entryConfirmed: true,
+    capital_state: {
+      status: "known",
+      value: { available_cash_inr: 100000, portfolio_value_inr: 500000 },
+      observed_at: now,
+    },
+    broker_state: {
+      status: "known",
+      value: { broker: "zerodha", connection: "connected" },
+      observed_at: now,
+    },
+    market_state: {
+      status: "known",
+      value: { trend: "sideways", session: "market_open" },
+      observed_at: now,
+    },
+    source_timestamps: {
+      portfolio: { status: "known", value: now, observed_at: now },
+      capital: { status: "known", value: now, observed_at: now },
+      broker: { status: "known", value: now, observed_at: now },
+      market: { status: "known", value: now, observed_at: now },
+      entry: { status: "known", value: now, observed_at: now },
+    },
+    blockers: [],
+    projection: {
+      decision: "BUY_MORE",
+      action: "buy",
+      confidence: 80,
+      reason: "Buy",
+      confidence_factors: [],
+      actions: [],
+      stock: "HDFCBANK",
+      amount: 5000,
+    },
+  };
+  const tradingProjection = projectArtifactDecision(tradingArtifact);
+  if (
+    tradingProjection.action !== "buy" ||
+    tradingProjection.stock !== "HDFCBANK" ||
+    tradingProjection.amount !== 5000
+  ) {
+    throw new Error(
+      "Decision artifact self-check failed: trading artifact must project BUY with size",
+    );
   }
 }
 

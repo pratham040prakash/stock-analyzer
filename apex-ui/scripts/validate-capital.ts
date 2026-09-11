@@ -33,6 +33,8 @@ import { runSyncBrokerActivitySelfCheck } from "../services/trade/syncBrokerActi
 import { runAutoTradeSelfCheck } from "../services/trade/autoExecute";
 import { runDecisionArtifactSelfCheck } from "../types/decision";
 import { runExecutionAuthorizationSelfCheck } from "../services/execution/authorization";
+import { runFreshnessSelfCheck } from "../services/decision/freshness";
+import { runDailyInsightSelfCheck } from "../lib/dailyInsight";
 import { runLoggerSelfCheck } from "../lib/logging/logger";
 import { runMorningBriefSelfCheck } from "../services/brief/assembleMorningBrief";
 import { runProjectVerdictSelfCheck } from "../lib/dailyLoop/projectVerdict";
@@ -161,6 +163,8 @@ runSyncBrokerActivitySelfCheck();
 runAutoTradeSelfCheck();
 runDecisionArtifactSelfCheck();
 runExecutionAuthorizationSelfCheck();
+runFreshnessSelfCheck();
+runDailyInsightSelfCheck();
 runLoggerSelfCheck();
 runMorningBriefSelfCheck();
 runProjectVerdictSelfCheck();

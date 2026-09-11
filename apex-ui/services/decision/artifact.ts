@@ -8,6 +8,7 @@ import type {
   PortfolioSnapshotInput,
 } from "@/types/decision";
 import { DAILY_DECISION_ARTIFACT_SCHEMA_VERSION } from "@/types/decision";
+import { applyFreshnessPolicy } from "@/services/decision/freshness";
 
 type SourceState<T> = ExplicitUnknown<T>;
 
@@ -56,25 +57,47 @@ export function buildDailyDecisionArtifact(
   input: BuildDailyArtifactInput,
 ): DailyDecisionArtifact {
   const decision = input.decision;
+
+  // Wave 2 fail-closed freshness: downgrade any source that is stale
+  // beyond its allowed window before we derive blockers/verdict.
+  const freshness = applyFreshnessPolicy(
+    {
+      portfolioObservedAt: input.portfolioObservedAt,
+      capital: input.capital,
+      broker: input.broker,
+      market: input.market,
+      entry: input.entry,
+    },
+    input.frozenAt,
+  );
+  const capital = freshness.sources.capital;
+  const broker = freshness.sources.broker;
+  const market = freshness.sources.market;
+  const entry = freshness.sources.entry;
+  const portfolioObservedAt = freshness.sources.portfolioObservedAt;
+
   const actionable = decision.action === "buy" || decision.action === "sell";
   const entryConfirmed =
     decision.action === "sell"
       ? true
-      : input.entry.status === "known" && input.entry.value.confirmed;
+      : entry.status === "known" && entry.value.confirmed;
   const symbol = decision.stock?.trim().toUpperCase();
   const blockers: string[] = [];
 
   if (!actionable) blockers.push(`Action ${decision.action} is not executable`);
   if (!symbol) blockers.push("Decision symbol is unknown");
-  if (input.portfolioObservedAt === null) blockers.push("Portfolio source timestamp is unknown");
-  if (input.capital.status === "unknown") blockers.push(input.capital.reason);
-  if (input.broker.status === "unknown") blockers.push(input.broker.reason);
-  if (input.market.status === "unknown") blockers.push(input.market.reason);
+  if (portfolioObservedAt === null) blockers.push("Portfolio source timestamp is unknown");
+  if (capital.status === "unknown") blockers.push(capital.reason);
+  if (broker.status === "unknown") blockers.push(broker.reason);
+  if (market.status === "unknown") blockers.push(market.reason);
+  for (const blocker of freshness.extraBlockers) {
+    if (!blockers.includes(blocker)) blockers.push(blocker);
+  }
   if (decision.action === "buy" && !entryConfirmed) {
     blockers.push(
-      input.entry.status === "known"
-        ? input.entry.value.reason || "Entry is not confirmed"
-        : input.entry.reason,
+      entry.status === "known"
+        ? entry.value.reason || "Entry is not confirmed"
+        : entry.reason,
     );
   }
 
@@ -127,17 +150,17 @@ export function buildDailyDecisionArtifact(
     daily_verdict: dailyVerdict,
     tradingLocked,
     entryConfirmed,
-    capital_state: input.capital,
-    broker_state: input.broker,
-    market_state: input.market,
+    capital_state: capital,
+    broker_state: broker,
+    market_state: market,
     source_timestamps: {
-      portfolio: input.portfolioObservedAt
-        ? knownSource(input.portfolioObservedAt, input.portfolioObservedAt)
+      portfolio: portfolioObservedAt
+        ? knownSource(portfolioObservedAt, portfolioObservedAt)
         : unknown("Portfolio timestamp was not available"),
-      capital: sourceTimestamp(input.capital),
-      broker: sourceTimestamp(input.broker),
-      market: sourceTimestamp(input.market),
-      entry: sourceTimestamp(input.entry),
+      capital: sourceTimestamp(capital),
+      broker: sourceTimestamp(broker),
+      market: sourceTimestamp(market),
+      entry: sourceTimestamp(entry),
     },
     evidence_ids: evidence.map((item) => item.id),
     evidence,

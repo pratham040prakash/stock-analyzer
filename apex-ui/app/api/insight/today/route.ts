@@ -12,6 +12,7 @@ import { formatPortfolioHoldings } from "@/services/portfolio/format";
 import { getLatestPortfolioSnapshot } from "@/services/portfolio/repository";
 import { createClient } from "@/lib/supabase/server";
 import type { DailyInsight } from "@/types/dailyInsight";
+import { getTodayDailyDecision } from "@/services/decision/repository";
 
 async function resolvePortfolioDayPnl(
   userId: string,
@@ -42,13 +43,25 @@ export async function GET() {
     return apiError("Unauthorized", 401);
   }
 
-  const [market, tape, dayPnl] = await Promise.all([
+  const [market, tape, dayPnl, artifact] = await Promise.all([
     fetchMarketTrend(),
     getTapeRegimeSafe(),
     resolvePortfolioDayPnl(user.id),
+    getTodayDailyDecision(supabase, user.id),
   ]);
 
-  const insight: DailyInsight = buildDailyInsight(dayPnl, market, tape);
+  const insight: DailyInsight = buildDailyInsight(
+    dayPnl,
+    market,
+    tape,
+    artifact
+      ? {
+          daily_verdict: artifact.daily_verdict,
+          tradingLocked: artifact.tradingLocked,
+          blockers: artifact.blockers,
+        }
+      : null,
+  );
 
   return NextResponse.json({ insight });
 }

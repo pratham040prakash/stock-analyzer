@@ -14,6 +14,7 @@ import {
   isPortfolioQuestion,
 } from "@/services/ask/assemblePortfolioAskAnswer";
 import { createClient } from "@/lib/supabase/server";
+import { getTodayDailyDecision } from "@/services/decision/repository";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +47,7 @@ export async function POST(request: Request) {
     user.id,
     tradingDateKey(),
   );
+  const artifact = await getTodayDailyDecision(supabase, user.id);
   const voice = answerVoiceDesk({ question, contract });
   const answer = voice
     ? {
@@ -62,7 +64,7 @@ export async function POST(request: Request) {
     ? await assemblePortfolioAskAnswer(supabase, user.id, question)
     : isMacroQuestion(question)
       ? assembleMacroAskAnswer(question)
-      : await assembleAskAnswer(question);
+      : await assembleAskAnswer(question, artifact);
 
   return NextResponse.json({ status: "ok", answer });
 }

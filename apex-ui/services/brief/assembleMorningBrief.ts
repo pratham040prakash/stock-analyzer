@@ -225,7 +225,18 @@ export async function assembleMorningBrief(
       ? computeZerodhaPositionsPnl(live.holdings, live.netPnlPositions)
       : null;
 
-  const insight = buildDailyInsight(dayPnl, market, tape);
+  const insight = buildDailyInsight(
+    dayPnl,
+    market,
+    tape,
+    decisionBundle.artifact
+      ? {
+          daily_verdict: decisionBundle.artifact.daily_verdict,
+          tradingLocked: decisionBundle.artifact.tradingLocked,
+          blockers: decisionBundle.artifact.blockers,
+        }
+      : null,
+  );
 
   if (!decision) {
     return {
