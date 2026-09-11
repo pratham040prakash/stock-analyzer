@@ -11,6 +11,7 @@ import {
   resolvePremiumTrialView,
 } from "@/services/subscription/conversionFunnel";
 import { createClient } from "@/lib/supabase/server";
+import { getTodayDailyDecision } from "@/services/decision/repository";
 
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -52,7 +53,11 @@ export async function POST(request: Request) {
     return apiError("symbol is required", 400);
   }
 
-  const receipt = await persistDecisionReceipt(supabase, user.id, body);
+  const artifact = await getTodayDailyDecision(supabase, user.id);
+  const receipt = await persistDecisionReceipt(supabase, user.id, {
+    ...body,
+    artifact,
+  });
 
   if (!receipt) {
     return apiError("Could not persist receipt", 500);

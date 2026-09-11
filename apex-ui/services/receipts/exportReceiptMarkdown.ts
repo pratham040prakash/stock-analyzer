@@ -1,23 +1,20 @@
 import type { DecisionReceiptRow } from "@/services/receipts/persistReceipt";
-import type { MorningBriefViewModel } from "@/types/morningBrief";
-
-function parseBriefSnapshot(value: unknown): MorningBriefViewModel | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return null;
-  }
-
-  return value as MorningBriefViewModel;
-}
+import {
+  parseReceiptSnapshot,
+  quoteReceiptVerdict,
+} from "@/services/receipts/snapshot";
 
 export function exportReceiptMarkdown(receipt: DecisionReceiptRow): string {
-  const brief = parseBriefSnapshot(receipt.brief_snapshot);
+  const snapshot = parseReceiptSnapshot(receipt.brief_snapshot);
+  const brief = snapshot.brief;
+  const quoted = quoteReceiptVerdict(snapshot);
   const lines: string[] = [
     `# APEX Decision Receipt`,
     ``,
     `- **Date:** ${receipt.receipt_date}`,
     `- **Symbol:** ${receipt.symbol}`,
     `- **Kind:** ${receipt.execution_kind}`,
-    `- **Verdict:** ${receipt.verdict_word ?? "—"}`,
+    `- **Verdict:** ${quoted.source === "artifact" ? quoted.verdict : receipt.verdict_word ?? "—"}`,
     ``,
     `## Headline`,
     receipt.headline ?? "—",
@@ -47,6 +44,16 @@ export function exportReceiptMarkdown(receipt: DecisionReceiptRow): string {
   }
 
   lines.push(``);
+
+  if (quoted.source === "artifact") {
+    lines.push(
+      `## Frozen decision`,
+      `- Verdict: ${quoted.verdict}`,
+      `- Reason: ${quoted.reason}`,
+      `- Decision id: ${snapshot.artifact?.decision_id ?? "—"}`,
+      ``,
+    );
+  }
 
   if (brief) {
     lines.push(

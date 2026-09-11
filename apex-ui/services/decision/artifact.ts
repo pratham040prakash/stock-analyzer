@@ -119,7 +119,7 @@ export function buildDailyDecisionArtifact(
 
   const tradingLocked = blockers.length > 0;
   const dailyVerdict = actionable && !tradingLocked ? "trade" : "wait";
-  const evidence = [
+  const supporting = [
     {
       id: `${input.decisionDate}:reason`,
       type: "FACT" as const,
@@ -135,6 +135,19 @@ export function buildDailyDecisionArtifact(
       observed_at: input.frozenAt,
     })),
   ];
+  const conflicting =
+    decision.validation?.risk_ok === false
+      ? [
+          {
+            id: `${input.decisionDate}:risk`,
+            type: "FACT" as const,
+            source: "risk_control",
+            summary: "Risk checks flagged caution",
+            observed_at: input.frozenAt,
+          },
+        ]
+      : [];
+  const evidence = [...supporting, ...conflicting];
 
   return {
     schema_version: DAILY_DECISION_ARTIFACT_SCHEMA_VERSION,
@@ -164,6 +177,10 @@ export function buildDailyDecisionArtifact(
     },
     evidence_ids: evidence.map((item) => item.id),
     evidence,
+    evidence_graph: {
+      supporting_ids: supporting.map((item) => item.id),
+      conflicting_ids: conflicting.map((item) => item.id),
+    },
     blockers,
     decision_metadata: {
       producer: "getDecision/evaluateDailyDecision",
@@ -182,6 +199,14 @@ export function buildDailyDecisionArtifact(
       total_value_inr: input.portfolio.total_value,
       pnl_inr: input.portfolio.pnl ?? 0,
     },
+    capital_at_freeze: capital,
+    positions_at_freeze: input.portfolio.holdings.map((holding) => ({
+      symbol: holding.symbol.trim().toUpperCase(),
+      quantity: holding.quantity,
+      average_price: holding.avgPrice,
+      marked_price: holding.currentPrice,
+      market_value: holding.quantity * holding.currentPrice,
+    })),
     projection: decision,
   };
 }

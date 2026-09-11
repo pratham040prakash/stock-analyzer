@@ -3,7 +3,10 @@ import type { Database } from "@/types/database";
 import type {
   DailyDecisionArtifact,
 } from "@/types/decision";
-import { validateDailyDecisionArtifact } from "@/types/decision";
+import {
+  hydrateArtifactViews,
+  validateDailyDecisionArtifact,
+} from "@/types/decision";
 import type { DecisionHistoryEntry } from "@/types/decisionHistory";
 import { getDisciplineHistory } from "@/services/decision/disciplineHistory";
 import { tradingDateKey } from "@/lib/dailyLoop/disciplineDates";
@@ -71,7 +74,28 @@ export async function getLatestDailyDecision(
 function mapStoredArtifact(data: {
   artifact?: unknown;
 }): DailyDecisionArtifact | null {
-  return validateDailyDecisionArtifact(data.artifact) ? data.artifact : null;
+  return validateDailyDecisionArtifact(data.artifact)
+    ? hydrateArtifactViews(data.artifact)
+    : null;
+}
+
+export async function getDailyDecisionForDate(
+  supabase: Client,
+  userId: string,
+  decisionDate: string,
+): Promise<DailyDecisionArtifact | null> {
+  const { data, error } = await supabase
+    .from("decisions")
+    .select("artifact, created_at, decision_date")
+    .eq("user_id", userId)
+    .eq("decision_date", decisionDate)
+    .maybeSingle();
+
+  if (error || !data) {
+    return null;
+  }
+
+  return mapStoredArtifact(data);
 }
 
 export async function getTodayDailyDecision(

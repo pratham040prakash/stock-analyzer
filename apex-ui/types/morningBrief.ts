@@ -3,6 +3,8 @@ import type { DailyInsight } from "@/types/dailyInsight";
 import type { TodayExecutionKind } from "@/lib/dailyLoop/todaySurface";
 import type { DailyVerdict } from "@/lib/dailyLoop/dailyVerdict";
 import type { TrustOutcomeSnapshot } from "@/services/decision/trustOutcome";
+import type { FreezeAndCurrentCapital } from "@/services/decision/capitalViews";
+import type { WaitCounterfactual } from "@/services/decision/waitCounterfactual";
 
 export type EvidenceLabel = "FACT" | "ASSUMPTION" | "ESTIMATE" | "OPINION";
 
@@ -46,6 +48,8 @@ export type MorningBriefEvidence = {
   evidence_packet_id: string;
   evidence_available: boolean;
   gap_note: string;
+  supporting_ids?: string[];
+  conflicting_ids?: string[];
 };
 
 export type MorningBriefTrust = {
@@ -110,6 +114,11 @@ export type MorningBriefViewModel = {
   failure_message: string | null;
   raw_decision?: DailyDecisionOutput | null;
   trust_snapshot?: TrustOutcomeSnapshot;
+  capital_views?: FreezeAndCurrentCapital;
+  yesterday_wait?: Pick<
+    WaitCounterfactual,
+    "decision_date" | "status" | "summary"
+  > | null;
 };
 
 export type MorningBriefResponse = {

@@ -1,5 +1,6 @@
 import { tradingDateKey } from "@/lib/dailyLoop/disciplineDates";
 import { persistDecisionReceipt } from "@/services/receipts/persistReceipt";
+import { getTodayDailyDecision } from "@/services/decision/repository";
 import { computeStopLoss } from "@/services/risk/riskControl";
 import type { Signals } from "@/types/decision";
 import type { Database } from "@/types/database";
@@ -415,6 +416,7 @@ export async function logTradeFillSafe(
     const memoryId = await logTradeFill(supabase, userId, fill);
 
     if (memoryId) {
+      const artifact = await getTodayDailyDecision(supabase, userId);
       await persistDecisionReceipt(supabase, userId, {
         symbol: fill.stock,
         executionKind: fill.side === "sell" ? "SELL" : "BUY",
@@ -424,6 +426,7 @@ export async function logTradeFillSafe(
         fillPrice: fill.price,
         fillAmount: fill.amount,
         decisionMemoryId: memoryId,
+        artifact,
       });
     }
 

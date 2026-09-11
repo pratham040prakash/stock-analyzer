@@ -36,7 +36,9 @@ import {
   knownSource,
   unknownSource,
 } from "@/services/decision/artifact";
-import { projectArtifactDecision } from "@/types/decision";
+import { hydrateArtifactViews, projectArtifactDecision } from "@/types/decision";
+import { labelFreezeAndCurrentCapital } from "@/services/decision/capitalViews";
+import { evaluateFreshnessSlo } from "@/services/decision/freshness";
 import {
   getFinancialProfileFromDb,
   getLatestMentorOutput,
@@ -234,6 +236,9 @@ function decisionResponsePayload(
           market_state: artifact.market_state,
           source_timestamps: artifact.source_timestamps,
           evidence_ids: artifact.evidence_ids,
+          evidence_graph: hydrateArtifactViews(artifact).evidence_graph,
+          capital_at_freeze: hydrateArtifactViews(artifact).capital_at_freeze,
+          positions_at_freeze: hydrateArtifactViews(artifact).positions_at_freeze,
         }
       : null,
     daily_verdict: artifact?.daily_verdict ?? null,
@@ -271,6 +276,12 @@ export async function GET(request: Request) {
         source: "artifact",
         created_at: stored.frozen_at,
         entryTiming,
+        capital_views: labelFreezeAndCurrentCapital(stored, null),
+        freshness_slo: evaluateFreshnessSlo(
+          stored.source_timestamps,
+          stored.frozen_at,
+          new Date().toISOString(),
+        ),
       }),
     );
   }
@@ -433,6 +444,20 @@ export async function GET(request: Request) {
       source: persisted ? "artifact" : "computed",
       created_at: persisted?.frozen_at ?? frozenAt,
       entryTiming,
+      capital_views: persisted
+        ? labelFreezeAndCurrentCapital(persisted, {
+            cash_inr: enrichment.availableCash,
+            portfolio_value_inr: snapshot.total_value || metrics.totalValue,
+            positions: null,
+          })
+        : undefined,
+      freshness_slo: persisted
+        ? evaluateFreshnessSlo(
+            persisted.source_timestamps,
+            persisted.frozen_at,
+            new Date().toISOString(),
+          )
+        : undefined,
     }),
   );
 }

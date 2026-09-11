@@ -3,6 +3,7 @@ import type { Database } from "@/types/database";
 import { tradingDateKey } from "@/lib/dailyLoop/disciplineDates";
 import { assembleCloseLetter, gradeFromTape } from "@/lib/dailyLoop/deskNight";
 import { persistDecisionReceipt } from "@/services/receipts/persistReceipt";
+import { getTodayDailyDecision } from "@/services/decision/repository";
 import { sendDeskAlert } from "@/services/desk/interrupt";
 import { listServerContracts, writeServerContract } from "@/services/desk/contractStore";
 
@@ -51,6 +52,7 @@ export async function runCloseLetters(
       headline: letter,
       subline: row.contract.kiteLine,
       orderId: `close:${dateKey}`,
+      artifact: await getTodayDailyDecision(admin, row.userId),
     });
     await sendDeskAlert({
       title: `APEX close · ${dateKey}`,

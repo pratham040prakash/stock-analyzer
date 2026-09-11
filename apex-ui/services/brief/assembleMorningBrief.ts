@@ -4,7 +4,7 @@ import {
 } from "@/lib/dailyLoop/dailyVerdict";
 import { buildCapitalDecision } from "@/lib/dailyLoop/capitalDecision";
 import { buildDailyInsight } from "@/lib/dailyInsight";
-import { tradingDateKey } from "@/lib/dailyLoop/disciplineDates";
+import { shiftIstDateKey, tradingDateKey } from "@/lib/dailyLoop/disciplineDates";
 import {
   resolveTodayHero,
   type TodayExecutionKind,
@@ -20,9 +20,14 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { getMarketSessionPhase } from "@/lib/broker/marketSession";
 import { portfolioRiskFromAllocation } from "@/lib/portfolioRisk";
 import { getUserTrustSnapshot } from "@/services/decision/trustOutcome";
-import { getTodayDailyDecision } from "@/services/decision/repository";
-import { projectArtifactDecision } from "@/types/decision";
-import type { DailyDecisionArtifact } from "@/types/decision";
+import {
+  getDailyDecisionForDate,
+  getTodayDailyDecision,
+} from "@/services/decision/repository";
+import { projectArtifactDecision, hydrateArtifactViews } from "@/types/decision";
+import type { DailyDecisionArtifact, Signals } from "@/types/decision";
+import { labelFreezeAndCurrentCapital } from "@/services/decision/capitalViews";
+import { evaluateWaitCounterfactual } from "@/services/decision/waitCounterfactual";
 import { fetchLiveKitePortfolioCached } from "@/services/broker/kitePortfolio";
 import {
   computePortfolioDayPnl,
@@ -76,7 +81,10 @@ function mapExecutionKind(
   return "OBSERVE";
 }
 
-function buildEvidence(decision: DailyDecisionOutput): MorningBriefViewModel["evidence"] {
+function buildEvidence(
+  decision: DailyDecisionOutput,
+  artifact: DailyDecisionArtifact | null = null,
+): MorningBriefViewModel["evidence"] {
   const keyReasons: string[] = [];
 
   if (decision.reason) {
@@ -111,6 +119,10 @@ function buildEvidence(decision: DailyDecisionOutput): MorningBriefViewModel["ev
     });
   }
 
+  const graph = artifact
+    ? hydrateArtifactViews(artifact).evidence_graph
+    : undefined;
+
   return {
     key_reasons: keyReasons,
     supporting_signals: supporting,
@@ -121,6 +133,8 @@ function buildEvidence(decision: DailyDecisionOutput): MorningBriefViewModel["ev
       keyReasons.length === 0
         ? "Evidence is limited today — treat guidance as low confidence."
         : "",
+    supporting_ids: graph?.supporting_ids,
+    conflicting_ids: graph?.conflicting_ids,
   };
 }
 
@@ -224,6 +238,31 @@ export async function assembleMorningBrief(
     live.status === "OK"
       ? computeZerodhaPositionsPnl(live.holdings, live.netPnlPositions)
       : null;
+
+  const yesterdayKey = shiftIstDateKey(tradingDateKey(), -1);
+  const yesterdayArtifact = await getDailyDecisionForDate(
+    supabase,
+    userId,
+    yesterdayKey,
+  );
+  const { data: yesterdayMemory } = await supabase
+    .from("decision_memory")
+    .select("stock, action, amount, signals")
+    .eq("user_id", userId)
+    .eq("decision_date", yesterdayKey);
+  const yesterdayFills = (yesterdayMemory ?? []).map((row) => {
+    const signals = row.signals as Signals | null;
+    return {
+      symbol: String(row.stock ?? "").toUpperCase(),
+      side: (row.action === "sell" ? "sell" : "buy") as "buy" | "sell",
+      amount: row.amount ?? null,
+      sourceKnown: Boolean(signals?.order_id && signals?.filled_at),
+    };
+  });
+  const yesterdayWait = evaluateWaitCounterfactual({
+    artifact: yesterdayArtifact,
+    fills: yesterdayFills.filter((fill) => fill.symbol.length > 0),
+  });
 
   const insight = buildDailyInsight(
     dayPnl,
@@ -429,7 +468,7 @@ export async function assembleMorningBrief(
       headline: verdictPresentation.headline,
       subline: verdictPresentation.subline,
     },
-    evidence: buildEvidence(decision),
+    evidence: buildEvidence(decision, artifact),
     trust: {
       why_this_is_recommended: trust.trustMessage,
       recommendation_confidence: confidenceBand(decision.confidence ?? 50),
@@ -483,6 +522,20 @@ export async function assembleMorningBrief(
     failure_message: null,
     raw_decision: decision,
     trust_snapshot: trust,
+    capital_views: artifact
+      ? labelFreezeAndCurrentCapital(artifact, {
+          cash_inr: artifactCash ?? null,
+          portfolio_value_inr: decisionBundle.portfolioValue,
+          positions: null,
+        })
+      : undefined,
+    yesterday_wait: yesterdayWait
+      ? {
+          decision_date: yesterdayWait.decision_date,
+          status: yesterdayWait.status,
+          summary: yesterdayWait.summary,
+        }
+      : null,
   };
 }
 

@@ -97,6 +97,72 @@ export type FreshnessResult = {
   extraBlockers: string[];
 };
 
+/** How long a frozen artifact may still authorise execution. */
+export const ARTIFACT_EXECUTION_TTL_MS = 6 * 60 * 60 * 1000;
+
+export type FreshnessSloStatus = {
+  ok: boolean;
+  expired_keys: Array<FreshnessKey | "frozen_at">;
+  ages_ms: Partial<Record<FreshnessKey | "frozen_at", number | null>>;
+  reason: string | null;
+};
+
+/**
+ * Read-only execution SLO. Never mutates the frozen artifact —
+ * expired timestamps only refuse the live trade.
+ */
+export function evaluateFreshnessSlo(
+  sourceTimestamps: {
+    portfolio: ExplicitUnknown<string>;
+    capital: ExplicitUnknown<string>;
+    broker: ExplicitUnknown<string>;
+    market: ExplicitUnknown<string>;
+    entry: ExplicitUnknown<string>;
+  },
+  frozenAt: string,
+  now: string,
+): FreshnessSloStatus {
+  const ages: FreshnessSloStatus["ages_ms"] = {
+    frozen_at: Number.isFinite(Date.parse(frozenAt))
+      ? ageMs(frozenAt, now)
+      : Number.POSITIVE_INFINITY,
+  };
+  const expired: Array<FreshnessKey | "frozen_at"> = [];
+
+  if (
+    !Number.isFinite(Date.parse(frozenAt)) ||
+    ageMs(frozenAt, now) > ARTIFACT_EXECUTION_TTL_MS
+  ) {
+    expired.push("frozen_at");
+  }
+
+  const keys: FreshnessKey[] = [
+    "portfolio",
+    "capital",
+    "broker",
+    "market",
+    "entry",
+  ];
+  for (const key of keys) {
+    const stamp = sourceTimestamps[key];
+    if (stamp.status !== "known") {
+      ages[key] = null;
+      continue;
+    }
+    ages[key] = ageMs(stamp.observed_at, now);
+  }
+
+  return {
+    ok: expired.length === 0,
+    expired_keys: expired,
+    ages_ms: ages,
+    reason:
+      expired.length > 0
+        ? "Frozen decision has expired — refresh before trading."
+        : null,
+  };
+}
+
 export function applyFreshnessPolicy(
   sources: FreshnessSources,
   now: string,
@@ -219,5 +285,34 @@ export function runFreshnessSelfCheck(): void {
     policy.extraBlockers.length === 1 &&
       policy.extraBlockers[0].startsWith("portfolio data is stale"),
     "Stale portfolio must produce a named blocker",
+  );
+
+  const freshSlo = evaluateFreshnessSlo(
+    {
+      portfolio: { status: "known", value: now, observed_at: now },
+      capital: { status: "known", value: now, observed_at: now },
+      broker: { status: "known", value: now, observed_at: now },
+      market: { status: "known", value: now, observed_at: now },
+      entry: { status: "known", value: now, observed_at: now },
+    },
+    now,
+    now,
+  );
+  assert(freshSlo.ok, "Just-frozen artifact must pass the execution SLO");
+
+  const expiredSlo = evaluateFreshnessSlo(
+    {
+      portfolio: { status: "known", value: oldForCapital, observed_at: oldForCapital },
+      capital: { status: "known", value: oldForCapital, observed_at: oldForCapital },
+      broker: { status: "known", value: oldForCapital, observed_at: oldForCapital },
+      market: { status: "known", value: oldForCapital, observed_at: oldForCapital },
+      entry: { status: "known", value: oldForCapital, observed_at: oldForCapital },
+    },
+    "2026-09-11T01:00:00.000Z",
+    now,
+  );
+  assert(
+    !expiredSlo.ok && expiredSlo.expired_keys.includes("frozen_at"),
+    "Artifact older than the execution TTL must fail closed",
   );
 }

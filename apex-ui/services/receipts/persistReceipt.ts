@@ -1,7 +1,10 @@
 import { tradingDateKey } from "@/lib/dailyLoop/disciplineDates";
 import type { MorningBriefViewModel } from "@/types/morningBrief";
+import type { DailyDecisionArtifact } from "@/types/decision";
 import type { Database } from "@/types/database";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { buildReceiptSnapshot } from "@/services/receipts/snapshot";
+import { getTodayDailyDecision } from "@/services/decision/repository";
 
 type Client = SupabaseClient<Database>;
 
@@ -20,6 +23,7 @@ export type PersistReceiptInput = {
   fillAmount?: number;
   decisionMemoryId?: string | null;
   briefSnapshot?: MorningBriefViewModel | null;
+  artifact?: DailyDecisionArtifact | null;
 };
 
 export type DecisionReceiptRow = {
@@ -72,7 +76,10 @@ export async function persistDecisionReceipt(
       fill_price: input.fillPrice ?? null,
       fill_amount: input.fillAmount ?? null,
       decision_memory_id: input.decisionMemoryId ?? null,
-      brief_snapshot: input.briefSnapshot ?? null,
+      brief_snapshot: buildReceiptSnapshot({
+        artifact: input.artifact ?? null,
+        brief: input.briefSnapshot ?? null,
+      }),
     })
     .select("*")
     .maybeSingle();
@@ -160,6 +167,7 @@ export async function persistDisciplineWaitReceipt(
     headline: `Followed today's ${executionKind.toLowerCase()} plan`,
     subline: `Discipline commit · ${input.action}`,
     orderId: `discipline:${input.commitDate}:${symbol}`,
+    artifact: await getTodayDailyDecision(supabase, userId),
   });
 }
 
@@ -171,4 +179,10 @@ export function runReceiptSelfCheck(): void {
   };
 
   assert(tradingDateKey().length === 10, "Receipt date key must be YYYY-MM-DD");
+
+  const snapshot = buildReceiptSnapshot({ artifact: null, brief: null });
+  assert(
+    snapshot.schema === "apex.receipt.v1" && snapshot.artifact === null,
+    "Receipt payload must be an immutable v1 snapshot",
+  );
 }

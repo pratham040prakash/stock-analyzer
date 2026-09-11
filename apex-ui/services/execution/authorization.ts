@@ -2,6 +2,7 @@ import type {
   DailyDecisionArtifact,
 } from "@/types/decision";
 import { validateDailyDecisionArtifact } from "@/types/decision";
+import { evaluateFreshnessSlo } from "@/services/decision/freshness";
 
 /**
  * Single canonical entry point for authorising any broker-facing action
@@ -40,7 +41,8 @@ export type ExecutionAuthorizationDenyCode =
   | "entry_not_confirmed"
   | "capital_unknown"
   | "broker_unknown"
-  | "market_unknown";
+  | "market_unknown"
+  | "freshness_expired";
 
 export type ExecutionAuthorizationDeny = {
   ok: false;
@@ -68,6 +70,7 @@ function deny(
 export function validateExecutionAgainstArtifact(
   artifact: DailyDecisionArtifact | null | undefined,
   request: ExecutionRequest,
+  now: string = new Date().toISOString(),
 ): ExecutionAuthorization {
   if (!artifact || !validateDailyDecisionArtifact(artifact)) {
     return deny(
@@ -147,6 +150,19 @@ export function validateExecutionAgainstArtifact(
       "entry_not_confirmed",
       "Entry is not confirmed — wait for the trigger before buying.",
       artifact.blockers,
+    );
+  }
+
+  const slo = evaluateFreshnessSlo(
+    artifact.source_timestamps,
+    artifact.frozen_at,
+    now,
+  );
+  if (!slo.ok) {
+    return deny(
+      "freshness_expired",
+      slo.reason ?? "Frozen decision has expired — refresh before trading.",
+      [...artifact.blockers, ...(slo.reason ? [slo.reason] : [])],
     );
   }
 
@@ -305,11 +321,15 @@ export function runExecutionAuthorizationSelfCheck(): void {
     "Missing artifact must be denied",
   );
 
-  const ok = validateExecutionAgainstArtifact(buyArtifact, {
-    side: "buy",
-    symbol: "hdfcbank",
-    amount: 5000,
-  });
+  const ok = validateExecutionAgainstArtifact(
+    buyArtifact,
+    {
+      side: "buy",
+      symbol: "hdfcbank",
+      amount: 5000,
+    },
+    now,
+  );
   assert(ok.ok === true && ok.symbol === "HDFCBANK" && ok.amount === 5000,
     "Case-insensitive symbol and exact amount must authorize",
   );
@@ -389,11 +409,15 @@ export function runExecutionAuthorizationSelfCheck(): void {
     projection: { ...buyArtifact.projection, action: "sell", decision: "REDUCE", suggested_sell_percent: 25 },
   };
 
-  const sellOk = validateExecutionAgainstArtifact(sellArtifact, {
-    side: "sell",
-    symbol: "HDFCBANK",
-    sellPercent: 25,
-  });
+  const sellOk = validateExecutionAgainstArtifact(
+    sellArtifact,
+    {
+      side: "sell",
+      symbol: "HDFCBANK",
+      sellPercent: 25,
+    },
+    now,
+  );
   assert(sellOk.ok === true && sellOk.sellPercent === 25,
     "Exact sell percent must authorize",
   );
@@ -405,5 +429,19 @@ export function runExecutionAuthorizationSelfCheck(): void {
   });
   assert(sellWrongPct.ok === false && sellWrongPct.code === "wrong_size",
     "Wrong sell percent must refuse",
+  );
+
+  const expired = validateExecutionAgainstArtifact(
+    buyArtifact,
+    { side: "buy", symbol: "HDFCBANK", amount: 5000 },
+    "2026-09-11T16:00:00.000Z",
+  );
+  assert(
+    expired.ok === false && expired.code === "freshness_expired",
+    "Expired frozen_at must refuse without mutating the artifact",
+  );
+  assert(
+    buyArtifact.frozen_at === now && buyArtifact.tradingLocked === false,
+    "Expiration must not mutate historical artifact truth",
   );
 }

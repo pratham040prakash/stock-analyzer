@@ -1,13 +1,32 @@
 "use client";
 
 import type { MorningBriefViewModel } from "@/types/morningBrief";
+import type { DailyDecisionArtifact } from "@/types/decision";
+import { hydrateArtifactViews } from "@/types/decision";
 
 type Props = {
   brief: MorningBriefViewModel;
+  artifact?: DailyDecisionArtifact | null;
 };
 
-export default function ProofStructurePanel({ brief }: Props) {
-  const levels = brief.evidence.supporting_signals
+export default function ProofStructurePanel({ brief, artifact }: Props) {
+  const graph = artifact
+    ? hydrateArtifactViews(artifact).evidence_graph
+    : {
+        supporting_ids: brief.evidence.supporting_ids ?? [],
+        conflicting_ids: brief.evidence.conflicting_ids ?? [],
+      };
+  const evidenceById = new Map(
+    (artifact?.evidence ?? []).map((item) => [item.id, item]),
+  );
+  const supporting = (graph?.supporting_ids ?? [])
+    .map((id) => evidenceById.get(id))
+    .filter((item): item is NonNullable<typeof item> => Boolean(item));
+  const conflicting = (graph?.conflicting_ids ?? [])
+    .map((id) => evidenceById.get(id))
+    .filter((item): item is NonNullable<typeof item> => Boolean(item));
+
+  const fallbackLevels = brief.evidence.supporting_signals
     .slice(0, 3)
     .map((signal) => `${signal.label}: ${signal.value}`);
 
@@ -27,14 +46,41 @@ export default function ProofStructurePanel({ brief }: Props) {
           ))}
         </ul>
       ) : null}
-      {levels.length > 0 ? (
+      {supporting.length > 0 ? (
+        <div className="space-y-1">
+          <p className="text-xs font-medium uppercase tracking-wide text-apex-muted">
+            Supporting evidence
+          </p>
+          <ul className="space-y-1 text-xs text-apex-muted/85">
+            {supporting.map((item) => (
+              <li key={item.id}>
+                {item.id} · {item.summary}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : fallbackLevels.length > 0 ? (
         <div className="space-y-1">
           <p className="text-xs font-medium uppercase tracking-wide text-apex-muted">
             Key levels
           </p>
           <ul className="space-y-1 text-xs text-apex-muted/85">
-            {levels.map((level) => (
+            {fallbackLevels.map((level) => (
               <li key={level}>{level}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {conflicting.length > 0 ? (
+        <div className="space-y-1">
+          <p className="text-xs font-medium uppercase tracking-wide text-amber-100/80">
+            Conflicting evidence
+          </p>
+          <ul className="space-y-1 text-xs text-amber-100/75">
+            {conflicting.map((item) => (
+              <li key={item.id}>
+                {item.id} · {item.summary}
+              </li>
             ))}
           </ul>
         </div>

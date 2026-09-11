@@ -38,6 +38,11 @@ export type DecisionEvidenceMetadata = {
   observed_at: string | null;
 };
 
+export type DecisionEvidenceGraph = {
+  supporting_ids: string[];
+  conflicting_ids: string[];
+};
+
 /**
  * The immutable, executable decision record for one trading day.
  * Unknown source values are represented explicitly and always fail closed.
@@ -87,8 +92,31 @@ export type DailyDecisionArtifact = {
     total_value_inr: number;
     pnl_inr: number;
   };
+  /** Named freeze view — same facts as capital_state, never overwritten later. */
+  capital_at_freeze?: ExplicitUnknown<{
+    available_cash_inr: number;
+    portfolio_value_inr: number;
+  }>;
+  /** Named freeze view — same facts as frozen_portfolio.positions. */
+  positions_at_freeze?: FrozenPortfolioPosition[];
+  evidence_graph?: DecisionEvidenceGraph;
   projection: DailyDecisionOutput;
 };
+
+export function hydrateArtifactViews(
+  artifact: DailyDecisionArtifact,
+): DailyDecisionArtifact {
+  return {
+    ...artifact,
+    capital_at_freeze: artifact.capital_at_freeze ?? artifact.capital_state,
+    positions_at_freeze:
+      artifact.positions_at_freeze ?? artifact.frozen_portfolio.positions,
+    evidence_graph: artifact.evidence_graph ?? {
+      supporting_ids: artifact.evidence_ids,
+      conflicting_ids: [],
+    },
+  };
+}
 
 export type DecisionActionType =
   | "sell"
