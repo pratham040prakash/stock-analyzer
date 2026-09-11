@@ -4,8 +4,10 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   assembleLifeFreedomPlan,
-  parseBankCsv,
+  ingestBankStatements,
   readStoredLifeFreedom,
+  statementIngestHint,
+  statementIngestNote,
   writeStoredLifeFreedom,
   type LifeLoan,
   type StatementRow,
@@ -125,26 +127,21 @@ export default function YouLifeFreedom() {
       </div>
 
       <label className="block space-y-1">
-        <span className="text-xs text-apex-muted/75">
-          Bank statement CSV — stays on this device
-        </span>
+        <span className="text-xs text-apex-muted/75">{statementIngestHint()}</span>
         <input
           type="file"
-          accept=".csv,text/csv"
+          accept=".csv,.txt,.tsv,.xls,text/csv,text/plain"
+          multiple
           onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (!file) {
+            const files = [...(event.target.files ?? [])];
+            if (files.length === 0) {
               return;
             }
 
-            void file.text().then((text) => {
-              const rows = parseBankCsv(text);
+            void Promise.all(files.map((file) => file.text())).then((texts) => {
+              const rows = ingestBankStatements(texts);
               setStatement(rows);
-              setStatementNote(
-                rows.length > 0
-                  ? `Read ${rows.length} lines. Nothing uploaded.`
-                  : "Could not read that CSV. Use Date, Narration, Withdrawal, Deposit.",
-              );
+              setStatementNote(statementIngestNote(rows.length, files.length));
             });
           }}
           className="block w-full text-xs text-apex-muted/75"

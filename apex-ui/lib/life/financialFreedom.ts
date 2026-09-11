@@ -159,12 +159,72 @@ export function reviewStatement(rows: StatementRow[]): {
   return { salaryInr, needsInr, leaksInr, emiInr };
 }
 
+const STATEMENT_ROW_CAP = 1_500;
+
 function csvNumber(value: string): number {
   const parsed = Number(value.replace(/[^0-9.-]/g, ""));
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-export function parseBankCsv(text: string): StatementRow[] {
+function splitDelimited(line: string, delim: string): string[] {
+  const cells: string[] = [];
+  let current = "";
+  let inQuotes = false;
+  for (const ch of line) {
+    if (ch === '"') {
+      inQuotes = !inQuotes;
+      continue;
+    }
+    if (ch === delim && !inQuotes) {
+      cells.push(current.trim());
+      current = "";
+      continue;
+    }
+    current += ch;
+  }
+  cells.push(current.trim());
+  return cells;
+}
+
+function looksLikeHeader(cells: string[]): boolean {
+  const joined = cells.join(" ").toLowerCase();
+  const hasDesc = /narr|desc|particular|remark/.test(joined);
+  const hasAmt =
+    /withdraw|debit|deposit|amount|cr\s*\/\s*dr|dr\s*\/\s*cr/.test(joined) ||
+    cells.some((cell) => /^(dr|cr)$/i.test(cell));
+  return hasDesc && hasAmt && cells.length >= 3;
+}
+
+function detectDelim(line: string): string {
+  const counts: Array<[string, number]> = [
+    ["\t", (line.match(/\t/g) ?? []).length],
+    [";", (line.match(/;/g) ?? []).length],
+    ["|", (line.match(/\|/g) ?? []).length],
+    [",", (line.match(/,/g) ?? []).length],
+  ];
+  counts.sort((left, right) => right[1] - left[1]);
+  return counts[0][1] >= 2 ? counts[0][0] : ",";
+}
+
+function htmlTableText(text: string): string | null {
+  if (!/<table/i.test(text)) {
+    return null;
+  }
+
+  const rows = [...text.matchAll(/<tr[\s\S]*?<\/tr>/gi)].map((match) => {
+    const cells = [...match[0].matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)].map((cell) =>
+      cell[1].replace(/<[^>]+>/g, " ").replace(/&nbsp;/gi, " ").replace(/\s+/g, " ").trim(),
+    );
+    return cells.join(",");
+  });
+  return rows.length >= 2 ? rows.join("\n") : null;
+}
+
+function headerIndex(header: string[], pattern: RegExp): number {
+  return header.findIndex((cell) => pattern.test(cell));
+}
+
+function rowsFromTable(text: string): StatementRow[] {
   const lines = text
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -173,23 +233,51 @@ export function parseBankCsv(text: string): StatementRow[] {
     return [];
   }
 
-  const header = lines[0].split(",").map((cell) => cell.replace(/^"|"$/g, "").trim().toLowerCase());
-  const descIdx = header.findIndex((cell) => /narr|desc|particular|remark/.test(cell));
-  const debitIdx = header.findIndex((cell) => /withdraw|debit|(^| )dr( |$)/.test(cell));
-  const creditIdx = header.findIndex((cell) => /deposit|credit|(^| )cr( |$)/.test(cell));
-  const amountIdx = header.findIndex((cell) => /amount/.test(cell));
+  let headerAt = -1;
+  let delim = ",";
+  const scan = Math.min(lines.length, 30);
+  for (let index = 0; index < scan; index += 1) {
+    const candidate = detectDelim(lines[index]);
+    const cells = splitDelimited(lines[index], candidate);
+    if (looksLikeHeader(cells)) {
+      headerAt = index;
+      delim = candidate;
+      break;
+    }
+  }
+  if (headerAt < 0) {
+    return [];
+  }
+
+  const header = splitDelimited(lines[headerAt], delim).map((cell) => cell.toLowerCase());
+  const descIdx = headerIndex(header, /narr|desc|particular|remark/);
+  const typeIdx = headerIndex(header, /cr\s*\/\s*dr|dr\s*\/\s*cr|tran(saction)?\s*type/);
+  const debitIdx = header.findIndex(
+    (cell) => /withdraw|debit/.test(cell) || /^(dr)$/i.test(cell),
+  );
+  const creditIdx = header.findIndex(
+    (cell) =>
+      (/deposit|credit/.test(cell) && !/cr\s*\/\s*dr/.test(cell)) || /^(cr)$/i.test(cell),
+  );
+  const amountIdx = header.findIndex(
+    (cell) => /amount/.test(cell) && !/balance/.test(cell) && cell !== header[debitIdx] && cell !== header[creditIdx],
+  );
   const rows: StatementRow[] = [];
 
-  for (const line of lines.slice(1)) {
-    const cells = line.split(",").map((cell) => cell.replace(/^"|"$/g, "").trim());
+  for (const line of lines.slice(headerAt + 1)) {
+    const cells = splitDelimited(line, delim);
     const description =
       (descIdx >= 0 ? cells[descIdx] : null) ??
       cells.find((cell, index) => index > 0 && /[A-Za-z]{3,}/.test(cell)) ??
       "";
     let amountInr = 0;
     let credit = false;
+    const type = (typeIdx >= 0 ? cells[typeIdx] : "").toUpperCase();
 
-    if (debitIdx >= 0 || creditIdx >= 0) {
+    if (typeIdx >= 0 && amountIdx >= 0 && /^(CR|DR|CREDIT|DEBIT)$/.test(type.trim())) {
+      amountInr = Math.abs(csvNumber(cells[amountIdx] ?? ""));
+      credit = /CR|CREDIT/.test(type);
+    } else if (debitIdx >= 0 || creditIdx >= 0) {
       const debit = debitIdx >= 0 ? csvNumber(cells[debitIdx] ?? "") : 0;
       const deposit = creditIdx >= 0 ? csvNumber(cells[creditIdx] ?? "") : 0;
       if (deposit > 0) {
@@ -215,13 +303,51 @@ export function parseBankCsv(text: string): StatementRow[] {
     });
   }
 
-  return rows.slice(0, 400);
+  return rows;
+}
+
+export function parseBankCsv(text: string): StatementRow[] {
+  const fromHtml = htmlTableText(text);
+  return rowsFromTable(fromHtml ?? text).slice(0, STATEMENT_ROW_CAP);
+}
+
+export function ingestBankStatements(texts: string[]): StatementRow[] {
+  return texts.flatMap((text) => parseBankCsv(text)).slice(0, STATEMENT_ROW_CAP);
+}
+
+export function statementIngestHint(): string {
+  return "Drop the CSVs your bank already emails or exports. Last 6 months. Stays on this device.";
+}
+
+export function statementIngestNote(rowCount: number, fileCount: number): string {
+  if (rowCount <= 0) {
+    return "Could not read those files. Export CSV or Excel from netbanking — not the locked PDF.";
+  }
+  const files = fileCount === 1 ? "1 file" : `${fileCount} files`;
+  return `Read ${rowCount} lines from ${files}. Nothing uploaded.`;
+}
+
+export function autoFetchNote(input: {
+  salaryFromProfile?: boolean;
+  kiteCashInr?: number | null;
+}): string {
+  const parts: string[] = [];
+  if (input.salaryFromProfile) {
+    parts.push("Salary from your profile.");
+  }
+  if (input.kiteCashInr !== null && input.kiteCashInr !== undefined && input.kiteCashInr > 0) {
+    parts.push(`Kite already holds ${formatInr(input.kiteCashInr)}.`);
+  }
+  parts.push("Bank and loans are not on Zerodha.");
+  return parts.join(" ");
 }
 
 export function assembleLifeFreedomPlan(input: {
   salaryInr: number;
   loans: LifeLoan[];
   statement?: StatementRow[];
+  needsInr?: number | null;
+  kiteCashInr?: number | null;
 }): LifeFreedomPlan {
   const reviewed = input.statement && input.statement.length > 0
     ? reviewStatement(input.statement)
@@ -239,7 +365,16 @@ export function assembleLifeFreedomPlan(input: {
         : input.loans.reduce((sum, loan) => sum + Math.max(0, loan.emiInr), 0),
     ),
   );
-  const needs = Math.max(0, Math.round(reviewed?.needsInr ?? salary * 0.5));
+  const needs = Math.max(
+    0,
+    Math.round(
+      reviewed?.needsInr && reviewed.needsInr > 0
+        ? reviewed.needsInr
+        : input.needsInr && input.needsInr > 0
+          ? input.needsInr
+          : salary * 0.5,
+    ),
+  );
   const leaks = Math.max(0, Math.round(reviewed?.leaksInr ?? 0));
   const leftover = Math.max(0, salary - needs - leaks - emi);
   const expensive = target !== null && target.aprPct >= 12;
@@ -280,7 +415,11 @@ export function assembleLifeFreedomPlan(input: {
         : `Spend ${formatInr(needs)} on needs · EMI ${formatInr(emi)}.`,
     leftoverLine:
       investInr > 0
-        ? `${formatInr(investInr)} leftover is the only money Today may place.`
+        ? `${formatInr(investInr)} leftover is the only money Today may place.${
+            input.kiteCashInr && input.kiteCashInr > 0
+              ? ` Kite already holds ${formatInr(input.kiteCashInr)}.`
+              : ""
+          }`
         : leftover > 0
           ? `${formatInr(leftover)} leftover goes to the loan, not a third name.`
           : "No leftover this month. The plan is the salary, not a stock.",
@@ -372,6 +511,33 @@ export function runFinancialFreedomSelfCheck(): void {
     ).length === 2,
     "Bank CSV must parse salary and a spend",
   );
+  assert(
+    parseBankCsv(
+      "Account Statement\nHDFC0001\nDate,Narration,Chq/Ref No,Value Dt,Withdrawal Amt,Deposit Amt,Closing Balance\n01/09/26,SALARY SEPTEMBER,,01/09/26,,120000,120000\n02/09/26,SWIGGY BANGALORE,,02/09/26,420,,119580",
+    ).length === 2,
+    "HDFC export with a preamble must parse",
+  );
+  assert(
+    parseBankCsv(
+      "S No.,Transaction ID,Value Date,Txn Posted Date,ChequeNo.,Description,Cr/Dr,Transaction Amount(INR),Available Balance(INR)\n1,A1,01-09-2026,01-09-2026,,SALARY SEPTEMBER,CR,120000,120000\n2,A2,02-09-2026,02-09-2026,,SWIGGY,DR,420,119580",
+    ).some((row) => row.description === "SWIGGY" && !row.credit && row.amountInr === 420),
+    "ICICI Cr/Dr export must parse a debit",
+  );
+  assert(
+    ingestBankStatements([
+      "Date,Narration,Withdrawal,Deposit\n01-08-2026,RENT,25000,0",
+      "Date,Narration,Withdrawal,Deposit\n01-09-2026,RENT,25000,0",
+    ]).length === 2,
+    "Two months must merge",
+  );
+  assert(
+    statementIngestHint().includes("bank already emails"),
+    "Ingest must ask for the file the bank already sends",
+  );
+  assert(
+    statementIngestNote(0, 1).includes("locked PDF"),
+    "Locked bank PDFs are not the ingest path",
+  );
 
   const plan = assembleLifeFreedomPlan({
     salaryInr: 120_000,
@@ -393,4 +559,12 @@ export function runFinancialFreedomSelfCheck(): void {
   });
   assert(clean.investInr > 0, "After the life is paid, leftover may reach Today");
   assert(clean.leftoverLine.includes("Today"), "Leftover is the only investable rupee");
+  assert(
+    autoFetchNote({ salaryFromProfile: true, kiteCashInr: 10722 }).includes("Kite"),
+    "Auto-fetch must name Kite cash",
+  );
+  assert(
+    autoFetchNote({ salaryFromProfile: true, kiteCashInr: 10722 }).includes("not on Zerodha"),
+    "Auto-fetch must not pretend the bank is on Kite",
+  );
 }
