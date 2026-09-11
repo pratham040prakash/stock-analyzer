@@ -7,6 +7,7 @@ import PremiumTrialOfferCard from "@/components/subscription/PremiumTrialOfferCa
 import ReflectionCanvas from "@/components/you/ReflectionCanvas";
 import YouJourneySection from "@/components/journey/YouJourneySection";
 import YouAccountStrip from "@/components/you/YouAccountStrip";
+import YouLifeFreedom from "@/components/you/YouLifeFreedom";
 import { ApexShell, ApexTitle } from "@/components/ui/apex";
 import { apiFetch, parseApiJson } from "@/lib/api/clientFetch";
 import { usePremiumTier } from "@/lib/usePremiumTier";
@@ -62,12 +63,15 @@ export default function YouPageClient({ userName }: { userName: string }) {
         <div className="space-y-2">
           <ApexTitle>You</ApexTitle>
           <p className="text-sm text-apex-muted">
-            How {userName} is becoming a better investor — not a brokerage dashboard.
+            How {userName} pays the life, closes the loan, then invests leftover — not a
+            brokerage dashboard.
           </p>
         </div>
       </header>
 
       <YouAccountStrip />
+
+      <YouLifeFreedom />
 
       <div className="mb-6">
         <YouJourneySection />
