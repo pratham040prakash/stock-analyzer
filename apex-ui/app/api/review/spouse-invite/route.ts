@@ -4,6 +4,7 @@ import { assembleSpouseReviewInvite } from "@/services/review/assembleSpouseRevi
 import { isSpouseReviewInviteEnabled } from "@/services/review/spouseReviewInviteConfig";
 import { getDisciplineHistory } from "@/services/decision/disciplineHistory";
 import { getDisciplineStreak } from "@/services/discipline/streak";
+import { listDecisionReceipts } from "@/services/receipts/persistReceipt";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -25,9 +26,10 @@ export async function GET() {
     });
   }
 
-  const [history, streak] = await Promise.all([
+  const [history, streak, receipts] = await Promise.all([
     getDisciplineHistory(supabase, user.id, 7),
     getDisciplineStreak(supabase, user.id),
+    listDecisionReceipts(supabase, user.id, 14),
   ]);
 
   const investorLabel =
@@ -46,6 +48,7 @@ export async function GET() {
     summary: history.summary,
     streakCount: streak.streakCount,
     howItWorksUrl,
+    receipts,
   });
 
   return apiOk({

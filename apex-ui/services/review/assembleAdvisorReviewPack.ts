@@ -124,4 +124,7 @@ export function runAdvisorReviewPackSelfCheck(): void {
   if (!pack.markdown.includes("Weekly discipline") || pack.receipt_count !== 1) {
     throw new Error("Advisor review pack self-check failed: markdown shape");
   }
+  if (pack.markdown.includes("Strong Buy") || pack.markdown.includes("Buy now")) {
+    throw new Error("Advisor review pack self-check failed: must not invent a recommendation");
+  }
 }

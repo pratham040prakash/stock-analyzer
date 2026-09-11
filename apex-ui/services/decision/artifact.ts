@@ -9,6 +9,7 @@ import type {
 } from "@/types/decision";
 import { DAILY_DECISION_ARTIFACT_SCHEMA_VERSION } from "@/types/decision";
 import { applyFreshnessPolicy } from "@/services/decision/freshness";
+import { mergeEvidenceContributions } from "@/services/decision/evidenceContribution";
 
 type SourceState<T> = ExplicitUnknown<T>;
 
@@ -27,6 +28,11 @@ export type BuildDailyArtifactInput = {
   broker: SourceState<{ broker: "zerodha"; connection: "connected" }>;
   market: SourceState<{ trend: MarketTrend; session: string }>;
   entry: SourceState<{ confirmed: boolean; reason: string }>;
+  evidenceContributions?: unknown[];
+  replacement?: {
+    replaced_decision_id: string;
+    refresh_reason: string;
+  };
 };
 
 function unknown<T>(reason: string): ExplicitUnknown<T> {
@@ -147,7 +153,10 @@ export function buildDailyDecisionArtifact(
           },
         ]
       : [];
-  const evidence = [...supporting, ...conflicting];
+  const evidence = mergeEvidenceContributions(
+    [...supporting, ...conflicting],
+    input.evidenceContributions ?? [],
+  );
 
   return {
     schema_version: DAILY_DECISION_ARTIFACT_SCHEMA_VERSION,
@@ -178,7 +187,11 @@ export function buildDailyDecisionArtifact(
     evidence_ids: evidence.map((item) => item.id),
     evidence,
     evidence_graph: {
-      supporting_ids: supporting.map((item) => item.id),
+      supporting_ids: evidence
+        .filter(
+          (item) => !conflicting.some((conflict) => conflict.id === item.id),
+        )
+        .map((item) => item.id),
       conflicting_ids: conflicting.map((item) => item.id),
     },
     blockers,
@@ -187,6 +200,12 @@ export function buildDailyDecisionArtifact(
       confidence: decision.confidence,
       reason: decision.reason,
       confidence_factors: decision.confidence_factors,
+      ...(input.replacement
+        ? {
+            replaced_decision_id: input.replacement.replaced_decision_id,
+            refresh_reason: input.replacement.refresh_reason,
+          }
+        : {}),
     },
     frozen_portfolio: {
       positions: input.portfolio.holdings.map((holding) => ({

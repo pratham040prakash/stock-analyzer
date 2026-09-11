@@ -375,11 +375,6 @@ export default function HomeDecisionScreen({
       }),
     [capitalDecision, decision.suggested_sell_percent],
   );
-  const [ticketOverride, setTicketOverride] = useState<number | null>(null);
-
-  useEffect(() => {
-    setTicketOverride(null);
-  }, [todayHero.deployAmount, todayHero.symbol]);
   const { canPlaceMarketOrder } = useMarketSession();
 
   const [brokerStepCompleted, setBrokerStepCompleted] = useState(() => {
@@ -703,7 +698,7 @@ export default function HomeDecisionScreen({
   );
   const starterHoldingSymbol =
     youngBookHoldings[0]?.tradingsymbol ?? todayHero.symbol ?? "";
-  const firstBuyTicket = ticketOverride ?? todayHero.deployAmount ?? 0;
+  const firstBuyTicket = todayHero.deployAmount ?? 0;
   const firstBuyCandidate = isFirstBuyCandidate({
     emptyBook,
     executionKind: todayHero.executionKind,
@@ -2369,7 +2364,6 @@ export default function HomeDecisionScreen({
                   availableCash={availableCash}
                   entryInr={firstBuyPlanLines.entryInr}
                   holdLabel={FIRST_BUY_HOLD_LABEL}
-                  onTicketChange={setTicketOverride}
                 />
               ) : null}
               {hideTodayDump ? null : (

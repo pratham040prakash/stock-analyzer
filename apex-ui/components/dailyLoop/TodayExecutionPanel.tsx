@@ -7,7 +7,6 @@ import { apiFetch, parseApiJson, readTradeExecutionError } from "@/lib/api/clien
 import { formatInr } from "@/lib/funds";
 import {
   FIRST_BUY_HOLD_LABEL,
-  clampFirstBuyTicket,
   formatFirstBuySizeLine,
   buildFirstBuySize,
 } from "@/lib/dailyLoop/firstBuyToday";
@@ -71,7 +70,6 @@ type Props = {
   availableCash?: number | null;
   entryInr?: number | null;
   holdLabel?: string | null;
-  onTicketChange?: (ticketInr: number) => void;
 };
 
 function BrokerFillStatusNotice() {
@@ -182,7 +180,6 @@ export default function TodayExecutionPanel({
   availableCash = null,
   entryInr = null,
   holdLabel = FIRST_BUY_HOLD_LABEL,
-  onTicketChange,
 }: Props) {
   const [pendingSellPercent, setPendingSellPercent] = useState<number | null>(
     null,
@@ -571,28 +568,10 @@ export default function TodayExecutionPanel({
         {firstBuy ? (
           <>
             <p className="text-sm text-apex-text/80">{formatFirstBuySizeLine(size)}</p>
-            {typeof onTicketChange === "function" && availableCash && availableCash > 0 ? (
-              <label className="block space-y-1">
-                <span className="text-[11px] uppercase tracking-wide text-apex-muted">
-                  Ticket size
-                </span>
-                <input
-                  type="number"
-                  min={1}
-                  max={Math.round(availableCash)}
-                  step={1}
-                  value={hero.deployAmount}
-                  onChange={(event) => {
-                    const next = Number(event.target.value);
-                    if (!Number.isFinite(next)) {
-                      return;
-                    }
-                    onTicketChange(clampFirstBuyTicket(next, availableCash));
-                  }}
-                  className="w-full rounded-lg border border-apex-border/20 bg-black/30 px-3 py-2 text-sm text-apex-text"
-                />
-              </label>
-            ) : null}
+            <p className="text-xs text-apex-muted/80">
+              Ticket {formatInr(hero.deployAmount)} is frozen with Today. Refresh
+              Today to recompute a replacement.
+            </p>
             <section className="grid gap-2 sm:grid-cols-3">
               <div className="rounded-lg border border-apex-border/15 bg-white/[0.02] px-3 py-2.5">
                 <p className="text-[11px] uppercase tracking-wide text-apex-muted">

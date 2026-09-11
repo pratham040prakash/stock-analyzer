@@ -86,6 +86,8 @@ export type DailyDecisionArtifact = {
     confidence: number;
     reason: string;
     confidence_factors: string[];
+    replaced_decision_id?: string;
+    refresh_reason?: string;
   };
   frozen_portfolio: {
     positions: FrozenPortfolioPosition[];

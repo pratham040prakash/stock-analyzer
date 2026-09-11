@@ -39,13 +39,23 @@ const weightCache = new Map<
   { weights: SignalWeights | null; at: number }
 >();
 
+/** Learning may only read closed broker outcomes. */
+export const LEARNING_REQUIRES_CLOSED_EXIT = true;
+
+export function mayWriteTodayFrozenArtifact(
+  learningTargetDate: string,
+  todayDecisionDate: string,
+): boolean {
+  return learningTargetDate !== todayDecisionDate;
+}
+
 export async function fetchCompletedDecisions(
   supabase: Client,
   userId: string,
 ): Promise<CompletedDecision[]> {
   const { data, error } = await supabase
     .from("decision_memory")
-    .select("signals, pnl, success")
+    .select("signals, pnl, success, exit_price")
     .eq("user_id", userId)
     .not("exit_price", "is", null);
 
@@ -199,4 +209,16 @@ export function resolveScoringWeights(
     return adaptiveWeights;
   }
   return getDynamicWeights(regime);
+}
+
+export function runLearningFutureOnlySelfCheck(): void {
+  if (!LEARNING_REQUIRES_CLOSED_EXIT) {
+    throw new Error("Learning self-check failed: must require closed exits");
+  }
+  if (mayWriteTodayFrozenArtifact("2026-09-11", "2026-09-11")) {
+    throw new Error("Learning self-check failed: must not write today's frozen artifact");
+  }
+  if (!mayWriteTodayFrozenArtifact("2026-09-12", "2026-09-11")) {
+    throw new Error("Learning self-check failed: next-day compute may use weights");
+  }
 }

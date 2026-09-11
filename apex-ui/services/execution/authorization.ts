@@ -67,6 +67,18 @@ function deny(
   return { ok: false, code, reason, blockers };
 }
 
+export function projectExecutionTicket(
+  artifact: DailyDecisionArtifact,
+): number | null {
+  if (artifact.tradingLocked || artifact.daily_verdict !== "trade") {
+    return null;
+  }
+  if (artifact.approved_size.kind !== "buy_amount") {
+    return null;
+  }
+  return artifact.approved_size.amount_inr;
+}
+
 export function validateExecutionAgainstArtifact(
   artifact: DailyDecisionArtifact | null | undefined,
   request: ExecutionRequest,
@@ -443,5 +455,14 @@ export function runExecutionAuthorizationSelfCheck(): void {
   assert(
     buyArtifact.frozen_at === now && buyArtifact.tradingLocked === false,
     "Expiration must not mutate historical artifact truth",
+  );
+
+  assert(
+    projectExecutionTicket(buyArtifact) === 5000,
+    "Execution ticket must project the approved artifact size",
+  );
+  assert(
+    projectExecutionTicket(lockedArtifact) === null,
+    "Locked artifact must not expose a ticket",
   );
 }

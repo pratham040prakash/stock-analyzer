@@ -2,6 +2,8 @@ import { formatDisciplineSummary } from "@/lib/dailyLoop/disciplineHistoryMerge"
 import { buildWeeklyReviewHeadline } from "@/lib/dailyLoop/weeklyReview";
 import { SPOUSE_REVIEW_INVITE_COPY } from "@/lib/gtm/spouseReviewInviteCopy";
 import type { DisciplineHistorySummary } from "@/types/decisionHistory";
+import type { DecisionReceiptRow } from "@/services/receipts/persistReceipt";
+import { assembleFamilyReadModel } from "@/services/review/assembleFamilyReadModel";
 
 export type SpouseReviewInviteInput = {
   investorLabel: string;
@@ -9,6 +11,7 @@ export type SpouseReviewInviteInput = {
   streakCount: number;
   howItWorksUrl: string;
   generatedAt?: string;
+  receipts?: DecisionReceiptRow[];
 };
 
 export type SpouseReviewInvite = {
@@ -28,6 +31,7 @@ function buildShareText(input: SpouseReviewInviteInput): string {
     input.streakCount > 0
       ? `${input.streakCount} day discipline streak`
       : "Building a daily discipline streak";
+  const family = assembleFamilyReadModel(input.receipts ?? []);
 
   return [
     SPOUSE_REVIEW_INVITE_COPY.shareIntro,
@@ -35,6 +39,9 @@ function buildShareText(input: SpouseReviewInviteInput): string {
     weekHeadline,
     summaryLine,
     streakLine,
+    ...(family.share_lines.length > 0
+      ? ["", "Quoted receipts:", ...family.share_lines.slice(0, 5)]
+      : []),
     "",
     `How APEX works: ${input.howItWorksUrl}`,
     "",

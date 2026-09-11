@@ -22,7 +22,7 @@ import {
 import { getDecision } from "@/services/decision/engine";
 import { logDecisionSafe } from "@/services/decision/decisionMemory";
 import { getAdaptiveWeightsSafe } from "@/services/decision/selfLearning";
-import { applyBearModeAmount } from "@/services/risk/riskControl";
+import { applyRegimeConditioning } from "@/services/decision/regimeConditioning";
 import { getMarketRegime } from "@/services/decision/stockScoring";
 import { evaluateEntryTimingSafe } from "@/services/execution/entryTiming";
 import { executeTradeIfAutoEnabled } from "@/services/trade/autoExecute";
@@ -157,8 +157,9 @@ async function enrichDecisionWithAllocation(
       availableCash: marginsResult.marginAvailable,
     });
 
-    let amount = Math.min(allocation.amount, deployable);
-    amount = applyBearModeAmount(amount, marketTrend);
+    const deployableAmount = Math.min(allocation.amount, deployable);
+    const regime = applyRegimeConditioning(deployableAmount, marketTrend);
+    const amount = regime.amount;
 
     enriched = {
       ...enriched,
@@ -167,8 +168,8 @@ async function enrichDecisionWithAllocation(
       allocationReason: allocation.reason,
       message:
         amount > 0
-          ? marketTrend === "bearish"
-            ? `Invest ${formatInr(amount)} in ${decision.stock} (bear mode — 50% size)`
+          ? regime.reason
+            ? `Invest ${formatInr(amount)} in ${decision.stock} (${regime.reason})`
             : `Invest ${formatInr(amount)} in ${decision.stock}`
           : allocation.reason === "Low edge"
             ? "No edge — skipping new investment today"
@@ -414,6 +415,13 @@ export async function GET(request: Request) {
             { confirmed: true, reason: "Non-buy action" },
             frozenAt,
           ),
+    replacement:
+      refresh && stored
+        ? {
+            replaced_decision_id: stored.decision_id,
+            refresh_reason: "explicit_refresh",
+          }
+        : undefined,
   });
 
   let persisted: DailyDecisionArtifact | null = null;
