@@ -3,13 +3,14 @@ import {
   type StatementRow,
 } from "@/lib/life/financialFreedom";
 
-export type BankConsentStatus =
-  | "off"
+export type StoredBankConsentStatus =
   | "pending"
   | "active"
   | "fetched"
   | "failed"
   | "rejected";
+
+export type BankConsentStatus = "off" | StoredBankConsentStatus;
 
 export type BankMonthReview = {
   salaryInr: number;
@@ -178,7 +179,9 @@ export function bankFetchedNote(rowCount: number): string {
   return `Fetched ${rowCount} lines from your bank. Nothing typed.`;
 }
 
-export function readSetuConfig(env: NodeJS.ProcessEnv = process.env): {
+export function readSetuConfig(
+  env: Record<string, string | undefined> = process.env,
+): {
   configured: boolean;
   clientId: string;
   clientSecret: string;

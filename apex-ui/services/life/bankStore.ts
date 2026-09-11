@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   BankConsentStatus,
   BankMonthReview,
+  StoredBankConsentStatus,
 } from "@/lib/life/bankAggregator";
 import type { Database } from "@/types/database";
 
@@ -95,7 +96,7 @@ export async function upsertLifeBankConsent(
   input: {
     userId: string;
     consentId: string;
-    status: BankConsentStatus;
+    status: StoredBankConsentStatus;
     mobileLast4?: string;
     review?: BankMonthReview | null;
   },
@@ -126,7 +127,7 @@ export async function markLifeBankConsent(
   supabase: Client,
   consentId: string,
   patch: {
-    status?: BankConsentStatus;
+    status?: StoredBankConsentStatus;
     review?: BankMonthReview | null;
   },
 ): Promise<LifeBankConsent | null> {
@@ -138,7 +139,7 @@ export async function markLifeBankConsent(
   await upsertLifeBankConsent(supabase, {
     userId: current.userId,
     consentId,
-    status: patch.status ?? current.status,
+    status: patch.status ?? (current.status === "off" ? "pending" : current.status),
     mobileLast4: current.mobileLast4,
     review: patch.review ?? current.review,
   });
