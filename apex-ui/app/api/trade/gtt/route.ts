@@ -6,6 +6,8 @@ import { fetchZerodhaGtts, placeZerodhaGtt } from "@/services/brokers/zerodha";
 import { readServerContract, writeServerContract } from "@/services/desk/contractStore";
 import { tradingDateKey } from "@/lib/dailyLoop/disciplineDates";
 import { normalizeGttStatus } from "@/lib/dailyLoop/deskNight";
+import { getTodayDailyDecision } from "@/services/decision/repository";
+import { validateExecutionAgainstArtifact } from "@/services/execution/authorization";
 
 export const dynamic = "force-dynamic";
 
@@ -102,6 +104,22 @@ export async function POST(request: Request) {
 
   if (quantity < 1) {
     return apiError("quantity or ticketInr is required", 400);
+  }
+
+  // Wave 1: GTT tickets must reference today's authorised symbol.
+  const artifact = await getTodayDailyDecision(supabase, user.id);
+  const artifactAmount =
+    artifact?.approved_size.kind === "buy_amount"
+      ? artifact.approved_size.amount_inr
+      : null;
+  const authorization = validateExecutionAgainstArtifact(artifact, {
+    side: "buy",
+    symbol,
+    amount: artifactAmount,
+  });
+
+  if (!authorization.ok) {
+    return apiError(authorization.reason, 409);
   }
 
   const connection = await getActiveBrokerConnection(supabase, user.id);

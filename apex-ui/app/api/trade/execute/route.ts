@@ -12,6 +12,8 @@ import {
 import { normalizeSymbol } from "@/lib/stockPool";
 import { logTradeFillSafe } from "@/services/trade/logTradeFill";
 import { processPendingOutcomes } from "@/services/decision/trustOutcome";
+import { getTodayDailyDecision } from "@/services/decision/repository";
+import { validateExecutionAgainstArtifact } from "@/services/execution/authorization";
 
 type ExecuteTradeRequest = {
   stock?: string;
@@ -38,19 +40,30 @@ export async function POST(request: Request) {
     return apiError("Invalid JSON body", 400);
   }
 
-  const stock = body.stock ? normalizeSymbol(body.stock) : "";
+  const requestedStock = body.stock ? normalizeSymbol(body.stock) : "";
   const side = body.side === "sell" ? "sell" : "buy";
 
-  if (!stock) {
+  if (!requestedStock) {
     return apiError("stock is required", 400);
   }
 
-  if (side === "sell") {
-    const sellPercent = Math.round(Number(body.sellPercent ?? 0));
+  // Wave 1: broker execution must match the frozen daily artifact.
+  const artifact = await getTodayDailyDecision(supabase, user.id);
+  const authorization = validateExecutionAgainstArtifact(artifact, {
+    side,
+    symbol: requestedStock,
+    amount: side === "buy" ? Number(body.amount ?? 0) : null,
+    sellPercent: side === "sell" ? Number(body.sellPercent ?? 0) : null,
+  });
 
-    if (!Number.isFinite(sellPercent) || sellPercent < 1 || sellPercent > 100) {
-      return apiError("sellPercent must be between 1 and 100", 400);
-    }
+  if (!authorization.ok) {
+    return apiError(authorization.reason, 409);
+  }
+
+  const stock = authorization.symbol;
+
+  if (side === "sell") {
+    const sellPercent = authorization.sellPercent ?? 0;
 
     const result = await executeSellTrim(supabase, user.id, {
       stock,
@@ -98,14 +111,12 @@ export async function POST(request: Request) {
       quantity: result.quantity,
       price: result.price,
       orderId: result.orderId,
+      decisionId: authorization.decisionId,
+      frozenAt: authorization.frozenAt,
     });
   }
 
-  const amount = Math.round(Number(body.amount ?? 0));
-
-  if (!Number.isFinite(amount) || amount <= 0) {
-    return apiError("amount must be a positive number", 400);
-  }
+  const amount = authorization.amount ?? 0;
 
   const snapshot = await getLatestPortfolioSnapshotWithMetrics(
     supabase,
@@ -175,5 +186,7 @@ export async function POST(request: Request) {
     stopLoss: result.stopLoss,
     stopLossOrderId: result.stopLossOrderId,
     stopLossNote: result.stopLossNote,
+    decisionId: authorization.decisionId,
+    frozenAt: authorization.frozenAt,
   });
 }

@@ -19,6 +19,7 @@ const migrationsDir = join(root, "supabase/migrations");
 const ORDERED_MIGRATIONS = [
   "20260807_broker_connections.sql",
   "decisions_history.sql",
+  "decisions_artifact.sql",
   "decision_memory.sql",
   "decision_memory_risk.sql",
   "decision_memory_profit.sql",

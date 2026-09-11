@@ -20,9 +20,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { getMarketSessionPhase } from "@/lib/broker/marketSession";
 import { portfolioRiskFromAllocation } from "@/lib/portfolioRisk";
 import { getUserTrustSnapshot } from "@/services/decision/trustOutcome";
-import { getDecision } from "@/services/decision/engine";
-import { getAdaptiveWeightsSafe } from "@/services/decision/selfLearning";
 import { getTodayDailyDecision } from "@/services/decision/repository";
+import { projectArtifactDecision } from "@/types/decision";
+import type { DailyDecisionArtifact } from "@/types/decision";
 import { fetchLiveKitePortfolioCached } from "@/services/broker/kitePortfolio";
 import {
   computePortfolioDayPnl,
@@ -36,8 +36,6 @@ import { fetchMarketTrend } from "@/services/market/trend";
 import { formatPortfolioHoldings } from "@/services/portfolio/format";
 import { isSacredCoreSymbol } from "@/services/portfolio/allocationPolicy";
 import {
-  getFinancialProfileFromDb,
-  getLatestMentorOutput,
   getLatestPortfolioSnapshotWithMetrics,
 } from "@/services/portfolio/repository";
 
@@ -129,14 +127,17 @@ function buildEvidence(decision: DailyDecisionOutput): MorningBriefViewModel["ev
 async function loadDecisionReadOnly(
   supabase: Client,
   userId: string,
-  intent: Intent,
+  _intent: Intent,
 ): Promise<{
+  artifact: DailyDecisionArtifact | null;
   decision: DailyDecisionOutput | null;
   portfolioValue: number;
   topAllocationPct: number;
   brokerSyncState: MorningBriefViewModel["trust"]["broker_sync_state"];
 }> {
-  const stored = await getTodayDailyDecision(supabase, userId);
+  // Wave 1 invariant: Brief is projection-only. It never produces a
+  // decision — it reads the frozen artifact or falls back to WAIT.
+  const artifact = await getTodayDailyDecision(supabase, userId);
   let snapshot = await getLatestPortfolioSnapshotWithMetrics(supabase, userId);
   let brokerSyncState: MorningBriefViewModel["trust"]["broker_sync_state"] =
     "NOT_CONNECTED";
@@ -163,49 +164,24 @@ async function loadDecisionReadOnly(
     brokerSyncState = "STALE";
   }
 
-  if (!snapshot) {
-    if (stored) {
-      const { created_at: _createdAt, ...decision } = stored;
-      return {
-        decision,
-        portfolioValue: 0,
-        topAllocationPct: 0,
-        brokerSyncState,
-      };
-    }
+  const decision = artifact ? projectArtifactDecision(artifact) : null;
 
+  if (!snapshot) {
+    const frozenValue = artifact?.frozen_portfolio.total_value_inr ?? 0;
     return {
-      decision: null,
-      portfolioValue: 0,
+      artifact,
+      decision,
+      portfolioValue: frozenValue,
       topAllocationPct: 0,
       brokerSyncState,
     };
   }
 
-  const financialProfile = await getFinancialProfileFromDb(supabase, userId);
-  const lastMentorOutput = await getLatestMentorOutput(supabase, userId);
   const metrics = computePortfolioMetrics(snapshot.portfolio);
-  const adaptiveSignalWeights = await getAdaptiveWeightsSafe(supabase, userId);
-
-  const decision =
-    stored ??
-    (await getDecision({
-      portfolioSnapshot: {
-        holdings: snapshot.portfolio.holdings,
-        total_value: snapshot.total_value || metrics.totalValue,
-        pnl: snapshot.pnl || metrics.pnl,
-      },
-      financialProfile,
-      lastMentorOutput,
-      intent,
-      adaptiveSignalWeights,
-      supabase,
-      userId,
-    }));
-
   const formatted = formatPortfolioHoldings(snapshot.portfolio);
 
   return {
+    artifact,
     decision,
     portfolioValue: snapshot.total_value || metrics.totalValue,
     topAllocationPct: formatted.top_allocation_pct ?? 0,
@@ -329,6 +305,13 @@ export async function assembleMorningBrief(
     };
   }
 
+  const artifact = decisionBundle.artifact;
+  const artifactCash =
+    artifact?.capital_state.status === "known"
+      ? artifact.capital_state.value.available_cash_inr
+      : undefined;
+  const artifactEntryConfirmed = Boolean(artifact?.entryConfirmed);
+
   const capitalDecision = buildCapitalDecision({
     intent,
     action: decision.action,
@@ -337,9 +320,9 @@ export async function assembleMorningBrief(
     allocationPercent: decision.allocationPercent,
     suggested_sell_percent: decision.suggested_sell_percent,
     topAllocationPct: decisionBundle.topAllocationPct,
-    availableCash: undefined,
+    availableCash: artifactCash,
     portfolioValue: decisionBundle.portfolioValue,
-    entryTiming: { enter: false },
+    entryTiming: { enter: artifactEntryConfirmed },
     confidence: decision.confidence,
   });
 
@@ -372,7 +355,7 @@ export async function assembleMorningBrief(
   const verdictPresentation = buildDailyVerdictPresentation({
     verdictInput: {
       executionKind,
-      entryConfirmed: false,
+      entryConfirmed: artifactEntryConfirmed,
       consecutiveLossDays,
       portfolioDayPnl: dayPnl,
       portfolioValue: decisionBundle.portfolioValue,
@@ -463,7 +446,7 @@ export async function assembleMorningBrief(
     portfolio: {
       ready: decisionBundle.portfolioValue > 0,
       holdings_count: live.status === "OK" ? live.holdings.length : 0,
-      cash_available_inr: null,
+      cash_available_inr: artifactCash ?? null,
       tactical_pool_inr: decision.amount ?? null,
       sacred_core_excluded: true,
       summary:

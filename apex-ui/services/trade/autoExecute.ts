@@ -4,11 +4,16 @@ import { normalizeSymbol } from "@/lib/stockPool";
 import { isAutoTradingEnabled } from "@/lib/tradingPreferences";
 import { executeTradeSafe } from "@/services/trade/execute";
 import type { ExecuteTradeResult } from "@/services/trade/execute";
+import { validateExecutionAgainstArtifact } from "@/services/execution/authorization";
 import {
   hasBrokerFillToday,
   logTradeFillSafe,
 } from "@/services/trade/logTradeFill";
-import type { DailyDecisionOutput, MarketTrend, Signals } from "@/types/decision";
+import type {
+  DailyDecisionArtifact,
+  MarketTrend,
+  Signals,
+} from "@/types/decision";
 import type { Database } from "@/types/database";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -224,18 +229,22 @@ async function clearAutoTradeAttempt(
 export async function executeTradeIfAutoEnabled(
   supabase: Client,
   userId: string,
-  decision: DailyDecisionOutput,
+  artifact: DailyDecisionArtifact | null,
   context: AutoTradeContext = {},
 ): Promise<void> {
   try {
-    const autoEnabled = await isAutoTradingEnabled(supabase, userId);
-    const isBuy =
-      decision.action === "buy" &&
-      Boolean(decision.stock) &&
-      Boolean(decision.amount) &&
-      (decision.amount ?? 0) > 0;
+    const authorization = validateExecutionAgainstArtifact(artifact, {
+      side: "buy",
+      symbol: artifact?.symbol.status === "known" ? artifact.symbol.value : null,
+      amount:
+        artifact?.approved_size.kind === "buy_amount"
+          ? artifact.approved_size.amount_inr
+          : null,
+    });
 
-    const stock = decision.stock ? normalizeSymbol(decision.stock) : "";
+    const autoEnabled = await isAutoTradingEnabled(supabase, userId);
+    const isBuy = authorization.ok && authorization.side === "buy";
+    const stock = authorization.ok ? authorization.symbol : "";
     const autoExecutedToday = await hasAutoTradeSucceededToday(supabase, userId);
     const autoInFlight = await hasAutoTradeInFlightToday(supabase, userId);
     const brokerFillToday = stock
@@ -256,13 +265,21 @@ export async function executeTradeIfAutoEnabled(
           route: "autoExecute",
           userId,
           reason: skipReason,
-          stock: stock || decision.stock,
+          stock: stock || undefined,
         });
       }
       return;
     }
 
-    if (!stock || !decision.amount) {
+    if (!authorization.ok || authorization.side !== "buy" || !authorization.amount) {
+      logger.info("auto_trade_skipped", {
+        route: "autoExecute",
+        userId,
+        reason:
+          !authorization.ok
+            ? `not_authorized:${authorization.code}`
+            : "not_buy",
+      });
       return;
     }
 
@@ -279,7 +296,7 @@ export async function executeTradeIfAutoEnabled(
 
     const result = await executeTradeSafe(supabase, userId, {
       stock,
-      amount: decision.amount,
+      amount: authorization.amount,
       portfolioValue: context.portfolioValue,
       marketTrend: context.marketTrend,
     });

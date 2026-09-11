@@ -258,6 +258,10 @@ export type Database = {
           confidence: number;
           reason: string;
           actions: string[];
+          artifact: Json | null;
+          frozen_at: string | null;
+          schema_version: string | null;
+          intent: string | null;
           created_at: string;
         };
         Insert: {
@@ -270,6 +274,10 @@ export type Database = {
           confidence: number;
           reason: string;
           actions?: string[];
+          artifact?: Json | null;
+          frozen_at?: string | null;
+          schema_version?: string | null;
+          intent?: string | null;
           created_at?: string;
         };
         Update: {
@@ -280,6 +288,10 @@ export type Database = {
           confidence?: number;
           reason?: string;
           actions?: string[];
+          artifact?: Json | null;
+          frozen_at?: string | null;
+          schema_version?: string | null;
+          intent?: string | null;
         };
         Relationships: [];
       };

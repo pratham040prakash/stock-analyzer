@@ -3,11 +3,6 @@ import {
   getActiveBrokerConnection,
   markBrokerConnectionExpired,
 } from "@/services/broker/connections";
-import { evaluateDailyDecision } from "@/services/decision/engine";
-import { logDecisionSafe } from "@/services/decision/decisionMemory";
-import { getAdaptiveWeightsSafe } from "@/services/decision/selfLearning";
-import { getMarketRegime } from "@/services/decision/stockScoring";
-import { saveDailyDecision } from "@/services/decision/repository";
 import {
   computePortfolioMetrics,
   fetchZerodhaHoldings,
@@ -21,18 +16,23 @@ import {
 } from "@/services/portfolio/repository";
 import { syncBrokerActivityFromKite } from "@/services/trade/syncBrokerActivity";
 import type { Database } from "@/types/database";
-import type { DailyDecisionOutput } from "@/types/decision";
 import type { Portfolio } from "@/types/portfolio";
 import type { MentorDecision } from "@/types/mentorDecision";
 
 type Client = SupabaseClient<Database>;
+
+/**
+ * Wave 1 invariant: the sync path may refresh portfolio/broker/mentor
+ * source data only. It must never produce or overwrite the frozen daily
+ * decision artifact — that authority lives exclusively behind
+ * /api/decision/today (single canonical producer).
+ */
 
 export type SyncResult =
   | {
       status: "OK";
       portfolio: Portfolio;
       mentorDecision: MentorDecision;
-      dailyDecision: DailyDecisionOutput;
       brokerActivity?: {
         imported: number;
         skipped: number;
@@ -97,37 +97,13 @@ export async function syncUserPortfolio(
 
   await saveMentorOutput(supabase, userId, mentorResult);
 
-  const dailyDecision = await evaluateDailyDecision({
-    portfolioSnapshot: {
-      holdings: portfolio.holdings,
-      total_value: metrics.totalValue,
-      pnl: metrics.pnl,
-    },
-    financialProfile,
-    lastMentorOutput: mentorResult.decision,
-    adaptiveSignalWeights: await getAdaptiveWeightsSafe(supabase, userId),
-    supabase,
-    userId,
-  });
-
-  const marketTrend = await getMarketRegime();
-  await logDecisionSafe(supabase, dailyDecision, {
-    userId,
-    marketTrend,
-    portfolioSnapshot: {
-      holdings: portfolio.holdings,
-      total_value: metrics.totalValue,
-      pnl: metrics.pnl,
-    },
-  });
-
-  await saveDailyDecision(supabase, userId, dailyDecision);
+  // Wave 1: do NOT produce or persist a daily decision here. The frozen
+  // artifact is produced exclusively by /api/decision/today.
 
   return {
     status: "OK",
     portfolio,
     mentorDecision: mentorResult.decision,
-    dailyDecision,
     brokerActivity,
   };
 }

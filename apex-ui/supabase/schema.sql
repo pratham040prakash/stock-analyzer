@@ -59,12 +59,16 @@ create table if not exists public.decisions (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   decision_date date not null default (timezone('utc', now()))::date,
-  decision text not null check (decision in ('BUY_MORE', 'HOLD', 'REDUCE', 'WAIT')),
+  decision text not null check (decision in ('BUY_MORE', 'HOLD', 'REDUCE', 'WAIT', 'EXPLORE')),
   action text not null default 'hold',
   stock text,
   confidence numeric not null check (confidence >= 0 and confidence <= 100),
   reason text not null,
   actions jsonb not null default '[]'::jsonb,
+  artifact jsonb,
+  frozen_at timestamptz,
+  schema_version text,
+  intent text,
   created_at timestamptz not null default now(),
   unique (user_id, decision_date)
 );
@@ -127,6 +131,12 @@ create policy "decisions_select_own"
 
 create policy "decisions_insert_own"
   on public.decisions for insert
+  with check (auth.uid() = user_id);
+
+create policy "decisions_update_own"
+  on public.decisions for update
+  to authenticated
+  using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
 create table if not exists public.decision_memory (

@@ -1,11 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
 import type {
-  DailyDecisionOutput,
-  DailyDecisionType,
-  DecisionActionType,
+  DailyDecisionArtifact,
 } from "@/types/decision";
-import { dailyDecisionTypeToAction } from "@/types/decision";
+import { validateDailyDecisionArtifact } from "@/types/decision";
 import type { DecisionHistoryEntry } from "@/types/decisionHistory";
 import { getDisciplineHistory } from "@/services/decision/disciplineHistory";
 import { tradingDateKey } from "@/lib/dailyLoop/disciplineDates";
@@ -15,9 +13,16 @@ type Client = SupabaseClient<Database>;
 export async function saveDailyDecision(
   supabase: Client,
   userId: string,
-  output: DailyDecisionOutput,
+  artifact: DailyDecisionArtifact,
 ): Promise<void> {
+  if (!validateDailyDecisionArtifact(artifact)) {
+    throw new Error("Refusing to persist invalid daily decision artifact");
+  }
   const decisionDate = tradingDateKey();
+  if (artifact.decision_date !== decisionDate) {
+    throw new Error("Refusing to persist artifact for a different trading day");
+  }
+  const output = artifact.projection;
 
   const { error } = await supabase.from("decisions").upsert(
     {
@@ -29,6 +34,10 @@ export async function saveDailyDecision(
       confidence: output.confidence,
       reason: output.reason,
       actions: output.actions,
+      artifact: artifact as unknown as Database["public"]["Tables"]["decisions"]["Insert"]["artifact"],
+      frozen_at: artifact.frozen_at,
+      schema_version: artifact.schema_version,
+      intent: artifact.intent,
     },
     { onConflict: "user_id,decision_date" },
   );
@@ -41,11 +50,11 @@ export async function saveDailyDecision(
 export async function getLatestDailyDecision(
   supabase: Client,
   userId: string,
-): Promise<DailyDecisionOutput | null> {
+): Promise<DailyDecisionArtifact | null> {
   const { data, error } = await supabase
     .from("decisions")
     .select(
-      "decision, action, stock, confidence, reason, actions, created_at, decision_date",
+      "artifact, created_at, decision_date",
     )
     .eq("user_id", userId)
     .order("decision_date", { ascending: false })
@@ -56,43 +65,25 @@ export async function getLatestDailyDecision(
     return null;
   }
 
-  return mapStoredDecision(data);
+  return mapStoredArtifact(data);
 }
 
-function mapStoredDecision(data: {
-  decision: string;
-  action?: string | null;
-  stock?: string | null;
-  confidence: number;
-  reason: string;
-  actions: unknown;
-}): DailyDecisionOutput {
-  const decision = data.decision as DailyDecisionType;
-  const action =
-    (data.action as DecisionActionType | null) ??
-    dailyDecisionTypeToAction(decision);
-
-  return {
-    decision,
-    action,
-    stock: data.stock ?? undefined,
-    confidence: Number(data.confidence),
-    reason: data.reason,
-    confidence_factors: [],
-    actions: Array.isArray(data.actions) ? (data.actions as string[]) : [],
-  };
+function mapStoredArtifact(data: {
+  artifact?: unknown;
+}): DailyDecisionArtifact | null {
+  return validateDailyDecisionArtifact(data.artifact) ? data.artifact : null;
 }
 
 export async function getTodayDailyDecision(
   supabase: Client,
   userId: string,
-): Promise<(DailyDecisionOutput & { created_at: string }) | null> {
+): Promise<DailyDecisionArtifact | null> {
   const today = tradingDateKey();
 
   const { data, error } = await supabase
     .from("decisions")
     .select(
-      "decision, action, stock, confidence, reason, actions, created_at, decision_date",
+      "artifact, created_at, decision_date",
     )
     .eq("user_id", userId)
     .eq("decision_date", today)
@@ -102,10 +93,8 @@ export async function getTodayDailyDecision(
     return null;
   }
 
-  return {
-    ...mapStoredDecision(data),
-    created_at: data.created_at,
-  };
+  // Legacy rows without a complete v1 artifact are intentionally non-executable.
+  return mapStoredArtifact(data);
 }
 
 export async function getDecisionHistory(

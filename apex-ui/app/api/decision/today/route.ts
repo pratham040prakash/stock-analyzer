@@ -31,13 +31,25 @@ import {
   saveDailyDecision,
 } from "@/services/decision/repository";
 import {
+  buildDailyDecisionArtifact,
+  currentMarketState,
+  knownSource,
+  unknownSource,
+} from "@/services/decision/artifact";
+import { projectArtifactDecision } from "@/types/decision";
+import {
   getFinancialProfileFromDb,
   getLatestMentorOutput,
   getLatestPortfolioSnapshotWithMetrics,
 } from "@/services/portfolio/repository";
 import { buildUnconnectedWaitDecision } from "@/lib/onboarding/unconnectedTodayDecision";
 import { createClient } from "@/lib/supabase/server";
-import type { DailyDecisionOutput } from "@/types/decision";
+import { tradingDateKey } from "@/lib/dailyLoop/disciplineDates";
+import { logger } from "@/lib/logging/logger";
+import type {
+  DailyDecisionArtifact,
+  DailyDecisionOutput,
+} from "@/types/decision";
 import type { Intent } from "@/types/intent";
 import { parseUserIntent, resolveIntent } from "@/types/intent";
 import type { Portfolio } from "@/types/portfolio";
@@ -63,28 +75,51 @@ function topAllocationPercent(holdings: Portfolio["holdings"]): number {
   return (topValue / totalValue) * 100;
 }
 
+type AllocationEnrichment = {
+  decision: DailyDecisionOutput;
+  availableCash: number | null;
+  observedAt: string | null;
+  brokerConnected: boolean;
+};
+
 async function enrichDecisionWithAllocation(
   supabase: Client,
   userId: string,
   intent: Intent,
   decision: DailyDecisionOutput,
   holdings: Portfolio["holdings"],
-  portfolioValue: number,
-): Promise<DailyDecisionOutput> {
+  _portfolioValue: number,
+): Promise<AllocationEnrichment> {
   if (decision.action === "wait") {
-    return { ...decision, opportunities: [], recommended_allocation: [] };
+    return {
+      decision: { ...decision, opportunities: [], recommended_allocation: [] },
+      availableCash: null,
+      observedAt: null,
+      brokerConnected: false,
+    };
   }
 
   const connection = await getActiveBrokerConnection(supabase, userId);
+  const brokerConnected = connection?.status === "active";
 
-  if (connection?.status !== "active") {
-    return { ...decision, opportunities: [], recommended_allocation: [] };
+  if (!brokerConnected || !connection?.accessToken) {
+    return {
+      decision: { ...decision, opportunities: [], recommended_allocation: [] },
+      availableCash: null,
+      observedAt: null,
+      brokerConnected: false,
+    };
   }
 
   const marginsResult = await fetchZerodhaMargins(connection.accessToken);
 
   if (marginsResult.status !== "OK") {
-    return { ...decision, opportunities: [], recommended_allocation: [] };
+    return {
+      decision: { ...decision, opportunities: [], recommended_allocation: [] },
+      availableCash: null,
+      observedAt: null,
+      brokerConnected: true,
+    };
   }
 
   const riskMetrics = portfolioRiskFromAllocation(
@@ -139,10 +174,17 @@ async function enrichDecisionWithAllocation(
     };
   }
 
-  return enriched;
+  return {
+    decision: enriched,
+    availableCash: marginsResult.marginAvailable,
+    observedAt: new Date().toISOString(),
+    brokerConnected: true,
+  };
 }
 
-async function resolveEntryTiming(decision: DailyDecisionOutput) {
+async function resolveEntryTiming(
+  decision: DailyDecisionOutput,
+): Promise<{ enter: boolean; reason: string }> {
   if (decision.action !== "buy" || !decision.stock) {
     return { enter: false, reason: "" };
   }
@@ -153,6 +195,7 @@ async function resolveEntryTiming(decision: DailyDecisionOutput) {
 function decisionResponsePayload(
   decision: DailyDecisionOutput,
   intent: Intent,
+  artifact: DailyDecisionArtifact | null,
   extras: Record<string, unknown> = {},
 ) {
   const allocation = decision.recommended_allocation ?? [];
@@ -171,6 +214,32 @@ function decisionResponsePayload(
     allocationReason: decision.allocationReason ?? null,
     confidenceMetrics: decision.confidenceMetrics ?? null,
     structureScore: decision.structureScore ?? null,
+    artifact: artifact
+      ? {
+          schema_version: artifact.schema_version,
+          decision_id: artifact.decision_id,
+          decision_date: artifact.decision_date,
+          frozen_at: artifact.frozen_at,
+          intent: artifact.intent,
+          action: artifact.action,
+          symbol:
+            artifact.symbol.status === "known" ? artifact.symbol.value : null,
+          approved_size: artifact.approved_size,
+          daily_verdict: artifact.daily_verdict,
+          tradingLocked: artifact.tradingLocked,
+          entryConfirmed: artifact.entryConfirmed,
+          blockers: artifact.blockers,
+          capital_state: artifact.capital_state,
+          broker_state: artifact.broker_state,
+          market_state: artifact.market_state,
+          source_timestamps: artifact.source_timestamps,
+          evidence_ids: artifact.evidence_ids,
+        }
+      : null,
+    daily_verdict: artifact?.daily_verdict ?? null,
+    trading_locked: artifact?.tradingLocked ?? null,
+    entry_confirmed: artifact?.entryConfirmed ?? null,
+    blockers: artifact?.blockers ?? [],
     ...extras,
   };
 }
@@ -187,13 +256,30 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const intent = resolveIntent(parseUserIntent(searchParams.get("intent")));
+  const refresh = searchParams.get("refresh") === "1";
 
   const stored = await getTodayDailyDecision(supabase, user.id);
+
+  // Wave 1 invariant: freeze-once. A valid stored artifact is the single
+  // authority for today. Never recompute, never auto-execute again, never
+  // overwrite unless an explicit ?refresh=1 arrives.
+  if (stored && !refresh) {
+    const projected = projectArtifactDecision(stored);
+    const entryTiming = await resolveEntryTiming(projected);
+    return NextResponse.json(
+      decisionResponsePayload(projected, intent, stored, {
+        source: "artifact",
+        created_at: stored.frozen_at,
+        entryTiming,
+      }),
+    );
+  }
 
   let snapshot = await getLatestPortfolioSnapshotWithMetrics(
     supabase,
     user.id,
   );
+  let portfolioObservedAt: string | null = null;
 
   const livePortfolio = await fetchLiveKitePortfolioCached(supabase, user.id);
   if (livePortfolio.status === "OK" && livePortfolio.holdings.length > 0) {
@@ -207,24 +293,13 @@ export async function GET(request: Request) {
       total_value: metrics.totalValue,
       pnl: metrics.pnl,
     };
+    portfolioObservedAt = new Date().toISOString();
   }
 
   if (!snapshot) {
-    if (stored) {
-      const { created_at, ...decision } = stored;
-      const entryTiming = await resolveEntryTiming(decision);
-      return NextResponse.json(
-        decisionResponsePayload(decision, intent, {
-          source: "database",
-          created_at,
-          entryTiming,
-        }),
-      );
-    }
-
     const onboardingDecision = buildUnconnectedWaitDecision(intent);
     return NextResponse.json(
-      decisionResponsePayload(onboardingDecision, intent, {
+      decisionResponsePayload(onboardingDecision, intent, null, {
         source: "onboarding",
       }),
     );
@@ -252,7 +327,7 @@ export async function GET(request: Request) {
     userId: user.id,
   });
 
-  const decision = await enrichDecisionWithAllocation(
+  const enrichment = await enrichDecisionWithAllocation(
     supabase,
     user.id,
     intent,
@@ -260,6 +335,7 @@ export async function GET(request: Request) {
     snapshot.portfolio.holdings,
     snapshot.total_value || metrics.totalValue,
   );
+  const decision = enrichment.decision;
 
   const marketTrend = await getMarketRegime();
   await logDecisionSafe(supabase, decision, {
@@ -273,27 +349,89 @@ export async function GET(request: Request) {
     },
   });
 
-  // BUG-003: auto-trade at most once per trading day — not on every refresh/intent poll.
-  if (!stored) {
-    await executeTradeIfAutoEnabled(supabase, user.id, decision, {
-      portfolioValue: snapshot.total_value || metrics.totalValue,
-      marketTrend,
+  const entryTiming = await resolveEntryTiming(decision);
+  const frozenAt = new Date().toISOString();
+  const decisionDate = tradingDateKey();
+
+  const artifact = buildDailyDecisionArtifact({
+    userId: user.id,
+    decisionDate,
+    frozenAt,
+    intent,
+    decision,
+    portfolio: {
+      holdings: snapshot.portfolio.holdings,
+      total_value: snapshot.total_value || metrics.totalValue,
+      pnl: snapshot.pnl || metrics.pnl,
+    },
+    portfolioObservedAt,
+    capital:
+      enrichment.availableCash !== null && enrichment.observedAt
+        ? knownSource(
+            {
+              available_cash_inr: Math.round(enrichment.availableCash),
+              portfolio_value_inr: Math.round(
+                snapshot.total_value || metrics.totalValue,
+              ),
+            },
+            enrichment.observedAt,
+          )
+        : unknownSource(
+            enrichment.brokerConnected
+              ? "Broker margins unavailable"
+              : "Broker not connected",
+          ),
+    broker: enrichment.brokerConnected
+      ? knownSource(
+          { broker: "zerodha", connection: "connected" },
+          enrichment.observedAt ?? frozenAt,
+        )
+      : unknownSource("Broker not connected"),
+    market: currentMarketState(marketTrend, frozenAt),
+    entry:
+      decision.action === "buy"
+        ? entryTiming.enter
+          ? knownSource(
+              { confirmed: true, reason: entryTiming.reason || "Entry confirmed" },
+              frozenAt,
+            )
+          : knownSource(
+              { confirmed: false, reason: entryTiming.reason || "Entry not confirmed" },
+              frozenAt,
+            )
+        : knownSource(
+            { confirmed: true, reason: "Non-buy action" },
+            frozenAt,
+          ),
+  });
+
+  let persisted: DailyDecisionArtifact | null = null;
+  try {
+    await saveDailyDecision(supabase, user.id, artifact);
+    persisted = await getTodayDailyDecision(supabase, user.id);
+  } catch (error) {
+    logger.warn("daily_decision_persist_failed", {
+      route: "api/decision/today",
+      userId: user.id,
+      message: error instanceof Error ? error.message : "unknown",
     });
   }
 
-  try {
-    await saveDailyDecision(supabase, user.id, decision);
-  } catch {
-    // History persistence should not block today's decision.
-  }
+  // Auto-execute only after the artifact has been persisted, and only
+  // when it authorises the exact BUY. The autoExecute path validates.
+  await executeTradeIfAutoEnabled(supabase, user.id, persisted, {
+    portfolioValue: snapshot.total_value || metrics.totalValue,
+    marketTrend,
+  });
 
-  const storedAfterSave = await getTodayDailyDecision(supabase, user.id);
-  const entryTiming = await resolveEntryTiming(decision);
+  const projection = persisted
+    ? projectArtifactDecision(persisted)
+    : decision;
 
   return NextResponse.json(
-    decisionResponsePayload(decision, intent, {
-      source: storedAfterSave ? "database" : "computed",
-      created_at: storedAfterSave?.created_at ?? stored?.created_at,
+    decisionResponsePayload(projection, intent, persisted, {
+      source: persisted ? "artifact" : "computed",
+      created_at: persisted?.frozen_at ?? frozenAt,
       entryTiming,
     }),
   );

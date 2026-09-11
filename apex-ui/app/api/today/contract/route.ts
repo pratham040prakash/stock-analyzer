@@ -22,6 +22,7 @@ import {
   readServerContract,
   writeServerContract,
 } from "@/services/desk/contractStore";
+import { getTodayDailyDecision } from "@/services/decision/repository";
 
 export const dynamic = "force-dynamic";
 
@@ -106,6 +107,32 @@ export async function PUT(request: Request) {
 
   if (!body?.kiteLine || !body?.rule || !body?.dateKey) {
     return apiError("kiteLine, rule, and dateKey are required", 400);
+  }
+
+  // Wave 1: contract's watchSymbol must match today's frozen artifact
+  // when both are set. Freeform contracts that contradict the decision
+  // are refused so Today cannot be overridden from the client.
+  const artifact = await getTodayDailyDecision(supabase, user.id);
+  if (artifact) {
+    const artifactSymbol =
+      artifact.symbol.status === "known"
+        ? artifact.symbol.value.trim().toUpperCase()
+        : null;
+    const watchSymbol = body.watchSymbol?.trim().toUpperCase();
+
+    if (artifactSymbol && watchSymbol && watchSymbol !== artifactSymbol) {
+      return apiError(
+        `Today's decision is ${artifactSymbol} — refused watchSymbol ${watchSymbol}.`,
+        409,
+      );
+    }
+
+    if (artifact.tradingLocked && watchSymbol) {
+      return apiError(
+        "Today's decision is locked — cannot assign a watch symbol.",
+        409,
+      );
+    }
   }
 
   const saved = await writeServerContract(createAdminClient(), user.id, body);

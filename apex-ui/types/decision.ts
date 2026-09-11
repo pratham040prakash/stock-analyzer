@@ -9,6 +9,87 @@ import { portfolioRiskFromAllocation } from "@/lib/portfolioRisk";
 import { formatInr } from "@/lib/funds";
 import type { Intent } from "@/types/intent";
 
+export const DAILY_DECISION_ARTIFACT_SCHEMA_VERSION = "1" as const;
+
+export type DailyVerdictV1 = "trade" | "wait" | "pause";
+
+export type ExplicitUnknown<T> =
+  | { status: "known"; value: T; observed_at: string }
+  | { status: "unknown"; value: null; observed_at: null; reason: string };
+
+export type ApprovedDecisionSize =
+  | { kind: "buy_amount"; amount_inr: number }
+  | { kind: "sell_percent"; percent: number }
+  | { kind: "none" };
+
+export type FrozenPortfolioPosition = {
+  symbol: string;
+  quantity: number;
+  average_price: number;
+  marked_price: number;
+  market_value: number;
+};
+
+export type DecisionEvidenceMetadata = {
+  id: string;
+  type: "FACT" | "ASSUMPTION" | "ESTIMATE" | "OPINION";
+  source: string;
+  summary: string;
+  observed_at: string | null;
+};
+
+/**
+ * The immutable, executable decision record for one trading day.
+ * Unknown source values are represented explicitly and always fail closed.
+ */
+export type DailyDecisionArtifact = {
+  schema_version: typeof DAILY_DECISION_ARTIFACT_SCHEMA_VERSION;
+  decision_id: string;
+  decision_date: string;
+  frozen_at: string;
+  intent: Intent;
+  action: DecisionActionType;
+  symbol: ExplicitUnknown<string>;
+  approved_size: ApprovedDecisionSize;
+  daily_verdict: DailyVerdictV1;
+  tradingLocked: boolean;
+  entryConfirmed: boolean;
+  capital_state: ExplicitUnknown<{
+    available_cash_inr: number;
+    portfolio_value_inr: number;
+  }>;
+  broker_state: ExplicitUnknown<{
+    broker: "zerodha";
+    connection: "connected";
+  }>;
+  market_state: ExplicitUnknown<{
+    trend: MarketTrend;
+    session: string;
+  }>;
+  source_timestamps: {
+    portfolio: ExplicitUnknown<string>;
+    capital: ExplicitUnknown<string>;
+    broker: ExplicitUnknown<string>;
+    market: ExplicitUnknown<string>;
+    entry: ExplicitUnknown<string>;
+  };
+  evidence_ids: string[];
+  evidence: DecisionEvidenceMetadata[];
+  blockers: string[];
+  decision_metadata: {
+    producer: "getDecision/evaluateDailyDecision";
+    confidence: number;
+    reason: string;
+    confidence_factors: string[];
+  };
+  frozen_portfolio: {
+    positions: FrozenPortfolioPosition[];
+    total_value_inr: number;
+    pnl_inr: number;
+  };
+  projection: DailyDecisionOutput;
+};
+
 export type DecisionActionType =
   | "sell"
   | "reduce"
@@ -111,6 +192,203 @@ export type DailyDecisionOutput = {
   /** Price structure score (0–100) from support/resistance positioning. */
   structureScore?: number;
 };
+
+function isIsoTimestamp(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    Number.isFinite(Date.parse(value))
+  );
+}
+
+function isExplicitUnknown(value: unknown): value is ExplicitUnknown<unknown> {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Record<string, unknown>;
+  if (candidate.status === "unknown") {
+    return (
+      candidate.value === null &&
+      candidate.observed_at === null &&
+      typeof candidate.reason === "string" &&
+      candidate.reason.length > 0
+    );
+  }
+  return (
+    candidate.status === "known" &&
+    candidate.value !== null &&
+    candidate.value !== undefined &&
+    isIsoTimestamp(candidate.observed_at)
+  );
+}
+
+export function validateDailyDecisionArtifact(
+  value: unknown,
+): value is DailyDecisionArtifact {
+  if (!value || typeof value !== "object") return false;
+  const artifact = value as Record<string, unknown>;
+  const actions: DecisionActionType[] = [
+    "sell",
+    "reduce",
+    "buy",
+    "hold",
+    "wait",
+    "explore",
+  ];
+  const verdicts: DailyVerdictV1[] = ["trade", "wait", "pause"];
+  const size = artifact.approved_size as Record<string, unknown> | undefined;
+  const validSize =
+    size?.kind === "none" ||
+    (size?.kind === "buy_amount" &&
+      typeof size.amount_inr === "number" &&
+      Number.isFinite(size.amount_inr) &&
+      size.amount_inr > 0) ||
+    (size?.kind === "sell_percent" &&
+      typeof size.percent === "number" &&
+      Number.isFinite(size.percent) &&
+      size.percent > 0 &&
+      size.percent <= 100);
+  const timestamps = artifact.source_timestamps as
+    | Record<string, unknown>
+    | undefined;
+  const metadata = artifact.decision_metadata as
+    | Record<string, unknown>
+    | undefined;
+  const frozen = artifact.frozen_portfolio as
+    | Record<string, unknown>
+    | undefined;
+
+  return Boolean(
+    artifact.schema_version === DAILY_DECISION_ARTIFACT_SCHEMA_VERSION &&
+      typeof artifact.decision_id === "string" &&
+      /^\d{4}-\d{2}-\d{2}$/.test(String(artifact.decision_date)) &&
+      isIsoTimestamp(artifact.frozen_at) &&
+      ["grow", "protect", "explore"].includes(String(artifact.intent)) &&
+      actions.includes(artifact.action as DecisionActionType) &&
+      verdicts.includes(artifact.daily_verdict as DailyVerdictV1) &&
+      typeof artifact.tradingLocked === "boolean" &&
+      typeof artifact.entryConfirmed === "boolean" &&
+      isExplicitUnknown(artifact.symbol) &&
+      validSize &&
+      isExplicitUnknown(artifact.capital_state) &&
+      isExplicitUnknown(artifact.broker_state) &&
+      isExplicitUnknown(artifact.market_state) &&
+      timestamps &&
+      ["portfolio", "capital", "broker", "market", "entry"].every((key) =>
+        isExplicitUnknown(timestamps[key]),
+      ) &&
+      Array.isArray(artifact.evidence_ids) &&
+      Array.isArray(artifact.evidence) &&
+      Array.isArray(artifact.blockers) &&
+      metadata?.producer === "getDecision/evaluateDailyDecision" &&
+      typeof metadata.confidence === "number" &&
+      typeof metadata.reason === "string" &&
+      Array.isArray(metadata.confidence_factors) &&
+      Array.isArray(frozen?.positions) &&
+      typeof frozen?.total_value_inr === "number" &&
+      typeof frozen?.pnl_inr === "number" &&
+      artifact.projection &&
+      typeof artifact.projection === "object",
+  );
+}
+
+export function projectArtifactDecision(
+  artifact: DailyDecisionArtifact,
+): DailyDecisionOutput {
+  const projection = artifact.projection;
+  const symbol =
+    artifact.symbol.status === "known" ? artifact.symbol.value : undefined;
+  const amount =
+    artifact.approved_size.kind === "buy_amount"
+      ? artifact.approved_size.amount_inr
+      : undefined;
+  const suggestedSellPercent =
+    artifact.approved_size.kind === "sell_percent"
+      ? artifact.approved_size.percent
+      : undefined;
+
+  return {
+    ...projection,
+    intent: artifact.intent,
+    action: artifact.action,
+    stock: symbol,
+    amount,
+    suggested_sell_percent: suggestedSellPercent,
+  };
+}
+
+export function chooseFrozenArtifact(
+  stored: DailyDecisionArtifact | null,
+  refresh: boolean,
+): DailyDecisionArtifact | null {
+  return stored && !refresh ? stored : null;
+}
+
+export function runDecisionArtifactSelfCheck(): void {
+  const now = "2026-09-11T09:00:00.000Z";
+  const unknown = {
+    status: "unknown" as const,
+    value: null,
+    observed_at: null,
+    reason: "not available",
+  };
+  const artifact: DailyDecisionArtifact = {
+    schema_version: DAILY_DECISION_ARTIFACT_SCHEMA_VERSION,
+    decision_id: "2026-09-11-user",
+    decision_date: "2026-09-11",
+    frozen_at: now,
+    intent: "grow",
+    action: "wait",
+    symbol: unknown,
+    approved_size: { kind: "none" },
+    daily_verdict: "wait",
+    tradingLocked: true,
+    entryConfirmed: false,
+    capital_state: unknown,
+    broker_state: unknown,
+    market_state: unknown,
+    source_timestamps: {
+      portfolio: unknown,
+      capital: unknown,
+      broker: unknown,
+      market: unknown,
+      entry: unknown,
+    },
+    evidence_ids: ["reason"],
+    evidence: [
+      {
+        id: "reason",
+        type: "FACT",
+        source: "decision_engine",
+        summary: "Wait",
+        observed_at: now,
+      },
+    ],
+    blockers: ["Capital state unknown"],
+    decision_metadata: {
+      producer: "getDecision/evaluateDailyDecision",
+      confidence: 50,
+      reason: "Wait",
+      confidence_factors: [],
+    },
+    frozen_portfolio: { positions: [], total_value_inr: 0, pnl_inr: 0 },
+    projection: {
+      decision: "WAIT",
+      action: "wait",
+      confidence: 50,
+      reason: "Wait",
+      confidence_factors: [],
+      actions: [],
+    },
+  };
+  if (!validateDailyDecisionArtifact(artifact)) {
+    throw new Error("Decision artifact self-check failed: valid v1 rejected");
+  }
+  if (chooseFrozenArtifact(artifact, false) !== artifact) {
+    throw new Error("Decision artifact self-check failed: freeze changed artifact");
+  }
+  if (chooseFrozenArtifact(artifact, true) !== null) {
+    throw new Error("Decision artifact self-check failed: refresh did not recompute");
+  }
+}
 
 export type PortfolioSnapshotInput = {
   holdings: import("@/types/portfolio").Portfolio["holdings"];
